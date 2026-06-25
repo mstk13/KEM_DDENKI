@@ -1,0 +1,26 @@
+# 環境変数・機密情報
+.env
+*.env
+.env.*
+
+# データベース
+*.db
+*.sqlite
+*.sqlite3
+
+# 収集データ・書類
+/data/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+
+# OS / エディタ
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
