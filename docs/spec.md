@@ -18,11 +18,34 @@
 | 言語 | Python 3.11以上 |
 | フロントエンド | Streamlit |
 | バックエンド | Python（Streamlitに内包） |
-| データベース | SQLite（`database.db`） |
+| データベース | SQLite（フェーズ1〜2）→ PostgreSQL（ミニPC導入後） |
 | スクレイピング | Playwright + BeautifulSoup4 |
-| スケジュール実行 | cron（Mac/Linux）または GitHub Actions |
+| スケジュール実行 | Windowsタスクスケジューラ（母親PC）→ cron（ミニPC導入後） |
 | メール通知 | smtplib（Gmail SMTP） |
 | グラフ描画 | Plotly |
+| バックアップ | Google Drive（毎日自動） |
+
+---
+
+## 2.1 データベース運用方針
+
+### フェーズ1〜2：SQLite + 自動バックアップ
+- `database.db` を母親のWindowsPC上に保存
+- 毎日深夜にGoogle Driveへ自動バックアップ
+- バックアップスクリプト例：
+```python
+import shutil, datetime
+
+def backup_to_drive():
+    date_str = datetime.date.today().strftime("%Y%m%d")
+    shutil.copy("database.db", f"backup/database_{date_str}.db")
+    # Google Drive APIでアップロード
+```
+
+### フェーズ3以降：PostgreSQLへ移行
+- ミニPCにPostgreSQLをインストール
+- 複数端末（母親PC・スマホ）から同時アクセス可能に
+- SQLiteからPostgreSQLへのデータ移行スクリプトも作成予定
 
 ---
 
@@ -325,6 +348,77 @@ Phase 3以降に導入予定。
 
 - **ツール：** ChromaDB または Qdrant（どちらも無料・ローカル動作可能）
 - **用途：** 「この案件に似た過去案件を探す」「この仕様書に合う見積もりを自動提案する」
+
+---
+
+## 10.7 RAG（Retrieval-Augmented Generation）実装計画
+
+### RAGとは
+AIモデル自体を再訓練するのではなく、蓄積したデータをAIに「参照」させて回答させる仕組み。
+データが100件程度貯まったタイミングで実装を開始する。
+
+---
+
+### RAG実装フェーズ
+
+| フェーズ | 内容 | 必要なデータ量 | 使用ツール |
+|----------|------|---------------|-----------|
+| RAG-1 | 類似案件の検索・提案 | 50件以上 | ChromaDB + Claude API |
+| RAG-2 | 見積金額の自動提案 | 100件以上 | ChromaDB + Claude API |
+| RAG-3 | 受注確率の予測 | 200件以上 | ChromaDB + Claude API |
+| RAG-4 | 見積書・書類の自動生成 | 300件以上 | ChromaDB + Claude API |
+
+---
+
+### RAG-1 実装イメージ（類似案件の検索）
+
+```python
+# ユーザーが新着案件を見たときに類似過去案件を自動提案
+def suggest_similar_projects(new_project):
+    # 1. 新着案件のテキストをベクトル化
+    # 2. ChromaDBで類似案件を検索
+    # 3. Claude APIに過去案件データを渡して分析
+
+    prompt = f"""
+    新着案件：{new_project}
+    類似過去案件：{similar_projects}
+
+    以下を提案してください：
+    1. 適切な見積金額の範囲
+    2. 受注できた理由・失注した理由
+    3. 競合との差別化ポイント
+    """
+
+    response = claude_api.call(prompt)
+    return response
+```
+
+---
+
+### RAGに必要なデータの流れ
+
+```
+SQLite（構造化データ）
+  └── 案件情報・費用・競合データ
+          ↓ 定期的に変換
+ChromaDB（ベクトルDB）
+  └── 過去案件の埋め込みベクトル
+          ↓ 類似検索
+Claude API（RAG）
+  └── 参照データをもとに回答生成
+          ↓
+Streamlit UI
+  └── 見積提案・受注予測・書類生成
+```
+
+---
+
+### 今からやっておくべきこと（RAG準備）
+
+1. **メモ欄を必ず埋める**：「なぜこの金額にしたか」「どこで負けたか」を記述する
+2. **金額は必ず数値型で保存**：テキストで入力しない
+3. **案件種別を統一する**：「電気工事」「電気設備」など表記を揃える
+4. **書類はフォルダに保存**：案件IDでフォルダ管理を徹底する
 
 ---
 

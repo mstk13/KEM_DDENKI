@@ -1,0 +1,9 @@
+streamlit>=1.30
+pandas>=2.0
+plotly>=5.18
+requests>=2.31
+beautifulsoup4>=4.12
+python-dotenv>=1.0
+# JavaScript描画サイトをスクレイピングする場合のみ（任意）:
+#   pip install playwright && playwright install chromium
+playwright>=1.40
