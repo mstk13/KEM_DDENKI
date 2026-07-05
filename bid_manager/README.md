@@ -36,10 +36,19 @@ streamlit run app.py        # アプリ起動 -> http://localhost:8501
 
 ```dotenv
 GMAIL_USER=your-email@gmail.com          # Gmail アドレス
-GMAIL_PASSWORD=your-app-password         # Gmail アプリパスワード（2段階認証必須）
+GMAIL_PASSWORD=xxxx-xxxx-xxxx-xxxx       # Gmail アプリパスワード（16文字、2段階認証必須）
 BID_EMAIL_TO=user1@example.com,user2@example.com  # 通知先（カンマ区切り）
 # BID_USE_PLAYWRIGHT=1                   # JS描画サイトのスクレイピングに Playwright を使う
 # BID_DB_PATH=/path/to/database.db       # DB ファイルの場所（デフォルト: カレントディレクトリ）
+```
+
+### GEPS（政府電子調達）連携
+
+案件の自動収集には GEPS の調達情報通知メールを使います。
+詳しいセットアップ手順は **[`../docs/geps_setup.md`](../docs/geps_setup.md)** を参照してください。
+
+```
+GEPS で通知条件設定 → Gmail にメールが届く → email_importer.py が自動取り込み → アプリに表示
 ```
 
 ## 画面一覧（Streamlit 6画面）

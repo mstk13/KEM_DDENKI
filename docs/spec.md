@@ -302,9 +302,21 @@ SCRAPE_INTERVAL = 2
 
 ## 7. 環境変数（`.env`）
 
+```dotenv
+GMAIL_USER=your-email@gmail.com          # GEPS 通知の受信先 Gmail アドレス
+GMAIL_PASSWORD=xxxx-xxxx-xxxx-xxxx       # Gmail アプリパスワード（2段階認証 → アプリパスワード発行）
+BID_EMAIL_TO=manager@example.com         # 新着案件の通知メール送信先（カンマ区切り）
 ```
-GMAIL_USER=your-email@gmail.com
-GMAIL_PASSWORD=your-app-password
+
+### GEPS 連携
+
+案件の自動収集は GEPS（政府電子調達）の調達情報通知メールを利用する。
+サイトスクレイピングと違い、サイト構造の変更に影響されず、全省庁の案件を網羅できる。
+
+**セットアップ手順は [`docs/geps_setup.md`](geps_setup.md) を参照。**
+
+```
+GEPS で通知条件設定 → Gmail にメールが届く → email_importer.py が自動取り込み → アプリに表示
 ```
 
 ---

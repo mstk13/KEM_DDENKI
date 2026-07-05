@@ -12,13 +12,22 @@
 |--------|------|------|--------|
 | 入札案件管理システム | 入札案件の収集・管理・原価分析を行うWebアプリ（Streamlit + SQLite） | [bid_manager/](bid_manager/) | [docs/spec.md](docs/spec.md) |
 
+## ドキュメント
+
+| ドキュメント | 内容 |
+|-------------|------|
+| [docs/spec.md](docs/spec.md) | 入札案件管理システム 仕様書 |
+| [docs/geps_setup.md](docs/geps_setup.md) | GEPS 調達情報通知 セットアップガイド |
+| [bid_manager/README.md](bid_manager/README.md) | セットアップ・使い方・ファイル構成 |
+
 ## ディレクトリ構成
 
 ```
 .
 ├── README.md
 ├── docs/                 # 各ツールの仕様書・ドキュメント
-│   └── spec.md           # 入札案件管理システム 仕様書
+│   ├── spec.md           # 入札案件管理システム 仕様書
+│   └── geps_setup.md     # GEPS 調達情報通知 セットアップガイド
 └── bid_manager/          # 入札案件管理システム（実装）
     ├── app.py            #   Streamlit メインアプリ（6画面）
     ├── database.py       #   SQLite スキーマ・CRUD
