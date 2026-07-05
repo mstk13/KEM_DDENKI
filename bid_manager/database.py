@@ -91,6 +91,24 @@ CREATE TABLE IF NOT EXISTS unit_prices (
     memo       TEXT,
     updated_at DATETIME NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS qualifications (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    issuer          TEXT NOT NULL,
+    category        TEXT,
+    grade           TEXT,
+    keisin_score    INTEGER,
+    total_score     INTEGER,
+    vendor_number   TEXT,
+    valid_from      DATE,
+    valid_until     DATE,
+    application_type TEXT,
+    application_method TEXT,
+    renewed         INTEGER NOT NULL DEFAULT 0,
+    memo            TEXT,
+    imported_at     DATETIME NOT NULL,
+    updated_at      DATETIME NOT NULL
+);
 """
 
 
@@ -117,6 +135,15 @@ def add_project(
     """案件を追加。重複（title + source_url）なら None を返してスキップ。"""
     now = _now()
     with get_conn() as conn:
+        # SQLite の UNIQUE 制約は NULL 同士を異なる値として扱うため、
+        # source_url が NULL の場合は title のみで重複チェックする
+        if source_url is None:
+            existing = conn.execute(
+                "SELECT id FROM projects WHERE title = ? AND source_url IS NULL",
+                (title,),
+            ).fetchone()
+            if existing:
+                return None
         try:
             cur = conn.execute(
                 """INSERT INTO projects
@@ -316,6 +343,87 @@ def add_unit_price(
 def list_unit_prices() -> list[sqlite3.Row]:
     with get_conn() as conn:
         return conn.execute("SELECT * FROM unit_prices ORDER BY category, item_name").fetchall()
+
+
+# --------------------------------------------------------------------------- #
+# qualifications（入札参加資格）
+# --------------------------------------------------------------------------- #
+def add_qualification(
+    *,
+    issuer: str,
+    category: Optional[str] = None,
+    grade: Optional[str] = None,
+    keisin_score: Optional[int] = None,
+    total_score: Optional[int] = None,
+    vendor_number: Optional[str] = None,
+    valid_from: Optional[str] = None,
+    valid_until: Optional[str] = None,
+    application_type: Optional[str] = None,
+    application_method: Optional[str] = None,
+    memo: Optional[str] = None,
+) -> int:
+    now = _now()
+    with get_conn() as conn:
+        cur = conn.execute(
+            """INSERT INTO qualifications
+               (issuer, category, grade, keisin_score, total_score, vendor_number,
+                valid_from, valid_until, application_type, application_method,
+                renewed, memo, imported_at, updated_at)
+               VALUES (?,?,?,?,?,?,?,?,?,?,0,?,?,?)""",
+            (issuer, category, grade, keisin_score, total_score, vendor_number,
+             valid_from, valid_until, application_type, application_method,
+             memo, now, now),
+        )
+        return cur.lastrowid
+
+
+def list_qualifications() -> list[sqlite3.Row]:
+    with get_conn() as conn:
+        return conn.execute(
+            "SELECT * FROM qualifications ORDER BY valid_until, issuer"
+        ).fetchall()
+
+
+def get_qualification(qid: int) -> Optional[sqlite3.Row]:
+    with get_conn() as conn:
+        return conn.execute(
+            "SELECT * FROM qualifications WHERE id = ?", (qid,)
+        ).fetchone()
+
+
+def mark_qualification_renewed(qid: int) -> None:
+    with get_conn() as conn:
+        conn.execute(
+            "UPDATE qualifications SET renewed = 1, updated_at = ? WHERE id = ?",
+            (_now(), qid),
+        )
+
+
+def unmark_qualification_renewed(qid: int) -> None:
+    with get_conn() as conn:
+        conn.execute(
+            "UPDATE qualifications SET renewed = 0, updated_at = ? WHERE id = ?",
+            (_now(), qid),
+        )
+
+
+def delete_all_qualifications() -> None:
+    """全資格データを削除（再インポート用）。"""
+    with get_conn() as conn:
+        conn.execute("DELETE FROM qualifications")
+
+
+def list_qualifications_expiring(within_days: int) -> list[sqlite3.Row]:
+    """有効期限が within_days 日以内で、未更新の資格を返す。"""
+    with get_conn() as conn:
+        return conn.execute(
+            """SELECT * FROM qualifications
+               WHERE renewed = 0
+                 AND valid_until IS NOT NULL
+                 AND date(valid_until) <= date('now', ?)
+               ORDER BY valid_until, issuer""",
+            (f"+{within_days} day",),
+        ).fetchall()
 
 
 if __name__ == "__main__":

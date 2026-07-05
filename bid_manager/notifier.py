@@ -25,6 +25,14 @@ def _format_project_line(p: sqlite3.Row) -> str:
     )
 
 
+def _format_qualification_line(q: sqlite3.Row) -> str:
+    grade = q["grade"] or "—"
+    return (
+        f"・{q['issuer']} / {q['category']}（等級: {grade}）\n"
+        f"    有効期限: {q['valid_until']} / 業者番号: {q['vendor_number'] or '—'}"
+    )
+
+
 def build_body(new_projects: Sequence[sqlite3.Row]) -> str:
     lines: list[str] = []
     lines.append(f"本日の新着入札案件: {len(new_projects)} 件\n")
@@ -40,6 +48,31 @@ def build_body(new_projects: Sequence[sqlite3.Row]) -> str:
     if soon:
         lines.append(f"■ 締め切り {config.DEADLINE_ALERT_DAYS} 日以内の要対応案件")
         lines.extend(_format_project_line(p) for p in soon)
+        lines.append("")
+
+    # 入札資格の更新アラート
+    from datetime import date, timedelta
+    today = date.today()
+    # 当月末
+    if today.month == 12:
+        month_end = date(today.year + 1, 1, 1) - timedelta(days=1)
+    else:
+        month_end = date(today.year, today.month + 1, 1) - timedelta(days=1)
+    days_to_month_end = (month_end - today).days
+
+    expiring_now = db.list_qualifications_expiring(within_days=days_to_month_end)
+    expiring_soon = db.list_qualifications_expiring(within_days=days_to_month_end + 31)
+    soon_ids = {q["id"] for q in expiring_now}
+    expiring_next = [q for q in expiring_soon if q["id"] not in soon_ids]
+
+    if expiring_now:
+        lines.append(f"■ 🚨 今月中に有効期限が切れる入札資格（{len(expiring_now)} 件）")
+        lines.extend(_format_qualification_line(q) for q in expiring_now)
+        lines.append("")
+
+    if expiring_next:
+        lines.append(f"■ ⚠️ 来月に有効期限が切れる入札資格（{len(expiring_next)} 件）— 更新準備を")
+        lines.extend(_format_qualification_line(q) for q in expiring_next)
 
     return "\n".join(lines) if lines else "本日の新着案件はありませんでした。"
 

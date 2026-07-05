@@ -53,14 +53,20 @@ def backup_to_drive():
 
 ```
 project/
-├── app.py                  # Streamlitメインアプリ
-├── scraper.py              # スクレイピング処理
-├── database.py             # DB操作
-├── notifier.py             # メール通知
-├── scheduler.py            # 定期実行スクリプト
-├── config.py               # 設定（URL・キーワード・メールアドレスなど）
+├── app.py                  # Streamlitメインアプリ（6画面）
+├── scraper.py              # スクレイピング（requests/BS4、任意で Playwright）
+├── database.py             # SQLite スキーマと CRUD
+├── notifier.py             # メール通知（新着案件 + 資格期限アラート）
+├── scheduler.py            # 定期実行（スクレイピング + メール取込 + 通知）
+├── email_importer.py       # GEPS 通知メールからの案件取込（IMAP）
+├── importer.py             # 入札参加資格の Excel/PDF インポート
+├── pw_login.py             # Playwright Cookie管理（Cloudflare保護サイト対応）
+├── config.py               # 設定（キーワード・エリア・ステータス等）
+├── seed.py                 # デモデータ投入
 ├── database.db             # SQLiteデータベース
 ├── requirements.txt        # 依存パッケージ
+├── browser_data/           # Playwright の Cookie 永続化フォルダ
+├── pw_targets.json         # Playwright 対象サイト定義（任意）
 └── .env                    # 環境変数（APIキー・パスワードなど）
 ```
 
@@ -131,6 +137,31 @@ project/
 
 ---
 
+### 4.5 入札参加資格テーブル（`qualifications`）
+
+| カラム名 | 型 | 説明 |
+|----------|-----|------|
+| id | INTEGER PRIMARY KEY | ID |
+| issuer | TEXT | 発注先（例：国土交通省、財務省(関東財務局)） |
+| category | TEXT | 認定種目（例：電気工事、電気通信） |
+| grade | TEXT | 等級（A, B, C, D） |
+| keisin_score | INTEGER | 経審点数 |
+| total_score | INTEGER | 総合点数 |
+| vendor_number | TEXT | 業者番号 |
+| valid_from | DATE | 有効期間開始日 |
+| valid_until | DATE | 有効期間終了日 |
+| application_type | TEXT | 申請区分（一元定期、随時申請） |
+| application_method | TEXT | 申請方法（インターネット、郵送） |
+| renewed | INTEGER | 更新済みフラグ（0=未更新, 1=更新済） |
+| memo | TEXT | 備考 |
+| imported_at | DATETIME | インポート日時 |
+| updated_at | DATETIME | 更新日時 |
+
+**データ投入方法：** Excel（.xlsx）またはPDF（.pdf）をStreamlit UIからアップロードしてインポート。
+**更新アラート：** 有効期限の1ヶ月前（黄色警告）と当月（赤色警告）に画面とメールで通知。更新済みにチェックすればアラートは消える。
+
+---
+
 ## 5. 機能仕様
 
 ### 5.1 フェーズ1：案件収集・一覧表示
@@ -141,9 +172,34 @@ project/
   - 対象キーワード：`電気工事` `電気設備` `照明` `配線` `受変電` `幹線` `動力` `弱電`
 - 新規案件のみDBに保存（重複チェックあり）
 - 毎朝6時に自動実行（cron設定）
+- 取得方式は2系統：
+  - 既定: requests + BeautifulSoup（軽量・静的HTML向け）
+  - `BID_USE_PLAYWRIGHT=1`: Playwright（JavaScript描画サイト向け）
+- サイト個別の精度向上は `config.SITE_SELECTORS` で CSS セレクタを指定
+
+#### GEPSメール取込（`email_importer.py`）
+- GEPS（政府電子調達）の通知メールを Gmail IMAP で取得し、案件としてDBに登録
+- 送信元・件名に「調達」「GEPS」「p-portal」「入札」を含むメールを検索
+- メール本文から調達案件名・調達機関・所在地・締切日・URLをパースして抽出
+- 使い方：
+  - `python email_importer.py` — 未読のGEPS通知を取り込み
+  - `python email_importer.py --days 7` — 過去7日分を取り込み
+  - `python email_importer.py --dry-run` — DB保存せずプレビューのみ
+- 前提: Gmail で IMAP 有効化済み、`.env` に `GMAIL_USER` / `GMAIL_PASSWORD`（アプリパスワード）設定済み
+
+#### Playwright Cookie管理（`pw_login.py`）
+- Cloudflare 保護サイト（防衛省等）への Cookie ベースのアクセスを管理
+- 初回はブラウザを開いて手動で Cloudflare チャレンジを通過 → Cookie が `browser_data/` に永続化
+- 2回目以降は保存済み Cookie で自動アクセス
+- 使い方：
+  - `python pw_login.py` — Cookie 保存（初回/更新時）
+  - `python pw_login.py --check` — Cookie の有効性確認
+  - `python pw_login.py --scrape` — 保存済み Cookie で案件収集
+- ターゲットサイトは `pw_targets.json` で管理（デフォルト: 防衛省 航空自衛隊・海上自衛隊 横須賀）
 
 #### 案件一覧画面（Streamlit）
 - 案件をテーブル形式で表示
+- **手動追加フォーム**: 案件名・発注機関・エリア・工事種別・締切日・予定価格・URLを入力して手動登録
 - フィルタ機能
   - ステータス
   - エリア
@@ -195,7 +251,32 @@ project/
   - 新着案件の件数
   - 案件一覧（案件名・発注機関・締め切り・予定価格・URL）
   - 締め切りが3日以内の案件のアラート
+  - **入札参加資格の更新アラート**（今月中に期限切れ / 来月に期限切れ）
 - 送信先：設定ファイルで複数アドレス指定可能
+- 新着案件がなくても資格期限アラートがあればメール送信する
+
+---
+
+### 5.5 入札参加資格管理
+
+#### 資格管理画面（Streamlit）
+- Excel（.xlsx）または PDF（.pdf）をアップロードしてインポート（`importer.py`）
+- インポート時にプレビュー表示 → 確認後にDB保存
+- 既存データを全置き換え or 追記を選択可能
+- 登録済み資格の一覧表示（発注先・更新状態でフィルタ）
+- 「更新済み」マーク機能（チェックするとアラートが消える）
+
+#### 更新アラート
+- **当月中に有効期限が切れる資格**: 赤い警告（画面 + メール通知）
+- **来月中に有効期限が切れる資格**: 黄色い注意（画面 + メール通知）
+- サイドバーにもアラートバッジ（期限60日以内の未更新件数）を表示
+
+#### ファイルインポート（`importer.py`）
+- **Excel**: openpyxl でパース。B列=発注先, C=認定種目, D=等級, E=経審, F=総合, G=業者番号, H=認定開始, K=申請区分, L=申請方法
+  - 発注先が空の行は直前の発注先を引き継ぐ（〃マーク対応）
+  - ヘッダー行（1-5行目）から有効期限テキストを自動抽出
+  - シート名に「官公庁」「資格」を含むシートを優先
+- **PDF**: pdfplumber でテーブル抽出。列順は Excel と同様と仮定
 
 ---
 
@@ -230,37 +311,37 @@ GMAIL_PASSWORD=your-app-password
 
 ## 8. 開発フェーズとスケジュール
 
-| フェーズ | 内容 | 優先度 |
-|----------|------|--------|
-| Phase 1 | DB設計・スクレイピング・案件一覧表示 | 高 |
-| Phase 2 | ステータス管理・費用入力・競合情報入力 | 高 |
-| Phase 3 | ダッシュボード・グラフ分析 | 中 |
-| Phase 4 | メール通知・cron設定 | 中 |
-| Phase 5 | 対象サイト管理画面（URLをUI上で追加・削除） | 低 |
+| フェーズ | 内容 | 優先度 | 状態 |
+|----------|------|--------|------|
+| Phase 1 | DB設計・スクレイピング・案件一覧表示 | 高 | ✅ 完了 |
+| Phase 2 | ステータス管理・費用入力・競合情報入力 | 高 | ✅ 完了 |
+| Phase 3 | ダッシュボード・グラフ分析 | 中 | ✅ 完了 |
+| Phase 4 | メール通知・cron設定 | 中 | ✅ 完了 |
+| Phase 5 | 対象サイト管理画面（URLをUI上で追加・削除） | 低 | ✅ 完了 |
+| Phase 6 | 単価マスタ管理画面 | 中 | ✅ 完了 |
+| Phase 7 | 入札参加資格管理（Excel/PDFインポート・更新アラート） | 高 | ✅ 完了 |
+| Phase 8 | GEPS メール取込・Playwright Cloudflare 対応 | 中 | ✅ 完了 |
+| Phase 9 | 案件の手動追加フォーム | 中 | ✅ 完了 |
 
 ---
 
-## 9. Claude Codeへの指示テンプレート
+## 9. 定期実行の詳細（`scheduler.py`）
 
-### Phase 1 開始時のプロンプト例
+毎朝 cron / Windows タスクスケジューラから呼び出す。以下の順序で実行する:
 
-```
-以下の仕様書に基づいて、入札案件管理システムのPhase 1を実装してください。
+1. **通常スクレイピング** — `scraper.py` で `scrape_targets` の有効サイトを巡回（requests/BS4）
+2. **GEPSメール取込** — `email_importer.py` で過去1日分の通知メールから案件を取得
+3. **Playwright巡回（オプション）** — `--with-playwright` 指定時に `pw_login.py` で Cloudflare サイトも収集
+4. **メール通知** — 新着案件 or 資格期限アラートがあればメール送信
 
-【やること】
-1. database.pyを作成し、SQLiteのDBとテーブル（projects, scrape_targets）を初期化する関数を実装
-2. scraper.pyを作成し、scrape_targetsテーブルのURLに対してPlaywrightでスクレイピングし、
-   電気工事関連キーワードにマッチした案件をprojectsテーブルに保存する処理を実装
-3. app.pyにStreamlitで案件一覧画面を実装（フィルタ・ソート機能含む）
+```bash
+# cron 例（毎朝6時）
+0 6 * * * cd /path/to/bid_manager && /path/to/.venv/bin/python scheduler.py >> scrape.log 2>&1
 
-【技術スタック】
-- Python 3.11
-- Streamlit
-- SQLite
-- Playwright
-- BeautifulSoup4
-
-まずdatabase.pyから実装してください。
+# オプション
+python scheduler.py                     # 通常実行（スクレイピング + メール取込 + 通知）
+python scheduler.py --no-mail           # メール通知なし
+python scheduler.py --with-playwright   # Cloudflare サイトも巡回
 ```
 
 ---

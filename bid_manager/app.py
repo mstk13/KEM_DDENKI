@@ -1,7 +1,7 @@
 """入札案件管理システム — Streamlit メインアプリ。
 
-サイドバーから5画面を切り替える:
-  案件一覧 / 案件詳細 / ダッシュボード / 対象サイト管理 / 単価マスタ
+サイドバーから6画面を切り替える:
+  案件一覧 / 案件詳細 / ダッシュボード / 対象サイト管理 / 単価マスタ / 入札資格管理
 """
 from __future__ import annotations
 
@@ -26,6 +26,39 @@ def _rows_to_df(rows) -> pd.DataFrame:
 # --------------------------------------------------------------------------- #
 def page_list() -> None:
     st.header("📋 案件一覧")
+
+    # --- 手動追加フォーム ---
+    with st.expander("➕ 案件を手動で追加", expanded=False):
+        with st.form("manual_add_form"):
+            m_title = st.text_input("案件名 *", placeholder="例：〇〇基地 電気設備改修工事")
+            mc1, mc2, mc3 = st.columns(3)
+            m_client = mc1.text_input("発注機関", placeholder="例：防衛省 航空自衛隊")
+            m_region = mc2.selectbox("エリア", ["（未指定）"] + config.REGIONS, key="m_region")
+            m_category = mc3.selectbox("工事種別", ["（未指定）"] + config.CATEGORIES, key="m_category")
+            mc4, mc5 = st.columns(2)
+            m_deadline = mc4.date_input("入札締め切り日", value=None)
+            m_budget = mc5.number_input("予定価格（円）※分かれば", min_value=0, step=100000, value=0)
+            m_url = st.text_input("元ページURL", placeholder="https://...")
+            if st.form_submit_button("登録", type="primary"):
+                if not m_title:
+                    st.error("案件名は必須です。")
+                else:
+                    pid = db.add_project(
+                        title=m_title,
+                        client=m_client or None,
+                        region=None if m_region == "（未指定）" else m_region,
+                        category=None if m_category == "（未指定）" else m_category,
+                        deadline=m_deadline.isoformat() if m_deadline else None,
+                        budget=m_budget or None,
+                        source_url=m_url or None,
+                    )
+                    if pid:
+                        st.success(f"案件「{m_title}」を登録しました（ID: {pid}）。")
+                        st.rerun()
+                    else:
+                        st.warning("同じ案件名・URLの組み合わせが既に登録されています。")
+
+    st.divider()
 
     c1, c2, c3, c4 = st.columns(4)
     status = c1.selectbox("ステータス", ["（すべて）"] + config.STATUSES)
@@ -326,6 +359,171 @@ def page_unit_prices() -> None:
 
 
 # --------------------------------------------------------------------------- #
+# 6. 入札資格管理
+# --------------------------------------------------------------------------- #
+def page_qualifications() -> None:
+    st.header("🏛 入札参加資格管理")
+
+    # --- アラート: 期限切れ間近 ---
+    _show_qualification_alerts()
+
+    st.divider()
+
+    # --- ファイルインポート ---
+    st.subheader("📥 資格データのインポート（Excel / PDF）")
+    uploaded = st.file_uploader(
+        "ファイルを選択（.xlsx または .pdf）",
+        type=["xlsx", "pdf"],
+        key="qual_upload",
+    )
+    if uploaded is not None:
+        import tempfile
+        from pathlib import Path
+        import importer
+
+        suffix = Path(uploaded.name).suffix.lower()
+        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+            tmp.write(uploaded.read())
+            tmp_path = tmp.name
+
+        try:
+            if suffix == ".xlsx":
+                records = importer.import_excel(tmp_path)
+            elif suffix == ".pdf":
+                records = importer.import_pdf(tmp_path)
+            else:
+                st.error("対応していないファイル形式です。")
+                return
+
+            if not records:
+                st.warning("資格データが見つかりませんでした。ファイルの形式を確認してください。")
+                return
+
+            st.success(f"{len(records)} 件の資格データを検出しました。")
+
+            # プレビュー
+            preview_df = pd.DataFrame(records)
+            st.dataframe(
+                preview_df.rename(columns={
+                    "issuer": "発注先", "category": "認定種目", "grade": "等級",
+                    "keisin_score": "経審", "total_score": "総合",
+                    "vendor_number": "業者番号", "valid_from": "開始日",
+                    "valid_until": "終了日", "application_type": "申請区分",
+                    "application_method": "申請方法",
+                }),
+                use_container_width=True, hide_index=True, height=300,
+            )
+
+            col1, col2 = st.columns(2)
+            replace = col1.checkbox("既存データを全て置き換える", value=True)
+            if col2.button("インポート実行", type="primary"):
+                if replace:
+                    db.delete_all_qualifications()
+                for rec in records:
+                    db.add_qualification(**rec)
+                st.success(f"{len(records)} 件をインポートしました。")
+                st.rerun()
+        finally:
+            Path(tmp_path).unlink(missing_ok=True)
+
+    st.divider()
+
+    # --- 登録済み資格一覧 ---
+    st.subheader("📋 登録済み資格一覧")
+    quals = db.list_qualifications()
+    if not quals:
+        st.info("資格データが未登録です。上のインポート機能でExcel/PDFを読み込んでください。")
+        return
+
+    df = _rows_to_df(quals)
+    display_cols = {
+        "id": "ID", "issuer": "発注先", "category": "認定種目", "grade": "等級",
+        "keisin_score": "経審", "total_score": "総合", "vendor_number": "業者番号",
+        "valid_from": "開始日", "valid_until": "終了日",
+        "application_type": "申請区分", "application_method": "申請方法",
+        "renewed": "更新済",
+    }
+    show_df = df[[c for c in display_cols if c in df.columns]].rename(columns=display_cols)
+    show_df["更新済"] = show_df["更新済"].map({0: "❌", 1: "✅"})
+
+    # フィルタ
+    c1, c2 = st.columns(2)
+    issuers = ["（すべて）"] + sorted(df["issuer"].dropna().unique().tolist())
+    sel_issuer = c1.selectbox("発注先で絞り込み", issuers, key="q_issuer")
+    sel_renewed = c2.selectbox("更新状態", ["（すべて）", "未更新のみ", "更新済のみ"], key="q_renewed")
+
+    if sel_issuer != "（すべて）":
+        show_df = show_df[show_df["発注先"] == sel_issuer]
+    if sel_renewed == "未更新のみ":
+        show_df = show_df[show_df["更新済"] == "❌"]
+    elif sel_renewed == "更新済のみ":
+        show_df = show_df[show_df["更新済"] == "✅"]
+
+    st.caption(f"{len(show_df)} 件")
+    st.dataframe(show_df, use_container_width=True, hide_index=True)
+
+    # 更新済みマーク
+    st.subheader("✅ 更新済みにする")
+    unrewewed = [q for q in quals if not q["renewed"]]
+    if unrewewed:
+        qid = st.selectbox(
+            "資格を選択",
+            [q["id"] for q in unrewewed],
+            format_func=lambda i: f"#{i} {db.get_qualification(i)['issuer']} / {db.get_qualification(i)['category']}",
+            key="q_renew_select",
+        )
+        if st.button("この資格を「更新済み」にする"):
+            db.mark_qualification_renewed(qid)
+            st.success("更新済みにしました。")
+            st.rerun()
+    else:
+        st.success("全ての資格が更新済みです。")
+
+
+def _show_qualification_alerts() -> None:
+    """資格の有効期限アラートを表示する。
+    - 当月: 赤い警告
+    - 1ヶ月以内: 黄色い注意
+    """
+    from datetime import timedelta
+
+    today = date.today()
+    # 当月末
+    if today.month == 12:
+        month_end = date(today.year + 1, 1, 1) - timedelta(days=1)
+    else:
+        month_end = date(today.year, today.month + 1, 1) - timedelta(days=1)
+    days_to_month_end = (month_end - today).days
+
+    # 来月末
+    next_month_end_date = date(today.year + (1 if today.month >= 11 else 0),
+                               (today.month % 12) + 2 if today.month < 11 else (today.month + 2 - 12),
+                               1) - timedelta(days=1)
+    days_to_next_month_end = (next_month_end_date - today).days
+
+    # 当月中に期限切れ（未更新）
+    expiring_this_month = db.list_qualifications_expiring(within_days=days_to_month_end)
+    # 来月中に期限切れ（未更新）- 当月分を除く
+    expiring_next_month_all = db.list_qualifications_expiring(within_days=days_to_next_month_end)
+    this_month_ids = {q["id"] for q in expiring_this_month}
+    expiring_next_month = [q for q in expiring_next_month_all if q["id"] not in this_month_ids]
+
+    if expiring_this_month:
+        st.error(
+            f"🚨 **今月中に有効期限が切れる資格が {len(expiring_this_month)} 件あります！**"
+        )
+        for q in expiring_this_month:
+            st.error(f"　・{q['issuer']} / {q['category']}（等級: {q['grade'] or '—'}）— 期限: {q['valid_until']}")
+
+    if expiring_next_month:
+        st.warning(
+            f"⚠️ **来月中に有効期限が切れる資格が {len(expiring_next_month)} 件あります（更新準備を！）**"
+        )
+        for q in expiring_next_month:
+            st.warning(f"　・{q['issuer']} / {q['category']}（等級: {q['grade'] or '—'}）— 期限: {q['valid_until']}")
+
+
+# --------------------------------------------------------------------------- #
 # ルーティング
 # --------------------------------------------------------------------------- #
 PAGES = {
@@ -334,11 +532,22 @@ PAGES = {
     "ダッシュボード": page_dashboard,
     "対象サイト管理": page_targets,
     "単価マスタ": page_unit_prices,
+    "入札資格管理": page_qualifications,
 }
 
 st.sidebar.title("⚡ 入札案件管理")
 st.sidebar.caption("株式会社ケンモチ電機")
+
+# サイドバーに資格アラートバッジ
+_qual_alerts = db.list_qualifications_expiring(within_days=60)
+_alert_badge = f" ({len(_qual_alerts)})" if _qual_alerts else ""
+
 default = st.session_state.get("page", "案件一覧")
-choice = st.sidebar.radio("メニュー", list(PAGES.keys()), index=list(PAGES.keys()).index(default))
+choice = st.sidebar.radio(
+    "メニュー",
+    list(PAGES.keys()),
+    index=list(PAGES.keys()).index(default),
+    format_func=lambda x: f"{x}🔴{_alert_badge}" if x == "入札資格管理" and _alert_badge else x,
+)
 st.session_state["page"] = choice
 PAGES[choice]()
