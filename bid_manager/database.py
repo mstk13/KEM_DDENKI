@@ -10,7 +10,7 @@ from contextlib import contextmanager
 from datetime import datetime
 from typing import Any, Iterable, Iterator, Optional
 
-from config import DB_PATH
+from config import BASE_DIR, DB_PATH
 
 
 # --------------------------------------------------------------------------- #
@@ -112,10 +112,61 @@ CREATE TABLE IF NOT EXISTS qualifications (
 """
 
 
+QUALIFICATIONS_JSON = BASE_DIR / "data" / "qualifications.json"
+
+
 def init_db() -> None:
-    """全テーブルを作成（既存なら何もしない）。"""
+    """全テーブルを作成（既存なら何もしない）。
+    資格テーブルが空で qualifications.json が存在すれば自動復元する。"""
     with get_conn() as conn:
         conn.executescript(SCHEMA)
+    # 資格データの自動復元
+    _restore_qualifications_if_empty()
+
+
+def _restore_qualifications_if_empty() -> None:
+    """資格テーブルが空で JSON ファイルがあれば自動インポートする。"""
+    import json
+    if not QUALIFICATIONS_JSON.exists():
+        return
+    with get_conn() as conn:
+        count = conn.execute("SELECT COUNT(*) FROM qualifications").fetchone()[0]
+        if count > 0:
+            return  # 既にデータがある
+    try:
+        records = json.loads(QUALIFICATIONS_JSON.read_text(encoding="utf-8"))
+        for rec in records:
+            add_qualification(**rec)
+        print(f"資格データを {QUALIFICATIONS_JSON} から {len(records)} 件復元しました。")
+    except Exception as exc:
+        print(f"資格データの復元に失敗: {exc}")
+
+
+def save_qualifications_to_json() -> None:
+    """現在の資格データを JSON ファイルに保存する（リポジトリに含めて共有用）。"""
+    import json
+    quals = list_qualifications()
+    records = []
+    for q in quals:
+        records.append({
+            "issuer": q["issuer"],
+            "category": q["category"],
+            "grade": q["grade"],
+            "keisin_score": q["keisin_score"],
+            "total_score": q["total_score"],
+            "vendor_number": q["vendor_number"],
+            "valid_from": q["valid_from"],
+            "valid_until": q["valid_until"],
+            "application_type": q["application_type"],
+            "application_method": q["application_method"],
+            "memo": q["memo"],
+        })
+    QUALIFICATIONS_JSON.parent.mkdir(parents=True, exist_ok=True)
+    QUALIFICATIONS_JSON.write_text(
+        json.dumps(records, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    print(f"資格データを {QUALIFICATIONS_JSON} に {len(records)} 件保存しました。")
 
 
 # --------------------------------------------------------------------------- #

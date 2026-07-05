@@ -500,7 +500,12 @@ def page_qualifications() -> None:
                         db.delete_all_qualifications()
                     for rec in records:
                         db.add_qualification(**rec)
-                    st.success(f"{len(records)} 件をインポートしました。")
+                    db.save_qualifications_to_json()
+                    st.success(
+                        f"{len(records)} 件をインポートしました。\n\n"
+                        f"資格データは `data/qualifications.json` に保存されました。\n"
+                        f"このファイルを Git にコミットすれば、別のPCでも自動で復元されます。"
+                    )
                     st.rerun()
             finally:
                 Path(tmp_path).unlink(missing_ok=True)

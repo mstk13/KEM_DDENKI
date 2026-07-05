@@ -8,8 +8,12 @@
 *.sqlite
 *.sqlite3
 
-# 収集データ・書類
-/data/
+# 収集データ・書類（案件別のPDF等）
+/data/projects/
+/data/templates/
+# 資格データ JSON はリポジトリに含める
+!bid_manager/data/
+!bid_manager/data/qualifications.json
 
 # Python
 __pycache__/
