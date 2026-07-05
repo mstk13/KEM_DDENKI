@@ -9,39 +9,50 @@
 ### 必要なもの
 
 - **Python 3.11 以上**（https://www.python.org/downloads/ からインストール）
+  - インストール時に「**Add Python to PATH**」に必ずチェックを入れる
 - **Git**（https://git-scm.com/downloads からインストール）
+  - Git がなくても ZIP ダウンロードで代用可能（後述）
 
-### 手順（Windows / Mac / Linux 共通）
+---
 
-```bash
+### 手順（Windows）
+
+**PowerShell** を開いて（スタートメニューで「PowerShell」と検索）以下を実行:
+
+```powershell
 # 1. リポジトリをダウンロード
 git clone https://github.com/mstk13/KEM_DDENKI.git
-cd KEM_DDENKI/bid_manager
+cd KEM_DDENKI\bid_manager
 
-# 2. Python 仮想環境を作成して依存パッケージをインストール
-python -m venv .venv
-
-# Windows の場合:
-.venv\Scripts\activate
-# Mac / Linux の場合:
-source .venv/bin/activate
-
+# 2. 必要なパッケージをインストール（1〜2分かかります）
 pip install -r requirements.txt
 
-# 3. データベースを初期化
+# 3. データベースを初期化（初回のみ）
 python database.py
 
-# 4. 環境変数を設定（GEPS メール取込 & 通知を使う場合）
-cp .env.example .env
-# .env をテキストエディタで開いて Gmail 情報を入力（後述）
-
-# 5. アプリを起動
+# 4. アプリを起動
 streamlit run app.py
 ```
 
 ブラウザで **http://localhost:8501** が自動で開きます。
 
-> **Python も Git もわからない場合**: このリポジトリの ZIP をダウンロード（GitHub の「Code」→「Download ZIP」）して展開し、手順2から始めてください。
+> **`python` や `pip` が見つからないと言われたら:**
+> `py -m pip install -r requirements.txt` と `py -m streamlit run app.py` を試してください。
+
+> **Git がない場合:**
+> GitHub（https://github.com/mstk13/KEM_DDENKI）で「Code」→「Download ZIP」をクリックしてダウンロード → 展開 → `bid_manager` フォルダで手順2から。
+
+---
+
+### 手順（Mac / Linux）
+
+```bash
+git clone https://github.com/mstk13/KEM_DDENKI.git
+cd KEM_DDENKI/bid_manager
+pip3 install -r requirements.txt
+python3 database.py
+streamlit run app.py
+```
 
 ---
 
@@ -67,45 +78,82 @@ GEPS（政府電子調達）の通知メールを使って案件を自動収集�
 3. `.env` ファイルに Gmail 情報を入力
 4. 動作確認: `python email_importer.py --dry-run --days 7`
 
+### 3. `.env` ファイルを作成する
+
+`bid_manager` フォルダに `.env` という名前のテキストファイルを作り、以下を入力:
+
+```
+GMAIL_USER=あなたのGmail@gmail.com
+GMAIL_PASSWORD=xxxx-xxxx-xxxx-xxxx
+BID_EMAIL_TO=通知を送りたいアドレス@example.com
+```
+
+> **GMAIL_PASSWORD** は Gmail のパスワードではなく「アプリパスワード」です。
+> Google アカウント → セキュリティ → 2段階認証 → アプリパスワード で発行。
+
 ---
 
 ## 日常の運用
 
-### 毎朝（自動）
+### アプリの起動方法
+
+PowerShell で:
+```powershell
+cd C:\...\KEM_DDENKI\bid_manager
+streamlit run app.py
+```
+（`C:\...` の部分はダウンロードした場所に読み替え）
+
+### 毎朝の自動実行（任意）
 
 `scheduler.py` を毎朝自動実行すると:
 1. GEPS メールから新着案件を取り込み
 2. 新着案件や締切間近の案件をメールで通知
 3. 入札資格の期限アラートもメールに含まれる
 
-```bash
-# Windows タスクスケジューラ に登録する場合:
-#   プログラム: C:\...\KEM_DDENKI\bid_manager\.venv\Scripts\python.exe
-#   引数:       scheduler.py
-#   開始:       C:\...\KEM_DDENKI\bid_manager
-#   トリガー:   毎日 6:00
-
-# Linux / Mac の cron に登録する場合:
-# crontab -e で以下を追加
-0 6 * * * cd /path/to/KEM_DDENKI/bid_manager && /path/to/.venv/bin/python scheduler.py >> scrape.log 2>&1
-```
+**Windows タスクスケジューラに登録する方法:**
+1. スタートメニューで「タスク スケジューラ」を検索して開く
+2. 「基本タスクの作成」をクリック
+3. 名前: `入札案件 自動取込`
+4. トリガー: 毎日 / 6:00
+5. 操作: プログラムの開始
+   - プログラム: `python`（または `py`）
+   - 引数: `scheduler.py`
+   - 開始: `C:\...\KEM_DDENKI\bid_manager`
 
 ### 案件を確認するとき
 
-1. `streamlit run app.py` でアプリを起動（または常時起動しておく）
+1. アプリを起動
 2. **案件一覧**: 新着案件を確認。未入力項目があれば警告が出る
 3. **案件詳細**: 元ページURLを開いて確認し、発注機関・エリア・工事種別・締切日・予定価格を入力
 4. ステータスを「新着」→「検討中」→「見積作成中」→「入札済」→「受注」or「失注」に更新
 
 ### 案件を手動で追加するとき
 
-案件一覧画面の「案件を手動で追加」フォームから登録できます。
+案件一覧画面の「➕ 案件を手動で追加」フォームから登録できます。
+防衛省などのサイトをブラウザで見ながら、気になる案件を入力してください。
 
 ### 見積・原価を管理するとき
 
 案件詳細画面で:
 - **見積金額** と **実際の工事原価** を入力 → 利益と原価率が自動計算
 - 失注した場合、**競合の落札会社名・金額** を入力 → 自社との差額が自動計算
+
+---
+
+## 防衛省などの Cloudflare 保護サイト
+
+防衛省（mod.go.jp）のサイトは自動アクセスがブロックされるため、以下の方法で対応:
+
+```powershell
+# 初回: ブラウザが開く → チェックマークをクリックして通過 → Cookie が保存される
+python pw_login.py
+
+# 以後: 保存した Cookie で自動取得
+python pw_login.py --scrape
+```
+
+Cookie の有効期限が切れたら再度 `python pw_login.py` を実行してください。
 
 ---
 
@@ -128,7 +176,6 @@ GEPS（政府電子調達）の通知メールを使って案件を自動収集�
 |-------------|------|
 | [docs/spec.md](docs/spec.md) | システム仕様書（DB設計・機能仕様・AI活用計画） |
 | [docs/geps_setup.md](docs/geps_setup.md) | GEPS メール連携のセットアップ手順 |
-| [bid_manager/README.md](bid_manager/README.md) | 開発者向けの詳細情報 |
 
 ---
 
@@ -136,8 +183,9 @@ GEPS（政府電子調達）の通知メールを使って案件を自動収集�
 
 | 症状 | 対処 |
 |------|------|
-| `python` コマンドが見つからない | Python をインストールして、パスを通す |
-| `streamlit run app.py` でエラー | `.venv` を activate しているか確認 |
+| `python` が見つからない | `py` を使う。それもダメなら Python を再インストール（PATH にチェック） |
+| `pip install` でエラー | `py -m pip install -r requirements.txt` を試す |
+| `streamlit` が見つからない | `py -m streamlit run app.py` を使う |
 | アプリが開かない | http://localhost:8501 をブラウザで直接開く |
 | GEPS メールが取り込めない | `.env` の Gmail 情報を確認。`python email_importer.py --dry-run` でテスト |
-| 画面が英語になる | ブラウザの言語設定を日本語にする |
+| 資格データが消えた | Excel を再アップロードすれば復元される（`data/qualifications.json` からも自動復元） |
