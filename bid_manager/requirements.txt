@@ -6,6 +6,6 @@ beautifulsoup4>=4.12
 python-dotenv>=1.0
 # JavaScript描画サイトをスクレイピングする場合のみ（任意）:
 #   pip install playwright && playwright install chromium
-playwright>=1.40
+# playwright>=1.40  # ローカル実行時のみ（Streamlit Cloud では不要）
 openpyxl>=3.1
 pdfplumber>=0.10
