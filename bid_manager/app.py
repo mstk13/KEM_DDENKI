@@ -76,6 +76,11 @@ def page_list() -> None:
         order_by="created" if order == "登録日順" else "deadline",
     )
 
+    # 未入力件数の警告
+    incomplete = [r for r in rows if not r["client"] or not r["region"] or not r["category"]]
+    if incomplete:
+        st.warning(f"⚠️ {len(incomplete)} 件の案件で発注機関・エリア・工事種別が未入力です。「案件詳細」から入力してください。")
+
     st.caption(f"{len(rows)} 件")
     if not rows:
         st.info("該当する案件がありません。対象サイトを登録してスクレイピングするか、デモデータを投入してください。")
@@ -89,6 +94,8 @@ def page_list() -> None:
             "category": "種別", "deadline": "締切", "budget": "予定価格", "status": "状態",
         }
     )
+    # 未入力セルを目立たせる
+    df = df.fillna("❌ 未入力")
     st.dataframe(df, use_container_width=True, hide_index=True)
 
     ids = [r["id"] for r in rows]
@@ -117,24 +124,87 @@ def page_detail() -> None:
     st.session_state["selected_project"] = pid
     p = db.get_project(pid)
 
-    # 基本情報
-    st.subheader(p["title"])
-    c1, c2, c3 = st.columns(3)
-    c1.metric("発注機関", p["client"] or "—")
-    c2.metric("エリア", p["region"] or "—")
-    c3.metric("締切", p["deadline"] or "—")
+    # 元ページリンク（編集時に参照しやすいよう上部に常時表示）
     if p["source_url"]:
         st.markdown(f"🔗 [元ページを開く]({p['source_url']})")
 
-    # ステータス変更
-    with st.form("status_form"):
-        new_status = st.selectbox(
-            "ステータス", config.STATUSES, index=config.STATUSES.index(p["status"])
-        )
-        if st.form_submit_button("ステータスを更新"):
-            db.update_status(pid, new_status)
-            st.success(f"ステータスを「{new_status}」に更新しました。")
-            st.rerun()
+    # 未入力フィールドの警告
+    missing = []
+    if not p["client"]:
+        missing.append("発注機関")
+    if not p["region"]:
+        missing.append("エリア")
+    if not p["category"]:
+        missing.append("工事種別")
+    if not p["deadline"]:
+        missing.append("締切日")
+    if not p["budget"]:
+        missing.append("予定価格")
+    if missing:
+        st.warning(f"⚠️ 未入力: {' / '.join(missing)}　— 下の「基本情報を編集」から入力してください")
+
+    # 基本情報の表示
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("発注機関", p["client"] or "—")
+    c2.metric("エリア", p["region"] or "—")
+    c3.metric("工事種別", p["category"] or "—")
+    c4.metric("締切", p["deadline"] or "—")
+    c5, c6 = st.columns(2)
+    c5.metric("予定価格", f"{p['budget']:,} 円" if p["budget"] else "—")
+    c6.metric("ステータス", p["status"])
+
+    # --- 基本情報の編集フォーム ---
+    with st.expander("✏️ 基本情報を編集", expanded=bool(missing)):
+        with st.form("edit_project_form"):
+            e_title = st.text_input("案件名", value=p["title"])
+
+            ec1, ec2, ec3 = st.columns(3)
+            e_client = ec1.text_input("発注機関", value=p["client"] or "", placeholder="例：防衛省 航空自衛隊")
+            region_opts = ["（未指定）"] + config.REGIONS
+            cur_region_idx = region_opts.index(p["region"]) if p["region"] in region_opts else 0
+            e_region = ec2.selectbox("エリア", region_opts, index=cur_region_idx, key="e_region")
+            cat_opts = ["（未指定）"] + config.CATEGORIES
+            cur_cat_idx = cat_opts.index(p["category"]) if p["category"] in cat_opts else 0
+            e_category = ec3.selectbox("工事種別", cat_opts, index=cur_cat_idx, key="e_category")
+
+            ec4, ec5 = st.columns(2)
+            e_deadline = ec4.date_input(
+                "入札締め切り日",
+                value=date.fromisoformat(p["deadline"]) if p["deadline"] else None,
+            )
+            e_budget = ec5.number_input(
+                "予定価格（円）",
+                min_value=0, step=100000,
+                value=int(p["budget"]) if p["budget"] else 0,
+            )
+
+            e_status = st.selectbox(
+                "ステータス", config.STATUSES,
+                index=config.STATUSES.index(p["status"]),
+            )
+            e_url = st.text_input("元ページURL", value=p["source_url"] or "")
+
+            if st.form_submit_button("保存", type="primary"):
+                if not e_title:
+                    st.error("案件名は必須です。")
+                else:
+                    new_region = None if e_region == "（未指定）" else e_region
+                    new_category = None if e_category == "（未指定）" else e_category
+                    new_deadline = e_deadline.isoformat() if e_deadline else None
+                    # 全フィールドを直接 UPDATE する
+                    with db.get_conn() as conn:
+                        conn.execute(
+                            """UPDATE projects SET
+                                title=?, client=?, region=?, category=?,
+                                deadline=?, budget=?, source_url=?, status=?,
+                                updated_at=?
+                               WHERE id=?""",
+                            (e_title, e_client or None, new_region, new_category,
+                             new_deadline, e_budget or None, e_url or None, e_status,
+                             datetime.now().isoformat(timespec="seconds"), pid),
+                        )
+                    st.success("基本情報を更新しました。")
+                    st.rerun()
 
     st.divider()
 

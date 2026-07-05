@@ -202,6 +202,41 @@ def get_project(project_id: int) -> Optional[sqlite3.Row]:
         ).fetchone()
 
 
+def update_project(
+    project_id: int,
+    *,
+    title: Optional[str] = None,
+    client: Optional[str] = None,
+    region: Optional[str] = None,
+    category: Optional[str] = None,
+    deadline: Optional[str] = None,
+    budget: Optional[int] = None,
+    source_url: Optional[str] = None,
+    status: Optional[str] = None,
+) -> None:
+    """案件の各フィールドを更新する。None でないフィールドのみ更新。"""
+    fields: list[str] = []
+    params: list[Any] = []
+    for col, val in [
+        ("title", title), ("client", client), ("region", region),
+        ("category", category), ("deadline", deadline), ("budget", budget),
+        ("source_url", source_url), ("status", status),
+    ]:
+        if val is not None:
+            fields.append(f"{col} = ?")
+            params.append(val)
+    if not fields:
+        return
+    fields.append("updated_at = ?")
+    params.append(_now())
+    params.append(project_id)
+    with get_conn() as conn:
+        conn.execute(
+            f"UPDATE projects SET {', '.join(fields)} WHERE id = ?",
+            params,
+        )
+
+
 def update_status(project_id: int, status: str) -> None:
     with get_conn() as conn:
         conn.execute(
