@@ -25,19 +25,19 @@ git clone https://github.com/mstk13/KEM_DDENKI.git
 cd KEM_DDENKI\bid_manager
 
 # 2. 必要なパッケージをインストール（1〜2分かかります）
-pip install -r requirements.txt
+python -m python -m pip install -r requirements.txt
 
 # 3. データベースを初期化（初回のみ）
 python database.py
 
 # 4. アプリを起動
-streamlit run app.py
+python -m python -m streamlit run app.py
 ```
 
 ブラウザで **http://localhost:8501** が自動で開きます。
 
 > **`python` や `pip` が見つからないと言われたら:**
-> `py -m pip install -r requirements.txt` と `py -m streamlit run app.py` を試してください。
+> `py -m python -m pip install -r requirements.txt` と `py -m python -m streamlit run app.py` を試してください。
 
 > **Git がない場合:**
 > GitHub（https://github.com/mstk13/KEM_DDENKI）で「Code」→「Download ZIP」をクリックしてダウンロード → 展開 → `bid_manager` フォルダで手順2から。
@@ -51,7 +51,7 @@ git clone https://github.com/mstk13/KEM_DDENKI.git
 cd KEM_DDENKI/bid_manager
 pip3 install -r requirements.txt
 python3 database.py
-streamlit run app.py
+python -m streamlit run app.py
 ```
 
 ---
@@ -100,7 +100,7 @@ BID_EMAIL_TO=通知を送りたいアドレス@example.com
 PowerShell で:
 ```powershell
 cd C:\...\KEM_DDENKI\bid_manager
-streamlit run app.py
+python -m streamlit run app.py
 ```
 （`C:\...` の部分はダウンロードした場所に読み替え）
 
@@ -184,8 +184,8 @@ Cookie の有効期限が切れたら再度 `python pw_login.py` を実行して
 | 症状 | 対処 |
 |------|------|
 | `python` が見つからない | `py` を使う。それもダメなら Python を再インストール（PATH にチェック） |
-| `pip install` でエラー | `py -m pip install -r requirements.txt` を試す |
-| `streamlit` が見つからない | `py -m streamlit run app.py` を使う |
+| `pip install` でエラー | `py -m python -m pip install -r requirements.txt` を試す |
+| `streamlit` が見つからない | `py -m python -m streamlit run app.py` を使う |
 | アプリが開かない | http://localhost:8501 をブラウザで直接開く |
 | GEPS メールが取り込めない | `.env` の Gmail 情報を確認。`python email_importer.py --dry-run` でテスト |
 | 資格データが消えた | Excel を再アップロードすれば復元される（`data/qualifications.json` からも自動復元） |
