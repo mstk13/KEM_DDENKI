@@ -434,76 +434,84 @@ def page_unit_prices() -> None:
 def page_qualifications() -> None:
     st.header("🏛 入札参加資格管理")
 
-    # --- アラート: 期限切れ間近 ---
-    _show_qualification_alerts()
+    quals = db.list_qualifications()
+
+    # --- ステータスバナー（一目で状態がわかる） ---
+    if quals:
+        _show_qualification_status(quals)
+    else:
+        st.info(
+            "資格データが未登録です。\n\n"
+            "**初回のみ**、お持ちの入札参加資格一覧（Excel / PDF）をアップロードしてください。\n"
+            "一度登録すれば、有効期限が近づくまで更新は不要です。"
+        )
 
     st.divider()
 
     # --- ファイルインポート ---
-    st.subheader("📥 資格データのインポート（Excel / PDF）")
-    uploaded = st.file_uploader(
-        "ファイルを選択（.xlsx または .pdf）",
-        type=["xlsx", "pdf"],
-        key="qual_upload",
-    )
-    if uploaded is not None:
-        import tempfile
-        from pathlib import Path
-        import importer
+    with st.expander("📥 資格データのインポート（Excel / PDF）", expanded=not quals):
+        st.caption("初回登録 or 資格更新時のみ使用。通常は触る必要はありません。")
+        uploaded = st.file_uploader(
+            "ファイルを選択（.xlsx または .pdf）",
+            type=["xlsx", "pdf"],
+            key="qual_upload",
+        )
+        if uploaded is not None:
+            import tempfile
+            from pathlib import Path
+            import importer
 
-        suffix = Path(uploaded.name).suffix.lower()
-        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
-            tmp.write(uploaded.read())
-            tmp_path = tmp.name
+            suffix = Path(uploaded.name).suffix.lower()
+            with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+                tmp.write(uploaded.read())
+                tmp_path = tmp.name
 
-        try:
-            if suffix == ".xlsx":
-                records = importer.import_excel(tmp_path)
-            elif suffix == ".pdf":
-                records = importer.import_pdf(tmp_path)
-            else:
-                st.error("対応していないファイル形式です。")
-                return
+            try:
+                if suffix == ".xlsx":
+                    records = importer.import_excel(tmp_path)
+                elif suffix == ".pdf":
+                    records = importer.import_pdf(tmp_path)
+                else:
+                    st.error("対応していないファイル形式です。")
+                    return
 
-            if not records:
-                st.warning("資格データが見つかりませんでした。ファイルの形式を確認してください。")
-                return
+                if not records:
+                    st.warning("資格データが見つかりませんでした。ファイルの形式を確認してください。")
+                    return
 
-            st.success(f"{len(records)} 件の資格データを検出しました。")
+                st.success(f"{len(records)} 件の資格データを検出しました。")
 
-            # プレビュー
-            preview_df = pd.DataFrame(records)
-            st.dataframe(
-                preview_df.rename(columns={
-                    "issuer": "発注先", "category": "認定種目", "grade": "等級",
-                    "keisin_score": "経審", "total_score": "総合",
-                    "vendor_number": "業者番号", "valid_from": "開始日",
-                    "valid_until": "終了日", "application_type": "申請区分",
-                    "application_method": "申請方法",
-                }),
-                use_container_width=True, hide_index=True, height=300,
-            )
+                preview_df = pd.DataFrame(records)
+                st.dataframe(
+                    preview_df.rename(columns={
+                        "issuer": "発注先", "category": "認定種目", "grade": "等級",
+                        "keisin_score": "経審", "total_score": "総合",
+                        "vendor_number": "業者番号", "valid_from": "開始日",
+                        "valid_until": "終了日", "application_type": "申請区分",
+                        "application_method": "申請方法",
+                    }),
+                    use_container_width=True, hide_index=True, height=300,
+                )
 
-            col1, col2 = st.columns(2)
-            replace = col1.checkbox("既存データを全て置き換える", value=True)
-            if col2.button("インポート実行", type="primary"):
-                if replace:
-                    db.delete_all_qualifications()
-                for rec in records:
-                    db.add_qualification(**rec)
-                st.success(f"{len(records)} 件をインポートしました。")
-                st.rerun()
-        finally:
-            Path(tmp_path).unlink(missing_ok=True)
+                col1, col2 = st.columns(2)
+                replace = col1.checkbox("既存データを全て置き換える", value=True)
+                if col2.button("インポート実行", type="primary"):
+                    if replace:
+                        db.delete_all_qualifications()
+                    for rec in records:
+                        db.add_qualification(**rec)
+                    st.success(f"{len(records)} 件をインポートしました。")
+                    st.rerun()
+            finally:
+                Path(tmp_path).unlink(missing_ok=True)
+
+    if not quals:
+        return
 
     st.divider()
 
     # --- 登録済み資格一覧 ---
     st.subheader("📋 登録済み資格一覧")
-    quals = db.list_qualifications()
-    if not quals:
-        st.info("資格データが未登録です。上のインポート機能でExcel/PDFを読み込んでください。")
-        return
 
     df = _rows_to_df(quals)
     display_cols = {
@@ -514,7 +522,22 @@ def page_qualifications() -> None:
         "renewed": "更新済",
     }
     show_df = df[[c for c in display_cols if c in df.columns]].rename(columns=display_cols)
-    show_df["更新済"] = show_df["更新済"].map({0: "❌", 1: "✅"})
+    show_df["更新済"] = show_df["更新済"].map({0: "—", 1: "✅"})
+
+    # 残り日数の列を追加
+    today = date.today()
+    remaining_days = []
+    for _, row in df.iterrows():
+        vu = row.get("valid_until")
+        if vu:
+            try:
+                days_left = (date.fromisoformat(str(vu)) - today).days
+                remaining_days.append(f"{days_left}日" if days_left >= 0 else "期限切れ")
+            except (ValueError, TypeError):
+                remaining_days.append("—")
+        else:
+            remaining_days.append("—")
+    show_df.insert(show_df.columns.get_loc("終了日") + 1, "残り", remaining_days)
 
     # フィルタ
     c1, c2 = st.columns(2)
@@ -525,72 +548,100 @@ def page_qualifications() -> None:
     if sel_issuer != "（すべて）":
         show_df = show_df[show_df["発注先"] == sel_issuer]
     if sel_renewed == "未更新のみ":
-        show_df = show_df[show_df["更新済"] == "❌"]
+        show_df = show_df[show_df["更新済"] == "—"]
     elif sel_renewed == "更新済のみ":
         show_df = show_df[show_df["更新済"] == "✅"]
 
     st.caption(f"{len(show_df)} 件")
     st.dataframe(show_df, use_container_width=True, hide_index=True)
 
-    # 更新済みマーク
-    st.subheader("✅ 更新済みにする")
-    unrewewed = [q for q in quals if not q["renewed"]]
-    if unrewewed:
+    # 更新済みマーク（期限切れ間近のみ表示）
+    expiring = db.list_qualifications_expiring(within_days=90)
+    if expiring:
+        st.subheader("✅ 更新手続き完了を記録する")
+        st.caption("更新手続きが済んだ資格にチェックを付けると、アラートが消えます。")
         qid = st.selectbox(
             "資格を選択",
-            [q["id"] for q in unrewewed],
-            format_func=lambda i: f"#{i} {db.get_qualification(i)['issuer']} / {db.get_qualification(i)['category']}",
+            [q["id"] for q in expiring],
+            format_func=lambda i: f"#{i} {db.get_qualification(i)['issuer']} / {db.get_qualification(i)['category']} (期限: {db.get_qualification(i)['valid_until']})",
             key="q_renew_select",
         )
         if st.button("この資格を「更新済み」にする"):
             db.mark_qualification_renewed(qid)
-            st.success("更新済みにしました。")
+            st.success("更新済みにしました。アラートは消えます。")
             st.rerun()
-    else:
-        st.success("全ての資格が更新済みです。")
 
 
-def _show_qualification_alerts() -> None:
-    """資格の有効期限アラートを表示する。
-    - 当月: 赤い警告
-    - 1ヶ月以内: 黄色い注意
+def _show_qualification_status(quals) -> None:
+    """資格の全体ステータスを表示する。
+    - 全て有効: 緑バナー「次回確認: YYYY年MM月」
+    - 期限間近: 黄色/赤で警告
     """
     from datetime import timedelta
 
     today = date.today()
-    # 当月末
-    if today.month == 12:
-        month_end = date(today.year + 1, 1, 1) - timedelta(days=1)
-    else:
-        month_end = date(today.year, today.month + 1, 1) - timedelta(days=1)
-    days_to_month_end = (month_end - today).days
 
-    # 来月末
-    next_month_end_date = date(today.year + (1 if today.month >= 11 else 0),
-                               (today.month % 12) + 2 if today.month < 11 else (today.month + 2 - 12),
-                               1) - timedelta(days=1)
-    days_to_next_month_end = (next_month_end_date - today).days
+    # 最も早い有効期限を見つける
+    earliest_expiry = None
+    for q in quals:
+        vu = q["valid_until"]
+        if vu and not q["renewed"]:
+            try:
+                d = date.fromisoformat(str(vu))
+                if earliest_expiry is None or d < earliest_expiry:
+                    earliest_expiry = d
+            except (ValueError, TypeError):
+                pass
 
-    # 当月中に期限切れ（未更新）
-    expiring_this_month = db.list_qualifications_expiring(within_days=days_to_month_end)
-    # 来月中に期限切れ（未更新）- 当月分を除く
-    expiring_next_month_all = db.list_qualifications_expiring(within_days=days_to_next_month_end)
-    this_month_ids = {q["id"] for q in expiring_this_month}
-    expiring_next_month = [q for q in expiring_next_month_all if q["id"] not in this_month_ids]
+    if earliest_expiry is None:
+        st.success("✅ **全ての資格が有効 or 更新済みです。** 現時点で対応は不要です。")
+        return
 
-    if expiring_this_month:
+    days_until = (earliest_expiry - today).days
+    # 2ヶ月前から警告開始
+    warn_date = earliest_expiry - timedelta(days=60)
+
+    if days_until < 0:
         st.error(
-            f"🚨 **今月中に有効期限が切れる資格が {len(expiring_this_month)} 件あります！**"
+            f"🚨 **有効期限が切れた資格があります！**（{earliest_expiry}）\n\n"
+            f"至急更新手続きを行い、下の一覧で「更新済み」にチェックしてください。"
         )
-        for q in expiring_this_month:
-            st.error(f"　・{q['issuer']} / {q['category']}（等級: {q['grade'] or '—'}）— 期限: {q['valid_until']}")
-
-    if expiring_next_month:
+    elif days_until <= 30:
+        st.error(
+            f"🚨 **あと{days_until}日で期限切れの資格があります！**（{earliest_expiry}）\n\n"
+            f"更新手続きを急いでください。完了したら「更新済み」にチェックしてください。"
+        )
+        _show_expiring_list(quals, today, 30)
+    elif days_until <= 60:
         st.warning(
-            f"⚠️ **来月中に有効期限が切れる資格が {len(expiring_next_month)} 件あります（更新準備を！）**"
+            f"⚠️ **あと{days_until}日で期限切れの資格があります。**（{earliest_expiry}）\n\n"
+            f"更新準備を始めてください。完了したら「更新済み」にチェックしてください。"
         )
-        for q in expiring_next_month:
-            st.warning(f"　・{q['issuer']} / {q['category']}（等級: {q['grade'] or '—'}）— 期限: {q['valid_until']}")
+        _show_expiring_list(quals, today, 60)
+    else:
+        next_check_date = warn_date
+        st.success(
+            f"✅ **全ての資格が有効です。** 次に確認が必要な時期: **{next_check_date.year}年{next_check_date.month}月**\n\n"
+            f"最も早い有効期限: {earliest_expiry}（あと{days_until}日）— それまで更新作業は不要です。"
+        )
+
+
+def _show_expiring_list(quals, today, within_days: int) -> None:
+    """期限間近の資格リストを表示する。"""
+    for q in quals:
+        vu = q["valid_until"]
+        if not vu or q["renewed"]:
+            continue
+        try:
+            d = date.fromisoformat(str(vu))
+            days_left = (d - today).days
+            if days_left <= within_days:
+                st.warning(
+                    f"　・{q['issuer']} / {q['category']}（等級: {q['grade'] or '—'}）"
+                    f"— 期限: {vu}（あと{days_left}日）"
+                )
+        except (ValueError, TypeError):
+            pass
 
 
 # --------------------------------------------------------------------------- #
