@@ -262,7 +262,8 @@ def site_detail(project_id):
                 el.unit_price AS est_unit_price,
                 el.amount AS est_amount,
                 COALESCE(o.order_qty, 0) AS order_qty,
-                COALESCE(o.order_amount, 0) AS order_amount
+                COALESCE(o.order_amount, 0) AS order_amount,
+                COALESCE(rc.missing_receipts, 0) AS missing_receipts
             FROM estimate_line el
             JOIN item_master im ON im.id = el.item_id
             LEFT JOIN (
@@ -273,9 +274,17 @@ def site_detail(project_id):
                 WHERE project_id = ?
                 GROUP BY item_id
             ) o ON o.item_id = el.item_id
+            LEFT JOIN (
+                SELECT ord.item_id,
+                       COUNT(*) - COUNT(r.id) AS missing_receipts
+                FROM "order" ord
+                LEFT JOIN receipt r ON r.order_id = ord.id
+                WHERE ord.project_id = ?
+                GROUP BY ord.item_id
+            ) rc ON rc.item_id = el.item_id
             WHERE el.header_id = ?
             ORDER BY el.sort_order, im.name
-        """, (project_id, header["id"])).fetchall()
+        """, (project_id, project_id, header["id"])).fetchall()
 
         total_est = sum(r["est_amount"] for r in rows)
         total_order = sum(r["order_amount"] for r in rows)
@@ -575,9 +584,10 @@ def item_orders(project_id, item_id):
             (header["id"], item_id)
         ).fetchone()
 
-    # 発注履歴（仕入先名を結合）
+    # 発注履歴（仕入先名 + 受領書有無を結合）
     orders = db.execute("""
-        SELECT o.*, COALESCE(s.name, '') AS supplier_name
+        SELECT o.*, COALESCE(s.name, '') AS supplier_name,
+               (SELECT COUNT(*) FROM receipt r WHERE r.order_id = o.id) AS receipt_count
         FROM "order" o
         LEFT JOIN supplier s ON s.id = o.supplier_id
         WHERE o.project_id = ? AND o.item_id = ?
@@ -586,11 +596,58 @@ def item_orders(project_id, item_id):
 
     total_qty = sum(o["quantity"] for o in orders)
     total_amount = sum(o["amount"] for o in orders)
+    has_missing_receipt = any(o["receipt_count"] == 0 for o in orders)
 
     return render_template("item_orders.html",
                            site=site, item=item, estimate=estimate,
                            orders=orders, total_qty=total_qty,
-                           total_amount=total_amount)
+                           total_amount=total_amount,
+                           has_missing_receipt=has_missing_receipt)
+
+
+# ================================================================
+# 受領書アップロード
+# ================================================================
+
+@app.route("/order/<int:order_id>/receipt/upload", methods=["POST"])
+def receipt_upload(order_id):
+    """発注に対する受領書をアップロード"""
+    db = get_db()
+    order = db.execute('SELECT * FROM "order" WHERE id = ?', (order_id,)).fetchone()
+    if not order:
+        flash("発注レコードが見つかりません。")
+        return redirect(url_for("index"))
+
+    file = request.files.get("receipt_file")
+    if not file or file.filename == "":
+        flash("ファイルを選択してください。")
+        return redirect(request.referrer or url_for("index"))
+
+    # ファイル保存
+    import uuid
+    ext = os.path.splitext(file.filename)[1]
+    saved_name = f"receipt_{order_id}_{uuid.uuid4().hex[:8]}{ext}"
+    save_dir = os.path.join(app.root_path, "uploads", "receipts")
+    os.makedirs(save_dir, exist_ok=True)
+    save_path = os.path.join(save_dir, saved_name)
+    file.save(save_path)
+
+    uploaded_by = request.form.get("uploaded_by", "")
+
+    db.execute(
+        "INSERT INTO receipt (order_id, file_path, file_name, uploaded_by, uploaded_at) VALUES (?, ?, ?, ?, ?)",
+        (order_id, saved_name, file.filename, uploaded_by, _now())
+    )
+    db.commit()
+
+    flash(f"受領書をアップロードしました。（{file.filename}）")
+    return redirect(request.referrer or url_for("site_detail", project_id=order["project_id"]))
+
+
+@app.route("/receipts/<path:filename>")
+def receipt_file(filename):
+    """受領書ファイルのダウンロード"""
+    return send_file(os.path.join(app.root_path, "uploads", "receipts", filename))
 
 
 # ================================================================

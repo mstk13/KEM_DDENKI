@@ -125,6 +125,17 @@ CREATE TABLE IF NOT EXISTS price_history (
     memo          TEXT DEFAULT ''
 );
 
+-- 受領書（発注ごとにアップロード）
+CREATE TABLE IF NOT EXISTS receipt (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    order_id    INTEGER NOT NULL REFERENCES "order"(id) ON DELETE CASCADE,
+    file_path   TEXT NOT NULL,
+    file_name   TEXT NOT NULL,
+    uploaded_by TEXT DEFAULT '',
+    uploaded_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    memo        TEXT DEFAULT ''
+);
+
 -- 競合情報（将来KEM_DDENKI統合用）
 CREATE TABLE IF NOT EXISTS competitor (
     id                INTEGER PRIMARY KEY AUTOINCREMENT,

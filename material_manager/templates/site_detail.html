@@ -60,6 +60,7 @@
             <th class="text-end">発注済み金額</th>
             <th class="text-end">残数量</th>
             <th class="text-end">消化率</th>
+            <th>受領</th>
         </tr>
     </thead>
     <tbody>
@@ -85,12 +86,22 @@
             <td class="text-end {{ 'text-over' if ratio > 100 else 'text-complete' if ratio >= 100 else '' }}">
                 {{ "%.0f"|format(ratio) }}%
             </td>
+            <td>
+                {% if r.order_qty > 0 %}
+                    {% if r.missing_receipts and r.missing_receipts > 0 %}
+                        <span class="badge bg-warning text-dark">未受領 ({{ r.missing_receipts }}件)</span>
+                    {% else %}
+                        <span class="badge bg-success">全受領</span>
+                    {% endif %}
+                {% endif %}
+            </td>
         </tr>
         {% endfor %}
     </tbody>
     <tfoot class="table-light">
         <tr>
             <th colspan="5">合計</th>
+            <!-- extra cols after this -->
             <th class="text-end">&yen;{{ "{:,.0f}".format(total_est) }}</th>
             <th></th>
             <th class="text-end">&yen;{{ "{:,.0f}".format(total_order) }}</th>

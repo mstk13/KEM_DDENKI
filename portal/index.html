@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ケンモチ電機 — 施工管理ポータル</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #f8f9fa; }
+        .app-card { transition: transform 0.2s; cursor: pointer; }
+        .app-card:hover { transform: translateY(-4px); box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        .status-badge { font-size: 0.75rem; }
+        .goal-section { background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); color: white; }
+    </style>
+</head>
+<body>
+    <!-- ヘッダー -->
+    <nav class="navbar navbar-dark bg-dark">
+        <div class="container">
+            <span class="navbar-brand">⚡ ケンモチ電機 — 施工コスト最適化システム</span>
+        </div>
+    </nav>
+
+    <!-- 最終目標 -->
+    <section class="goal-section py-4 mb-4">
+        <div class="container">
+            <h5>🎯 最終目標: 施工コストの最適化</h5>
+            <p class="mb-0 small">
+                入札案件の収集 → 見積もり作成 → 材料発注管理 → 実績蓄積 → AIによる見積もり自動生成・コスト予測<br>
+                3つのアプリが統合データベースで連携し、過去実績から最適な施工コストを導きます。
+            </p>
+        </div>
+    </section>
+
+    <div class="container">
+        <!-- アプリカード -->
+        <div class="row g-4 mb-5">
+            <!-- 1. 入札案件管理 -->
+            <div class="col-md-4">
+                <div class="card app-card h-100 border-primary">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0">📋 入札案件管理</h5>
+                    </div>
+                    <div class="card-body">
+                        <p>入札案件の収集・進捗管理・費用分析・競合分析</p>
+                        <ul class="small">
+                            <li>自動スクレイピングで案件収集</li>
+                            <li>ステータス管理（新着→入札→受注/失注）</li>
+                            <li>見積金額 vs 実原価の利益分析</li>
+                            <li>競合の落札金額との比較</li>
+                            <li>入札参加資格の期限管理</li>
+                        </ul>
+                        <span class="badge bg-info status-badge">Streamlit</span>
+                        <span class="badge bg-secondary status-badge">Port 8501</span>
+                    </div>
+                    <div class="card-footer">
+                        <a href="http://localhost:8501" target="_blank" class="btn btn-primary w-100">アプリを開く →</a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2. 材料管理 -->
+            <div class="col-md-4">
+                <div class="card app-card h-100 border-success">
+                    <div class="card-header bg-success text-white">
+                        <h5 class="mb-0">🔧 材料管理</h5>
+                    </div>
+                    <div class="card-body">
+                        <p>工事現場ごとの見積もり vs 発注状況の比較管理</p>
+                        <ul class="small">
+                            <li>見積もりExcelインポート（自動現場登録）</li>
+                            <li>品目別の発注追跡（分割発注対応）</li>
+                            <li>消化率の可視化（超過:赤/完了:緑）</li>
+                            <li>発注書PDFインポート（自動マッチング）</li>
+                            <li>受領書アップロード（現場確認）</li>
+                        </ul>
+                        <span class="badge bg-info status-badge">Flask</span>
+                        <span class="badge bg-secondary status-badge">Port 5000</span>
+                    </div>
+                    <div class="card-footer">
+                        <a href="http://localhost:5000" target="_blank" class="btn btn-success w-100">アプリを開く →</a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 3. コスト分析・AI見積もり（将来） -->
+            <div class="col-md-4">
+                <div class="card app-card h-100 border-warning">
+                    <div class="card-header bg-warning text-dark">
+                        <h5 class="mb-0">🤖 コスト分析・AI見積もり</h5>
+                    </div>
+                    <div class="card-body">
+                        <p>過去実績から見積もりを自動生成し、施工コストを最適化</p>
+                        <ul class="small">
+                            <li>過去案件の見積もり×実発注データを学習</li>
+                            <li>類似案件検索（工事種別・規模・エリア）</li>
+                            <li>見積もり金額の自動提案</li>
+                            <li>単価トレンド分析（業者×品目×時期）</li>
+                            <li>受注確率予測・最適入札額の提案</li>
+                        </ul>
+                        <span class="badge bg-secondary status-badge">開発予定</span>
+                    </div>
+                    <div class="card-footer">
+                        <button class="btn btn-outline-warning w-100" disabled>準備中（データ蓄積フェーズ）</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- データ統合の説明 -->
+        <div class="card mb-4">
+            <div class="card-header bg-dark text-white">
+                <h5 class="mb-0">🗄️ データベース統合構造</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-8">
+                        <pre class="bg-light p-3 small">
+┌─────────────────────────────────────────────────────────────────┐
+│                    統合データベース                                │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  [project] 案件/現場 ← 入札管理で登録、受注後に材料管理へ引き継ぎ │
+│       │                                                         │
+│       ├── [estimate_header + estimate_line] 見積もり明細          │
+│       │       └── [item_master] 品目マスタ（全現場共通）          │
+│       │                                                         │
+│       ├── [order] 発注レコード（分割発注対応）                     │
+│       │       └── [supplier] 仕入先マスタ                        │
+│       │       └── [receipt] 受領書                               │
+│       │                                                         │
+│       ├── [competitor] 競合情報                                   │
+│       └── [price_history] 単価履歴 → AI学習データ                 │
+│                                                                 │
+│  入札管理(projects/costs) ←→ 材料管理(project/estimate/order)    │
+│  同じ案件IDで連携。入札→受注→施工の全ライフサイクルを追跡        │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘</pre>
+                    </div>
+                    <div class="col-md-4">
+                        <h6>データの流れ</h6>
+                        <ol class="small">
+                            <li><strong>入札管理</strong>で案件収集・見積提出</li>
+                            <li>受注したら<strong>材料管理</strong>に引き継ぎ</li>
+                            <li>Excelで見積もり明細をインポート</li>
+                            <li>発注・受領を記録し、消化率を追跡</li>
+                            <li>完工後、実績データが<strong>AI学習</strong>に蓄積</li>
+                            <li>次回の見積もりを自動提案</li>
+                        </ol>
+                        <h6 class="mt-3">統合状況</h6>
+                        <table class="table table-sm small">
+                            <tr><td>入札管理 DB</td><td><code>bid_manager/database.db</code></td></tr>
+                            <tr><td>材料管理 DB</td><td><code>material_manager/construction.db</code></td></tr>
+                            <tr><td>統合方針</td><td>将来1つのDBに移行（PostgreSQL）</td></tr>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 使い方 -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">📖 使い方</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4">
+                        <h6>📋 入札案件管理</h6>
+                        <ol class="small">
+                            <li><code>cd bid_manager</code></li>
+                            <li><code>pip install -r requirements.txt</code></li>
+                            <li><code>streamlit run app.py --server.port 8501</code></li>
+                            <li>ブラウザで <a href="http://localhost:8501">localhost:8501</a></li>
+                        </ol>
+                        <p class="small text-muted">
+                            案件は自動収集（GEPS通知メール + スクレイピング）または手動追加。
+                            見積金額・実原価・競合情報を入力して分析。
+                        </p>
+                    </div>
+                    <div class="col-md-4">
+                        <h6>🔧 材料管理</h6>
+                        <ol class="small">
+                            <li><code>cd material_manager</code></li>
+                            <li><code>pip install -r requirements.txt</code></li>
+                            <li><code>python -c "from db import init_db; init_db()"</code></li>
+                            <li><code>python app.py</code></li>
+                            <li>ブラウザで <a href="http://localhost:5000">localhost:5000</a></li>
+                        </ol>
+                        <p class="small text-muted">
+                            見積もりExcelをインポート → 発注登録 → 発注書PDFインポート → 受領書アップロード。
+                            品目クリックで発注履歴ドリルダウン。
+                        </p>
+                    </div>
+                    <div class="col-md-4">
+                        <h6>🤖 コスト分析・AI（予定）</h6>
+                        <p class="small text-muted">
+                            以下のデータが蓄積されたら開発開始:
+                        </p>
+                        <ul class="small text-muted">
+                            <li>案件 50件以上 → 類似案件検索</li>
+                            <li>案件 100件以上 → 見積もり自動提案</li>
+                            <li>案件 200件以上 → 受注確率予測</li>
+                        </ul>
+                        <p class="small text-muted">
+                            今は「正確にデータを入力する」フェーズ。特にメモ欄（なぜこの金額か、どこで負けたか）が重要。
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 起動スクリプト -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">🚀 一括起動</h5>
+            </div>
+            <div class="card-body">
+                <p class="small">全アプリを一括起動するには:</p>
+                <pre class="bg-light p-3 small">./start_all.sh</pre>
+                <p class="small text-muted">このポータルページは <code>portal/index.html</code> をブラウザで開くだけで使えます。</p>
+            </div>
+        </div>
+    </div>
+
+    <footer class="bg-dark text-white text-center py-3 mt-4">
+        <small>ケンモチ電機 施工コスト最適化システム — 2026</small>
+    </footer>
+</body>
+</html>
