@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block title %}発注書PDF取込 確認 — {{ site.title }}{% endblock %}
+{% block content %}
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/">現場一覧</a></li>
+        <li class="breadcrumb-item"><a href="{{ url_for('site_detail', project_id=site.id) }}">{{ site.title }}</a></li>
+        <li class="breadcrumb-item active">PDF取込 確認</li>
+    </ol>
+</nav>
+
+<h2>発注書PDF取込 — マッチング確認</h2>
+<p>
+    発注先: <strong>{{ supplier }}</strong> /
+    発注者: <strong>{{ orderer }}</strong> /
+    発注日: <strong>{{ order_date }}</strong>
+</p>
+
+<div class="alert alert-info">
+    <strong>{{ preview|length }}</strong> 件の品目を検出しました。
+    既存品目と一致しないものは振り分けを指定してください。
+</div>
+
+<form method="POST" action="{{ url_for('order_import_pdf_confirm', project_id=site.id) }}">
+    <input type="hidden" name="orderer" value="{{ orderer }}">
+    <input type="hidden" name="supplier" value="{{ supplier }}">
+    <input type="hidden" name="order_date" value="{{ order_date }}">
+    <input type="hidden" name="tmp_path" value="{{ tmp_path }}">
+
+    <table class="table table-sm table-bordered">
+        <thead class="table-light">
+            <tr>
+                <th>状態</th>
+                <th>PDF品目名</th>
+                <th>仕様</th>
+                <th class="text-end">数量</th>
+                <th>単位</th>
+                <th class="text-end">単価</th>
+                <th class="text-end">金額</th>
+                <th>振り分け</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for p in preview %}
+            <tr class="{{ 'table-success' if p.match_type == 'exact' else 'table-warning' if p.match_type in ['name_only', 'partial'] else 'table-danger' }}">
+                <td>
+                    {% if p.match_type == 'exact' %}
+                        <span class="badge bg-success">一致</span>
+                    {% elif p.match_type == 'name_only' %}
+                        <span class="badge bg-warning text-dark">名前一致</span>
+                    {% elif p.match_type == 'partial' %}
+                        <span class="badge bg-warning text-dark">部分一致</span>
+                    {% else %}
+                        <span class="badge bg-danger">不一致</span>
+                    {% endif %}
+                </td>
+                <td>{{ p.name }}</td>
+                <td class="small">{{ p.spec }}</td>
+                <td class="text-end">{{ "%.1f"|format(p.qty) }}</td>
+                <td>{{ p.unit }}</td>
+                <td class="text-end">&yen;{{ "{:,.0f}".format(p.unit_price) }}</td>
+                <td class="text-end">&yen;{{ "{:,.0f}".format(p.amount) }}</td>
+                <td>
+                    <input type="hidden" name="item_{{ p.idx }}_name" value="{{ p.name }}">
+                    <input type="hidden" name="item_{{ p.idx }}_spec" value="{{ p.spec }}">
+                    <input type="hidden" name="item_{{ p.idx }}_qty" value="{{ p.qty }}">
+                    <input type="hidden" name="item_{{ p.idx }}_unit" value="{{ p.unit }}">
+                    <input type="hidden" name="item_{{ p.idx }}_price" value="{{ p.unit_price }}">
+                    <input type="hidden" name="item_{{ p.idx }}_amount" value="{{ p.amount }}">
+
+                    <select name="item_{{ p.idx }}_action" class="form-select form-select-sm">
+                        {% if p.match_id %}
+                            <option value="{{ p.match_id }}" selected>既存に登録 (自動マッチ)</option>
+                        {% endif %}
+                        <option value="new" {{ '' if p.match_id else 'selected' }}>新規品目として追加</option>
+                        <option value="skip">スキップ（登録しない）</option>
+                        <optgroup label="--- 既存品目から選択 ---">
+                        {% for ei in existing_items %}
+                            <option value="{{ ei.id }}" {{ 'selected' if ei.id == p.match_id and p.match_type != 'exact' else '' }}>
+                                {{ ei.name }} {% if ei.spec %}({{ ei.spec }}){% endif %}
+                            </option>
+                        {% endfor %}
+                        </optgroup>
+                    </select>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <div class="d-flex gap-2">
+        <button type="submit" class="btn btn-primary">この内容で登録する</button>
+        <a href="{{ url_for('site_detail', project_id=site.id) }}" class="btn btn-secondary">キャンセル</a>
+    </div>
+</form>
+{% endblock %}

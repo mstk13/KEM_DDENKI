@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}見積もり追加 — {{ site.title }}{% endblock %}
+{% block content %}
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/">現場一覧</a></li>
+        <li class="breadcrumb-item"><a href="{{ url_for('site_detail', project_id=site.id) }}">{{ site.title }}</a></li>
+        <li class="breadcrumb-item active">見積もり追加</li>
+    </ol>
+</nav>
+
+<h2>見積もり明細 追加</h2>
+<form method="POST" class="mt-3" style="max-width: 600px;">
+    <div class="mb-3">
+        <label class="form-label">品目 *</label>
+        <select name="item_id" id="item_select" class="form-select" onchange="toggleNewItem(this)">
+            <option value="new">-- 新規品目を登録 --</option>
+            {% for item in items %}
+            <option value="{{ item.id }}">{{ item.name }} ({{ item.unit }})</option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <div id="new_item_fields">
+        <div class="mb-3">
+            <label class="form-label">品目名 *</label>
+            <input type="text" name="new_item_name" class="form-control">
+        </div>
+        <div class="row mb-3">
+            <div class="col">
+                <label class="form-label">単位 *</label>
+                <input type="text" name="new_item_unit" class="form-control" placeholder="m, 本, 個, kg...">
+            </div>
+            <div class="col">
+                <label class="form-label">カテゴリ</label>
+                <input type="text" name="new_item_category" class="form-control" placeholder="電線, 配管, 器具...">
+            </div>
+        </div>
+    </div>
+
+    <div class="row mb-3">
+        <div class="col">
+            <label class="form-label">数量 *</label>
+            <input type="number" name="quantity" class="form-control" step="0.1" required>
+        </div>
+        <div class="col">
+            <label class="form-label">単価 (円) *</label>
+            <input type="number" name="unit_price" class="form-control" step="1" required>
+        </div>
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label">備考</label>
+        <input type="text" name="note" class="form-control">
+    </div>
+
+    <button type="submit" class="btn btn-primary">追加</button>
+    <a href="{{ url_for('site_detail', project_id=site.id) }}" class="btn btn-secondary ms-2">戻る</a>
+</form>
+
+<script>
+function toggleNewItem(sel) {
+    document.getElementById('new_item_fields').style.display =
+        sel.value === 'new' ? 'block' : 'none';
+}
+toggleNewItem(document.getElementById('item_select'));
+</script>
+{% endblock %}

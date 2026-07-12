@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block title %}{{ item.name }} — 発注履歴{% endblock %}
+{% block content %}
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/">現場一覧</a></li>
+        <li class="breadcrumb-item"><a href="{{ url_for('site_detail', project_id=site.id) }}">{{ site.title }}</a></li>
+        <li class="breadcrumb-item active">{{ item.name }}</li>
+    </ol>
+</nav>
+
+<h2>{{ item.name }} <small class="text-muted">({{ item.unit }})</small></h2>
+
+{% if estimate %}
+<div class="card mb-4">
+    <div class="card-body">
+        <h6 class="card-title">見積もり</h6>
+        <div class="row">
+            <div class="col">数量: <strong>{{ "%.1f"|format(estimate.quantity) }} {{ item.unit }}</strong></div>
+            <div class="col">単価: &yen;{{ "{:,.0f}".format(estimate.unit_price) }}</div>
+            <div class="col">金額: <strong>&yen;{{ "{:,.0f}".format(estimate.amount) }}</strong></div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<h4>発注履歴</h4>
+
+{% if orders %}
+<table class="table table-bordered">
+    <thead class="table-light">
+        <tr>
+            <th>#</th>
+            <th>発注日</th>
+            <th>発注者</th>
+            <th>発注先</th>
+            <th class="text-end">数量</th>
+            <th class="text-end">単価</th>
+            <th class="text-end">金額</th>
+            <th>備考</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for o in orders %}
+        <tr>
+            <td>{{ loop.index }}</td>
+            <td>{{ o.order_date }}</td>
+            <td>{{ o.orderer }}</td>
+            <td>{{ o.supplier_name }}</td>
+            <td class="text-end">{{ "%.1f"|format(o.quantity) }}</td>
+            <td class="text-end">&yen;{{ "{:,.0f}".format(o.unit_price) }}</td>
+            <td class="text-end">&yen;{{ "{:,.0f}".format(o.amount) }}</td>
+            <td>{{ o.note }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+    <tfoot class="table-light">
+        <tr>
+            <th colspan="4">合計</th>
+            <th class="text-end">{{ "%.1f"|format(total_qty) }}</th>
+            <th></th>
+            <th class="text-end">&yen;{{ "{:,.0f}".format(total_amount) }}</th>
+            <th></th>
+        </tr>
+    </tfoot>
+</table>
+
+{% if estimate %}
+{% set remaining_qty = estimate.quantity - total_qty %}
+{% set remaining_amount = estimate.amount - total_amount %}
+<div class="alert {{ 'alert-danger' if remaining_qty < 0 else 'alert-info' }}">
+    残り: <strong>{{ "%.1f"|format(remaining_qty) }} {{ item.unit }}</strong> /
+    &yen;{{ "{:,.0f}".format(remaining_amount) }}
+    {% if remaining_qty < 0 %}
+    <span class="badge bg-danger">超過</span>
+    {% endif %}
+</div>
+{% endif %}
+
+{% else %}
+<p class="text-muted">まだ発注がありません。</p>
+{% endif %}
+
+<a href="{{ url_for('item_order_pdf', project_id=site.id, item_id=item.id) }}" class="btn btn-danger">発注書 PDF 出力</a>
+<a href="{{ url_for('site_detail', project_id=site.id) }}" class="btn btn-secondary ms-2">戻る</a>
+{% endblock %}

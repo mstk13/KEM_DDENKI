@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+{% block title %}現場一覧{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2>工事現場一覧</h2>
+    <div>
+        <button class="btn btn-success btn-sm" data-bs-toggle="modal" data-bs-target="#importModal">Excel インポート</button>
+        <a href="{{ url_for('site_new') }}" class="btn btn-primary btn-sm">+ 現場登録</a>
+    </div>
+</div>
+
+{% if sites %}
+<table class="table table-hover">
+    <thead class="table-light">
+        <tr>
+            <th>現場名</th>
+            <th>発注元</th>
+            <th>住所</th>
+            <th>担当者</th>
+            <th>ステータス</th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for s in sites %}
+        <tr>
+            <td><a href="{{ url_for('site_detail', project_id=s.id) }}"><strong>{{ s.title }}</strong></a></td>
+            <td>{{ s.client }}</td>
+            <td>{{ s.address }}</td>
+            <td>{{ s.manager }}</td>
+            <td><span class="badge {{ 'bg-success' if s.status == '施工中' else 'bg-secondary' }}">{{ s.status }}</span></td>
+            <td>
+                <button class="btn btn-outline-secondary btn-sm" data-bs-toggle="collapse" data-bs-target="#edit-{{ s.id }}">編集</button>
+            </td>
+        </tr>
+        <tr class="collapse" id="edit-{{ s.id }}">
+            <td colspan="6">
+                <form method="POST" action="{{ url_for('site_edit', project_id=s.id) }}" class="row g-2 align-items-end p-2">
+                    <div class="col">
+                        <label class="form-label small">担当者名</label>
+                        <input type="text" name="manager" class="form-control form-control-sm" value="{{ s.manager }}">
+                    </div>
+                    <div class="col">
+                        <label class="form-label small">発注元</label>
+                        <input type="text" name="client" class="form-control form-control-sm" value="{{ s.client }}">
+                    </div>
+                    <div class="col">
+                        <label class="form-label small">現場住所</label>
+                        <input type="text" name="address" class="form-control form-control-sm" value="{{ s.address }}">
+                    </div>
+                    <div class="col">
+                        <label class="form-label small">工事種別</label>
+                        <input type="text" name="category" class="form-control form-control-sm" value="{{ s.category }}">
+                    </div>
+                    <div class="col-auto">
+                        <button type="submit" class="btn btn-primary btn-sm">保存</button>
+                    </div>
+                </form>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p class="text-muted">現場が登録されていません。Excelインポートまたは「+ 現場登録」から始めてください。</p>
+{% endif %}
+
+<!-- Excel インポート モーダル -->
+<div class="modal fade" id="importModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <form method="POST" action="{{ url_for('import_excel') }}" enctype="multipart/form-data">
+        <div class="modal-header">
+            <h5 class="modal-title">見積もり Excel インポート</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+            <p class="text-muted">Excelから現場名を読み取り、現場登録+見積もり明細を一括インポートします。</p>
+
+            <div class="mb-3">
+                <label class="form-label">Excel ファイル *</label>
+                <input type="file" name="excel_file" class="form-control" accept=".xlsx,.xls" required>
+            </div>
+
+            <h6>現場名の読み取り</h6>
+            <div class="row mb-3">
+                <div class="col">
+                    <label class="form-label">現場名のセル</label>
+                    <input type="text" name="site_name_cell" class="form-control" value="E13">
+                    <small class="text-muted">鑑シートの工事件名セル</small>
+                </div>
+                <div class="col">
+                    <label class="form-label">現場名のシート名</label>
+                    <input type="text" name="site_name_sheet" class="form-control" value="鑑">
+                </div>
+            </div>
+            <div class="row mb-3">
+                <div class="col">
+                    <label class="form-label">明細シート名</label>
+                    <input type="text" name="detail_sheet" class="form-control" value="内訳書">
+                </div>
+                <div class="col">
+                    <label class="form-label">工事種別</label>
+                    <input type="text" name="category" class="form-control" value="電気工事">
+                </div>
+            </div>
+
+            <h6>明細行の列対応（A=1, B=2, C=3...）</h6>
+            <div class="row mb-2">
+                <div class="col">
+                    <label class="form-label">品目名</label>
+                    <input type="number" name="col_name" class="form-control" value="2" min="1">
+                </div>
+                <div class="col">
+                    <label class="form-label">仕様</label>
+                    <input type="number" name="col_spec" class="form-control" value="3" min="1">
+                </div>
+                <div class="col">
+                    <label class="form-label">数量</label>
+                    <input type="number" name="col_qty" class="form-control" value="4" min="1">
+                </div>
+            </div>
+            <div class="row mb-2">
+                <div class="col">
+                    <label class="form-label">単位</label>
+                    <input type="number" name="col_unit" class="form-control" value="5" min="1">
+                </div>
+                <div class="col">
+                    <label class="form-label">単価</label>
+                    <input type="number" name="col_price" class="form-control" value="6" min="1">
+                </div>
+                <div class="col">
+                    <label class="form-label">金額</label>
+                    <input type="number" name="col_amount" class="form-control" value="7" min="1">
+                </div>
+                <div class="col">
+                    <label class="form-label">データ開始行</label>
+                    <input type="number" name="start_row" class="form-control" value="3" min="1">
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
+            <button type="submit" class="btn btn-success">インポート実行</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
