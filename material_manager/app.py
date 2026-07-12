@@ -8,6 +8,7 @@ from openpyxl import load_workbook
 
 from pdf_generator import generate_order_pdf
 from pdf_parser import parse_order_pdf
+from cost_analyzer import analyze_item_costs, get_supplier_comparison, generate_estimate_suggestion
 
 from db import get_db, close_db, init_db, _now
 
@@ -868,6 +869,60 @@ def item_order_pdf(project_id, item_id):
                          as_attachment=True, download_name=filename)
 
     return render_template("order_pdf_form.html", site=site, item=item)
+
+
+# ================================================================
+# コスト分析・最適調達提案
+# ================================================================
+
+@app.route("/cost-analysis")
+def cost_analysis():
+    """全品目のコスト分析ダッシュボード"""
+    items = analyze_item_costs()
+    return render_template("cost_analysis.html", items=items)
+
+
+@app.route("/cost-analysis/item/<int:item_id>")
+def cost_analysis_item(item_id):
+    """品目ごとの業者別単価比較"""
+    db = get_db()
+    item = db.execute("SELECT * FROM item_master WHERE id = ?", (item_id,)).fetchone()
+    suppliers = get_supplier_comparison(item_id)
+    return render_template("cost_analysis_item.html", item=item, suppliers=suppliers)
+
+
+@app.route("/site/<int:project_id>/suggest")
+def estimate_suggestion(project_id):
+    """見積もり作成時のコスト最適化提案"""
+    db = get_db()
+    site = db.execute("SELECT * FROM project WHERE id = ?", (project_id,)).fetchone()
+    suggestions = generate_estimate_suggestion(project_id)
+
+    total_est = sum(s["est_amount"] for s in suggestions)
+    total_suggested = sum(s["total_suggested"] for s in suggestions)
+    total_savings = sum(s["savings"] for s in suggestions)
+
+    return render_template("estimate_suggestion.html",
+                           site=site, suggestions=suggestions,
+                           total_est=total_est, total_suggested=total_suggested,
+                           total_savings=total_savings)
+
+
+@app.route("/order/<int:order_id>/cost/add", methods=["POST"])
+def order_cost_add(order_id):
+    """発注に付帯コスト（輸送費等）を追加"""
+    db = get_db()
+    cost_type = request.form.get("cost_type", "輸送費")
+    amount = int(float(request.form.get("amount", 0)))
+    memo = request.form.get("memo", "")
+
+    db.execute(
+        "INSERT INTO order_cost (order_id, cost_type, amount, memo) VALUES (?, ?, ?, ?)",
+        (order_id, cost_type, amount, memo)
+    )
+    db.commit()
+    flash(f"付帯コスト（{cost_type}: ¥{amount:,}）を登録しました。")
+    return redirect(request.referrer or url_for("index"))
 
 
 # ================================================================

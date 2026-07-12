@@ -66,6 +66,30 @@
             </td>
             <td>{{ o.memo }}</td>
         </tr>
+        <!-- 付帯コスト入力行 -->
+        <tr>
+            <td colspan="9" class="bg-light py-1">
+                <form method="POST" action="{{ url_for('order_cost_add', order_id=o.id) }}" class="row g-1 align-items-center small">
+                    <div class="col-auto">
+                        <select name="cost_type" class="form-select form-select-sm" style="width:auto">
+                            <option value="輸送費">輸送費</option>
+                            <option value="手数料">手数料</option>
+                            <option value="保管費">保管費</option>
+                            <option value="その他">その他</option>
+                        </select>
+                    </div>
+                    <div class="col-auto">
+                        <input type="number" name="amount" class="form-control form-control-sm" placeholder="金額" style="width:100px" required>
+                    </div>
+                    <div class="col-auto">
+                        <input type="text" name="memo" class="form-control form-control-sm" placeholder="備考" style="width:120px">
+                    </div>
+                    <div class="col-auto">
+                        <button type="submit" class="btn btn-outline-secondary btn-sm">付帯コスト追加</button>
+                    </div>
+                </form>
+            </td>
+        </tr>
         {% if o.receipt_count == 0 %}
         <tr>
             <td colspan="9" class="bg-light">

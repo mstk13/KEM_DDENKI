@@ -13,6 +13,7 @@
     <div>
         <button class="btn btn-outline-secondary btn-sm" data-bs-toggle="collapse" data-bs-target="#siteEditForm">現場情報編集</button>
         <a href="{{ url_for('estimate_add', project_id=site.id) }}" class="btn btn-outline-primary btn-sm">+ 見積もり追加</a>
+        <a href="{{ url_for('estimate_suggestion', project_id=site.id) }}" class="btn btn-info btn-sm text-white">💡 コスト最適化提案</a>
         <a href="{{ url_for('order_import_pdf', project_id=site.id) }}" class="btn btn-warning btn-sm">発注書PDF取込</a>
         <a href="{{ url_for('order_add', project_id=site.id) }}" class="btn btn-primary btn-sm">+ 発注登録</a>
     </div>

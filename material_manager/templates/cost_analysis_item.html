@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}{{ item.name }} — 業者別比較{% endblock %}
+{% block content %}
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/">現場一覧</a></li>
+        <li class="breadcrumb-item"><a href="{{ url_for('cost_analysis') }}">コスト分析</a></li>
+        <li class="breadcrumb-item active">{{ item.name }}</li>
+    </ol>
+</nav>
+
+<h2>{{ item.name }} <small class="text-muted">{{ item.spec }}</small></h2>
+<p class="text-muted">業者ごとの単価比較（輸送費込みのトータルコスト順）</p>
+
+{% if suppliers %}
+<table class="table table-bordered">
+    <thead class="table-dark">
+        <tr>
+            <th>順位</th>
+            <th>業者名</th>
+            <th class="text-end">発注回数</th>
+            <th class="text-end">平均単価</th>
+            <th class="text-end">最安単価</th>
+            <th class="text-end">最高単価</th>
+            <th class="text-end">平均輸送費</th>
+            <th class="text-end">トータル (単価+輸送)</th>
+            <th>最終発注日</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for s in suppliers %}
+        <tr class="{{ 'table-success' if loop.first else '' }}">
+            <td>{{ loop.index }}{{ ' 🏆' if loop.first else '' }}</td>
+            <td><strong>{{ s.supplier_name }}</strong></td>
+            <td class="text-end">{{ s.order_count }}</td>
+            <td class="text-end">&yen;{{ "{:,.0f}".format(s.avg_price) }}</td>
+            <td class="text-end">&yen;{{ "{:,.0f}".format(s.min_price) }}</td>
+            <td class="text-end">&yen;{{ "{:,.0f}".format(s.max_price) }}</td>
+            <td class="text-end">&yen;{{ "{:,.0f}".format(s.avg_transport) }}</td>
+            <td class="text-end"><strong>&yen;{{ "{:,.0f}".format(s.avg_price + s.avg_transport) }}</strong></td>
+            <td>{{ s.last_order_date }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<div class="alert alert-info">この品目の発注実績がまだありません。</div>
+{% endif %}
+
+<a href="{{ url_for('cost_analysis') }}" class="btn btn-secondary">戻る</a>
+{% endblock %}

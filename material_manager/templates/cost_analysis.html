@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}コスト分析{% endblock %}
+{% block content %}
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/">現場一覧</a></li>
+        <li class="breadcrumb-item active">コスト分析</li>
+    </ol>
+</nav>
+
+<h2>📊 品目別コスト分析</h2>
+<p class="text-muted">過去の全発注実績から、品目ごとの単価・最安業者・輸送費を分析します。</p>
+
+{% if items %}
+<table class="table table-bordered table-sm">
+    <thead class="table-dark">
+        <tr>
+            <th>品目名</th>
+            <th>仕様</th>
+            <th>単位</th>
+            <th class="text-end">発注回数</th>
+            <th class="text-end">平均単価</th>
+            <th class="text-end">最安単価</th>
+            <th class="text-end">最高単価</th>
+            <th class="text-end">直近単価</th>
+            <th>最安業者</th>
+            <th class="text-end">最安業者平均</th>
+            <th class="text-end">平均輸送費</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for i in items %}
+        <tr>
+            <td><a href="{{ url_for('cost_analysis_item', item_id=i.item_id) }}">{{ i.item_name }}</a></td>
+            <td class="small">{{ i.spec }}</td>
+            <td>{{ i.unit }}</td>
+            <td class="text-end">{{ i.total_orders }}</td>
+            <td class="text-end">&yen;{{ "{:,.0f}".format(i.avg_price) }}</td>
+            <td class="text-end text-success">&yen;{{ "{:,.0f}".format(i.min_price) }}</td>
+            <td class="text-end text-danger">&yen;{{ "{:,.0f}".format(i.max_price) }}</td>
+            <td class="text-end">&yen;{{ "{:,.0f}".format(i.latest_price) }}</td>
+            <td>{{ i.best_supplier or '-' }}</td>
+            <td class="text-end">{{ "&yen;{:,.0f}".format(i.best_supplier_avg) if i.best_supplier_avg else '-' }}</td>
+            <td class="text-end">{{ "&yen;{:,.0f}".format(i.avg_transport) if i.avg_transport else '-' }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<div class="alert alert-info">発注実績がまだありません。発注データが蓄積されるとコスト分析が可能になります。</div>
+{% endif %}
+{% endblock %}

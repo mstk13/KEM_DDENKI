@@ -125,6 +125,16 @@ CREATE TABLE IF NOT EXISTS price_history (
     memo          TEXT DEFAULT ''
 );
 
+-- 付帯コスト（発注ごとの輸送費・手数料等）
+CREATE TABLE IF NOT EXISTS order_cost (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    order_id    INTEGER NOT NULL REFERENCES "order"(id) ON DELETE CASCADE,
+    cost_type   TEXT NOT NULL,
+    amount      INTEGER NOT NULL,
+    memo        TEXT DEFAULT '',
+    created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 -- 受領書（発注ごとにアップロード）
 CREATE TABLE IF NOT EXISTS receipt (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,

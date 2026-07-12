@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% block title %}コスト最適化提案 — {{ site.title }}{% endblock %}
+{% block content %}
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/">現場一覧</a></li>
+        <li class="breadcrumb-item"><a href="{{ url_for('site_detail', project_id=site.id) }}">{{ site.title }}</a></li>
+        <li class="breadcrumb-item active">コスト最適化提案</li>
+    </ol>
+</nav>
+
+<h2>💡 コスト最適化提案</h2>
+<p class="text-muted">過去の発注実績から、見積もり各品目の最適な調達先・単価を提案します。</p>
+
+{% if total_savings > 0 %}
+<div class="alert alert-success">
+    <h5>削減可能額: <strong>&yen;{{ "{:,.0f}".format(total_savings) }}</strong></h5>
+    <p class="mb-0">
+        見積もり合計 &yen;{{ "{:,.0f}".format(total_est) }} →
+        提案合計 &yen;{{ "{:,.0f}".format(total_suggested) }}
+        （{{ "%.1f"|format(total_savings / total_est * 100) }}% 削減）
+    </p>
+</div>
+{% elif suggestions %}
+<div class="alert alert-info">
+    現在の見積もりは過去実績と同等レベルです。データが増えるとより精度の高い提案が可能になります。
+</div>
+{% endif %}
+
+{% if suggestions %}
+<table class="table table-bordered table-sm">
+    <thead class="table-dark">
+        <tr>
+            <th>品目名</th>
+            <th>仕様</th>
+            <th class="text-end">数量</th>
+            <th class="text-end">見積もり単価</th>
+            <th class="text-end">見積もり金額</th>
+            <th class="text-end">提案単価</th>
+            <th>提案業者</th>
+            <th class="text-end">輸送費/単位</th>
+            <th class="text-end">提案合計</th>
+            <th class="text-end">削減額</th>
+            <th>実績</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for s in suggestions %}
+        <tr class="{{ 'table-success' if s.savings > 0 else 'table-warning' if s.order_count == 0 else '' }}">
+            <td>{{ s.item_name }}</td>
+            <td class="small">{{ s.spec }}</td>
+            <td class="text-end">{{ "%.1f"|format(s.est_qty) }} {{ s.unit }}</td>
+            <td class="text-end">&yen;{{ "{:,.0f}".format(s.est_unit_price) }}</td>
+            <td class="text-end">&yen;{{ "{:,.0f}".format(s.est_amount) }}</td>
+            <td class="text-end {{ 'text-success fw-bold' if s.suggested_price < s.est_unit_price else '' }}">
+                &yen;{{ "{:,.0f}".format(s.suggested_price) }}
+            </td>
+            <td>{{ s.suggested_supplier or '-' }}</td>
+            <td class="text-end">{{ "&yen;{:,.0f}".format(s.avg_transport_per_unit) if s.avg_transport_per_unit else '-' }}</td>
+            <td class="text-end">&yen;{{ "{:,.0f}".format(s.total_suggested) }}</td>
+            <td class="text-end {{ 'text-success fw-bold' if s.savings > 0 else '' }}">
+                {% if s.savings > 0 %}
+                    -&yen;{{ "{:,.0f}".format(s.savings) }}
+                    <small>({{ s.savings_pct }}%)</small>
+                {% elif s.order_count == 0 %}
+                    <span class="text-muted">実績なし</span>
+                {% else %}
+                    -
+                {% endif %}
+            </td>
+            <td>
+                {% if s.order_count > 0 %}
+                    <span class="badge bg-primary">{{ s.order_count }}件</span>
+                {% else %}
+                    <span class="badge bg-secondary">なし</span>
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+    <tfoot class="table-light">
+        <tr>
+            <th colspan="4">合計</th>
+            <th class="text-end">&yen;{{ "{:,.0f}".format(total_est) }}</th>
+            <th colspan="3"></th>
+            <th class="text-end">&yen;{{ "{:,.0f}".format(total_suggested) }}</th>
+            <th class="text-end text-success fw-bold">
+                {% if total_savings > 0 %}-&yen;{{ "{:,.0f}".format(total_savings) }}{% endif %}
+            </th>
+            <th></th>
+        </tr>
+    </tfoot>
+</table>
+
+<div class="card mt-4">
+    <div class="card-body">
+        <h6>📝 提案の根拠</h6>
+        <ul class="small mb-0">
+            <li><strong>提案単価</strong>: 過去に同じ品目を最安で納品した業者の平均単価</li>
+            <li><strong>輸送費/単位</strong>: 過去の輸送費実績を発注数量で割った1単位あたりのコスト</li>
+            <li><strong>提案合計</strong>: (提案単価 + 輸送費/単位) × 数量</li>
+            <li><strong>実績なし</strong>: 過去に発注実績がない品目（提案不可、見積もり通り）</li>
+            <li>実績が増えるほど提案の精度が向上します</li>
+        </ul>
+    </div>
+</div>
+{% else %}
+<div class="alert alert-warning">この現場にはまだ見積もり明細がありません。</div>
+{% endif %}
+
+<a href="{{ url_for('site_detail', project_id=site.id) }}" class="btn btn-secondary mt-3">戻る</a>
+{% endblock %}
