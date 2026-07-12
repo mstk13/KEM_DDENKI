@@ -36,7 +36,7 @@
         <!-- アプリカード -->
         <div class="row g-4 mb-5">
             <!-- 1. 入札案件管理 -->
-            <div class="col-md-4">
+            <div class="col-md-6 col-lg-3">
                 <div class="card app-card h-100 border-primary">
                     <div class="card-header bg-primary text-white">
                         <h5 class="mb-0">📋 入札案件管理</h5>
@@ -60,7 +60,7 @@
             </div>
 
             <!-- 2. 材料管理 -->
-            <div class="col-md-4">
+            <div class="col-md-6 col-lg-3">
                 <div class="card app-card h-100 border-success">
                     <div class="card-header bg-success text-white">
                         <h5 class="mb-0">🔧 材料管理</h5>
@@ -83,8 +83,32 @@
                 </div>
             </div>
 
-            <!-- 3. コスト分析・AI見積もり（将来） -->
-            <div class="col-md-4">
+            <!-- 3. 作業日報 -->
+            <div class="col-md-6 col-lg-3">
+                <div class="card app-card h-100 border-info">
+                    <div class="card-header bg-info text-white">
+                        <h5 class="mb-0">🛠️ 作業日報</h5>
+                    </div>
+                    <div class="card-body">
+                        <p>現場ごとの作業日報を登録・管理・集計</p>
+                        <ul class="small">
+                            <li>作業員名・作業時間・残業・宿泊を記録</li>
+                            <li>作業内容・使用材料の記録</li>
+                            <li>交通手段・交通費の管理</li>
+                            <li>協力会社の管理</li>
+                            <li>月次集計・稼働分析</li>
+                        </ul>
+                        <span class="badge bg-info status-badge">Streamlit</span>
+                        <span class="badge bg-secondary status-badge">Port 8502</span>
+                    </div>
+                    <div class="card-footer">
+                        <a href="http://localhost:8502" target="_blank" class="btn btn-info w-100 text-white">アプリを開く →</a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 4. コスト分析・AI見積もり（将来） -->
+            <div class="col-md-6 col-lg-3">
                 <div class="card app-card h-100 border-warning">
                     <div class="card-header bg-warning text-dark">
                         <h5 class="mb-0">🤖 コスト分析・AI見積もり</h5>
@@ -192,7 +216,20 @@
                             品目クリックで発注履歴ドリルダウン。
                         </p>
                     </div>
-                    <div class="col-md-4">
+                    <div class="col-md-3">
+                        <h6>🛠️ 作業日報</h6>
+                        <ol class="small">
+                            <li><code>cd sagyo-nippou</code></li>
+                            <li><code>pip install -r requirements.txt</code></li>
+                            <li><code>streamlit run app.py --server.port 8502</code></li>
+                            <li>ブラウザで <a href="http://localhost:8502">localhost:8502</a></li>
+                        </ol>
+                        <p class="small text-muted">
+                            現場名を選択 → 日付・作業員・時間・作業内容を入力 → 提出。
+                            月次集計で稼働時間・交通費を分析。
+                        </p>
+                    </div>
+                    <div class="col-md-3">
                         <h6>🤖 コスト分析・AI（予定）</h6>
                         <p class="small text-muted">
                             以下のデータが蓄積されたら開発開始:

@@ -16,7 +16,7 @@ PID_MATERIAL=$!
 echo "      PID: $PID_MATERIAL"
 
 # 2. 入札案件管理 (Streamlit, port 8501)
-echo "[2/3] 入札案件管理を起動中... (port 8501)"
+echo "[2/4] 入札案件管理を起動中... (port 8501)"
 cd "$SCRIPT_DIR/bid_manager"
 if command -v streamlit &>/dev/null; then
     streamlit run app.py --server.port 8501 --server.headless true &>/dev/null &
@@ -27,8 +27,20 @@ else
     PID_BID=""
 fi
 
-# 3. ポータルページを開く
-echo "[3/3] ポータルページを開きます..."
+# 3. 作業日報 (Streamlit, port 8502)
+echo "[3/4] 作業日報を起動中... (port 8502)"
+cd "$SCRIPT_DIR/sagyo-nippou"
+if command -v streamlit &>/dev/null; then
+    streamlit run app.py --server.port 8502 --server.headless true &>/dev/null &
+    PID_NIPPOU=$!
+    echo "      PID: $PID_NIPPOU"
+else
+    echo "      ⚠ streamlit未インストール。skip"
+    PID_NIPPOU=""
+fi
+
+# 4. ポータルページを開く
+echo "[4/4] ポータルページを開きます..."
 sleep 2
 
 if command -v xdg-open &>/dev/null; then
@@ -41,11 +53,12 @@ fi
 
 echo ""
 echo "=== 起動完了 ==="
-echo "  ポータル: file://$SCRIPT_DIR/portal/index.html"
-echo "  材料管理: http://localhost:5000"
-echo "  入札管理: http://localhost:8501"
+echo "  ポータル:   file://$SCRIPT_DIR/portal/index.html"
+echo "  材料管理:   http://localhost:5000"
+echo "  入札管理:   http://localhost:8501"
+echo "  作業日報:   http://localhost:8502"
 echo ""
-echo "停止するには: kill $PID_MATERIAL $PID_BID"
+echo "停止するには: kill $PID_MATERIAL $PID_BID $PID_NIPPOU"
 echo "または Ctrl+C"
 
 # 待機
