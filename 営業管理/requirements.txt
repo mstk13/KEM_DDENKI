@@ -1,0 +1,7 @@
+streamlit>=1.30
+anthropic>=0.40
+pandas>=2.0
+plotly>=5.18
+python-dotenv>=1.0
+pypdfium2>=4.0
+truststore>=0.9
