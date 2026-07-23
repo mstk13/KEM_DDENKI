@@ -24,7 +24,7 @@
 |---|--------|-------------|---------------|--------|------|
 | 1 | [入札案件管理](#1-入札案件管理-bid_manager) | `bid_manager/` | Streamlit | 8501 | 入札案件の収集・進捗管理・費用分析・競合分析 |
 | 2 | [材料管理](#2-材料管理-material_manager) | `material_manager/` | Flask | 5000 | 現場ごとの見積もり vs 発注状況の比較管理 |
-| 3 | [作業日報](#3-作業日報-作業日報) | `作業日報/` | Streamlit | 8502 | 現場の作業日報の入力・管理・集計・分析 |
+| 3 | [作業日報](#3-作業日報-作業日報) | `sagyo-nippou/` | Streamlit | 8502 | 現場の作業日報の入力・管理・集計・分析 |
 | 4 | [人事評価](#4-人事評価-evaluation) | `evaluation/` | Streamlit | 8503 | 作業日報連携の人事評価（事務方・現場方・役員） |
 | 5 | [ポータル](#5-ポータル-portal) | `portal/` | 静的HTML | — | 全アプリへのランチャーページ |
 | — | コスト分析・AI見積もり | （開発予定） | — | — | 過去実績から見積もりを自動生成（データ蓄積フェーズ） |
@@ -116,7 +116,7 @@ python app.py               # → http://localhost:5000
 
 ---
 
-## 3. 作業日報 (`作業日報/`)
+## 3. 作業日報 (`sagyo-nippou/`)
 
 電気工事現場の作業日報を入力・管理・分析するWebアプリ。  
 紙の日報フォームに準拠し、スマホでの音声入力にも対応。
@@ -144,7 +144,7 @@ python app.py               # → http://localhost:5000
 ### セットアップ
 
 ```bash
-cd 作業日報
+cd sagyo-nippou
 pip install -r requirements.txt
 python database.py          # DB初期化
 python seed.py              # （任意）デモデータ投入
@@ -251,7 +251,7 @@ chmod +x setup.sh start_all.sh
 KEM_DDENKI/
 ├── bid_manager/        # 入札案件管理（Streamlit, port 8501）
 ├── material_manager/   # 材料管理（Flask, port 5000）
-├── 作業日報/       # 作業日報（Streamlit, port 8502）
+├── sagyo-nippou/    # 作業日報（Streamlit, port 8502）
 ├── evaluation/         # 人事評価（Streamlit, port 8503）
 ├── portal/             # ポータルページ（静的HTML）
 ├── docs/               # ドキュメント
@@ -276,7 +276,7 @@ KEM_DDENKI/
 | [docs/geps_setup.md](docs/geps_setup.md) | GEPS メール連携のセットアップ手順 |
 | [bid_manager/README.md](bid_manager/README.md) | 入札案件管理の詳細ドキュメント |
 | [material_manager/README.md](material_manager/README.md) | 材料管理の詳細ドキュメント |
-| [作業日報/README.md](作業日報/README.md) | 作業日報の詳細ドキュメント |
+| [sagyo-nippou/README.md](sagyo-nippou/README.md) | 作業日報の詳細ドキュメント |
 
 ---
 

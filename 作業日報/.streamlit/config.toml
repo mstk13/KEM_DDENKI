@@ -1,6 +1,5 @@
-[theme]
-primaryColor = "#1f6feb"
-base = "light"
-
 [server]
 headless = true
+address = "0.0.0.0"
+enableCORS = false
+enableXsrfProtection = false

@@ -41,7 +41,7 @@ source .venv/bin/activate
 echo "[2/4] 依存パッケージをインストール中..."
 pip install -r bid_manager/requirements.txt \
             -r material_manager/requirements.txt \
-            -r 作業日報/requirements.txt \
+            -r sagyo-nippou/requirements.txt \
             -r evaluation/requirements.txt --quiet
 echo "      完了"
 echo ""
@@ -58,7 +58,7 @@ cd material_manager
 $PYTHON -c "from db import init_db; init_db()"
 cd "$SCRIPT_DIR"
 
-cd 作業日報
+cd sagyo-nippou
 $PYTHON database.py
 cd "$SCRIPT_DIR"
 

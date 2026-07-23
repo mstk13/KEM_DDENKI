@@ -77,7 +77,7 @@ cd material_manager
 %PYTHON% -c "from db import init_db; init_db()"
 cd ..
 
-cd 作業日報
+cd sagyo-nippou
 %PYTHON% database.py
 cd ..
 

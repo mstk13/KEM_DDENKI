@@ -26,7 +26,7 @@ import database as db
 
 # 別アプリの DB の既定パス(同じリポジトリ内の 作業日報/database.db)
 DEFAULT_SOURCE_DB = Path(os.getenv(
-    "NIPPOU_SOURCE_DB", config.BASE_DIR.parent / "作業日報" / "database.db"))
+    "NIPPOU_SOURCE_DB", config.BASE_DIR.parent / "sagyo-nippou" / "database.db"))
 
 SOURCE_PREFIX = "sagyo"
 OFFICE_SITE_NAME = "(事務所)"

@@ -1,8 +1,5 @@
-[theme]
-primaryColor = "#e67e22"
-backgroundColor = "#f8f9fa"
-secondaryBackgroundColor = "#fff"
-textColor = "#333"
-
 [server]
 headless = true
+address = "0.0.0.0"
+enableCORS = false
+enableXsrfProtection = false

@@ -62,7 +62,7 @@ if %errorlevel% equ 0 (
             cd material_manager
             %PYTHON% -c "from db import init_db; init_db()" 2>nul
             cd ..
-            cd 作業日報
+            cd sagyo-nippou
             %PYTHON% database.py 2>nul
             cd ..
 
@@ -96,7 +96,7 @@ cd ..
 
 :: 3. 作業日報 (Streamlit, port 8502)
 echo [3/4] 作業日報を起動中... (port 8502)
-cd 作業日報
+cd sagyo-nippou
 start "" /b streamlit run app.py --server.port 8502 --server.headless true
 cd ..
 

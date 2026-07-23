@@ -24,7 +24,7 @@ BASE_DIR = Path(__file__).resolve().parent
 REPO_DIR = BASE_DIR.parent
 EVAL_DB_PATH = BASE_DIR / "evaluation.db"
 EVAL_ITEMS_JSON = BASE_DIR / "eval_items.json"
-NIPPOU_DB_PATH = REPO_DIR / "作業日報" / "database.db"
+NIPPOU_DB_PATH = REPO_DIR / "sagyo-nippou" / "database.db"
 
 # ---------------------------------------------------------------------------
 # デフォルト評価項目（初回DB投入用）

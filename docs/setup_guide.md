@@ -146,7 +146,7 @@ py -m pip install -r bid_manager\requirements.txt
 **A.** 以下のファイルをコピーしてください:
 - `bid_manager/data/` フォルダ内のファイル
 - `material_manager/construction.db`
-- `作業日報/` 内の `.db` ファイル
+- `sagyo-nippou/` 内の `.db` ファイル
 
 ### Q. インターネットに繋がっていないときは？
 
