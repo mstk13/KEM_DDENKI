@@ -12,7 +12,7 @@ Streamlit アプリです。
 ## 1. セットアップ
 
 ```powershell
-cd C:\Users\Kenmo\KEM_DDENKI\作業日報管理
+cd C:\Users\Kenmo\KEM_DDENKI\nippou-kanri
 py -3 -m pip install -r requirements.txt   # 導入済みなら不要
 py -3 database.py                          # DB 初期化
 py -3 seed.py                              # (任意) デモデータ投入
@@ -104,7 +104,7 @@ py -3 -m streamlit run app.py              # 起動 → http://localhost:8501
 ## 5. ファイル構成
 
 ```
-作業日報管理/
+nippou-kanri/
 ├── app.py             Streamlit UI(6画面)
 ├── config.py          設定の既定値 + 勤怠の区分計算ロジック
 ├── database.py        SQLite スキーマと CRUD・集計・再計算

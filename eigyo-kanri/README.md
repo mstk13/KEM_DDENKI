@@ -25,7 +25,7 @@
 ## セットアップ
 
 ```powershell
-cd KEM_DDENKI\営業管理
+cd KEM_DDENKI\eigyo-kanri
 python -m pip install -r requirements.txt
 
 copy .env.example .env      # .env を編集して ANTHROPIC_API_KEY を設定
