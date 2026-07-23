@@ -270,6 +270,7 @@ KEM_DDENKI/
 
 | ドキュメント | 内容 |
 |-------------|------|
+| [docs/process.md](docs/process.md) | 運用手順書（起動・停止・LAN共有・メンテナンスPC設定） |
 | [docs/setup_guide.md](docs/setup_guide.md) | ローカルPCセットアップガイド（初回〜毎日の起動まで） |
 | [docs/spec.md](docs/spec.md) | システム仕様書（DB設計・機能仕様・AI活用計画） |
 | [docs/geps_setup.md](docs/geps_setup.md) | GEPS メール連携のセットアップ手順 |
