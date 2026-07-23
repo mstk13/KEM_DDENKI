@@ -41,7 +41,8 @@ source .venv/bin/activate
 echo "[2/4] 依存パッケージをインストール中..."
 pip install -r bid_manager/requirements.txt \
             -r material_manager/requirements.txt \
-            -r sagyo-nippou/requirements.txt --quiet
+            -r sagyo-nippou/requirements.txt \
+            -r evaluation/requirements.txt --quiet
 echo "      完了"
 echo ""
 

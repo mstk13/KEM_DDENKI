@@ -73,7 +73,7 @@
         <div class="container d-flex align-items-center">
             <button class="btn btn-primary me-2" onclick="saveChanges()">変更を保存</button>
             <button class="btn btn-outline-dark" onclick="window.print()">印刷</button>
-            <span class="save-status" id="saveStatus" style="color: rgb(220, 53, 69);">未保存の変更があります</span>
+            <span class="save-status" id="saveStatus" style="color: rgb(25, 135, 84);">保存しました</span>
             <span class="ms-auto text-muted small">セルをクリックして直接編集 / 各セクションの「項目を追加」で行追加</span>
         </div>
     </div>
@@ -147,8 +147,8 @@
                     <tbody>
                         <tr class="data-row"><td contenteditable="true">5</td><td contenteditable="true">業務処理の正確性</td><td contenteditable="true">書類・データ入力のミスの少なさ、チェック体制の構築</td><td contenteditable="true" class="text-center score">15</td></tr>
                         <tr class="data-row"><td contenteditable="true">6</td><td contenteditable="true">業務効率</td><td contenteditable="true">処理スピード、業務改善の工夫、ムダの排除</td><td contenteditable="true" class="text-center score">15</td></tr>
-                        <tr class="data-row"><td contenteditable="true">7</td><td contenteditable="true">PCスキル</td><td contenteditable="true" class="">Excel・システム操作・事務ツールの活用力・改善提案</td><td contenteditable="true" class="text-center score">10</td></tr>
-                        <tr class="data-row"><td contenteditable="true">8</td><td contenteditable="true">入札・契約対応</td><td contenteditable="true">入札書類の準備、提出期限管理の確実さ</td><td contenteditable="true" class="text-center score">15</td></tr>
+                        <tr class="data-row"><td contenteditable="true">7</td><td contenteditable="true" class="">PCスキル / AIスキル</td><td contenteditable="true" class="">Excel・システム操作・事務ツールの活用力・AIを活用した改善提案</td><td contenteditable="true" class="text-center score">10</td></tr>
+                        <tr class="data-row"><td contenteditable="true">8</td><td contenteditable="true" class="">入札・契約対応 / 給与計算</td><td contenteditable="true" class="">入札書類の準備、提出期限管理の確実さ / 給与算出の速さ・正確さ</td><td contenteditable="true" class="text-center score">15</td></tr>
                         <tr class="data-row" style=""><td contenteditable="true">9</td><td contenteditable="true" class="">経費・原価管理の成長</td><td contenteditable="true">コスト意識、予算管理の精度、経費削減の取り組み</td><td contenteditable="true" class="text-center score">10<br></td></tr>
                         <tr class="total-row"><td colspan="3" class="text-end">固有 小計</td><td class="text-center subtotal">65</td></tr>
                         <tr class="total-row"><td colspan="3" class="text-end">合計（共通 + 固有）</td><td class="text-center grand-total"><span class="badge bg-primary badge-total">100</span></td></tr>
@@ -177,10 +177,10 @@
                         <tr class="data-row"><td contenteditable="true">7</td><td contenteditable="true">技術力・資格</td><td contenteditable="true" class="">電気工事士・特殊作業車運転等の保有資格、技術の幅と深さ</td><td contenteditable="true" class="text-center score">15</td></tr>
                         <tr class="data-row"><td contenteditable="true">8</td><td contenteditable="true">工程管理</td><td contenteditable="true">工期遵守、段取り力、無駄のない作業進行</td><td contenteditable="true" class="text-center score">10</td></tr>
                         <tr class="choice-label no-print"><td colspan="4">以下の2項目はどちらか一方を選択（対象者の経験に応じて）</td></tr>
-                        <tr class="data-row choice-group" data-choice="field-level" data-choice-value="senior"><td><input type="radio" name="field-level" value="senior" class="form-check-input choice-radio" checked> 9</td><td contenteditable="true">後輩指導 (シニア)</td><td contenteditable="true">若手への技術指導、若手の成長速度、現場でのチームワーク</td><td contenteditable="true" class="text-center score">10</td></tr>
-                        <tr class="data-row choice-group inactive" data-choice="field-level" data-choice-value="junior"><td><input type="radio" name="field-level" value="junior" class="form-check-input choice-radio"> 10</td><td contenteditable="true">学ぶ姿勢 (ジュニア)</td><td contenteditable="true">先輩から学ぶ姿勢、現場での気つかい、成長速度、現場でのチームワーク</td><td contenteditable="true" class="text-center score">10</td></tr>
+                        <tr class="data-row choice-group inactive" data-choice="field-level" data-choice-value="senior"><td><input type="radio" name="field-level" value="senior" class="form-check-input choice-radio" checked=""> 9</td><td contenteditable="true">後輩指導 (シニア)</td><td contenteditable="true">若手への技術指導、若手の成長速度、現場でのチームワーク</td><td contenteditable="true" class="text-center score">10</td></tr>
+                        <tr class="data-row choice-group" data-choice="field-level" data-choice-value="junior" style=""><td><input type="radio" name="field-level" value="junior" class="form-check-input choice-radio"> 10</td><td contenteditable="true">学ぶ姿勢 (ジュニア)</td><td contenteditable="true">先輩から学ぶ姿勢、現場での気つかい、成長速度、現場でのチームワーク</td><td contenteditable="true" class="text-center score">10</td></tr>
                         <tr class="total-row"><td colspan="3" class="text-end">固有 小計</td><td class="text-center subtotal">65</td></tr>
-                        <tr class="total-row"><td colspan="3" class="text-end">合計（共通 + 固有）</td><td class="text-center grand-total"><span class="badge bg-success badge-total">110</span></td></tr>
+                        <tr class="total-row"><td colspan="3" class="text-end">合計（共通 + 固有）</td><td class="text-center grand-total"><span class="badge bg-success badge-total">100</span></td></tr>
                     </tbody>
                 </table>
                 <div class="section-actions no-print">

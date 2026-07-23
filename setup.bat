@@ -56,7 +56,7 @@ call .venv\Scripts\activate.bat
 
 :: 依存パッケージインストール
 echo [2/4] 依存パッケージをインストール中...（数分かかる場合があります）
-pip install -r bid_manager\requirements.txt -r material_manager\requirements.txt -r sagyo-nippou\requirements.txt --quiet
+pip install -r bid_manager\requirements.txt -r material_manager\requirements.txt -r sagyo-nippou\requirements.txt -r evaluation\requirements.txt --quiet
 if %errorlevel% neq 0 (
     echo [エラー] パッケージのインストールに失敗しました。
     pause

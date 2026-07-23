@@ -45,7 +45,8 @@ if command -v git &>/dev/null && [ -d ".git" ]; then
             echo "[更新完了] 依存パッケージを更新中..."
             pip install -r bid_manager/requirements.txt \
                         -r material_manager/requirements.txt \
-                        -r sagyo-nippou/requirements.txt --quiet 2>/dev/null || true
+                        -r sagyo-nippou/requirements.txt \
+                        -r evaluation/requirements.txt --quiet 2>/dev/null || true
 
             # DB マイグレーション（テーブル追加のみ、既存データは維持）
             (cd bid_manager && $PYTHON database.py 2>/dev/null) || true
@@ -74,13 +75,14 @@ cleanup() {
     [ -n "$PID_MATERIAL" ] && kill "$PID_MATERIAL" 2>/dev/null
     [ -n "$PID_BID" ] && kill "$PID_BID" 2>/dev/null
     [ -n "$PID_NIPPOU" ] && kill "$PID_NIPPOU" 2>/dev/null
+    [ -n "$PID_EVAL" ] && kill "$PID_EVAL" 2>/dev/null
     echo "停止完了。"
     exit 0
 }
 trap cleanup INT TERM
 
 # 1. 材料管理 (Flask, port 5000)
-echo "[1/3] 材料管理を起動中... (port 5000)"
+echo "[1/4] 材料管理を起動中... (port 5000)"
 cd "$SCRIPT_DIR/material_manager"
 $PYTHON -c "from db import init_db; init_db()" 2>/dev/null
 $PYTHON -c "from app import app; app.run(debug=False, host='0.0.0.0', port=5000, use_reloader=False)" &
@@ -88,7 +90,7 @@ PID_MATERIAL=$!
 echo "      PID: $PID_MATERIAL"
 
 # 2. 入札案件管理 (Streamlit, port 8501)
-echo "[2/3] 入札案件管理を起動中... (port 8501)"
+echo "[2/4] 入札案件管理を起動中... (port 8501)"
 cd "$SCRIPT_DIR/bid_manager"
 if command -v streamlit &>/dev/null; then
     streamlit run app.py --server.port 8501 --server.headless true &>/dev/null &
@@ -100,7 +102,7 @@ else
 fi
 
 # 3. 作業日報 (Streamlit, port 8502)
-echo "[3/3] 作業日報を起動中... (port 8502)"
+echo "[3/4] 作業日報を起動中... (port 8502)"
 cd "$SCRIPT_DIR/sagyo-nippou"
 if command -v streamlit &>/dev/null; then
     streamlit run app.py --server.port 8502 --server.headless true &>/dev/null &
@@ -111,7 +113,19 @@ else
     PID_NIPPOU=""
 fi
 
-# 4. ポータルページを開く
+# 4. 人事評価 (Streamlit, port 8503)
+echo "[4/4] 人事評価を起動中... (port 8503)"
+cd "$SCRIPT_DIR/evaluation"
+if command -v streamlit &>/dev/null; then
+    streamlit run app.py --server.port 8503 --server.headless true &>/dev/null &
+    PID_EVAL=$!
+    echo "      PID: $PID_EVAL"
+else
+    echo "      ⚠ streamlit 未インストール。skip"
+    PID_EVAL=""
+fi
+
+# 5. ポータルページを開く
 echo ""
 sleep 2
 
@@ -129,6 +143,7 @@ echo "  ポータル:   file://$SCRIPT_DIR/portal/index.html"
 echo "  材料管理:   http://localhost:5000"
 echo "  入札管理:   http://localhost:8501"
 echo "  作業日報:   http://localhost:8502"
+echo "  人事評価:   http://localhost:8503"
 echo ""
 echo "  Ctrl+C で全アプリを停止します。"
 

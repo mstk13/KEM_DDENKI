@@ -53,7 +53,7 @@ if %errorlevel% equ 0 (
         git pull origin main --quiet
         if %errorlevel% equ 0 (
             echo [更新完了] 依存パッケージを更新中...
-            pip install -r bid_manager\requirements.txt -r material_manager\requirements.txt -r sagyo-nippou\requirements.txt --quiet
+            pip install -r bid_manager\requirements.txt -r material_manager\requirements.txt -r sagyo-nippou\requirements.txt -r evaluation\requirements.txt --quiet
 
             :: DB マイグレーション（テーブル追加のみ、既存データは維持）
             cd bid_manager
@@ -82,22 +82,28 @@ echo.
 :: ===== アプリ起動 =====
 
 :: 1. 材料管理 (Flask, port 5000)
-echo [1/3] 材料管理を起動中... (port 5000)
+echo [1/4] 材料管理を起動中... (port 5000)
 cd material_manager
 %PYTHON% -c "from db import init_db; init_db()" 2>nul
 start "" /b %PYTHON% -c "from app import app; app.run(debug=False, host='0.0.0.0', port=5000, use_reloader=False)"
 cd ..
 
 :: 2. 入札案件管理 (Streamlit, port 8501)
-echo [2/3] 入札案件管理を起動中... (port 8501)
+echo [2/4] 入札案件管理を起動中... (port 8501)
 cd bid_manager
 start "" /b streamlit run app.py --server.port 8501 --server.headless true
 cd ..
 
 :: 3. 作業日報 (Streamlit, port 8502)
-echo [3/3] 作業日報を起動中... (port 8502)
+echo [3/4] 作業日報を起動中... (port 8502)
 cd sagyo-nippou
 start "" /b streamlit run app.py --server.port 8502 --server.headless true
+cd ..
+
+:: 4. 人事評価 (Streamlit, port 8503)
+echo [4/4] 人事評価を起動中... (port 8503)
+cd evaluation
+start "" /b streamlit run app.py --server.port 8503 --server.headless true
 cd ..
 
 :: ポータルを開く
@@ -111,6 +117,7 @@ echo   ポータル:   portal\index.html
 echo   材料管理:   http://localhost:5000
 echo   入札管理:   http://localhost:8501
 echo   作業日報:   http://localhost:8502
+echo   人事評価:   http://localhost:8503
 echo.
 echo   このウィンドウを閉じるとアプリも停止します。
 echo   Ctrl+C で停止できます。
