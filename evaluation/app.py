@@ -1,6 +1,6 @@
 """人事評価管理アプリ
 
-作業日報（sagyo-nippou）の勤怠データを自動参照し、
+作業日報アプリの勤怠データを自動参照し、
 事務方・現場方・役員の3役割で人事評価を行う。
 評価項目はブラウザ上で編集可能（DBに保存）。
 """
@@ -24,7 +24,7 @@ BASE_DIR = Path(__file__).resolve().parent
 REPO_DIR = BASE_DIR.parent
 EVAL_DB_PATH = BASE_DIR / "evaluation.db"
 EVAL_ITEMS_JSON = BASE_DIR / "eval_items.json"
-NIPPOU_DB_PATH = REPO_DIR / "sagyo-nippou" / "database.db"
+NIPPOU_DB_PATH = REPO_DIR / "作業日報" / "database.db"
 
 # ---------------------------------------------------------------------------
 # デフォルト評価項目（初回DB投入用）

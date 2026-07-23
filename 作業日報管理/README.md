@@ -4,7 +4,7 @@
 自動抽出して一覧管理し、社員ごとの **早朝出勤時間・通常勤務時間・残業時間** を自動集計する
 Streamlit アプリです。
 
-`mstk13/KEM_DDENKI` の `sagyo-nippou` と同じレイアウト構成
+`mstk13/KEM_DDENKI` の `作業日報` と同じレイアウト構成
 (`config.py` / `database.py` / `app.py` / `seed.py` + `.streamlit/`)を踏襲しています。
 
 ---
@@ -12,7 +12,7 @@ Streamlit アプリです。
 ## 1. セットアップ
 
 ```powershell
-cd C:\Users\Kenmo\nippou-kanri
+cd C:\Users\Kenmo\KEM_DDENKI\作業日報管理
 py -3 -m pip install -r requirements.txt   # 導入済みなら不要
 py -3 database.py                          # DB 初期化
 py -3 seed.py                              # (任意) デモデータ投入
@@ -31,7 +31,7 @@ py -3 -m streamlit run app.py              # 起動 → http://localhost:8501
 | 📋 **日報一覧表** | 「明細(社員×日)」と「日報単位」の2ビュー。期間 / 現場 / ステータス / キーワードで絞り込み、CSV 出力、編集・削除 |
 | 👤 **社員別記録** | 社員を選んで期間指定。出勤日数・早朝・通常・残業・総労働の KPI、日別内訳グラフ、現場別内訳 |
 | 📊 **勤怠集計** | 全社員の月次/期間集計、社員別スタック棒グラフ、社員×日付のクロス表(勤務表)、残業ランキング |
-| 🔄 **別アプリ連携** | `KEM_DDENKI/sagyo-nippou` の日報を取り込んで、この管理アプリに反映(下記 §7) |
+| 🔄 **別アプリ連携** | `KEM_DDENKI/作業日報` の日報を取り込んで、この管理アプリに反映(下記 §7) |
 | 👥 **社員マスタ** | 社員の追加・一括編集・削除。氏名で勤怠明細を自動紐付け |
 | ⚙️ **設定** | **規定時間の指定**と、既存データの再計算 |
 
@@ -104,7 +104,7 @@ py -3 -m streamlit run app.py              # 起動 → http://localhost:8501
 ## 5. ファイル構成
 
 ```
-nippou-kanri/
+作業日報管理/
 ├── app.py             Streamlit UI(6画面)
 ├── config.py          設定の既定値 + 勤怠の区分計算ロジック
 ├── database.py        SQLite スキーマと CRUD・集計・再計算
@@ -139,12 +139,12 @@ py -3 importer.py    # 別アプリから取り込み
 
 ---
 
-## 7. 別アプリ(sagyo-nippou)との連携
+## 7. 別アプリ(作業日報)との連携
 
-`KEM_DDENKI/sagyo-nippou` は独立した `database.db` を持つため、そちらで日報を登録しても
+`KEM_DDENKI/作業日報` は独立した `database.db` を持つため、そちらで日報を登録しても
 このアプリには**自動では反映されません**。🔄 別アプリ連携 画面で取り込みます。
 
-| 向こう(sagyo-nippou) | こちら(nippou-kanri) |
+| 向こう(作業日報) | こちら(作業日報管理) |
 |---|---|
 | `reports.report_date` | `reports.report_date` |
 | `sites.name` | `reports.site_name` |

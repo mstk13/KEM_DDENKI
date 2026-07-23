@@ -1,4 +1,4 @@
-"""別アプリ(KEM_DDENKI / sagyo-nippou)からの日報取り込み。
+"""別アプリ(KEM_DDENKI / 作業日報)からの日報取り込み。
 
 別アプリは独立した SQLite(`database.db`)を持つため、そのままではデータが共有されない。
 このモジュールが *読み取り専用* で別アプリの DB を参照し、本アプリの形式に変換して取り込む。
@@ -24,9 +24,9 @@ from pathlib import Path
 import config
 import database as db
 
-# 別アプリの DB の既定パス(同じリポジトリ内の sagyo-nippou/database.db)
+# 別アプリの DB の既定パス(同じリポジトリ内の 作業日報/database.db)
 DEFAULT_SOURCE_DB = Path(os.getenv(
-    "NIPPOU_SOURCE_DB", config.BASE_DIR.parent / "sagyo-nippou" / "database.db"))
+    "NIPPOU_SOURCE_DB", config.BASE_DIR.parent / "作業日報" / "database.db"))
 
 SOURCE_PREFIX = "sagyo"
 OFFICE_SITE_NAME = "(事務所)"
@@ -166,7 +166,7 @@ def import_workers(path: str | Path = DEFAULT_SOURCE_DB) -> int:
         if db.get_employee_by_name(name):
             continue
         db.add_employee(name=name, kana=w["kana"] or "", position=w["role"] or "",
-                        active=int(w["is_active"] or 1), note="sagyo-nippou から取込")
+                        active=int(w["is_active"] or 1), note="作業日報 から取込")
         added += 1
     return added
 
@@ -195,7 +195,7 @@ def sync(path: str | Path = DEFAULT_SOURCE_DB, date_from: str = "", date_to: str
         for e in block["entries"]:
             emp = db.get_employee_by_name(e["name"])
             emp_id = int(emp["id"]) if emp else (
-                db.add_employee(name=e["name"], note="sagyo-nippou から自動登録")
+                db.add_employee(name=e["name"], note="作業日報 から自動登録")
                 if settings.get("auto_register_employee") else None)
             items.append({
                 "employee_id": emp_id,

@@ -45,13 +45,13 @@ if command -v git &>/dev/null && [ -d ".git" ]; then
             echo "[更新完了] 依存パッケージを更新中..."
             pip install -r bid_manager/requirements.txt \
                         -r material_manager/requirements.txt \
-                        -r sagyo-nippou/requirements.txt \
+                        -r 作業日報/requirements.txt \
                         -r evaluation/requirements.txt --quiet 2>/dev/null || true
 
             # DB マイグレーション（テーブル追加のみ、既存データは維持）
             (cd bid_manager && $PYTHON database.py 2>/dev/null) || true
             (cd material_manager && $PYTHON -c "from db import init_db; init_db()" 2>/dev/null) || true
-            (cd sagyo-nippou && $PYTHON database.py 2>/dev/null) || true
+            (cd 作業日報 && $PYTHON database.py 2>/dev/null) || true
 
             echo "[完了] アプリを最新版で起動します。"
         else
@@ -103,7 +103,7 @@ fi
 
 # 3. 作業日報 (Streamlit, port 8502)
 echo "[3/4] 作業日報を起動中... (port 8502)"
-cd "$SCRIPT_DIR/sagyo-nippou"
+cd "$SCRIPT_DIR/作業日報"
 if command -v streamlit &>/dev/null; then
     streamlit run app.py --server.port 8502 --server.headless true &>/dev/null &
     PID_NIPPOU=$!
