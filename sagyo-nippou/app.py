@@ -88,8 +88,6 @@ def _worker_col_config(worker_names: list[str]):
         "作業員名": name_col,
         "開始": st.column_config.TimeColumn("開始", format="HH:mm"),
         "終了": st.column_config.TimeColumn("終了", format="HH:mm"),
-        "残業(h)": st.column_config.NumberColumn("残業(h)", min_value=0.0, step=0.5, format="%.1f"),
-        "宿泊": st.column_config.CheckboxColumn("宿泊"),
     }
 
 
@@ -114,8 +112,6 @@ def _empty_workers_df(n: int = 3) -> pd.DataFrame:
         "作業員名": [None] * n,
         "開始": [_t(config.DEFAULT_START_TIME)] * n,
         "終了": [_t(config.DEFAULT_END_TIME)] * n,
-        "残業(h)": [0.0] * n,
-        "宿泊": [False] * n,
     })
 
 
@@ -138,8 +134,6 @@ def _parse_workers(df: pd.DataFrame) -> list[dict]:
             "worker_name": name,
             "start_time": _time_to_str(r.get("開始")),
             "end_time": _time_to_str(r.get("終了")),
-            "overtime_h": _num(r.get("残業(h)"), float, 0),
-            "lodging": bool(r.get("宿泊")),
         })
     return out
 
@@ -191,9 +185,7 @@ def _render_added_workers() -> None:
     st.caption(f"追加済み {len(workers)} 名 / 作業時間合計 {total_h:.1f} 時間")
     for i, w in enumerate(workers):
         col1, col2 = st.columns([6, 1])
-        badge = "　🏠宿泊" if w.get("lodging") else ""
-        ot = f"　残業{w['overtime_h']:.1f}h" if w.get("overtime_h") else ""
-        col1.markdown(f"**{w['worker_name']}**　{w['start_time']}〜{w['end_time']}{ot}{badge}")
+        col1.markdown(f"**{w['worker_name']}**　{w['start_time']}〜{w['end_time']}")
         if col2.button("❌", key=f"delw_{i}", help="削除"):
             st.session_state["entry_workers"].pop(i)
             st.rerun()
@@ -215,8 +207,27 @@ def _render_added_subs() -> None:
             st.rerun()
 
 
+# 日報の担当区分。担当ごとに入力フォームが異なる（現場は用紙準拠の詳細版）。
+ENTRY_ROLES = ["現場", "事務員", "役員"]
+
+
 def page_entry() -> None:
     st.header("📝 日報入力")
+    role = st.radio(
+        "担当", ENTRY_ROLES, horizontal=True, key="entry_role",
+        help="担当を選ぶと、その担当用の入力フォームに切り替わります。",
+    )
+    st.divider()
+    if role == "現場":
+        _entry_genba()
+    elif role == "事務員":
+        _entry_jimu()
+    else:
+        _entry_yakuin()
+
+
+def _entry_genba() -> None:
+    """現場担当の日報入力（紙の作業日報フォーム準拠の1枚型）。"""
     st.caption("🎤 「🎤」が付いた欄はタップして、スマホのキーボードのマイクで話すと入力できます。")
 
     if st.session_state.get("entry_flash"):
@@ -250,55 +261,49 @@ def page_entry() -> None:
 
     with st.container(border=True):
         st.markdown("##### ＋ 作業員を追加")
-        cc = st.columns(4)
+        cc = st.columns(2)
         w_start = cc[0].time_input("開始", value=_t(config.DEFAULT_START_TIME), key=f"w_start_{n}")
         w_end = cc[1].time_input("終了", value=_t(config.DEFAULT_END_TIME), key=f"w_end_{n}")
-        w_ot = cc[2].number_input("残業(h)", min_value=0.0, step=0.5, key=f"w_ot_{n}")
-        w_lodge = cc[3].checkbox("宿泊", key=f"w_lodge_{n}")
 
-        active = db.list_workers(active_only=True)
-        if active:
-            st.caption("↓ 登録済みの作業員は名前をタップで追加（上の時間が入ります）")
-            bcols = st.columns(3)
-            for i, wk in enumerate(active):
-                if bcols[i % 3].button(f"＋ {wk['name']}", key=f"pick_{wk['id']}_{n}",
-                                       use_container_width=True):
-                    st.session_state["entry_workers"].append({
-                        "worker_name": wk["name"], "start_time": _time_str(w_start),
-                        "end_time": _time_str(w_end), "overtime_h": float(w_ot),
-                        "lodging": bool(w_lodge),
-                    })
-                    st.rerun()
-
-        st.caption("↓ 名簿にない人・音声入力で追加（話した読みは漢字に変換されます）")
-        wname = st.text_input("作業員名（ひらがな可）　🎤", key=f"w_name_{wn}",
+        # 作業員管理一覧からプルダウン選択。名簿に無ければ下欄に手入力。
+        roster = [w["name"] for w in db.list_workers(active_only=True)]
+        PICK_NONE = "―（作業員管理一覧から選択）―"
+        w_pick = st.selectbox("作業員名（プルダウン）", [PICK_NONE] + roster, key=f"w_pick_{wn}")
+        wname = st.text_input("名簿にない場合はこちらに入力（🎤・ひらがな可）", key=f"w_name_{wn}",
                               placeholder="例：けんもち")
         if st.button("➕ この作業員を追加", key=f"w_add_{n}", use_container_width=True):
-            if wname.strip():
-                kanji, matched = db.match_worker_name(wname.strip())
+            typed = wname.strip()
+            if typed:  # 手入力優先（読みは漢字に変換）
+                name, matched = db.match_worker_name(typed)
+                note = (f"「{typed}」→ **{name}** に変換して追加しました。" if matched
+                        else f"「{name}」を追加しました（名簿に一致なし・そのまま登録）。")
+            elif w_pick != PICK_NONE:  # プルダウン選択
+                name, note = w_pick, f"「{w_pick}」を追加しました。"
+            else:
+                name, note = "", ""
+            if name:
                 st.session_state["entry_workers"].append({
-                    "worker_name": kanji, "start_time": _time_str(w_start),
-                    "end_time": _time_str(w_end), "overtime_h": float(w_ot),
-                    "lodging": bool(w_lodge),
+                    "worker_name": name, "start_time": _time_str(w_start),
+                    "end_time": _time_str(w_end),
                 })
                 st.session_state["wname_nonce"] = wn + 1
-                st.session_state["entry_flash2"] = (
-                    f"「{wname.strip()}」→ **{kanji}** に変換して追加しました。" if matched
-                    else f"「{kanji}」を追加しました（名簿に一致なし・そのまま登録）。"
-                )
+                st.session_state["entry_flash2"] = note
                 st.rerun()
             else:
-                st.warning("作業員名を入力してください。")
+                st.warning("プルダウンで選ぶか、名前を入力してください。")
     if st.session_state.get("entry_flash2"):
         st.info(st.session_state.pop("entry_flash2"))
 
     # ---- 交通手段等（自社） ----
-    st.markdown("**交通手段等（自社）　🎤（交通費は数字）**")
-    t1, t2, t3, t4 = st.columns([1, 1, 1, 1.5])
-    own_car = t1.checkbox("車", key=f"e_car_{n}")
-    own_car_count = t2.number_input("台数", min_value=0, step=1, key=f"e_carcnt_{n}")
-    own_train = t3.checkbox("電車", key=f"e_train_{n}")
-    own_cost = t4.number_input("交通費(円)", min_value=0, step=100, key=f"e_cost_{n}")
+    st.markdown("**交通手段等（自社）**")
+    TRANSPORT_OPTIONS = ["なし", "車", "電車", "車＋電車"]
+    t1, t2, t3 = st.columns([1.5, 1, 1.5])
+    transport = t1.selectbox("交通手段（プルダウン）", TRANSPORT_OPTIONS, key=f"e_transport_{n}")
+    own_car = transport in ("車", "車＋電車")
+    own_train = transport in ("電車", "車＋電車")
+    own_car_count = t2.number_input("台数", min_value=0, step=1, key=f"e_carcnt_{n}",
+                                    disabled=not own_car)
+    own_cost = t3.number_input("交通費(円)", min_value=0, step=100, key=f"e_cost_{n}")
 
     # ---- 協力会社 ----
     st.markdown("#### 協力会社（任意）")
@@ -335,7 +340,20 @@ def page_entry() -> None:
                 st.warning("会社名を入力してください。")
 
     # ---- フッター ----
-    manager = st.text_input("現場代理人又は責任者　🎤", key=f"e_mgr_{n}")
+    # 現場代理人又は責任者も作業員管理一覧からプルダウン選択（名簿に無ければ手入力）。
+    roster_all = [w["name"] for w in db.list_workers(active_only=True)]
+    MGR_NONE = "―（作業員管理一覧から選択）―"
+    mc1, mc2 = st.columns(2)
+    mgr_pick = mc1.selectbox("現場代理人又は責任者（プルダウン）", [MGR_NONE] + roster_all,
+                             key=f"e_mgr_pick_{n}")
+    mgr_typed = mc2.text_input("名簿にない場合はこちらに入力　🎤", key=f"e_mgr_{n}")
+    manager = mgr_typed.strip() or ("" if mgr_pick == MGR_NONE else mgr_pick)
+
+    # 合計人数（自社＋協力会社）を集計表示
+    total_people = len(st.session_state.get("entry_workers", [])) + sum(
+        int(s.get("headcount", 0) or 0) for s in st.session_state.get("entry_subs", []))
+    st.caption(f"👥 合計人数（自社作業員＋協力会社）: {total_people} 名")
+
     status = st.selectbox("ステータス", config.REPORT_STATUSES, index=1, key=f"e_status_{n}")
 
     if st.button("✅ 日報を登録", type="primary", use_container_width=True):
@@ -348,7 +366,8 @@ def page_entry() -> None:
             report_date=report_date.isoformat(), site_id=sites[site_label],
             client=client.strip(), work_content=work_content.strip(),
             own_car=own_car, own_train=own_train,
-            own_car_count=int(own_car_count), own_transport_cost=int(own_cost),
+            own_car_count=int(own_car_count) if own_car else 0,
+            own_transport_cost=int(own_cost),
             manager=manager.strip(), status=status,
             workers=workers, subcontractors=subs,
         )
@@ -361,6 +380,110 @@ def page_entry() -> None:
         st.session_state["entry_subs"] = []
         st.session_state["entry_nonce"] = n + 1
         st.rerun()
+
+
+# --------------------------------------------------------------------------
+# 画面: 日報入力（事務員） — 準備中。項目は後ほど確定して実装する。
+# --------------------------------------------------------------------------
+def _entry_office(role: str, icon: str, key: str) -> None:
+    """事務員・役員 共通の日報入力（名前・日付・勤務時間・業務内容・報告内容・次の業務内容）。
+    role で保存先を区別（同一様式）。key は画面ごとの session_state 名前空間。"""
+    st.subheader(f"{icon} {role} 日報")
+    st.caption("🎤 「🎤」が付いた欄はタップして、スマホのキーボードのマイクで話すと入力できます。")
+
+    flash_key = f"{key}_flash"
+    if st.session_state.get(flash_key):
+        st.success(st.session_state.pop(flash_key))
+    kn = st.session_state.get(f"{key}_nonce", 0)
+
+    # ---- 名前（作業員管理からプルダウン／未登録は手入力→自動登録）・日付 ----
+    roster = [w["name"] for w in db.list_workers(active_only=True)]
+    NAME_NONE = "―（作業員管理一覧から選択）―"
+    c1, c2 = st.columns([2, 1])
+    name_pick = c1.selectbox("名前（プルダウン）", [NAME_NONE] + roster, key=f"{key}_pick_{kn}")
+    report_date = c2.date_input("日付", value=date.today(), key=f"{key}_date_{kn}")
+    c2.text_input("曜日", value=f"{config.weekday_jp(report_date.isoformat())}曜日", disabled=True)
+    name_typed = c1.text_input("名簿にない場合はこちらに入力（🎤・漢字/ひらがな可）",
+                               key=f"{key}_name_{kn}", placeholder="例：山田 花子 / やまだ")
+
+    # ---- 勤務時間（開始・終了から自動計算） ----
+    t1, t2, t3 = st.columns(3)
+    start = t1.time_input("勤務開始", value=_t(config.DEFAULT_START_TIME), key=f"{key}_start_{kn}")
+    end = t2.time_input("勤務終了", value=_t(config.DEFAULT_END_TIME), key=f"{key}_end_{kn}")
+    work_hours = db.calc_span_hours(_time_str(start), _time_str(end))
+    t3.metric("勤務時間", f"{work_hours:.1f} h")
+
+    # ---- 各内容欄 ----
+    work_content = st.text_area("業務内容　🎤", height=110, key=f"{key}_work_{kn}",
+                                placeholder="本日担当した業務")
+    report_content = st.text_area("報告内容　🎤", height=110, key=f"{key}_report_{kn}",
+                                  placeholder="上長への報告・連絡・相談事項")
+    next_content = st.text_area("次の業務内容　🎤", height=110, key=f"{key}_next_{kn}",
+                                placeholder="明日以降に予定している業務")
+
+    if st.button("✅ 日報を登録", type="primary", use_container_width=True, key=f"{key}_submit_{kn}"):
+        typed = name_typed.strip()
+        if typed:  # 手入力優先（ひらがな等は名簿と照合して漢字に変換）
+            name, _matched = db.match_worker_name(typed)
+        elif name_pick != NAME_NONE:  # プルダウン選択
+            name = name_pick
+        else:
+            name = ""
+        if not name:
+            st.error("名前をプルダウンで選ぶか、入力してください。")
+            return
+        rid = db.add_office_report(
+            report_date=report_date.isoformat(), worker_name=name,
+            start_time=_time_str(start), end_time=_time_str(end),
+            work_content=work_content.strip(), report_content=report_content.strip(),
+            next_content=next_content.strip(), role=role,
+        )
+        # 名簿に無い名前は作業員管理へ新規登録（あとから編集可）
+        new_names = db.register_new_workers([name])
+        msg = f"{role}日報を登録しました（ID: {rid}・{name}・{work_hours:.1f}h）。"
+        if new_names:
+            msg += f"　🆕 作業員管理に新規登録: {name}"
+        st.session_state[flash_key] = msg
+        st.session_state[f"{key}_nonce"] = kn + 1
+        st.rerun()
+
+    _render_recent_office_reports(role, icon)
+
+
+def _render_recent_office_reports(role: str, icon: str) -> None:
+    """直近14日の該当担当（事務員／役員）の日報を一覧表示（削除ボタン付き）。"""
+    with st.expander(f"{icon} 最近の{role}日報（直近14日）"):
+        reports = db.list_office_reports(
+            date_from=(date.today() - timedelta(days=14)).isoformat(), role=role)
+        if not reports:
+            st.caption("まだ登録がありません。")
+            return
+        for r in reports:
+            wd = config.weekday_jp(r["report_date"])
+            col1, col2 = st.columns([6, 1])
+            col1.markdown(
+                f"**{r['report_date']}（{wd}）**　{r['worker_name']}"
+                f"　勤務 {r['work_hours']:.1f}h"
+            )
+            if r.get("work_content"):
+                col1.caption(f"業務: {r['work_content']}")
+            if r.get("report_content"):
+                col1.caption(f"報告: {r['report_content']}")
+            if r.get("next_content"):
+                col1.caption(f"次の業務: {r['next_content']}")
+            if col2.button("❌", key=f"del_office_{r['id']}", help="削除"):
+                db.delete_office_report(r["id"])
+                st.rerun()
+
+
+def _entry_jimu() -> None:
+    """事務員担当の日報入力（共通フォーム）。"""
+    _entry_office("事務員", "🗂️", "jimu")
+
+
+def _entry_yakuin() -> None:
+    """役員担当の日報入力（事務員と同一様式の共通フォーム）。"""
+    _entry_office("役員", "💼", "yakuin")
 
 
 # --------------------------------------------------------------------------
@@ -412,15 +535,15 @@ def page_list() -> None:
             st.session_state["page"] = "日報詳細"
             st.rerun()
 
-    with st.expander("📊 表で見る（発注先・残業・交通費など）"):
+    with st.expander("📊 表で見る（発注先・交通費など）"):
         df = pd.DataFrame(reports)
         df["曜日"] = df["report_date"].map(config.weekday_jp)
         view = df[["id", "report_date", "曜日", "site_name", "client", "worker_count",
-                   "sub_headcount", "total_hours", "total_overtime", "total_transport_cost",
+                   "sub_headcount", "total_hours", "total_transport_cost",
                    "status"]].rename(columns={
             "id": "ID", "report_date": "作業日", "site_name": "現場", "client": "発注先",
             "worker_count": "自社人数", "sub_headcount": "協力人数", "total_hours": "作業時間",
-            "total_overtime": "残業", "total_transport_cost": "交通費", "status": "状態"})
+            "total_transport_cost": "交通費", "status": "状態"})
         st.dataframe(view, use_container_width=True, hide_index=True)
 
 
@@ -444,14 +567,12 @@ def page_detail() -> None:
     st.caption(f"{r['report_date']}（{wd}） ／ 現場: {r['site_name']} ／ 発注先: {r['client'] or '-'}")
 
     total_h = sum(w["work_hours"] for w in workers)
-    total_ot = sum(w["overtime_h"] for w in workers)
     sub_head = sum(s["headcount"] for s in subs)
     sub_cost = sum(s["transport_cost"] for s in subs)
-    m1, m2, m3, m4 = st.columns(4)
+    m1, m2, m3 = st.columns(3)
     m1.metric("自社人数", f"{len(workers)} 名")
     m2.metric("作業時間合計", f"{total_h:.1f} h")
-    m3.metric("残業合計", f"{total_ot:.1f} h")
-    m4.metric("交通費合計", f"{r['own_transport_cost'] + sub_cost:,} 円")
+    m3.metric("交通費合計", f"{r['own_transport_cost'] + sub_cost:,} 円")
 
     st.markdown("#### 作業内容・使用材料")
     st.write(r["work_content"] or "-")
@@ -459,10 +580,9 @@ def page_detail() -> None:
     st.markdown("#### 自社作業員")
     if workers:
         wdf = pd.DataFrame(workers)
-        wdf["宿泊"] = wdf["lodging"].map({1: "○", 0: ""})
-        wview = wdf[["worker_name", "start_time", "end_time", "work_hours", "overtime_h", "宿泊"]] \
+        wview = wdf[["worker_name", "start_time", "end_time", "work_hours"]] \
             .rename(columns={"worker_name": "作業員名", "start_time": "開始", "end_time": "終了",
-                             "work_hours": "作業時間", "overtime_h": "残業(h)"})
+                             "work_hours": "作業時間"})
         st.dataframe(wview, use_container_width=True, hide_index=True)
     else:
         st.caption("（なし）")
@@ -508,8 +628,7 @@ def _detail_edit(r: dict, workers: list[dict], subs: list[dict]) -> None:
         st.markdown("**自社作業員**")
         wdf = pd.DataFrame([{
             "作業員名": w["worker_name"], "開始": _str_to_time(w["start_time"]),
-            "終了": _str_to_time(w["end_time"]), "残業(h)": w["overtime_h"],
-            "宿泊": bool(w["lodging"]),
+            "終了": _str_to_time(w["end_time"]),
         } for w in workers]) if workers else _empty_workers_df(1)
         worker_names = [w["name"] for w in db.list_workers(active_only=True)]
         ed_w = st.data_editor(wdf, num_rows="dynamic", use_container_width=True,
@@ -584,7 +703,7 @@ def page_dashboard() -> None:
 
     k1, k2, k3, k4 = st.columns(4)
     k1.metric("今月の総作業時間", f"{(mldf['work_hours'].sum() if not mldf.empty else 0):.1f} h")
-    k2.metric("今月の残業時間", f"{(mldf['overtime_h'].sum() if not mldf.empty else 0):.1f} h")
+    k2.metric("今月の日報枚数", f"{len(mrdf) if not mrdf.empty else 0} 枚")
     people = int((mrdf["worker_count"] + mrdf["sub_headcount"]).sum()) if not mrdf.empty else 0
     k3.metric("今月ののべ人数", f"{people} 名")
     active_sites = len([s for s in db.list_sites() if s["status"] in config.ACTIVE_SITE_STATUSES])

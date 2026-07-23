@@ -116,6 +116,24 @@ CREATE INDEX IF NOT EXISTS idx_reports_date ON reports(report_date);
 CREATE INDEX IF NOT EXISTS idx_reports_site ON reports(site_id);
 CREATE INDEX IF NOT EXISTS idx_rworkers_report ON report_workers(report_id);
 CREATE INDEX IF NOT EXISTS idx_rsubs_report ON report_subcontractors(report_id);
+
+-- 事務員 日報（現場の作業日報とは別様式。1人×1日で1枚）
+CREATE TABLE IF NOT EXISTS office_reports (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    report_date     TEXT NOT NULL,               -- 日付
+    worker_name     TEXT NOT NULL,               -- 名前
+    start_time      TEXT,                         -- 勤務開始 'HH:MM'
+    end_time        TEXT,                         -- 勤務終了 'HH:MM'
+    work_hours      REAL NOT NULL DEFAULT 0,      -- 勤務時間（自動計算）
+    work_content    TEXT,                         -- 業務内容
+    report_content  TEXT,                         -- 報告内容
+    next_content    TEXT,                         -- 次の業務内容
+    role            TEXT NOT NULL DEFAULT '事務員',-- 担当区分（事務員／役員。同一様式で共用）
+    status          TEXT NOT NULL DEFAULT '提出済',
+    created_at      TEXT NOT NULL,
+    updated_at      TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_office_date ON office_reports(report_date);
 """
 
 
@@ -131,6 +149,10 @@ def _migrate(conn) -> None:
     cols = {r["name"] for r in conn.execute("PRAGMA table_info(workers)")}
     if "kana" not in cols:
         conn.execute("ALTER TABLE workers ADD COLUMN kana TEXT")
+    # office_reports.role（担当区分）を後方互換で追加
+    ocols = {r["name"] for r in conn.execute("PRAGMA table_info(office_reports)")}
+    if ocols and "role" not in ocols:
+        conn.execute("ALTER TABLE office_reports ADD COLUMN role TEXT NOT NULL DEFAULT '事務員'")
 
 
 # --------------------------------------------------------------------------
@@ -486,6 +508,81 @@ def list_worker_lines(date_from: str | None = None, date_to: str | None = None) 
         sql.append("AND r.report_date >= ?"); params.append(date_from)
     if date_to:
         sql.append("AND r.report_date <= ?"); params.append(date_to)
+    with get_conn() as conn:
+        return _dicts(conn.execute("\n".join(sql), params).fetchall())
+
+
+# --------------------------------------------------------------------------
+# 事務員 日報 CRUD（現場の作業日報とは別テーブル）
+# --------------------------------------------------------------------------
+def add_office_report(
+    report_date: str,
+    worker_name: str,
+    start_time: str | None = None,
+    end_time: str | None = None,
+    work_content: str = "",
+    report_content: str = "",
+    next_content: str = "",
+    role: str = "事務員",
+    status: str = "提出済",
+) -> int:
+    now = _now()
+    with get_conn() as conn:
+        cur = conn.execute(
+            "INSERT INTO office_reports (report_date, worker_name, start_time, end_time, "
+            "work_hours, work_content, report_content, next_content, role, status, created_at, updated_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                report_date, worker_name, start_time, end_time,
+                calc_span_hours(start_time, end_time),
+                work_content, report_content, next_content, role, status, now, now,
+            ),
+        )
+        return cur.lastrowid
+
+
+def update_office_report(report_id: int, **fields: Any) -> None:
+    if not fields:
+        return
+    if "start_time" in fields or "end_time" in fields:
+        fields["work_hours"] = calc_span_hours(fields.get("start_time"), fields.get("end_time"))
+    fields["updated_at"] = _now()
+    cols = ", ".join(f"{k} = ?" for k in fields)
+    with get_conn() as conn:
+        conn.execute(f"UPDATE office_reports SET {cols} WHERE id = ?",
+                     (*fields.values(), report_id))
+
+
+def delete_office_report(report_id: int) -> None:
+    with get_conn() as conn:
+        conn.execute("DELETE FROM office_reports WHERE id = ?", (report_id,))
+
+
+def get_office_report(report_id: int) -> dict[str, Any] | None:
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT * FROM office_reports WHERE id = ?", (report_id,)
+        ).fetchone()
+        return dict(row) if row else None
+
+
+def list_office_reports(
+    date_from: str | None = None,
+    date_to: str | None = None,
+    worker_name: str | None = None,
+    role: str | None = None,
+) -> list[dict[str, Any]]:
+    sql = ["SELECT * FROM office_reports WHERE 1 = 1"]
+    params: list[Any] = []
+    if date_from:
+        sql.append("AND report_date >= ?"); params.append(date_from)
+    if date_to:
+        sql.append("AND report_date <= ?"); params.append(date_to)
+    if worker_name:
+        sql.append("AND worker_name = ?"); params.append(worker_name)
+    if role:
+        sql.append("AND role = ?"); params.append(role)
+    sql.append("ORDER BY report_date DESC, id DESC")
     with get_conn() as conn:
         return _dicts(conn.execute("\n".join(sql), params).fetchall())
 
