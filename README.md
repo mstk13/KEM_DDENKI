@@ -223,6 +223,7 @@ KEM_DDENKI/
 
 | ドキュメント | 内容 |
 |-------------|------|
+| [docs/setup_guide.md](docs/setup_guide.md) | ローカルPCセットアップガイド（初回〜毎日の起動まで） |
 | [docs/spec.md](docs/spec.md) | システム仕様書（DB設計・機能仕様・AI活用計画） |
 | [docs/geps_setup.md](docs/geps_setup.md) | GEPS メール連携のセットアップ手順 |
 | [bid_manager/README.md](bid_manager/README.md) | 入札案件管理の詳細ドキュメント |
