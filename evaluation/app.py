@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import subprocess
 from contextlib import contextmanager
 from datetime import date, datetime
 from pathlib import Path
@@ -20,8 +21,10 @@ import streamlit as st
 # パス設定
 # ---------------------------------------------------------------------------
 BASE_DIR = Path(__file__).resolve().parent
+REPO_DIR = BASE_DIR.parent
 EVAL_DB_PATH = BASE_DIR / "evaluation.db"
-NIPPOU_DB_PATH = BASE_DIR.parent / "sagyo-nippou" / "database.db"
+EVAL_ITEMS_JSON = BASE_DIR / "eval_items.json"
+NIPPOU_DB_PATH = REPO_DIR / "sagyo-nippou" / "database.db"
 
 # ---------------------------------------------------------------------------
 # デフォルト評価項目（初回DB投入用）
@@ -117,16 +120,26 @@ CREATE TABLE IF NOT EXISTS eval_items (
 def init_eval_db():
     conn = sqlite3.connect(EVAL_DB_PATH)
     conn.executescript(EVAL_SCHEMA)
-    # eval_items が空ならデフォルト項目を投入
     count = conn.execute("SELECT COUNT(*) FROM eval_items").fetchone()[0]
     if count == 0:
-        _seed_default_items(conn)
+        _seed_items(conn)
     conn.commit()
     conn.close()
 
 
-def _seed_default_items(conn):
-    """デフォルト評価項目をDBに投入する。"""
+def _seed_items(conn):
+    """eval_items.json があればそこから、なければハードコードのデフォルトからDBに投入。"""
+    if EVAL_ITEMS_JSON.exists():
+        items = json.loads(EVAL_ITEMS_JSON.read_text(encoding="utf-8"))
+        for it in items:
+            conn.execute(
+                "INSERT INTO eval_items (section, num, name, description, max_score, choice_group, sort_order) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (it["section"], it["num"], it["name"], it["description"],
+                 it["max_score"], it.get("choice_group"), it.get("sort_order", 0)),
+            )
+        return
+
     order = 0
     for item in DEFAULT_COMMON_ITEMS:
         conn.execute(
@@ -144,6 +157,58 @@ def _seed_default_items(conn):
                  item.get("choice_group"), order),
             )
             order += 1
+
+
+# ---------------------------------------------------------------------------
+# GitHub反映: DB → JSON → git commit & push
+# ---------------------------------------------------------------------------
+def export_items_to_json() -> str:
+    """eval_items テーブルをJSONファイルにエクスポートする。"""
+    with eval_conn() as conn:
+        rows = conn.execute(
+            "SELECT section, num, name, description, max_score, choice_group, sort_order "
+            "FROM eval_items ORDER BY section, sort_order, num"
+        ).fetchall()
+    items = [dict(r) for r in rows]
+    EVAL_ITEMS_JSON.write_text(
+        json.dumps(items, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+    return str(EVAL_ITEMS_JSON)
+
+
+def push_to_github() -> tuple[bool, str]:
+    """評価項目をJSONにエクスポートし、git commit & push する。"""
+    export_items_to_json()
+    try:
+        # git add
+        subprocess.run(
+            ["git", "add", "evaluation/eval_items.json"],
+            cwd=str(REPO_DIR), capture_output=True, text=True, check=True,
+        )
+        # 変更があるか確認
+        diff = subprocess.run(
+            ["git", "diff", "--cached", "--name-only"],
+            cwd=str(REPO_DIR), capture_output=True, text=True,
+        )
+        if not diff.stdout.strip():
+            return True, "変更はありません（既に最新です）"
+
+        # git commit
+        now = datetime.now().strftime("%Y-%m-%d %H:%M")
+        subprocess.run(
+            ["git", "commit", "-m", f"update: 評価項目を更新（{now} ブラウザから反映）"],
+            cwd=str(REPO_DIR), capture_output=True, text=True, check=True,
+        )
+        # git push
+        result = subprocess.run(
+            ["git", "push", "origin", "main"],
+            cwd=str(REPO_DIR), capture_output=True, text=True,
+        )
+        if result.returncode != 0:
+            return False, f"push に失敗しました: {result.stderr}"
+        return True, "GitHubに反映しました"
+    except subprocess.CalledProcessError as e:
+        return False, f"エラー: {e.stderr or e.stdout or str(e)}"
 
 
 @contextmanager
@@ -628,3 +693,15 @@ elif menu == "評価基準の編集":
                         )
                     st.success(f"役割「{new_role}」を追加しました。「評価基準の編集」で項目を設定してください。")
                     st.rerun()
+
+    # --- GitHubに反映 ---
+    st.divider()
+    st.subheader("GitHubに反映")
+    st.caption("現在の評価項目をGitHubにプッシュして、他のPCにも反映させます。")
+    if st.button("GitHubに反映する", type="primary", use_container_width=True, key="push_github"):
+        with st.spinner("GitHubに反映中..."):
+            ok, msg = push_to_github()
+        if ok:
+            st.success(msg)
+        else:
+            st.error(msg)

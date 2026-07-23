@@ -1,0 +1,200 @@
+[
+  {
+    "section": "事務方",
+    "num": 5,
+    "name": "業務処理の正確性",
+    "description": "書類・データ入力のミスの少なさ、チェック体制の構築",
+    "max_score": 20,
+    "choice_group": null,
+    "sort_order": 0
+  },
+  {
+    "section": "事務方",
+    "num": 6,
+    "name": "業務効率",
+    "description": "処理スピード、業務改善の工夫、ムダの排除",
+    "max_score": 15,
+    "choice_group": null,
+    "sort_order": 1
+  },
+  {
+    "section": "事務方",
+    "num": 7,
+    "name": "PCスキル / AIスキル",
+    "description": "Excel・システム操作・事務ツールの活用力・AIを活用した改善提案",
+    "max_score": 10,
+    "choice_group": null,
+    "sort_order": 2
+  },
+  {
+    "section": "事務方",
+    "num": 9,
+    "name": "経費・原価管理の成長",
+    "description": "コスト意識、予算管理の精度、経費削減の取り組み",
+    "max_score": 15,
+    "choice_group": null,
+    "sort_order": 3
+  },
+  {
+    "section": "共通",
+    "num": 1,
+    "name": "勤怠・規律",
+    "description": "出勤率、遅刻・早退の頻度、就業規則の遵守",
+    "max_score": 10,
+    "choice_group": null,
+    "sort_order": 0
+  },
+  {
+    "section": "共通",
+    "num": 2,
+    "name": "コミュニケーション",
+    "description": "報連相の的確さ、社内外との連携・調整力",
+    "max_score": 10,
+    "choice_group": null,
+    "sort_order": 1
+  },
+  {
+    "section": "共通",
+    "num": 3,
+    "name": "責任感",
+    "description": "期限遵守、自発的な行動、最後までやり切る姿勢",
+    "max_score": 10,
+    "choice_group": null,
+    "sort_order": 2
+  },
+  {
+    "section": "共通",
+    "num": 4,
+    "name": "成長意欲",
+    "description": "自己研鑽、資格取得への取り組み",
+    "max_score": 5,
+    "choice_group": null,
+    "sort_order": 3
+  },
+  {
+    "section": "共通",
+    "num": 5,
+    "name": "スケジュール管理",
+    "description": "自分の作業の進捗を管理できているか、現場の日程の管理ができているか、取引先とのやり取りや業務が決まった時間内にできているか",
+    "max_score": 5,
+    "choice_group": null,
+    "sort_order": 4
+  },
+  {
+    "section": "役員",
+    "num": 5,
+    "name": "経営判断",
+    "description": "受注判断・投資判断の的確さ・現場での判断の的確さ、意思決定のスピード",
+    "max_score": 10,
+    "choice_group": null,
+    "sort_order": 0
+  },
+  {
+    "section": "役員",
+    "num": 6,
+    "name": "業績貢献",
+    "description": "売上・利益目標の達成度、新規顧客の獲得、現場の予算の範囲内で最も効率よく施工するための判断ができているか",
+    "max_score": 10,
+    "choice_group": null,
+    "sort_order": 1
+  },
+  {
+    "section": "役員",
+    "num": 7,
+    "name": "組織マネジメント",
+    "description": "部下の育成、チーム全体の生産性向上、離職防止",
+    "max_score": 10,
+    "choice_group": null,
+    "sort_order": 2
+  },
+  {
+    "section": "役員",
+    "num": 8,
+    "name": "リスク管理",
+    "description": "安全・法令遵守・財務リスクへの対応、危機管理",
+    "max_score": 5,
+    "choice_group": null,
+    "sort_order": 3
+  },
+  {
+    "section": "役員",
+    "num": 9,
+    "name": "対外関係",
+    "description": "顧客・取引先・官公庁との関係構築、業界内の信頼",
+    "max_score": 10,
+    "choice_group": null,
+    "sort_order": 4
+  },
+  {
+    "section": "役員",
+    "num": 10,
+    "name": "原価管理",
+    "description": "無駄な材料の発注、材料の管理、人経費の管理",
+    "max_score": 10,
+    "choice_group": null,
+    "sort_order": 5
+  },
+  {
+    "section": "役員",
+    "num": 11,
+    "name": "資格取得 / 自己研鑽",
+    "description": "新しい資格の取得、自己研鑽のための取り組み（読書・セミナー参加など）",
+    "max_score": 5,
+    "choice_group": null,
+    "sort_order": 6
+  },
+  {
+    "section": "現場方",
+    "num": 5,
+    "name": "施工品質",
+    "description": "仕上がりの丁寧さ、手直しの少なさ、検査合格率",
+    "max_score": 15,
+    "choice_group": null,
+    "sort_order": 9
+  },
+  {
+    "section": "現場方",
+    "num": 6,
+    "name": "安全管理",
+    "description": "KY活動の実施、保護具着用、事故・ヒヤリハット報告",
+    "max_score": 15,
+    "choice_group": null,
+    "sort_order": 10
+  },
+  {
+    "section": "現場方",
+    "num": 7,
+    "name": "技術力・資格",
+    "description": "電気工事士・特殊作業車運転等の保有資格、技術の幅と深さ",
+    "max_score": 15,
+    "choice_group": null,
+    "sort_order": 11
+  },
+  {
+    "section": "現場方",
+    "num": 8,
+    "name": "工程管理",
+    "description": "工期遵守、段取り力、無駄のない作業進行",
+    "max_score": 10,
+    "choice_group": null,
+    "sort_order": 12
+  },
+  {
+    "section": "現場方",
+    "num": 9,
+    "name": "後輩指導 (シニア)",
+    "description": "若手への技術指導、若手の成長速度、現場でのチームワーク",
+    "max_score": 10,
+    "choice_group": "field-level",
+    "sort_order": 13
+  },
+  {
+    "section": "現場方",
+    "num": 10,
+    "name": "学ぶ姿勢 (ジュニア)",
+    "description": "先輩から学ぶ姿勢、現場での気つかい、成長速度、現場でのチームワーク",
+    "max_score": 10,
+    "choice_group": "field-level",
+    "sort_order": 14
+  }
+]
