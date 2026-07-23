@@ -5,6 +5,19 @@
 
 ---
 
+## アプリを開く（起動後にクリック）
+
+> `start.bat`（Windows）または `./start_all.sh`（Mac/Linux）で起動した後、以下のリンクからアクセスできます。
+
+| アプリ | URL |
+|--------|-----|
+| **入札案件管理** | [http://localhost:8501](http://localhost:8501) |
+| **材料管理** | [http://localhost:5000](http://localhost:5000) |
+| **作業日報** | [http://localhost:8502](http://localhost:8502) |
+| **人事評価** | [http://localhost:8503](http://localhost:8503) |
+
+---
+
 ## アプリケーション一覧
 
 | # | アプリ | ディレクトリ | フレームワーク | ポート | 概要 |
