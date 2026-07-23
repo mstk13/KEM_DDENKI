@@ -151,20 +151,52 @@ streamlit run app.py --server.port 8502  # → http://localhost:8502
 
 ---
 
-## 一括起動
+## セットアップと起動
 
-```bash
-./start_all.sh
+### 必要環境
+
+- **Python 3.11 以上** — https://www.python.org/downloads/
+  - インストール時に「**Add Python to PATH**」に必ずチェック
+- **Git** — https://git-scm.com/downloads（自動アップデートに必要）
+
+### 初回セットアップ
+
+**Windows（PowerShell）:**
+```powershell
+git clone https://github.com/mstk13/KEM_DDENKI.git
+cd KEM_DDENKI
+setup.bat
 ```
 
-全アプリ（材料管理 → 入札案件管理 → 作業日報）をバックグラウンドで起動し、ポータルページを自動で開きます。
+**Mac / Linux:**
+```bash
+git clone https://github.com/mstk13/KEM_DDENKI.git
+cd KEM_DDENKI
+chmod +x setup.sh start_all.sh
+./setup.sh
+```
 
----
+セットアップスクリプトが以下を自動で行います:
+1. Python 仮想環境（`.venv`）の作成
+2. 全アプリの依存パッケージを一括インストール
+3. 各アプリのデータベースを初期化
 
-## 必要環境
+### アプリの起動
 
-- **Python 3.11 以上**
-- **Git**（または ZIP ダウンロード）
+**Windows:** `start.bat` をダブルクリック  
+**Mac / Linux:** `./start_all.sh`
+
+### 自動アップデート
+
+起動スクリプト（`start.bat` / `start_all.sh`）は起動のたびに以下を自動で行います:
+
+1. GitHub から最新版があるか確認（`git fetch`）
+2. 更新があれば自動ダウンロード（`git pull`）
+3. 新しい依存パッケージがあれば自動インストール
+4. DBスキーマの更新（既存データは維持）
+5. 全アプリを起動してポータルページを表示
+
+> ローカルで `.env` 等を変更していても `git stash` で退避してから更新するため、設定は保持されます。
 
 ---
 
@@ -179,7 +211,10 @@ KEM_DDENKI/
 ├── docs/               # ドキュメント
 │   ├── spec.md         #   システム仕様書
 │   └── geps_setup.md   #   GEPSメール連携セットアップ手順
-└── start_all.sh        # 全アプリ一括起動スクリプト
+├── setup.bat           # 初回セットアップ（Windows）
+├── setup.sh            # 初回セットアップ（Mac/Linux）
+├── start.bat           # 起動+自動アップデート（Windows）
+└── start_all.sh        # 起動+自動アップデート（Mac/Linux）
 ```
 
 ---
