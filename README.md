@@ -1,163 +1,49 @@
-# KEM_DENKI — 入札案件管理システム
+# KEM_DDENKI — ケンモチ電機 施工コスト最適化システム
 
-株式会社ケンモチ電機向け、電気工事の入札案件を収集・管理・分析する社内Webアプリです。
-
----
-
-## 別のPCでセットアップする手順
-
-### 必要なもの
-
-- **Python 3.11 以上**（https://www.python.org/downloads/ からインストール）
-  - インストール時に「**Add Python to PATH**」に必ずチェックを入れる
-- **Git**（https://git-scm.com/downloads からインストール）
-  - Git がなくても ZIP ダウンロードで代用可能（後述）
+株式会社ケンモチ電機向けの社内Webアプリ群です。  
+入札案件の収集から材料管理・作業日報まで、電気工事の業務フローを一気通貫でカバーします。
 
 ---
 
-### 手順（Windows）
+## アプリケーション一覧
 
-**PowerShell** を開いて（スタートメニューで「PowerShell」と検索）以下を実行:
+| # | アプリ | ディレクトリ | フレームワーク | ポート | 概要 |
+|---|--------|-------------|---------------|--------|------|
+| 1 | [入札案件管理](#1-入札案件管理-bid_manager) | `bid_manager/` | Streamlit | 8501 | 入札案件の収集・進捗管理・費用分析・競合分析 |
+| 2 | [材料管理](#2-材料管理-material_manager) | `material_manager/` | Flask | 5000 | 現場ごとの見積もり vs 発注状況の比較管理 |
+| 3 | [作業日報](#3-作業日報-sagyo-nippou) | `sagyo-nippou/` | Streamlit | 8502 | 現場の作業日報の入力・管理・集計・分析 |
+| 4 | [ポータル](#4-ポータル-portal) | `portal/` | 静的HTML | — | 全アプリへのランチャーページ |
+| — | コスト分析・AI見積もり | （開発予定） | — | — | 過去実績から見積もりを自動生成（データ蓄積フェーズ） |
 
-```powershell
-# 1. リポジトリをダウンロード
-git clone https://github.com/mstk13/KEM_DDENKI.git
-cd KEM_DDENKI\bid_manager
+### データの流れ
 
-# 2. 必要なパッケージをインストール（1〜2分かかります）
-python -m python -m pip install -r requirements.txt
-
-# 3. データベースを初期化（初回のみ）
-python database.py
-
-# 4. アプリを起動
-python -m python -m streamlit run app.py
 ```
-
-ブラウザで **http://localhost:8501** が自動で開きます。
-
-> **`python` や `pip` が見つからないと言われたら:**
-> `py -m python -m pip install -r requirements.txt` と `py -m python -m streamlit run app.py` を試してください。
-
-> **Git がない場合:**
-> GitHub（https://github.com/mstk13/KEM_DDENKI）で「Code」→「Download ZIP」をクリックしてダウンロード → 展開 → `bid_manager` フォルダで手順2から。
-
----
-
-### 手順（Mac / Linux）
-
-```bash
-git clone https://github.com/mstk13/KEM_DDENKI.git
-cd KEM_DDENKI/bid_manager
-pip3 install -r requirements.txt
-python3 database.py
-python -m streamlit run app.py
+入札案件管理（案件収集・入札）
+    ↓ 受注
+材料管理（見積もり→発注→受領の追跡）
+    ↓ 施工中
+作業日報（作業員・時間・交通費の記録）
+    ↓ 完工後
+コスト分析・AI見積もり（実績学習→次回見積もり自動提案）← 将来
 ```
 
 ---
 
-## 初回セットアップ（1回だけやること）
+## 1. 入札案件管理 (`bid_manager/`)
 
-### 1. 入札参加資格を登録する
+電気工事の入札案件を収集・管理・分析するWebアプリ。
 
-アプリの「入札資格管理」画面で、お持ちの資格一覧 Excel をアップロードしてください。
+### 主な機能
 
-- **一度登録すれば、有効期限が近づくまで何もしなくて OK**
-- 期限の2ヶ月前から画面に警告が出ます
-- 更新手続きが完了したら「更新済み」にチェックすれば警告が消えます
+- **案件自動収集**: GEPS（政府電子調達）通知メール + Webスクレイピング
+- **ステータス管理**: 新着 → 検討中 → 見積作成中 → 入札済 → 受注/失注
+- **費用分析**: 見積金額 vs 実原価の利益率・原価率を自動計算
+- **競合分析**: 落札会社名・金額を記録し、自社との差額を分析
+- **入札参加資格管理**: Excel/PDFインポート、期限2ヶ月前から警告表示
+- **メール通知**: 新着案件・締切間近・資格期限のアラートを自動送信
+- **防衛省対応**: Cloudflare保護サイトのCookie認証によるスクレイピング
 
-### 2. GEPS メール連携を設定する（案件の自動収集）
-
-GEPS（政府電子調達）の通知メールを使って案件を自動収集します。
-
-詳しい手順は **[docs/geps_setup.md](docs/geps_setup.md)** を参照してください。
-
-概要:
-1. Gmail で2段階認証ON → アプリパスワード発行 → IMAP有効化
-2. GEPS（https://www.geps.go.jp/）で調達情報通知を設定（電気工事・関東エリア）
-3. `.env` ファイルに Gmail 情報を入力
-4. 動作確認: `python email_importer.py --dry-run --days 7`
-
-### 3. `.env` ファイルを作成する
-
-`bid_manager` フォルダに `.env` という名前のテキストファイルを作り、以下を入力:
-
-```
-GMAIL_USER=あなたのGmail@gmail.com
-GMAIL_PASSWORD=xxxx-xxxx-xxxx-xxxx
-BID_EMAIL_TO=通知を送りたいアドレス@example.com
-```
-
-> **GMAIL_PASSWORD** は Gmail のパスワードではなく「アプリパスワード」です。
-> Google アカウント → セキュリティ → 2段階認証 → アプリパスワード で発行。
-
----
-
-## 日常の運用
-
-### アプリの起動方法
-
-PowerShell で:
-```powershell
-cd C:\...\KEM_DDENKI\bid_manager
-python -m streamlit run app.py
-```
-（`C:\...` の部分はダウンロードした場所に読み替え）
-
-### 毎朝の自動実行（任意）
-
-`scheduler.py` を毎朝自動実行すると:
-1. GEPS メールから新着案件を取り込み
-2. 新着案件や締切間近の案件をメールで通知
-3. 入札資格の期限アラートもメールに含まれる
-
-**Windows タスクスケジューラに登録する方法:**
-1. スタートメニューで「タスク スケジューラ」を検索して開く
-2. 「基本タスクの作成」をクリック
-3. 名前: `入札案件 自動取込`
-4. トリガー: 毎日 / 6:00
-5. 操作: プログラムの開始
-   - プログラム: `python`（または `py`）
-   - 引数: `scheduler.py`
-   - 開始: `C:\...\KEM_DDENKI\bid_manager`
-
-### 案件を確認するとき
-
-1. アプリを起動
-2. **案件一覧**: 新着案件を確認。未入力項目があれば警告が出る
-3. **案件詳細**: 元ページURLを開いて確認し、発注機関・エリア・工事種別・締切日・予定価格を入力
-4. ステータスを「新着」→「検討中」→「見積作成中」→「入札済」→「受注」or「失注」に更新
-
-### 案件を手動で追加するとき
-
-案件一覧画面の「➕ 案件を手動で追加」フォームから登録できます。
-防衛省などのサイトをブラウザで見ながら、気になる案件を入力してください。
-
-### 見積・原価を管理するとき
-
-案件詳細画面で:
-- **見積金額** と **実際の工事原価** を入力 → 利益と原価率が自動計算
-- 失注した場合、**競合の落札会社名・金額** を入力 → 自社との差額が自動計算
-
----
-
-## 防衛省などの Cloudflare 保護サイト
-
-防衛省（mod.go.jp）のサイトは自動アクセスがブロックされるため、以下の方法で対応:
-
-```powershell
-# 初回: ブラウザが開く → チェックマークをクリックして通過 → Cookie が保存される
-python pw_login.py
-
-# 以後: 保存した Cookie で自動取得
-python pw_login.py --scrape
-```
-
-Cookie の有効期限が切れたら再度 `python pw_login.py` を実行してください。
-
----
-
-## 画面一覧
+### 画面構成（6画面）
 
 | 画面 | 内容 |
 |------|------|
@@ -168,6 +54,134 @@ Cookie の有効期限が切れたら再度 `python pw_login.py` を実行して
 | 単価マスタ | 工事種別ごとの単価登録 |
 | 入札資格管理 | Excel/PDF インポート・期限アラート |
 
+### セットアップ
+
+```bash
+cd bid_manager
+pip install -r requirements.txt
+python database.py          # DB初期化（初回のみ）
+streamlit run app.py        # → http://localhost:8501
+```
+
+> GEPS メール連携の詳細は [docs/geps_setup.md](docs/geps_setup.md) を参照。
+
+---
+
+## 2. 材料管理 (`material_manager/`)
+
+工事現場ごとに、見積もりの品目と実際の発注状況を比較管理するWebアプリ。
+
+### 主な機能
+
+- **見積もり管理**: Excelインポートで品目別の見積もり明細を登録（版管理対応）
+- **発注追跡**: 分割発注に対応、品目クリックで発注履歴をドリルダウン
+- **消化率の可視化**: 見積もり vs 発注の消化率を色分け表示（超過:赤 / 完了:緑）
+- **発注書PDFインポート**: PDFから発注内容を自動マッチング
+- **受領書アップロード**: 現場での受領確認を記録
+- **単価履歴の自動蓄積**: 将来のAI見積もり自動生成に向けたデータ蓄積
+
+### データ構造
+
+| テーブル | 用途 |
+|----------|------|
+| `project` | 入札〜施工〜完了の全ライフサイクル |
+| `item_master` | 全現場共通の品目マスタ |
+| `supplier` | 仕入先マスタ |
+| `estimate_header` / `estimate_line` | 見積もり（版管理+品目別明細） |
+| `order` | 発注レコード（分割対応） |
+| `price_history` | 単価履歴（AI学習データ） |
+
+### セットアップ
+
+```bash
+cd material_manager
+pip install -r requirements.txt
+python -c "from db import init_db; init_db()"
+python app.py               # → http://localhost:5000
+```
+
+---
+
+## 3. 作業日報 (`sagyo-nippou/`)
+
+電気工事現場の作業日報を入力・管理・分析するWebアプリ。  
+紙の日報フォームに準拠し、スマホでの音声入力にも対応。
+
+### 主な機能
+
+- **日報入力**: 現場名・作業員・作業時間・残業・宿泊・使用資材を記録（作業時間は自動計算）
+- **音声入力対応**: スマホのマイク入力で現場から直接入力可能
+- **作業員名の漢字変換**: ひらがな/カタカナ入力を作業員名簿から漢字に自動変換
+- **協力会社管理**: 会社名・人数・交通費・承認状況を記録
+- **ダッシュボード**: KPIカード + Plotlyグラフ（日別推移・作業員別・現場別）
+- **メール通知**: 日報サマリをGmailで自動送信
+
+### 画面構成（6画面）
+
+| 画面 | 内容 |
+|------|------|
+| 日報入力 | 作業日・作業員・現場・天気・作業時間・進捗・使用資材を入力 |
+| 日報一覧 | 期間/作業員/現場/状態/キーワードで絞り込み・総時間集計 |
+| 日報詳細 | 内容表示・ステータス/進捗/内容の編集・削除 |
+| ダッシュボード | KPIカード + Plotly グラフ |
+| 作業員管理 | 作業員の追加・有効/無効切替 |
+| 現場管理 | 現場の追加・ステータス変更 |
+
+### セットアップ
+
+```bash
+cd sagyo-nippou
+pip install -r requirements.txt
+python database.py          # DB初期化
+python seed.py              # （任意）デモデータ投入
+streamlit run app.py --server.port 8502  # → http://localhost:8502
+```
+
+---
+
+## 4. ポータル (`portal/`)
+
+全アプリへのランチャーとなるHTMLページ。  
+`portal/index.html` をブラウザで開くだけで使えます。
+
+- 各アプリへのリンクボタン
+- システム全体の最終目標（施工コストの最適化）の説明
+- データベース統合構造の図解
+- 各アプリの起動手順
+
+---
+
+## 一括起動
+
+```bash
+./start_all.sh
+```
+
+全アプリ（材料管理 → 入札案件管理 → 作業日報）をバックグラウンドで起動し、ポータルページを自動で開きます。
+
+---
+
+## 必要環境
+
+- **Python 3.11 以上**
+- **Git**（または ZIP ダウンロード）
+
+---
+
+## ディレクトリ構成
+
+```
+KEM_DDENKI/
+├── bid_manager/        # 入札案件管理（Streamlit, port 8501）
+├── material_manager/   # 材料管理（Flask, port 5000）
+├── sagyo-nippou/       # 作業日報（Streamlit, port 8502）
+├── portal/             # ポータルページ（静的HTML）
+├── docs/               # ドキュメント
+│   ├── spec.md         #   システム仕様書
+│   └── geps_setup.md   #   GEPSメール連携セットアップ手順
+└── start_all.sh        # 全アプリ一括起動スクリプト
+```
+
 ---
 
 ## ドキュメント
@@ -176,6 +190,9 @@ Cookie の有効期限が切れたら再度 `python pw_login.py` を実行して
 |-------------|------|
 | [docs/spec.md](docs/spec.md) | システム仕様書（DB設計・機能仕様・AI活用計画） |
 | [docs/geps_setup.md](docs/geps_setup.md) | GEPS メール連携のセットアップ手順 |
+| [bid_manager/README.md](bid_manager/README.md) | 入札案件管理の詳細ドキュメント |
+| [material_manager/README.md](material_manager/README.md) | 材料管理の詳細ドキュメント |
+| [sagyo-nippou/README.md](sagyo-nippou/README.md) | 作業日報の詳細ドキュメント |
 
 ---
 
@@ -184,8 +201,7 @@ Cookie の有効期限が切れたら再度 `python pw_login.py` を実行して
 | 症状 | 対処 |
 |------|------|
 | `python` が見つからない | `py` を使う。それもダメなら Python を再インストール（PATH にチェック） |
-| `pip install` でエラー | `py -m python -m pip install -r requirements.txt` を試す |
-| `streamlit` が見つからない | `py -m python -m streamlit run app.py` を使う |
-| アプリが開かない | http://localhost:8501 をブラウザで直接開く |
+| `pip install` でエラー | `py -m pip install -r requirements.txt` を試す |
+| `streamlit` が見つからない | `py -m streamlit run app.py` を使う |
+| アプリが開かない | 各ポートの URL をブラウザで直接開く |
 | GEPS メールが取り込めない | `.env` の Gmail 情報を確認。`python email_importer.py --dry-run` でテスト |
-| 資格データが消えた | Excel を再アップロードすれば復元される（`data/qualifications.json` からも自動復元） |
