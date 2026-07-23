@@ -2,9 +2,11 @@
 
 作業日報（sagyo-nippou）の勤怠データを自動参照し、
 事務方・現場方・役員の3役割で人事評価を行う。
+評価項目はブラウザ上で編集可能（DBに保存）。
 """
 from __future__ import annotations
 
+import json
 import sqlite3
 from contextlib import contextmanager
 from datetime import date, datetime
@@ -22,16 +24,16 @@ EVAL_DB_PATH = BASE_DIR / "evaluation.db"
 NIPPOU_DB_PATH = BASE_DIR.parent / "sagyo-nippou" / "database.db"
 
 # ---------------------------------------------------------------------------
-# 評価項目定義
+# デフォルト評価項目（初回DB投入用）
 # ---------------------------------------------------------------------------
-COMMON_ITEMS = [
+DEFAULT_COMMON_ITEMS = [
     {"num": 1, "name": "勤怠・規律", "desc": "出勤率、遅刻・早退の頻度、就業規則の遵守", "max_score": 10},
     {"num": 2, "name": "コミュニケーション", "desc": "報連相の的確さ、社内外との連携・調整力", "max_score": 10},
     {"num": 3, "name": "責任感", "desc": "期限遵守、自発的な行動、最後までやり切る姿勢", "max_score": 10},
     {"num": 4, "name": "成長意欲", "desc": "自己研鑽、資格取得への取り組み", "max_score": 5},
 ]
 
-ROLE_ITEMS = {
+DEFAULT_ROLE_ITEMS = {
     "事務方": [
         {"num": 5, "name": "業務処理の正確性", "desc": "書類・データ入力のミスの少なさ、チェック体制の構築", "max_score": 15},
         {"num": 6, "name": "業務効率", "desc": "処理スピード、業務改善の工夫、ムダの排除", "max_score": 15},
@@ -96,13 +98,50 @@ CREATE TABLE IF NOT EXISTS eval_scores (
     comment       TEXT,
     FOREIGN KEY (evaluation_id) REFERENCES evaluations(id) ON DELETE CASCADE
 );
+
+CREATE TABLE IF NOT EXISTS eval_items (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    section      TEXT NOT NULL,
+    num          INTEGER NOT NULL,
+    name         TEXT NOT NULL,
+    description  TEXT NOT NULL DEFAULT '',
+    max_score    INTEGER NOT NULL DEFAULT 10,
+    choice_group TEXT,
+    sort_order   INTEGER NOT NULL DEFAULT 0
+);
 """
 
 
 def init_eval_db():
     conn = sqlite3.connect(EVAL_DB_PATH)
     conn.executescript(EVAL_SCHEMA)
+    # eval_items が空ならデフォルト項目を投入
+    count = conn.execute("SELECT COUNT(*) FROM eval_items").fetchone()[0]
+    if count == 0:
+        _seed_default_items(conn)
+    conn.commit()
     conn.close()
+
+
+def _seed_default_items(conn):
+    """デフォルト評価項目をDBに投入する。"""
+    order = 0
+    for item in DEFAULT_COMMON_ITEMS:
+        conn.execute(
+            "INSERT INTO eval_items (section, num, name, description, max_score, choice_group, sort_order) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            ("共通", item["num"], item["name"], item["desc"], item["max_score"], None, order),
+        )
+        order += 1
+    for role, items in DEFAULT_ROLE_ITEMS.items():
+        for item in items:
+            conn.execute(
+                "INSERT INTO eval_items (section, num, name, description, max_score, choice_group, sort_order) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (role, item["num"], item["name"], item["desc"], item["max_score"],
+                 item.get("choice_group"), order),
+            )
+            order += 1
 
 
 @contextmanager
@@ -121,59 +160,72 @@ init_eval_db()
 
 
 # ---------------------------------------------------------------------------
+# 評価項目の読み込み（DBから）
+# ---------------------------------------------------------------------------
+def load_items(section: str) -> list[dict]:
+    with eval_conn() as conn:
+        rows = conn.execute(
+            "SELECT * FROM eval_items WHERE section = ? ORDER BY sort_order, num",
+            (section,),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def load_common_items() -> list[dict]:
+    return load_items("共通")
+
+
+def load_role_items(role: str) -> list[dict]:
+    return load_items(role)
+
+
+def get_all_roles() -> list[str]:
+    """DBに登録されている役割一覧を返す（共通を除く）。"""
+    with eval_conn() as conn:
+        rows = conn.execute(
+            "SELECT DISTINCT section FROM eval_items WHERE section != '共通' ORDER BY section"
+        ).fetchall()
+    return [r["section"] for r in rows]
+
+
+# ---------------------------------------------------------------------------
 # 作業日報DB連携 — 勤怠データ取得
 # ---------------------------------------------------------------------------
 def get_attendance_stats(worker_name: str, date_from: str, date_to: str) -> dict | None:
-    """sagyo-nippou の DB から作業員の勤怠統計を取得する。"""
     if not NIPPOU_DB_PATH.exists():
         return None
     try:
         conn = sqlite3.connect(NIPPOU_DB_PATH)
         conn.row_factory = sqlite3.Row
-
-        # 出勤日数・総作業時間・総残業時間
         row = conn.execute("""
             SELECT
                 COUNT(DISTINCT r.report_date) AS work_days,
                 COALESCE(SUM(rw.work_hours), 0) AS total_hours,
                 COALESCE(SUM(rw.overtime_h), 0) AS total_overtime,
-                COUNT(DISTINCT r.site_id) AS site_count,
-                MIN(r.report_date) AS first_date,
-                MAX(r.report_date) AS last_date
+                COUNT(DISTINCT r.site_id) AS site_count
             FROM report_workers rw
             JOIN reports r ON r.id = rw.report_id
-            WHERE rw.worker_name = ?
-              AND r.report_date BETWEEN ? AND ?
+            WHERE rw.worker_name = ? AND r.report_date BETWEEN ? AND ?
         """, (worker_name, date_from, date_to)).fetchone()
-
-        # 月別の出勤日数
         monthly = conn.execute("""
-            SELECT
-                SUBSTR(r.report_date, 1, 7) AS month,
-                COUNT(DISTINCT r.report_date) AS days,
-                COALESCE(SUM(rw.work_hours), 0) AS hours,
-                COALESCE(SUM(rw.overtime_h), 0) AS overtime
+            SELECT SUBSTR(r.report_date, 1, 7) AS month,
+                   COUNT(DISTINCT r.report_date) AS days,
+                   COALESCE(SUM(rw.work_hours), 0) AS hours,
+                   COALESCE(SUM(rw.overtime_h), 0) AS overtime
             FROM report_workers rw
             JOIN reports r ON r.id = rw.report_id
-            WHERE rw.worker_name = ?
-              AND r.report_date BETWEEN ? AND ?
-            GROUP BY SUBSTR(r.report_date, 1, 7)
-            ORDER BY month
+            WHERE rw.worker_name = ? AND r.report_date BETWEEN ? AND ?
+            GROUP BY SUBSTR(r.report_date, 1, 7) ORDER BY month
         """, (worker_name, date_from, date_to)).fetchall()
-
         conn.close()
-
         if not row or row["work_days"] == 0:
             return None
-
         return {
             "work_days": row["work_days"],
             "total_hours": round(row["total_hours"], 1),
             "total_overtime": round(row["total_overtime"], 1),
-            "avg_hours_per_day": round(row["total_hours"] / row["work_days"], 1) if row["work_days"] else 0,
+            "avg_hours_per_day": round(row["total_hours"] / row["work_days"], 1),
             "site_count": row["site_count"],
-            "first_date": row["first_date"],
-            "last_date": row["last_date"],
             "monthly": [dict(m) for m in monthly],
         }
     except Exception:
@@ -181,7 +233,6 @@ def get_attendance_stats(worker_name: str, date_from: str, date_to: str) -> dict
 
 
 def get_nippou_workers() -> list[str]:
-    """作業日報DBから作業員名一覧を取得する。"""
     if not NIPPOU_DB_PATH.exists():
         return []
     try:
@@ -201,14 +252,17 @@ def get_nippou_workers() -> list[str]:
 st.set_page_config(page_title="人事評価管理", page_icon="📊", layout="wide")
 st.title("📊 人事評価管理")
 
-menu = st.sidebar.radio("メニュー", ["評価入力", "評価一覧", "評価基準"])
+ALL_ROLES = get_all_roles() or ["事務方", "現場方", "役員"]
 
-# ===== 評価入力 =====
+menu = st.sidebar.radio("メニュー", ["評価入力", "評価一覧", "評価基準の閲覧", "評価基準の編集"])
+
+# =====================================================================
+# 評価入力
+# =====================================================================
 if menu == "評価入力":
     st.header("評価入力")
 
     nippou_workers = get_nippou_workers()
-
     col1, col2, col3 = st.columns(3)
     with col1:
         if nippou_workers:
@@ -218,38 +272,31 @@ if menu == "評価入力":
         else:
             employee = st.text_input("対象者名")
     with col2:
-        role = st.selectbox("役割", list(ROLE_ITEMS.keys()))
+        role = st.selectbox("役割", ALL_ROLES)
     with col3:
         today = date.today()
-        fiscal_year_start = date(today.year if today.month >= 4 else today.year - 1, 4, 1)
-        fiscal_year_end = date(fiscal_year_start.year + 1, 3, 31)
-        period = st.text_input("評価期間", f"{fiscal_year_start} 〜 {fiscal_year_end}")
+        fy_start = date(today.year if today.month >= 4 else today.year - 1, 4, 1)
+        fy_end = date(fy_start.year + 1, 3, 31)
+        period = st.text_input("評価期間", f"{fy_start} 〜 {fy_end}")
         evaluator = st.text_input("評価者")
 
     if not employee:
         st.info("対象者を選択または入力してください。")
         st.stop()
 
-    # --- 勤怠データ（作業日報連携） ---
+    # 勤怠データ
     st.subheader("📋 勤怠データ（作業日報から自動取得）")
-    stats = get_attendance_stats(
-        employee,
-        str(fiscal_year_start),
-        str(fiscal_year_end),
-    )
-
+    stats = get_attendance_stats(employee, str(fy_start), str(fy_end))
     if stats:
         c1, c2, c3, c4 = st.columns(4)
         c1.metric("出勤日数", f"{stats['work_days']} 日")
         c2.metric("総作業時間", f"{stats['total_hours']} h")
         c3.metric("総残業時間", f"{stats['total_overtime']} h")
         c4.metric("1日平均作業時間", f"{stats['avg_hours_per_day']} h")
-
         if stats["monthly"]:
             df_m = pd.DataFrame(stats["monthly"])
             fig = px.bar(df_m, x="month", y="days", text="days",
-                         labels={"month": "月", "days": "出勤日数"},
-                         title="月別出勤日数")
+                         labels={"month": "月", "days": "出勤日数"}, title="月別出勤日数")
             fig.update_layout(height=250, margin=dict(t=30, b=20))
             st.plotly_chart(fig, use_container_width=True)
     else:
@@ -257,62 +304,57 @@ if menu == "評価入力":
 
     st.divider()
 
-    # --- 選択式項目の処理（現場方の9/10） ---
-    choice_field = None
-    if role == "現場方":
-        choice_field = st.radio(
-            "対象者のレベル（9/10の評価項目を選択）",
-            ["senior", "junior"],
-            format_func=lambda x: "シニア（後輩指導）" if x == "senior" else "ジュニア（学ぶ姿勢）",
+    common_items = load_common_items()
+    role_items = load_role_items(role)
+
+    # 択一選択
+    choice_groups = set(i["choice_group"] for i in role_items if i.get("choice_group"))
+    choice_selections = {}
+    for cg in choice_groups:
+        cg_items = [i for i in role_items if i.get("choice_group") == cg]
+        options = {i["name"]: i["num"] for i in cg_items}
+        choice_selections[cg] = st.radio(
+            f"以下の項目はどちらか一方を選択",
+            list(options.keys()),
             horizontal=True,
         )
 
-    # --- 共通評価項目 ---
+    # 共通評価
     st.subheader("共通評価項目")
     scores = {}
     comments = {}
-
-    for item in COMMON_ITEMS:
+    for item in common_items:
         col_a, col_b, col_c = st.columns([2, 1, 3])
         with col_a:
             st.markdown(f"**{item['num']}. {item['name']}**")
-            st.caption(item["desc"])
+            st.caption(item["description"])
         with col_b:
-            key = f"common_{item['num']}"
-            if item["num"] == 1 and stats:
-                # 勤怠の参考値を表示
-                suggested = min(10, round(stats["work_days"] / 20))  # 月20日基準
-                scores[key] = st.number_input(
-                    f"配点（/{item['max_score']}）",
-                    0, item["max_score"], suggested,
-                    key=key,
-                    help=f"参考: 出勤{stats['work_days']}日 → 推奨{suggested}点",
-                )
-            else:
-                scores[key] = st.number_input(
-                    f"配点（/{item['max_score']}）", 0, item["max_score"], 0, key=key,
-                )
+            key = f"common_{item['id']}"
+            default = 0
+            if item["name"] == "勤怠・規律" and stats:
+                default = min(item["max_score"], round(stats["work_days"] / 20))
+            scores[key] = st.number_input(
+                f"配点（/{item['max_score']}）", 0, item["max_score"], default, key=key,
+                help=f"参考: 出勤{stats['work_days']}日" if item["name"] == "勤怠・規律" and stats else None,
+            )
         with col_c:
             comments[key] = st.text_input("コメント", key=f"cmt_{key}", label_visibility="collapsed",
                                           placeholder="コメント（任意）")
 
-    # --- 役割固有の評価項目 ---
+    # 役割固有
     st.subheader(f"{role} 固有の評価項目")
-
-    for item in ROLE_ITEMS[role]:
-        # 選択式: 選ばれていない方はスキップ
-        if "choice_group" in item:
-            if choice_field == "senior" and item["num"] == 10:
-                continue
-            if choice_field == "junior" and item["num"] == 9:
+    for item in role_items:
+        if item.get("choice_group"):
+            selected_name = choice_selections.get(item["choice_group"])
+            if selected_name != item["name"]:
                 continue
 
         col_a, col_b, col_c = st.columns([2, 1, 3])
         with col_a:
             st.markdown(f"**{item['num']}. {item['name']}**")
-            st.caption(item["desc"])
+            st.caption(item["description"])
         with col_b:
-            key = f"role_{item['num']}"
+            key = f"role_{item['id']}"
             scores[key] = st.number_input(
                 f"配点（/{item['max_score']}）", 0, item["max_score"], 0, key=key,
             )
@@ -320,21 +362,19 @@ if menu == "評価入力":
             comments[key] = st.text_input("コメント", key=f"cmt_{key}", label_visibility="collapsed",
                                           placeholder="コメント（任意）")
 
-    # --- 合計・ランク ---
     total = sum(scores.values())
     rank = get_rank(total)
-
     st.divider()
     col_t1, col_t2 = st.columns(2)
     col_t1.metric("合計点", f"{total} / 100")
     col_t2.metric("評価ランク", rank)
 
-    # --- 保存 ---
     if st.button("評価を保存", type="primary", use_container_width=True):
         if not employee.strip():
             st.error("対象者名を入力してください。")
         else:
             now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            choice_field = json.dumps(choice_selections, ensure_ascii=False) if choice_selections else None
             with eval_conn() as conn:
                 cur = conn.execute(
                     "INSERT INTO evaluations (employee, role, period, evaluator, choice_field, created_at, updated_at) "
@@ -342,25 +382,26 @@ if menu == "評価入力":
                     (employee.strip(), role, period, evaluator, choice_field, now, now),
                 )
                 eval_id = cur.lastrowid
+                all_items = common_items + role_items
                 for key, score in scores.items():
-                    # item_num を key から復元
-                    num = int(key.split("_")[1])
-                    # item_name を取得
+                    item_id = int(key.split("_")[1])
                     item_name = key
-                    for item in COMMON_ITEMS + ROLE_ITEMS[role]:
-                        if item["num"] == num:
+                    for item in all_items:
+                        if item["id"] == item_id:
                             item_name = item["name"]
                             break
                     conn.execute(
                         "INSERT INTO eval_scores (evaluation_id, item_num, item_name, score, comment) "
                         "VALUES (?, ?, ?, ?, ?)",
-                        (eval_id, num, item_name, score, comments.get(key, "")),
+                        (eval_id, item_id, item_name, score, comments.get(key, "")),
                     )
             st.success(f"{employee} さんの評価を保存しました（ランク: {rank}）")
             st.balloons()
 
 
-# ===== 評価一覧 =====
+# =====================================================================
+# 評価一覧
+# =====================================================================
 elif menu == "評価一覧":
     st.header("評価一覧")
 
@@ -368,15 +409,13 @@ elif menu == "評価一覧":
         evals = conn.execute("""
             SELECT e.*,
                    (SELECT COALESCE(SUM(es.score), 0) FROM eval_scores es WHERE es.evaluation_id = e.id) AS total_score
-            FROM evaluations e
-            ORDER BY e.created_at DESC
+            FROM evaluations e ORDER BY e.created_at DESC
         """).fetchall()
 
     if not evals:
         st.info("まだ評価データがありません。「評価入力」から登録してください。")
         st.stop()
 
-    # サマリテーブル
     rows = []
     for e in evals:
         d = dict(e)
@@ -384,22 +423,11 @@ elif menu == "評価一覧":
         rows.append(d)
 
     df = pd.DataFrame(rows)
-    display_cols = {
-        "employee": "対象者",
-        "role": "役割",
-        "period": "評価期間",
-        "evaluator": "評価者",
-        "total_score": "合計点",
-        "rank": "ランク",
-        "created_at": "作成日",
-    }
-    st.dataframe(
-        df[list(display_cols.keys())].rename(columns=display_cols),
-        use_container_width=True,
-        hide_index=True,
-    )
+    display_cols = {"employee": "対象者", "role": "役割", "period": "評価期間",
+                    "evaluator": "評価者", "total_score": "合計点", "rank": "ランク", "created_at": "作成日"}
+    st.dataframe(df[list(display_cols.keys())].rename(columns=display_cols),
+                 use_container_width=True, hide_index=True)
 
-    # 詳細表示
     st.subheader("詳細を確認")
     options = [f"{dict(e)['employee']}（{dict(e)['role']}）— {dict(e)['created_at'][:10]}" for e in evals]
     selected_idx = st.selectbox("評価を選択", range(len(options)), format_func=lambda i: options[i])
@@ -408,26 +436,14 @@ elif menu == "評価一覧":
         ev = dict(evals[selected_idx])
         with eval_conn() as conn:
             details = conn.execute(
-                "SELECT * FROM eval_scores WHERE evaluation_id = ? ORDER BY item_num",
-                (ev["id"],),
+                "SELECT * FROM eval_scores WHERE evaluation_id = ? ORDER BY item_num", (ev["id"],),
             ).fetchall()
-
         st.markdown(f"**{ev['employee']}** / {ev['role']} / 評価者: {ev['evaluator'] or '—'}")
-
-        detail_rows = []
-        for d in details:
-            dd = dict(d)
-            detail_rows.append({
-                "#": dd["item_num"],
-                "項目": dd["item_name"],
-                "得点": dd["score"],
-                "コメント": dd["comment"] or "",
-            })
-
+        detail_rows = [{"#": dict(d)["item_num"], "項目": dict(d)["item_name"],
+                        "得点": dict(d)["score"], "コメント": dict(d)["comment"] or ""} for d in details]
         st.dataframe(pd.DataFrame(detail_rows), use_container_width=True, hide_index=True)
         st.metric("合計", f"{ev['total_score']} 点（ランク: {get_rank(ev['total_score'])}）")
 
-        # 削除
         if st.button("この評価を削除", type="secondary"):
             with eval_conn() as conn:
                 conn.execute("DELETE FROM evaluations WHERE id = ?", (ev["id"],))
@@ -435,37 +451,178 @@ elif menu == "評価一覧":
             st.rerun()
 
 
-# ===== 評価基準 =====
-elif menu == "評価基準":
+# =====================================================================
+# 評価基準の閲覧
+# =====================================================================
+elif menu == "評価基準の閲覧":
     st.header("評価基準一覧")
 
-    # ランク表
     st.subheader("評価ランク")
     rank_df = pd.DataFrame(RANK_TABLE, columns=["ランク", "下限", "上限", "意味"])
     rank_df["点数"] = rank_df["下限"].astype(str) + " 〜 " + rank_df["上限"].astype(str)
     st.dataframe(rank_df[["ランク", "点数", "意味"]], use_container_width=True, hide_index=True)
 
-    # 共通項目
-    st.subheader("共通評価項目（全役割共通）— 35点")
-    common_df = pd.DataFrame(COMMON_ITEMS)
-    common_df.columns = ["#", "項目", "評価内容", "配点"]
-    st.dataframe(common_df, use_container_width=True, hide_index=True)
+    common_items = load_common_items()
+    common_total = sum(i["max_score"] for i in common_items)
+    st.subheader(f"共通評価項目（全役割共通）— {common_total}点")
+    st.dataframe(
+        pd.DataFrame([{"#": i["num"], "項目": i["name"], "評価内容": i["description"], "配点": i["max_score"]}
+                       for i in common_items]),
+        use_container_width=True, hide_index=True,
+    )
 
-    # 各役割
-    for role_name, items in ROLE_ITEMS.items():
-        role_total = sum(i["max_score"] for i in items if "choice_group" not in i)
-        # 選択式は片方のみ加算
-        choice_groups = set()
+    for role_name in ALL_ROLES:
+        items = load_role_items(role_name)
+        # 択一は片方のみ加算
+        role_total = 0
+        seen_cg = set()
         for i in items:
-            if "choice_group" in i and i["choice_group"] not in choice_groups:
+            if i.get("choice_group"):
+                if i["choice_group"] not in seen_cg:
+                    role_total += i["max_score"]
+                    seen_cg.add(i["choice_group"])
+            else:
                 role_total += i["max_score"]
-                choice_groups.add(i["choice_group"])
 
-        st.subheader(f"{role_name} 固有の評価項目 — {role_total}点（合計: {35 + role_total}点）")
+        st.subheader(f"{role_name} 固有の評価項目 — {role_total}点（合計: {common_total + role_total}点）")
         rows = []
         for i in items:
-            label = i["name"]
-            if "choice_group" in i:
-                label += " ※択一"
-            rows.append({"#": i["num"], "項目": label, "評価内容": i["desc"], "配点": i["max_score"]})
+            label = i["name"] + (" ※択一" if i.get("choice_group") else "")
+            rows.append({"#": i["num"], "項目": label, "評価内容": i["description"], "配点": i["max_score"]})
         st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+
+
+# =====================================================================
+# 評価基準の編集
+# =====================================================================
+elif menu == "評価基準の編集":
+    st.header("評価基準の編集")
+    st.caption("項目名・内容・配点を変更して「保存」を押してください。行の追加・削除もできます。")
+
+    edit_section = st.selectbox("編集するセクション", ["共通"] + ALL_ROLES)
+
+    items = load_items(edit_section)
+
+    # --- 既存項目の編集 ---
+    if items:
+        st.subheader(f"「{edit_section}」の評価項目")
+
+        edited_items = []
+        delete_ids = []
+
+        for i, item in enumerate(items):
+            with st.container(border=True):
+                cols = st.columns([0.5, 2, 4, 1, 1.5, 0.5])
+                with cols[0]:
+                    new_num = st.number_input("番号", value=item["num"], key=f"num_{item['id']}", label_visibility="collapsed")
+                with cols[1]:
+                    new_name = st.text_input("項目名", value=item["name"], key=f"name_{item['id']}")
+                with cols[2]:
+                    new_desc = st.text_input("評価内容", value=item["description"], key=f"desc_{item['id']}")
+                with cols[3]:
+                    new_score = st.number_input("配点", value=item["max_score"], min_value=0, max_value=100,
+                                                key=f"score_{item['id']}")
+                with cols[4]:
+                    new_cg = st.text_input("択一グループ", value=item["choice_group"] or "",
+                                           key=f"cg_{item['id']}",
+                                           help="同じグループ名の項目は択一になります（空欄＝通常項目）")
+                with cols[5]:
+                    if st.button("削除", key=f"del_{item['id']}", type="secondary"):
+                        delete_ids.append(item["id"])
+
+                edited_items.append({
+                    "id": item["id"],
+                    "num": new_num,
+                    "name": new_name,
+                    "description": new_desc,
+                    "max_score": new_score,
+                    "choice_group": new_cg.strip() or None,
+                    "sort_order": i,
+                })
+
+        # 合計点の表示
+        active_total = sum(it["max_score"] for it in edited_items if it["id"] not in delete_ids)
+        if edit_section == "共通":
+            st.info(f"共通 小計: **{active_total}点**")
+        else:
+            common_total = sum(i["max_score"] for i in load_common_items())
+            st.info(f"固有 小計: **{active_total}点** ／ 合計（共通{common_total} + 固有{active_total}）: **{common_total + active_total}点**")
+
+        # 削除実行
+        if delete_ids:
+            with eval_conn() as conn:
+                for did in delete_ids:
+                    conn.execute("DELETE FROM eval_items WHERE id = ?", (did,))
+            st.success(f"{len(delete_ids)} 件削除しました。")
+            st.rerun()
+
+        # 保存ボタン
+        if st.button("変更を保存", type="primary", use_container_width=True):
+            with eval_conn() as conn:
+                for it in edited_items:
+                    conn.execute(
+                        "UPDATE eval_items SET num=?, name=?, description=?, max_score=?, choice_group=?, sort_order=? "
+                        "WHERE id=?",
+                        (it["num"], it["name"], it["description"], it["max_score"], it["choice_group"],
+                         it["sort_order"], it["id"]),
+                    )
+            st.success("保存しました。")
+            st.rerun()
+    else:
+        st.info(f"「{edit_section}」にはまだ項目がありません。下のフォームから追加してください。")
+
+    # --- 新規項目の追加 ---
+    st.divider()
+    st.subheader("項目を追加")
+
+    with st.form("add_item_form"):
+        ac1, ac2 = st.columns([1, 3])
+        with ac1:
+            add_num = st.number_input("番号", value=(items[-1]["num"] + 1 if items else 1), min_value=1)
+        with ac2:
+            add_name = st.text_input("項目名", placeholder="例: 安全管理")
+        add_desc = st.text_input("評価内容", placeholder="例: KY活動の実施、保護具着用")
+        ac3, ac4 = st.columns(2)
+        with ac3:
+            add_score = st.number_input("配点", value=10, min_value=0, max_value=100)
+        with ac4:
+            add_cg = st.text_input("択一グループ（任意）", placeholder="空欄＝通常項目")
+
+        submitted = st.form_submit_button("追加", type="primary", use_container_width=True)
+        if submitted:
+            if not add_name.strip():
+                st.error("項目名を入力してください。")
+            else:
+                max_order = items[-1]["sort_order"] + 1 if items else 0
+                with eval_conn() as conn:
+                    conn.execute(
+                        "INSERT INTO eval_items (section, num, name, description, max_score, choice_group, sort_order) "
+                        "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                        (edit_section, add_num, add_name.strip(), add_desc.strip(), add_score,
+                         add_cg.strip() or None, max_order),
+                    )
+                st.success(f"「{add_name}」を追加しました。")
+                st.rerun()
+
+    # --- 新しい役割の追加 ---
+    if edit_section == "共通":
+        st.divider()
+        st.subheader("新しい役割を追加")
+        st.caption("事務方・現場方・役員以外の役割が必要な場合はここから追加できます。")
+        with st.form("add_role_form"):
+            new_role = st.text_input("役割名", placeholder="例: パート・アルバイト")
+            role_submitted = st.form_submit_button("役割を追加")
+            if role_submitted:
+                if not new_role.strip():
+                    st.error("役割名を入力してください。")
+                elif new_role.strip() in ALL_ROLES:
+                    st.error("その役割は既に存在します。")
+                else:
+                    with eval_conn() as conn:
+                        conn.execute(
+                            "INSERT INTO eval_items (section, num, name, description, max_score, sort_order) "
+                            "VALUES (?, 5, '（項目名を設定）', '（評価内容を設定）', 10, 0)",
+                            (new_role.strip(),),
+                        )
+                    st.success(f"役割「{new_role}」を追加しました。「評価基準の編集」で項目を設定してください。")
+                    st.rerun()
