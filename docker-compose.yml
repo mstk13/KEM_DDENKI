@@ -1,0 +1,129 @@
+x-common-env: &common-env
+  KEM_DATA_DIR: /data
+
+x-app-base: &app-base
+  build:
+    context: .
+    dockerfile: docker/Dockerfile.app
+  volumes:
+    - kem_data:/data
+  env_file:
+    - .env
+  restart: unless-stopped
+
+services:
+  # --- リバースプロキシ ---
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+    volumes:
+      - ./docker/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./docker/portal:/usr/share/nginx/html:ro
+      - ./portal/icon.ico:/usr/share/nginx/html/icon.ico:ro
+      - ./portal/icon-192.png:/usr/share/nginx/html/icon-192.png:ro
+      - ./portal/icon-512.png:/usr/share/nginx/html/icon-512.png:ro
+      - ./portal/icon-1024.png:/usr/share/nginx/html/icon-1024.png:ro
+      - ./portal/manifest.json:/usr/share/nginx/html/manifest.json:ro
+    depends_on:
+      - bid_manager
+      - material_manager
+      - sagyo_nippou
+      - evaluation
+    restart: unless-stopped
+
+  # --- コアアプリ (4つ) ---
+  bid_manager:
+    <<: *app-base
+    environment:
+      <<: *common-env
+    command:
+      - /entrypoint.sh
+      - bid_manager
+      - streamlit
+      - run
+      - app.py
+      - --server.port=8501
+      - --server.headless=true
+      - --server.address=0.0.0.0
+      - --server.baseUrlPath=/bid
+
+  material_manager:
+    <<: *app-base
+    environment:
+      <<: *common-env
+    command:
+      - /entrypoint.sh
+      - material_manager
+      - python
+      - app.py
+
+  sagyo_nippou:
+    <<: *app-base
+    environment:
+      <<: *common-env
+    command:
+      - /entrypoint.sh
+      - sagyo-nippou
+      - streamlit
+      - run
+      - app.py
+      - --server.port=8502
+      - --server.headless=true
+      - --server.address=0.0.0.0
+      - --server.baseUrlPath=/nippou
+
+  evaluation:
+    <<: *app-base
+    environment:
+      <<: *common-env
+    depends_on:
+      - sagyo_nippou
+    command:
+      - /entrypoint.sh
+      - evaluation
+      - streamlit
+      - run
+      - app.py
+      - --server.port=8503
+      - --server.headless=true
+      - --server.address=0.0.0.0
+      - --server.baseUrlPath=/eval
+
+  # --- オプションアプリ (docker compose --profile optional up -d) ---
+  eigyo_kanri:
+    <<: *app-base
+    profiles: [optional]
+    environment:
+      <<: *common-env
+    command:
+      - /entrypoint.sh
+      - eigyo-kanri
+      - streamlit
+      - run
+      - app.py
+      - --server.port=8504
+      - --server.headless=true
+      - --server.address=0.0.0.0
+      - --server.baseUrlPath=/eigyo
+
+  nippou_kanri:
+    <<: *app-base
+    profiles: [optional]
+    environment:
+      <<: *common-env
+    depends_on:
+      - sagyo_nippou
+    command:
+      - /entrypoint.sh
+      - nippou-kanri
+      - streamlit
+      - run
+      - app.py
+      - --server.port=8510
+      - --server.headless=true
+      - --server.address=0.0.0.0
+      - --server.baseUrlPath=/nippou-kanri
+
+volumes:
+  kem_data:
