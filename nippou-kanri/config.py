@@ -24,7 +24,7 @@ except Exception:  # python-dotenv 未導入でも動作させる
 
 BASE_DIR = Path(__file__).resolve().parent
 _data_dir = os.getenv("KEM_DATA_DIR", str(BASE_DIR.parent / "data"))
-DB_PATH = Path(os.path.join(_data_dir, "nippou_kanri.db"))
+DB_PATH = Path(os.getenv("NIPPOU_DB_PATH", os.path.join(_data_dir, "nippou_kanri.db")))
 
 COMPANY_NAME = os.getenv("NIPPOU_COMPANY_NAME", "株式会社ケンモチ電機")
 APP_TITLE = "作業日報 自動抽出・勤怠管理システム"
