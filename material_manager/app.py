@@ -4,6 +4,7 @@ import tempfile
 from datetime import date
 
 from flask import Flask, render_template, request, redirect, url_for, flash, send_file
+from werkzeug.middleware.proxy_fix import ProxyFix
 from openpyxl import load_workbook
 
 from pdf_generator import generate_order_pdf
@@ -14,6 +15,7 @@ from db import get_db, close_db, init_db, _now
 
 app = Flask(__name__)
 app.secret_key = "dev-key-change-in-production"
+app.wsgi_app = ProxyFix(app.wsgi_app, x_prefix=1)
 app.teardown_appcontext(close_db)
 
 
@@ -936,4 +938,4 @@ def init_db_command():
 
 
 if __name__ == "__main__":
-    app.run(debug=True, port=5000)
+    app.run(host="0.0.0.0", debug=False, port=5000)
