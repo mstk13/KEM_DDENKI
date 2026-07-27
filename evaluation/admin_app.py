@@ -22,6 +22,8 @@ import pdf_export    # noqa: E402
 import views         # noqa: E402
 
 st.set_page_config(page_title="人事評価 管理", page_icon="🗂️", layout="wide")
+# 設問文がブラウザに翻訳され別の意味に書き換わるのを防ぐ（title より先に実行する）
+views.disable_browser_translation()
 st.title("🗂️ 人事評価 管理")
 
 ALL_ROLES = core.get_all_roles() or ["事務方", "現場方", "役員"]

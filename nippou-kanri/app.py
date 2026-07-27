@@ -15,6 +15,7 @@ from datetime import date, timedelta
 import pandas as pd
 import plotly.express as px
 import streamlit as st
+import streamlit.components.v1 as _components
 
 import config
 import database as db
@@ -22,6 +23,35 @@ import extractor
 import importer
 
 st.set_page_config(page_title=config.APP_TITLE, page_icon="🗒️", layout="wide")
+
+
+def _disable_browser_translation():
+    """ブラウザの自動翻訳がページを書き換えるのを防ぐ。
+
+    Chrome/Edge が日本語ページを翻訳すると表示文が別の語に置き換わり、
+    Streamlit(React) の再描画とも衝突して removeChild エラーの原因になる。
+    """
+    _components.html(
+        """
+        <script>
+        try {
+          const doc = window.parent.document;
+          doc.documentElement.setAttribute('translate', 'no');
+          doc.documentElement.lang = 'ja';
+          doc.documentElement.classList.add('notranslate');
+          if (!doc.querySelector('meta[name="google"][content="notranslate"]')) {
+            const m = doc.createElement('meta');
+            m.name = 'google'; m.content = 'notranslate';
+            doc.head.appendChild(m);
+          }
+        } catch (e) {}
+        </script>
+        """,
+        height=0,
+    )
+
+
+_disable_browser_translation()
 
 EDITOR_COLS = ["日付", "現場名", "社員名", "出勤", "退勤", "休憩(分)", "作業内容", "備考"]
 

@@ -3,8 +3,38 @@ from __future__ import annotations
 
 import pandas as pd
 import streamlit as st
+import streamlit.components.v1 as components
 
 import core
+
+
+def disable_browser_translation():
+    """ブラウザの自動翻訳がページを書き換えるのを防ぐ。
+
+    Chrome/Edge が日本語ページを翻訳すると設問文が別の語に置き換わり
+    （例:「着替え」→「交換」、「行っているか」→「行ってください」）、
+    評価者が誤った文面を読むことになる。Streamlit(React) の再描画とも
+    衝突して removeChild エラーの原因にもなる。
+    親ドキュメントに translate=no / notranslate を設定して抑止する。
+    """
+    components.html(
+        """
+        <script>
+        try {
+          const doc = window.parent.document;
+          doc.documentElement.setAttribute('translate', 'no');
+          doc.documentElement.lang = 'ja';
+          doc.documentElement.classList.add('notranslate');
+          if (!doc.querySelector('meta[name="google"][content="notranslate"]')) {
+            const m = doc.createElement('meta');
+            m.name = 'google'; m.content = 'notranslate';
+            doc.head.appendChild(m);
+          }
+        } catch (e) {}
+        </script>
+        """,
+        height=0,
+    )
 
 
 def render_criteria_table(items: list[dict], show_questions: bool):
