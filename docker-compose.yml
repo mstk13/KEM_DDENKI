@@ -25,11 +25,6 @@ services:
       - ./portal/icon-512.png:/usr/share/nginx/html/icon-512.png:ro
       - ./portal/icon-1024.png:/usr/share/nginx/html/icon-1024.png:ro
       - ./portal/manifest.json:/usr/share/nginx/html/manifest.json:ro
-    depends_on:
-      - bid_manager
-      - material_manager
-      - sagyo_nippou
-      - evaluation
     restart: unless-stopped
 
   # --- コアアプリ (4つ) ---
@@ -77,8 +72,6 @@ services:
     <<: *app-base
     environment:
       <<: *common-env
-    depends_on:
-      - sagyo_nippou
     command:
       - /entrypoint.sh
       - evaluation
@@ -112,8 +105,6 @@ services:
     profiles: [optional]
     environment:
       <<: *common-env
-    depends_on:
-      - sagyo_nippou
     command:
       - /entrypoint.sh
       - nippou-kanri
