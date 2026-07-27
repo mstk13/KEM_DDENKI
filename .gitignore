@@ -23,6 +23,13 @@ __pycache__/
 venv/
 env/
 
+# 起動ログ（streamlit 実行ログ等）
+*.log
+
+# エディタの一時ファイル
+*.tmp
+*.tmp.*
+
 # OS / エディタ
 .DS_Store
 Thumbs.db
