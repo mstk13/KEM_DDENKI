@@ -24,11 +24,10 @@ if [ -f "$SCRIPT_DIR/.env" ]; then
     set +a
 fi
 
-# KEM_DATA_DIR が設定されている場合、フォルダを自動作成
-if [ -n "$KEM_DATA_DIR" ]; then
-    mkdir -p "$KEM_DATA_DIR" 2>/dev/null || true
-    echo "[データ共有] DB保存先: $KEM_DATA_DIR"
-fi
+# データフォルダを作成（デフォルト: プロジェクト直下の data/）
+KEM_DATA_DIR="${KEM_DATA_DIR:-$SCRIPT_DIR/data}"
+mkdir -p "$KEM_DATA_DIR" 2>/dev/null || true
+echo "[データ] DB保存先: $KEM_DATA_DIR"
 
 # Python チェック
 if command -v python3 &>/dev/null; then

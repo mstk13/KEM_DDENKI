@@ -44,14 +44,13 @@ if exist ".env" (
     )
 )
 
-:: KEM_DATA_DIR が設定されている場合、フォルダを自動作成
-if defined KEM_DATA_DIR (
-    if not exist "%KEM_DATA_DIR%" (
-        echo [データ共有] フォルダを作成中: %KEM_DATA_DIR%
-        mkdir "%KEM_DATA_DIR%" 2>nul
-    )
-    echo [データ共有] DB保存先: %KEM_DATA_DIR%
+:: データフォルダを作成（デフォルト: プロジェクト直下の data\）
+if not defined KEM_DATA_DIR set "KEM_DATA_DIR=%~dp0data"
+if not exist "%KEM_DATA_DIR%" (
+    echo [データ] フォルダを作成中: %KEM_DATA_DIR%
+    mkdir "%KEM_DATA_DIR%" 2>nul
 )
+echo [データ] DB保存先: %KEM_DATA_DIR%
 
 :: ===== 自動アップデート =====
 where git >nul 2>&1

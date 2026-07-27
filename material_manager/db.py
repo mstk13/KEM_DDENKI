@@ -6,8 +6,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import Iterator
 
-_data_dir = os.getenv("KEM_DATA_DIR")
-DATABASE = os.path.join(_data_dir, "material_manager.db") if _data_dir else "construction.db"
+_REPO_DIR = Path(__file__).resolve().parent.parent
+_data_dir = os.getenv("KEM_DATA_DIR", str(_REPO_DIR / "data"))
+DATABASE = os.path.join(_data_dir, "material_manager.db")
 
 
 def get_db():

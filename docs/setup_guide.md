@@ -89,57 +89,38 @@ chmod +x setup.sh start_all.sh
 
 ---
 
-## 4. データ共有の設定（複数PCで使う場合）
+## 4. データ共有について
 
-デフォルトでは各PCにデータベースがローカル保存されます。  
-複数PCで同じデータを共有するには、**共有フォルダにデータベースを置く設定**を行います。
+全アプリのデータベースは **デフォルトでプロジェクト直下の `data/` フォルダ** に集約されます。設定は不要です。
 
-### 手順
-
-#### Step 1: 共有フォルダを用意する
-
-ネットワーク上に全PCからアクセスできる共有フォルダを作成します。
-
-例:
-- Windows 共有: `\\192.168.0.27\kem_data`
-- ネットワークドライブ: `Z:\kem_data`
-- Mac/Linux (NFS/SMB): `/mnt/shared/kem_data`
-
-#### Step 2: `.env` ファイルを作成する
-
-KEM_DDENKI フォルダ直下にある `.env.example` をコピーして `.env` を作成し、`KEM_DATA_DIR` を設定します。
-
-**Windows:**
-```powershell
-copy .env.example .env
+```
+KEM_DDENKI/
+└── data/
+    ├── bid_manager.db       ← 入札案件管理
+    ├── material_manager.db  ← 材料管理
+    ├── sagyo_nippou.db      ← 作業日報
+    ├── evaluation.db        ← 人事評価
+    └── eigyo_kanri.db       ← 営業管理
 ```
 
-**Mac / Linux:**
-```bash
-cp .env.example .env
-```
+### 複数PCでデータを共有する方法
 
-`.env` をテキストエディタで開き、`KEM_DATA_DIR` のコメントを外してパスを設定:
+`data/` フォルダをネットワーク共有フォルダに変更すれば、複数PCでデータを共有できます。
+
+`.env` ファイルを作成して `KEM_DATA_DIR` を設定してください:
 
 ```dotenv
+# 例: Windows 共有フォルダ
 KEM_DATA_DIR=\\192.168.0.27\kem_data
+
+# 例: ネットワークドライブ
+KEM_DATA_DIR=Z:\kem_data
+
+# 例: Mac/Linux (NFS/SMB)
+KEM_DATA_DIR=/mnt/shared/kem_data
 ```
 
-#### Step 3: 全PCで同じ設定にする
-
-データを共有する **全てのPC** で、同じ `KEM_DATA_DIR` を `.env` に設定してください。
-
-#### 共有時のDB ファイル
-
-`KEM_DATA_DIR` を設定すると、以下のファイルが共有フォルダに作成されます:
-
-| ファイル名 | アプリ |
-|-----------|--------|
-| `bid_manager.db` | 入札案件管理 |
-| `material_manager.db` | 材料管理 |
-| `sagyo_nippou.db` | 作業日報 |
-| `evaluation.db` | 人事評価 |
-| `eigyo_kanri.db` | 営業管理 |
+データを共有する **全てのPC** で同じ `KEM_DATA_DIR` を設定してください。
 
 > **注意**: SQLite は同時書き込みに制限があります。同時に複数人が同じアプリで書き込み操作をすると、まれにエラーが出る場合があります。少人数（5名程度まで）であれば通常は問題ありません。
 
