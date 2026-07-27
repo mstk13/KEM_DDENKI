@@ -9,16 +9,16 @@ if not exist "%PY%" set "PY=py"
 set PYTHONIOENCODING=utf-8
 
 rem ブラウザを開く（起動直後は表示が出ないことがあるので、その場合は再読み込み）
-start "" http://localhost:8503
+start "" http://localhost:8504
 
 echo ============================================================
-echo   営業訪問者 管理アプリ ( http://localhost:8503 )
+echo   営業訪問者 管理アプリ ( http://localhost:8504 )
 echo   このウィンドウを閉じるとアプリは停止します。
 echo   クラッシュしても自動で再起動します。
 echo ============================================================
 
 :loop
-"%PY%" -m streamlit run app.py
+"%PY%" -m streamlit run app.py --server.port 8504
 echo.
 echo アプリが停止しました。5秒後に自動で再起動します...
 timeout /t 5 /nobreak >nul

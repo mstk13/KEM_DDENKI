@@ -57,15 +57,17 @@ streamlit run app.py --server.port 8501
 
 ## アプリ一覧
 
-| # | アプリ | ディレクトリ | フレームワーク | Docker URL | 概要 |
-|---|--------|-------------|---------------|------------|------|
-| 1 | [入札案件管理](#1-入札案件管理-bid_manager) | `bid_manager/` | Streamlit | `/bid/` | 入札案件の収集・進捗管理・費用分析・競合分析 |
-| 2 | [材料管理](#2-材料管理-material_manager) | `material_manager/` | Flask | `/material/` | 現場ごとの見積もり vs 発注状況の比較管理 |
-| 3 | [作業日報](#3-作業日報-sagyo-nippou) | `sagyo-nippou/` | Streamlit | `/nippou/` | 現場の作業日報の入力・管理・集計・分析 |
-| 4 | [人事評価](#4-人事評価-evaluation) | `evaluation/` | Streamlit | `/eval/` | 作業日報連携の人事評価（事務方・現場方・役員） |
-| 5 | 営業管理 | `eigyo-kanri/` | Streamlit | `/eigyo/` | 営業訪問記録・Claude API 自動抽出（オプション） |
-| 6 | 勤怠管理 | `nippou-kanri/` | Streamlit | `/nippou-kanri/` | 日報テキスト解析・勤怠集計（オプション） |
-| — | コスト分析・AI見積もり | （開発予定） | — | — | 過去実績から見積もりを自動生成 |
+| # | アプリ | ディレクトリ | フレームワーク | ポート | Docker パス | 概要 |
+|---|--------|-------------|---------------|--------|------------|------|
+| 1 | [入札案件管理](#1-入札案件管理-bid_manager) | `bid_manager/` | Streamlit | 8501 | `/bid/` | 入札案件の収集・進捗管理・費用分析・競合分析 |
+| 2 | [材料管理](#2-材料管理-material_manager) | `material_manager/` | Flask | 5000 | `/material/` | 現場ごとの見積もり vs 発注状況の比較管理 |
+| 3 | [作業日報](#3-作業日報-sagyo-nippou) | `sagyo-nippou/` | Streamlit | 8502 | `/nippou/` | 現場の作業日報の入力・管理・集計・分析 |
+| 4 | [人事評価](#4-人事評価-evaluation) | `evaluation/` | Streamlit | 8503 | `/eval/` | 作業日報連携の人事評価（事務方・現場方・役員） |
+| 5 | 営業管理 | `eigyo-kanri/` | Streamlit | 8504 | `/eigyo/` | 営業訪問記録・Claude API 自動抽出（オプション） |
+| 6 | 勤怠管理 | `nippou-kanri/` | Streamlit | 8510 | `/nippou-kanri/` | 日報テキスト解析・勤怠集計（オプション） |
+| — | ポータル | `portal/` | 静的HTML | 8080 | `/` | 全アプリへのランチャーページ |
+| — | Nginx | `docker/` | Nginx | 80 | — | リバースプロキシ（Docker版のみ） |
+| — | コスト分析・AI見積もり | （開発予定） | — | — | — | 過去実績から見積もりを自動生成 |
 
 ### データの流れ
 
@@ -90,6 +92,23 @@ streamlit run app.py --server.port 8501
 | [docs/spec.md](docs/spec.md) | 開発者 | システム仕様書（DB設計・機能仕様・AI活用計画） |
 | [docs/geps_setup.md](docs/geps_setup.md) | 管理者 | GEPS メール連携のセットアップ手順 |
 | [docs/process.md](docs/process.md) | 全員 | 業務プロセスフロー |
+
+---
+
+## ポート一覧
+
+| ポート | アプリ | 用途 |
+|--------|--------|------|
+| **80** | Nginx | リバースプロキシ（Docker版のみ。クライアントはこのポートだけでアクセス） |
+| **5000** | 材料管理 | Flask アプリ |
+| **8080** | ポータル | ランチャーページ（WSL/LAN モードのみ） |
+| **8501** | 入札案件管理 | Streamlit アプリ |
+| **8502** | 作業日報 | Streamlit アプリ |
+| **8503** | 人事評価 | Streamlit アプリ |
+| **8504** | 営業管理 | Streamlit アプリ（オプション） |
+| **8510** | 勤怠管理 | Streamlit アプリ（オプション） |
+
+> Docker 版ではクライアントからポート番号を意識する必要はありません（Nginx がポート 80 で一括受付し、パスベースで各アプリに振り分けます）。
 
 ---
 
@@ -180,14 +199,14 @@ pip install -r bid_manager/requirements.txt
 
 #### 各アプリの起動方法
 
-| アプリ | コマンド |
-|--------|---------|
-| 入札案件管理 | `cd bid_manager && python database.py && streamlit run app.py --server.port 8501` |
-| 材料管理 | `cd material_manager && python -c "from db import init_db; init_db()" && python app.py` |
-| 作業日報 | `cd sagyo-nippou && python database.py && streamlit run app.py --server.port 8502` |
-| 人事評価 | `cd evaluation && streamlit run app.py --server.port 8503` |
-| 営業管理 | `cd eigyo-kanri && python database.py && streamlit run app.py` |
-| 勤怠管理 | `cd nippou-kanri && python database.py && streamlit run app.py` |
+| アプリ | ポート | コマンド |
+|--------|--------|---------|
+| 入札案件管理 | 8501 | `cd bid_manager && python database.py && streamlit run app.py --server.port 8501` |
+| 材料管理 | 5000 | `cd material_manager && python -c "from db import init_db; init_db()" && python app.py` |
+| 作業日報 | 8502 | `cd sagyo-nippou && python database.py && streamlit run app.py --server.port 8502` |
+| 人事評価 | 8503 | `cd evaluation && streamlit run app.py --server.port 8503` |
+| 営業管理 | 8504 | `cd eigyo-kanri && python database.py && streamlit run app.py --server.port 8504` |
+| 勤怠管理 | 8510 | `cd nippou-kanri && python database.py && streamlit run app.py --server.port 8510` |
 
 #### 開発のルール
 

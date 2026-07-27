@@ -118,13 +118,15 @@ hostname -I （Linux）
 
 ### 2-4. アプリの URL 一覧（Docker版）
 
-| アプリ | URL |
-|--------|-----|
-| ポータル（トップ） | `http://サーバーIP/` |
-| 入札案件管理 | `http://サーバーIP/bid/` |
-| 材料管理 | `http://サーバーIP/material/` |
-| 作業日報 | `http://サーバーIP/nippou/` |
-| 人事評価 | `http://サーバーIP/eval/` |
+| アプリ | URL | 内部ポート |
+|--------|-----|-----------|
+| ポータル（トップ） | `http://サーバーIP/` | 80 (Nginx) |
+| 入札案件管理 | `http://サーバーIP/bid/` | 8501 |
+| 材料管理 | `http://サーバーIP/material/` | 5000 |
+| 作業日報 | `http://サーバーIP/nippou/` | 8502 |
+| 人事評価 | `http://サーバーIP/eval/` | 8503 |
+| 営業管理（オプション） | `http://サーバーIP/eigyo/` | 8504 |
+| 勤怠管理（オプション） | `http://サーバーIP/nippou-kanri/` | 8510 |
 
 ### 2-5. 環境変数の設定（メール通知等を使う場合）
 
@@ -205,6 +207,8 @@ chmod +x setup.sh start_all.sh
 | 材料管理 | http://localhost:5000 |
 | 作業日報 | http://localhost:8502 |
 | 人事評価 | http://localhost:8503 |
+| 営業管理（オプション） | http://localhost:8504 |
+| 勤怠管理（オプション） | http://localhost:8510 |
 
 ### 3-6. データの保存場所
 
