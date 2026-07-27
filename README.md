@@ -5,39 +5,67 @@
 
 ---
 
-## ダウンロード・セットアップ
+## クイックスタート
 
-**[セットアップガイド（docs/setup_guide.md）](docs/setup_guide.md)** を参照してください。
+### ユーザーとして使う（アプリを使うだけの人）
 
-ダウンロード・インストール・データ共有・LAN共有・トラブルシューティングまで、すべての手順がまとまっています。
+サーバーPCが既にセットアップ済みなら、**ブラウザで `http://サーバーIP/` を開くだけ** です。  
+インストールは不要です。
 
-> **クイックスタート**: [Releases ページ](https://github.com/mstk13/KEM_DDENKI/releases) から zip をダウンロード → 展開 → `setup.bat`（Windows）または `./setup.sh`（Mac/Linux）を実行
+デスクトップショートカットを作りたい場合は、`setup_client_docker.bat` を実行してください。
+
+### サーバーを新規にセットアップする
+
+```bash
+git clone https://github.com/mstk13/KEM_DDENKI.git
+cd KEM_DDENKI
+
+# Windows
+docker\setup_server.bat
+
+# Linux
+./docker/setup_server.sh
+```
+
+ブラウザで `http://localhost/` を開き、ポータルが表示されれば完了です。
+
+> 詳細は **[セットアップガイド](docs/setup_guide.md)** を参照
+
+### 開発者として参加する
+
+```bash
+git clone https://github.com/mstk13/KEM_DDENKI.git
+cd KEM_DDENKI
+
+# 仮想環境を作成
+python -m venv .venv
+source .venv/bin/activate     # Linux/Mac
+# .venv\Scripts\activate      # Windows
+
+# 開発したいアプリの依存パッケージをインストール
+pip install -r bid_manager/requirements.txt    # 例: 入札案件管理
+
+# DB初期化 → 起動
+cd bid_manager
+python database.py
+streamlit run app.py --server.port 8501
+```
+
+> 詳細は **[開発者ガイド](docs/DEVELOPER.md)** を参照
 
 ---
 
-## アプリを開く（起動後にクリック）
+## アプリ一覧
 
-> `start.bat`（Windows）または `./start_all.sh`（Mac/Linux）で起動した後、以下のリンクからアクセスできます。
-
-| アプリ | URL |
-|--------|-----|
-| **入札案件管理** | [http://localhost:8501](http://localhost:8501) |
-| **材料管理** | [http://localhost:5000](http://localhost:5000) |
-| **作業日報** | [http://localhost:8502](http://localhost:8502) |
-| **人事評価** | [http://localhost:8503](http://localhost:8503) |
-
----
-
-## アプリケーション一覧
-
-| # | アプリ | ディレクトリ | フレームワーク | ポート | 概要 |
-|---|--------|-------------|---------------|--------|------|
-| 1 | [入札案件管理](#1-入札案件管理-bid_manager) | `bid_manager/` | Streamlit | 8501 | 入札案件の収集・進捗管理・費用分析・競合分析 |
-| 2 | [材料管理](#2-材料管理-material_manager) | `material_manager/` | Flask | 5000 | 現場ごとの見積もり vs 発注状況の比較管理 |
-| 3 | [作業日報](#3-作業日報-sagyo-nippou) | `sagyo-nippou/` | Streamlit | 8502 | 現場の作業日報の入力・管理・集計・分析 |
-| 4 | [人事評価](#4-人事評価-evaluation) | `evaluation/` | Streamlit | 8503 | 作業日報連携の人事評価（事務方・現場方・役員） |
-| 5 | [ポータル](#5-ポータル-portal) | `portal/` | 静的HTML | — | 全アプリへのランチャーページ |
-| — | コスト分析・AI見積もり | （開発予定） | — | — | 過去実績から見積もりを自動生成（データ蓄積フェーズ） |
+| # | アプリ | ディレクトリ | フレームワーク | Docker URL | 概要 |
+|---|--------|-------------|---------------|------------|------|
+| 1 | [入札案件管理](#1-入札案件管理-bid_manager) | `bid_manager/` | Streamlit | `/bid/` | 入札案件の収集・進捗管理・費用分析・競合分析 |
+| 2 | [材料管理](#2-材料管理-material_manager) | `material_manager/` | Flask | `/material/` | 現場ごとの見積もり vs 発注状況の比較管理 |
+| 3 | [作業日報](#3-作業日報-sagyo-nippou) | `sagyo-nippou/` | Streamlit | `/nippou/` | 現場の作業日報の入力・管理・集計・分析 |
+| 4 | [人事評価](#4-人事評価-evaluation) | `evaluation/` | Streamlit | `/eval/` | 作業日報連携の人事評価（事務方・現場方・役員） |
+| 5 | 営業管理 | `eigyo-kanri/` | Streamlit | `/eigyo/` | 営業訪問記録・Claude API 自動抽出（オプション） |
+| 6 | 勤怠管理 | `nippou-kanri/` | Streamlit | `/nippou-kanri/` | 日報テキスト解析・勤怠集計（オプション） |
+| — | コスト分析・AI見積もり | （開発予定） | — | — | 過去実績から見積もりを自動生成 |
 
 ### データの流れ
 
@@ -49,6 +77,161 @@
 作業日報（作業員・時間・交通費の記録）
     ↓                ↓
 人事評価（勤怠データ連携）  コスト分析・AI見積もり ← 将来
+```
+
+---
+
+## ドキュメント
+
+| ドキュメント | 対象者 | 内容 |
+|-------------|--------|------|
+| **[docs/setup_guide.md](docs/setup_guide.md)** | ユーザー / 管理者 | セットアップ（Docker推奨 / 従来方式）・運用・管理コマンド・トラブルシューティング |
+| **[docs/DEVELOPER.md](docs/DEVELOPER.md)** | 開発者 | 各アプリの個別開発・テスト方法、インフラとアプリの開発分離、新アプリ追加手順 |
+| [docs/spec.md](docs/spec.md) | 開発者 | システム仕様書（DB設計・機能仕様・AI活用計画） |
+| [docs/geps_setup.md](docs/geps_setup.md) | 管理者 | GEPS メール連携のセットアップ手順 |
+| [docs/process.md](docs/process.md) | 全員 | 業務プロセスフロー |
+
+---
+
+## 環境構築
+
+### A. ユーザー向け（Docker で全アプリを一括起動）
+
+複数PCでデータを共有して使う場合の推奨構成です。
+
+```
+クライアントPC（何台でも）           サーバーPC（1台）
+┌──────────────┐              ┌──────────────────────────┐
+│  ブラウザのみ  │              │  Docker が全アプリを実行   │
+│  インストール  │── LAN ──→  │                          │
+│  一切不要     │              │  http://サーバーIP/       │
+│              │              │    /bid/     入札案件管理  │
+│              │              │    /material/ 材料管理    │
+│              │              │    /nippou/  作業日報     │
+│              │              │    /eval/    人事評価     │
+│              │              │                          │
+│              │              │  DB・データはすべてここに  │
+└──────────────┘              └──────────────────────────┘
+```
+
+#### サーバーPCの要件
+
+| 項目 | 最低要件 |
+|------|---------|
+| OS | Windows 10/11 Pro または Linux |
+| RAM | 8 GB 以上 |
+| ディスク空き | 5 GB 以上 |
+
+#### サーバーセットアップ
+
+```bash
+# 1. リポジトリを取得
+git clone https://github.com/mstk13/KEM_DDENKI.git
+cd KEM_DDENKI
+
+# 2. セットアップ実行（Docker未インストールならLinuxでは自動インストール）
+./docker/setup_server.sh      # Linux
+docker\setup_server.bat        # Windows（要 Docker Desktop）
+```
+
+#### クライアントPCセットアップ
+
+Python も Docker も不要です。2つの方法があります:
+
+1. **スクリプトを使う**: `setup_client_docker.bat` を実行 → サーバーIPを入力 → デスクトップにショートカット作成
+2. **手動**: ブラウザで `http://サーバーIP/` を開きブックマーク
+
+#### 管理コマンド
+
+```bash
+./docker/manage.sh start              # 全アプリ起動
+./docker/manage.sh stop               # 全アプリ停止
+./docker/manage.sh restart bid_manager # 特定アプリだけ再起動
+./docker/manage.sh status             # 稼働状況
+./docker/manage.sh update             # 最新版に更新
+./docker/manage.sh logs bid_manager   # ログ確認
+./docker/manage.sh backup             # DBバックアップ
+```
+
+> 毎朝5時に自動更新されます（Linux cron）。
+
+---
+
+### B. 開発者向け（各アプリを個別に起動）
+
+各アプリは独立しており、**1つのアプリだけ** を起動してテスト・修正できます。  
+Docker は不要です。
+
+#### 開発環境セットアップ
+
+```bash
+# 1. リポジトリを取得
+git clone https://github.com/mstk13/KEM_DDENKI.git
+cd KEM_DDENKI
+
+# 2. 仮想環境を作成・有効化
+python -m venv .venv
+source .venv/bin/activate     # Linux/Mac
+# .venv\Scripts\activate      # Windows
+
+# 3. 開発対象のアプリだけインストール
+pip install -r bid_manager/requirements.txt
+```
+
+#### 各アプリの起動方法
+
+| アプリ | コマンド |
+|--------|---------|
+| 入札案件管理 | `cd bid_manager && python database.py && streamlit run app.py --server.port 8501` |
+| 材料管理 | `cd material_manager && python -c "from db import init_db; init_db()" && python app.py` |
+| 作業日報 | `cd sagyo-nippou && python database.py && streamlit run app.py --server.port 8502` |
+| 人事評価 | `cd evaluation && streamlit run app.py --server.port 8503` |
+| 営業管理 | `cd eigyo-kanri && python database.py && streamlit run app.py` |
+| 勤怠管理 | `cd nippou-kanri && python database.py && streamlit run app.py` |
+
+#### 開発のルール
+
+- 各アプリは **互いにPythonコードをimportしない**（データ連携はSQLiteファイル経由）
+- DB パスは `KEM_DATA_DIR` 環境変数に対応させること
+- `requirements.txt` にはバージョン上限を付ける（例: `streamlit>=1.30,<2.0`）
+- デモデータは `seed.py` で提供する
+
+> 各アプリの詳しい構成・テスト手順・注意点は **[開発者ガイド](docs/DEVELOPER.md)** を参照
+
+---
+
+## ディレクトリ構成
+
+```
+KEM_DDENKI/
+├── bid_manager/        # 入札案件管理（Streamlit, port 8501）
+├── material_manager/   # 材料管理（Flask, port 5000）
+├── sagyo-nippou/       # 作業日報（Streamlit, port 8502）
+├── evaluation/         # 人事評価（Streamlit, port 8503）
+├── eigyo-kanri/        # 営業管理（Streamlit, オプション）
+├── nippou-kanri/       # 勤怠管理（Streamlit, オプション）
+├── portal/             # ポータルページ（静的HTML）
+│
+├── docker/             # Docker 設定・管理スクリプト
+│   ├── Dockerfile.app  # 全アプリ共通イメージ
+│   ├── nginx.conf      # リバースプロキシ設定
+│   ├── manage.sh/bat   # 管理コマンド
+│   ├── setup_server.*  # サーバー初回セットアップ
+│   ├── update-cron.sh  # 自動更新
+│   └── portal/         # Docker版ポータルページ
+├── docker-compose.yml  # サービス定義
+│
+├── docs/               # ドキュメント
+│   ├── setup_guide.md  # ユーザー向けセットアップガイド
+│   ├── DEVELOPER.md    # 開発者ガイド
+│   ├── spec.md         # システム仕様書
+│   ├── geps_setup.md   # GEPS メール連携
+│   └── process.md      # 業務プロセスフロー
+│
+├── .env.example        # 環境変数テンプレート
+├── setup.bat / .sh     # 従来方式セットアップ
+├── start.bat / .sh     # 従来方式起動
+└── setup_client_docker.bat  # クライアントPC用ショートカット作成
 ```
 
 ---
@@ -65,20 +248,8 @@
 - **競合分析**: 落札会社名・金額を記録し、自社との差額を分析
 - **入札参加資格管理**: Excel/PDFインポート、期限2ヶ月前から警告表示
 - **メール通知**: 新着案件・締切間近・資格期限のアラートを自動送信
-- **防衛省対応**: Cloudflare保護サイトのCookie認証によるスクレイピング
 
-### 画面構成（6画面）
-
-| 画面 | 内容 |
-|------|------|
-| 案件一覧 | フィルタ・ソート・キーワード検索 + 手動追加 |
-| 案件詳細 | 基本情報の編集・ステータス・費用・競合情報 |
-| ダッシュボード | 受注率・原価率・受注金額の KPI とグラフ |
-| 対象サイト管理 | スクレイピング対象URLの管理 |
-| 単価マスタ | 工事種別ごとの単価登録 |
-| 入札資格管理 | Excel/PDF インポート・期限アラート |
-
-> GEPS メール連携の詳細は [docs/geps_setup.md](docs/geps_setup.md) を参照。
+> GEPS メール連携の詳細は [docs/geps_setup.md](docs/geps_setup.md) を参照
 
 ---
 
@@ -99,14 +270,12 @@
 
 ## 3. 作業日報 (`sagyo-nippou/`)
 
-電気工事現場の作業日報を入力・管理・分析するWebアプリ。  
-紙の日報フォームに準拠し、スマホでの音声入力にも対応。
+電気工事現場の作業日報を入力・管理・分析するWebアプリ。
 
 ### 主な機能
 
-- **日報入力**: 現場名・作業員・作業時間・残業・宿泊・使用資材を記録（作業時間は自動計算）
+- **日報入力**: 現場名・作業員・作業時間・残業・宿泊・使用資材を記録
 - **音声入力対応**: スマホのマイク入力で現場から直接入力可能
-- **作業員名の漢字変換**: ひらがな/カタカナ入力を作業員名簿から漢字に自動変換
 - **協力会社管理**: 会社名・人数・交通費・承認状況を記録
 - **ダッシュボード**: KPIカード + Plotlyグラフ（日別推移・作業員別・現場別）
 - **メール通知**: 日報サマリをGmailで自動送信
@@ -115,47 +284,11 @@
 
 ## 4. 人事評価 (`evaluation/`)
 
-事務方・現場方・役員の3役割で人事評価を行うWebアプリ。  
-作業日報アプリの勤怠データを自動参照し、評価の参考値を提示します。
+事務方・現場方・役員の3役割で人事評価を行うWebアプリ。
 
 ### 主な機能
 
-- **作業日報連携**: 対象者の出勤日数・作業時間・残業時間を自動取得し、「勤怠・規律」の参考スコアを自動計算
+- **作業日報連携**: 対象者の勤怠データを自動取得し、参考スコアを自動計算
 - **3役割の評価基準**: 共通項目（35点）+ 役割固有項目（65点）= 100点満点
-- **現場方の択一評価**: 9（後輩指導/シニア）と10（学ぶ姿勢/ジュニア）は対象者のレベルに応じてどちらか一方のみ採点
-- **評価ランク自動判定**: S（90〜100）/ A（75〜89）/ B（60〜74）/ C（40〜59）/ D（0〜39）
+- **評価ランク自動判定**: S / A / B / C / D
 - **評価履歴管理**: 過去の評価を一覧表示・詳細確認
-
----
-
-## 5. ポータル (`portal/`)
-
-全アプリへのランチャーとなるHTMLページ。  
-`portal/index.html` をブラウザで開くだけで使えます。
-
----
-
-## ディレクトリ構成
-
-```
-KEM_DDENKI/
-├── bid_manager/        # 入札案件管理（Streamlit, port 8501）
-├── material_manager/   # 材料管理（Flask, port 5000）
-├── sagyo-nippou/       # 作業日報（Streamlit, port 8502）
-├── evaluation/         # 人事評価（Streamlit, port 8503）
-├── portal/             # ポータルページ（静的HTML）
-├── docs/               # ドキュメント
-├── .env.example        # 共通設定のテンプレート（KEM_DATA_DIR 等）
-├── setup.bat / .sh     # 初回セットアップ
-└── start.bat / .sh     # 起動（自動アップデート付き）
-```
-
----
-
-## ドキュメント
-
-| ドキュメント | 内容 |
-|-------------|------|
-| **[docs/setup_guide.md](docs/setup_guide.md)** | **セットアップガイド（ダウンロード・インストール・データ共有・LAN共有・トラブルシューティング）** |
-| [docs/spec.md](docs/spec.md) | システム仕様書（DB設計・機能仕様・AI活用計画） |
-| [docs/geps_setup.md](docs/geps_setup.md) | GEPS メール連携のセットアップ手順 |
