@@ -7,6 +7,7 @@
 """
 import io
 import os
+import zipfile
 from datetime import date
 from pathlib import Path
 from urllib.parse import quote
@@ -264,8 +265,10 @@ def _attachment_section(v):
 
     st.markdown("**📎 資料**")
     if p and p.exists():
-        _preview_file(p, visit_id)
-        st.download_button("⬇️ ダウンロード", p.read_bytes(), file_name=p.name, key=f"dl_{visit_id}")
+        group = storage.group_files(str(p))
+        _slideshow(group, visit_id)
+        _bulk_download(group, v)
+        st.divider()
         if st.button("この資料の紐付けを解除", key=f"unlink_{visit_id}"):
             database.update_visit(visit_id, source_file="")
             st.rerun()
@@ -301,52 +304,144 @@ def _attachment_section(v):
         st.rerun()
 
 
-_PDF_MAX_PAGES = 1     # 既定プレビューは表紙（1ページ目）のみ
-_PDF_ALL_CAP = 500     # 「全ページ表示」の上限（暴走防止）
+@st.cache_data(show_spinner=False)
+def _pdf_page_count(path, mtime):
+    """PDF の総ページ数を返す（mtime でキャッシュ更新）。"""
+    import pypdfium2 as pdfium
+
+    pdf = pdfium.PdfDocument(path)
+    try:
+        return len(pdf)
+    finally:
+        pdf.close()
 
 
 @st.cache_data(show_spinner=False)
-def _render_pdf(path, mtime, max_pages=_PDF_MAX_PAGES, scale=2.0):
-    """PDF の各ページを PNG バイト列に変換して返す（mtime でキャッシュ更新）。"""
+def _render_pdf_page(path, mtime, index, scale=2.0):
+    """PDF の指定ページだけを PNG バイト列に変換して返す。
+
+    スライド表示では今見ているページしか要らないので1枚ずつ変換する。
+    全ページを先に変換すると重いPDFで待たされるため。
+    """
     import pypdfium2 as pdfium
 
-    pages = []
     pdf = pdfium.PdfDocument(path)
     try:
-        total = len(pdf)
-        for i in range(min(total, max_pages)):
-            pil = pdf[i].render(scale=scale).to_pil()
-            buf = io.BytesIO()
-            pil.save(buf, format="PNG")
-            pages.append(buf.getvalue())
+        pil = pdf[index].render(scale=scale).to_pil()
+        buf = io.BytesIO()
+        pil.save(buf, format="PNG")
+        return buf.getvalue()
     finally:
         pdf.close()
-    return pages, total
 
 
-def _preview_file(p, visit_id):
-    """PDF は表紙を画像表示（全ページも展開可）、画像はそのまま表示。"""
-    ext = p.suffix.lower()
-    if ext == ".pdf":
+def _build_slides(files):
+    """資料群を「1枚ずつめくれる」スライドの一覧に展開する。
+
+    画像は1ファイル=1スライド、PDFは1ページ=1スライド。
+    """
+    slides = []
+    for f in files:
+        if f.suffix.lower() != ".pdf":
+            slides.append({"kind": "image", "file": f})
+            continue
         try:
-            with st.spinner("PDFを表示用に変換中..."):
-                pages, total = _render_pdf(str(p), p.stat().st_mtime)
+            total = _pdf_page_count(str(f), f.stat().st_mtime)
         except Exception as e:  # noqa: BLE001
-            st.error(f"PDFのプレビュー生成に失敗しました: {e}")
-            st.caption("下の『ダウンロード』から開いてください。")
-            return
-        if pages:
-            st.image(pages[0], caption=f"{p.name}（表紙）", use_container_width=True)
-        if total > 1:
-            with st.expander(f"📖 全 {total} ページを表示（ダウンロード不要）"):
-                with st.spinner("全ページを変換中..."):
-                    all_pages, _ = _render_pdf(str(p), p.stat().st_mtime, max_pages=_PDF_ALL_CAP)
-                for i, png in enumerate(all_pages, 1):
-                    st.image(png, caption=f"p.{i}/{total}", use_container_width=True)
-                if total > len(all_pages):
-                    st.caption(f"※ 表示は先頭 {len(all_pages)} ページまで。")
+            slides.append({"kind": "error", "file": f, "msg": str(e)})
+            continue
+        for i in range(total):
+            slides.append({"kind": "pdf", "file": f, "page": i, "pages": total})
+    return slides
+
+
+def _slide_label(s):
+    """スライド下に出す説明文（ファイル名／PDFはページ番号つき）。"""
+    if s["kind"] == "pdf":
+        return f"{s['file'].name}（p.{s['page'] + 1}/{s['pages']}）"
+    return s["file"].name
+
+
+def _slideshow(files, visit_id):
+    """資料をまとめて1つのスライドショーで表示する（◀ ▶ でめくる）。"""
+    slides = _build_slides(files)
+    if not slides:
+        st.info("表示できる資料がありません。")
+        return
+
+    n = len(slides)
+    key = f"slide_{visit_id}"
+    idx = min(max(st.session_state.get(key, 0), 0), n - 1)
+
+    if n > 1:
+        c_prev, c_mid, c_next = st.columns([1, 4, 1])
+        if c_prev.button("◀ 前へ", key=f"prev_{visit_id}", use_container_width=True):
+            idx = (idx - 1) % n
+        if c_next.button("次へ ▶", key=f"next_{visit_id}", use_container_width=True):
+            idx = (idx + 1) % n
+        st.session_state[key] = idx
+        c_mid.markdown(
+            f"<div style='text-align:center;padding-top:0.4rem'>"
+            f"<b>{idx + 1} / {n}</b></div>",
+            unsafe_allow_html=True,
+        )
+
+    s = slides[idx]
+    f = s["file"]
+    if s["kind"] == "error":
+        st.error(f"PDFのプレビュー生成に失敗しました: {s['msg']}")
+        st.caption("下の『ダウンロード』から開いてください。")
+    elif s["kind"] == "pdf":
+        with st.spinner("PDFを表示用に変換中..."):
+            st.image(
+                _render_pdf_page(str(f), f.stat().st_mtime, s["page"]),
+                use_container_width=True,
+            )
     else:
-        st.image(str(p), caption=p.name, use_container_width=True)
+        st.image(str(f), use_container_width=True)
+
+    st.caption(_slide_label(s))
+
+    # 枚数が多いときは目的のスライドへ直接飛べるようにする。
+    # key を渡さず value に idx+1 を渡すことで、◀▶ の移動にも追従させる。
+    if n > 3:
+        pos = st.slider("表示位置", 1, n, idx + 1, label_visibility="collapsed")
+        if pos - 1 != idx:
+            st.session_state[key] = pos - 1
+            st.rerun()
+
+
+@st.cache_data(show_spinner=False)
+def _zip_bytes(entries):
+    """資料群を1つのZIPにまとめる。entries は (パス, mtime) のタプル列。"""
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+        for path, _mtime in entries:
+            z.write(path, arcname=Path(path).name)
+    return buf.getvalue()
+
+
+def _bulk_download(files, v):
+    """資料をまとめて1回でダウンロードできるボタン（複数ならZIP）。"""
+    if not files:
+        return
+    visit_id = v["id"]
+    if len(files) == 1:
+        f = files[0]
+        st.download_button(
+            f"⬇️ ダウンロード（{f.name}）", f.read_bytes(),
+            file_name=f.name, key=f"dl_{visit_id}", use_container_width=True,
+        )
+        return
+    entries = tuple((str(f), f.stat().st_mtime) for f in files)
+    st.download_button(
+        f"⬇️ すべてダウンロード（{len(files)}件・ZIP）",
+        _zip_bytes(entries),
+        file_name=storage.build_filename(v, ".zip"),
+        mime="application/zip",
+        key=f"dlzip_{visit_id}",
+        use_container_width=True,
+    )
 
 
 # ============================================================ 一覧（全件・検索）

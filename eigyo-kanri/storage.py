@@ -14,7 +14,7 @@ import shutil
 from datetime import date
 from pathlib import Path
 
-from config import FILES_DIR
+from config import FILES_DIR, SUPPORTED_EXTS
 
 _ILLEGAL = re.compile(r'[\\/:*?"<>|]')
 
@@ -99,10 +99,40 @@ def store_move(src_path, record) -> str:
     return str(dest)
 
 
-def refile(record) -> str:
-    """業界・会社・営業日・担当者・要件が変わったら、正しいフォルダ名・ファイル名へ移動。
+def _split_base(stem):
+    """末尾の連番 '_N' を分離して (ベース名, '_N' または '') を返す。"""
+    m = re.search(r"_(\d+)$", stem)
+    if m:
+        return stem[:m.start()], stem[m.start():]
+    return stem, ""
 
-    移動不要ならそのままのパスを返す。ファイルが無ければ元の値を返す。
+
+def group_files(source_file):
+    """同じ記録に属する資料ファイル一覧を返す（代表を先頭に）。
+
+    複数アップロード時は同じベース名＋'_2','_3'... で保存されるため、
+    同フォルダ内でベース名が一致する対応拡張子ファイルをまとめる。
+    """
+    if not source_file:
+        return []
+    p = Path(source_file)
+    if not p.exists():
+        return []
+    folder = p.parent
+    base, _ = _split_base(p.stem)
+    out = []
+    for f in sorted(folder.iterdir()):
+        if f.is_file() and f.suffix.lower() in SUPPORTED_EXTS and _split_base(f.stem)[0] == base:
+            out.append(f)
+    if p in out:
+        out = [p] + [f for f in out if f != p]
+    return out
+
+
+def refile(record) -> str:
+    """業界・会社・営業日・担当者・要件が変わったら、記録に属する資料群を移動・改名。
+
+    代表ファイルの新パスを返す。ファイルが無ければ元の値を返す。
     """
     src = record.get("source_file")
     if not src:
@@ -110,12 +140,19 @@ def refile(record) -> str:
     p = Path(src)
     if not p.exists():
         return src
-    target = material_dir(record.get("industry"), record.get("company_name")) / build_filename(
-        record, p.suffix.lower()
-    )
-    if target.resolve() == p.resolve():
-        return src
-    target = _unique(target, ignore=p)
-    target.parent.mkdir(parents=True, exist_ok=True)
-    shutil.move(str(p), str(target))
-    return str(target)
+    target_dir = material_dir(record.get("industry"), record.get("company_name"))
+    new_base = build_filename(record, "")  # ベース名（拡張子なし）
+    new_primary = src
+    for f in group_files(src):
+        _, idx = _split_base(f.stem)
+        dest = target_dir / f"{new_base}{idx}{f.suffix.lower()}"
+        if dest.resolve() == f.resolve():
+            newp = f
+        else:
+            target_dir.mkdir(parents=True, exist_ok=True)
+            dest = _unique(dest, ignore=f)
+            shutil.move(str(f), str(dest))
+            newp = dest
+        if f.resolve() == p.resolve():
+            new_primary = str(newp)
+    return new_primary

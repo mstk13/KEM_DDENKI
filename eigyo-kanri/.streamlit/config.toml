@@ -1,6 +1,8 @@
 [server]
 headless = true
 port = 8503
+# LAN 内の他PC・スマホからアクセスできるようにする
+address = "0.0.0.0"
 
 [browser]
 gatherUsageStats = false
