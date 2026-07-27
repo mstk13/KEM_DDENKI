@@ -11,8 +11,6 @@ import sys
 from datetime import date
 from pathlib import Path
 
-import pandas as pd
-import plotly.express as px
 import streamlit as st
 
 # core / views はこのファイルと同じフォルダにある（起動ディレクトリに依存しないようにする）
@@ -23,6 +21,7 @@ import views         # noqa: E402
 st.set_page_config(page_title="人事評価 入力", page_icon="📝", layout="wide")
 # 設問文がブラウザに翻訳され別の意味に書き換わるのを防ぐ（title より先に実行する）
 views.disable_browser_translation()
+views.compact_score_buttons()
 st.title("📝 人事評価 入力")
 
 ALL_ROLES = core.get_all_roles() or ["事務方", "現場方", "役員"]
@@ -53,7 +52,14 @@ if menu == "評価入力":
         fy_start = date(today.year if today.month >= 4 else today.year - 1, 4, 1)
         fy_end = date(fy_start.year + 1, 3, 31)
         period = st.text_input("評価期間", f"{fy_start} 〜 {fy_end}")
-        evaluator = st.text_input("評価者")
+        # 評価者も対象者と同じくプルダウン選択。候補に無ければ手入力する。
+        evaluator_options = core.get_evaluator_options()
+        if evaluator_options:
+            evaluator = st.selectbox("評価者", ["（手入力）"] + evaluator_options)
+            if evaluator == "（手入力）":
+                evaluator = st.text_input("評価者名を入力")
+        else:
+            evaluator = st.text_input("評価者名")
 
     if not employee:
         st.info("対象者を選択または入力してください。")
@@ -69,11 +75,10 @@ if menu == "評価入力":
         c3.metric("総残業時間", f"{stats['total_overtime']} h")
         c4.metric("1日平均作業時間", f"{stats['avg_hours_per_day']} h")
         if stats["monthly"]:
-            df_m = pd.DataFrame(stats["monthly"])
-            fig = px.bar(df_m, x="month", y="days", text="days",
-                         labels={"month": "月", "days": "出勤日数"}, title="月別出勤日数")
-            fig.update_layout(height=250, margin=dict(t=30, b=20))
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(
+                views.monthly_attendance_chart(stats["monthly"], fy_start),
+                use_container_width=True,
+            )
     else:
         st.warning("作業日報にこの対象者のデータがありません。手動で評価してください。")
 
@@ -129,7 +134,9 @@ if menu == "評価入力":
             if questions:
                 for q in questions:
                     label = f"{q['qnum']}　{q['text']}" if q["qnum"] else q["text"]
-                    col_q, col_a = st.columns([3, 2], vertical_alignment="center")
+                    # 設問側を広くとる（文章は複数行に折り返してよい）。
+                    # スコア列は 1〜5 が横一列に収まる幅を確保し、右端に寄せる。
+                    col_q, col_a = st.columns([4, 1.2], vertical_alignment="center")
                     with col_q:
                         st.markdown(label)
                     with col_a:

@@ -602,6 +602,25 @@ def get_nippou_workers() -> list[str]:
         return []
 
 
+def get_evaluator_options() -> list[str]:
+    """評価者プルダウンの候補。
+
+    作業日報の作業員名簿に、過去の評価で使われた評価者名を足したもの。
+    名簿に載っていない人（外部の評価者など）も一度入力すれば次から選べる。
+    """
+    names = set(get_nippou_workers())
+    try:
+        with eval_conn() as conn:
+            rows = conn.execute(
+                "SELECT DISTINCT evaluator FROM evaluations "
+                "WHERE evaluator IS NOT NULL AND TRIM(evaluator) <> ''"
+            ).fetchall()
+        names.update((r["evaluator"] or "").strip() for r in rows)
+    except Exception:
+        pass
+    return sorted(n for n in names if n)
+
+
 # ---------------------------------------------------------------------------
 # GitHub反映: DB → JSON → git commit & push
 # ---------------------------------------------------------------------------

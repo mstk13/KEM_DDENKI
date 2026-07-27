@@ -37,6 +37,98 @@ def disable_browser_translation():
     )
 
 
+def compact_score_buttons():
+    """設問のスコア選択（1〜5）を右端に寄せ、必ず横一列に並べる。
+
+    st.segmented_control は既定で左寄せのため、列幅より狭いぶんが
+    右側の空白として残る。また列が狭いとボタンが折り返して2段になる。
+    右寄せ＋折り返し禁止で、1〜5を常に横一列に保つ。
+    設問文は複数行に折り返してよい。
+    """
+    st.markdown(
+        """
+        <style>
+        /* スコア選択（1〜5）: 右端に寄せ、折り返さず横一列に保つ */
+        div[data-testid="stButtonGroup"] {
+            justify-content: flex-end;
+            flex-wrap: nowrap;
+        }
+        div[data-testid="stButtonGroup"] > div {
+            flex-wrap: nowrap;
+            gap: 0.15rem;
+        }
+        /* ボタンが縮んで折り返さないようにする */
+        div[data-testid="stButtonGroup"] button { flex: 0 0 auto; }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+# グラフの配色（1系列のみなのでカテゴリ1色を使う。凡例は不要でタイトルが系列を示す）
+_BAR_COLOR = "#2a78d6"
+_INK_SECONDARY = "#52514e"
+_GRID = "#e6e5e1"
+
+
+def monthly_attendance_chart(monthly: list[dict], fy_start):
+    """月別出勤日数の棒グラフ。
+
+    集計結果には出勤のあった月しか含まれないため、年度の12か月分を
+    4月始まりで並べ、出勤の無い月は 0 として表示する。
+    月ごとの多寡を隣同士で比べられるようにするのが狙い。
+    """
+    import plotly.graph_objects as go
+
+    by_month = {m["month"]: m for m in monthly}
+
+    labels, days, hovers = [], [], []
+    for i in range(12):
+        y = fy_start.year + (fy_start.month - 1 + i) // 12
+        mth = (fy_start.month - 1 + i) % 12 + 1
+        rec = by_month.get(f"{y:04d}-{mth:02d}")
+        labels.append(f"{mth}月")
+        d = int(rec["days"]) if rec else 0
+        days.append(d)
+        hovers.append(
+            f"<b>{y}年{mth}月</b><br>出勤 {d} 日"
+            + (f"<br>作業 {rec['hours']:.1f} h<br>残業 {rec['overtime']:.1f} h" if rec else "")
+        )
+
+    fig = go.Figure(
+        go.Bar(
+            x=labels, y=days,
+            marker=dict(color=_BAR_COLOR, cornerradius=4),
+            text=[str(d) if d else "" for d in days],   # 0 の月は数字を出さない
+            textposition="outside",
+            textfont=dict(color=_INK_SECONDARY, size=12),
+            hovertext=hovers, hoverinfo="text",
+            width=0.62,
+        )
+    )
+    top = max(days) if days else 0
+    fig.update_layout(
+        title=dict(text="月別出勤日数", font=dict(size=15)),
+        height=300,
+        margin=dict(t=44, b=44, l=48, r=16),
+        plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
+        bargap=0.25, showlegend=False,
+        xaxis=dict(
+            title=None, type="category", automargin=True,
+            tickfont=dict(color=_INK_SECONDARY, size=12),
+            showgrid=False, showline=True, linecolor=_GRID, ticks="",
+        ),
+        yaxis=dict(
+            title=None, rangemode="tozero", automargin=True,
+            range=[0, max(top * 1.18, 1)],      # ラベルが上端で切れないようにする
+            tickfont=dict(color=_INK_SECONDARY, size=11),
+            gridcolor=_GRID, zerolinecolor=_GRID,
+            dtick=1 if top <= 10 else (2 if top <= 20 else 5),
+        ),
+    )
+    return fig
+
+
 def render_criteria_table(items: list[dict], show_questions: bool):
     """評価項目の表と、その設問・判断基準を表示する。"""
     counts = core.count_questions([i["id"] for i in items])
