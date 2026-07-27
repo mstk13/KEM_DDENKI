@@ -85,9 +85,10 @@ pip install -r bid_manager/requirements.txt \
 
 ```bash
 cd ~/KEM_DDENKI
+mkdir -p data    # 全アプリのDBは data/ フォルダに集約保存
 
 # 入札案件管理
-cd bid_manager && mkdir -p data && python3 database.py && cd ..
+cd bid_manager && python3 database.py && cd ..
 
 # 材料管理
 cd material_manager && python3 -c "from db import init_db; init_db()" && cd ..

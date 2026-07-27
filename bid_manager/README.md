@@ -27,7 +27,6 @@ GMAIL_USER=your-email@gmail.com          # Gmail アドレス
 GMAIL_PASSWORD=xxxx-xxxx-xxxx-xxxx       # Gmail アプリパスワード（16文字、2段階認証必須）
 BID_EMAIL_TO=user1@example.com,user2@example.com  # 通知先（カンマ区切り）
 # BID_USE_PLAYWRIGHT=1                   # JS描画サイトのスクレイピングに Playwright を使う
-# BID_DB_PATH=/path/to/database.db       # DB ファイルの場所（デフォルト: カレントディレクトリ）
 ```
 
 ### GEPS（政府電子調達）連携

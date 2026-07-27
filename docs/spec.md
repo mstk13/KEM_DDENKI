@@ -30,7 +30,8 @@
 ## 2.1 データベース運用方針
 
 ### フェーズ1〜2：SQLite + 自動バックアップ
-- `database.db` を母親のWindowsPC上に保存
+- 全アプリのDBはプロジェクト直下の `data/` フォルダに集約保存
+- 複数PCで共有する場合は `.env` の `KEM_DATA_DIR` で共有フォルダを指定
 - 毎日深夜にGoogle Driveへ自動バックアップ
 - バックアップスクリプト例：
 ```python
@@ -38,7 +39,7 @@ import shutil, datetime
 
 def backup_to_drive():
     date_str = datetime.date.today().strftime("%Y%m%d")
-    shutil.copy("database.db", f"backup/database_{date_str}.db")
+    shutil.copy("data/bid_manager.db", f"backup/bid_manager_{date_str}.db")
     # Google Drive APIでアップロード
 ```
 
@@ -63,7 +64,7 @@ project/
 ├── pw_login.py             # Playwright Cookie管理（Cloudflare保護サイト対応）
 ├── config.py               # 設定（キーワード・エリア・ステータス等）
 ├── seed.py                 # デモデータ投入
-├── database.db             # SQLiteデータベース
+├── ../data/bid_manager.db  # SQLiteデータベース（data/フォルダに集約）
 ├── requirements.txt        # 依存パッケージ
 ├── browser_data/           # Playwright の Cookie 永続化フォルダ
 ├── pw_targets.json         # Playwright 対象サイト定義（任意）

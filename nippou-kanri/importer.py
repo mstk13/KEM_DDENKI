@@ -1,6 +1,6 @@
 """別アプリ(KEM_DDENKI / 作業日報)からの日報取り込み。
 
-別アプリは独立した SQLite(`database.db`)を持つため、そのままではデータが共有されない。
+別アプリは独立した SQLite(`data/sagyo_nippou.db`)を持つため、そのままではデータが共有されない。
 このモジュールが *読み取り専用* で別アプリの DB を参照し、本アプリの形式に変換して取り込む。
 
 取り込み対象:
@@ -24,9 +24,10 @@ from pathlib import Path
 import config
 import database as db
 
-# 別アプリの DB の既定パス(同じリポジトリ内の 作業日報/database.db)
+# 別アプリの DB の既定パス(data/sagyo_nippou.db)
+_data_dir = os.getenv("KEM_DATA_DIR", str(config.BASE_DIR.parent / "data"))
 DEFAULT_SOURCE_DB = Path(os.getenv(
-    "NIPPOU_SOURCE_DB", config.BASE_DIR.parent / "sagyo-nippou" / "database.db"))
+    "NIPPOU_SOURCE_DB", os.path.join(_data_dir, "sagyo_nippou.db")))
 
 SOURCE_PREFIX = "sagyo"
 OFFICE_SITE_NAME = "(事務所)"

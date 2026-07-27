@@ -113,7 +113,7 @@ nippou-kanri/
 ├── requirements.txt
 ├── .env.example
 ├── .streamlit/config.toml
-└── nippou.db          SQLite(自動生成)
+└── ../data/nippou_kanri.db  SQLite(data/フォルダに自動生成)
 ```
 
 ### テーブル
@@ -141,7 +141,7 @@ py -3 importer.py    # 別アプリから取り込み
 
 ## 7. 別アプリ(作業日報)との連携
 
-`KEM_DDENKI/作業日報` は独立した `database.db` を持つため、そちらで日報を登録しても
+`KEM_DDENKI/sagyo-nippou` は独立した DB（`data/sagyo_nippou.db`）を持つため、そちらで日報を登録しても
 このアプリには**自動では反映されません**。🔄 別アプリ連携 画面で取り込みます。
 
 | 向こう(作業日報) | こちら(作業日報管理) |
