@@ -21,7 +21,8 @@ except Exception:
 BASE_DIR = Path(__file__).resolve().parent
 
 # データベース
-DB_PATH = os.environ.get("EIGYO_DB_PATH", str(BASE_DIR / "database.db"))
+_data_dir = os.environ.get("KEM_DATA_DIR")
+DB_PATH = os.path.join(_data_dir, "eigyo_kanri.db") if _data_dir else os.environ.get("EIGYO_DB_PATH", str(BASE_DIR / "database.db"))
 
 # フォルダ監視（営業資料の受け取り）
 #   INBOX_DIR   : データ化された資料（PDF/画像）を置くフォルダ

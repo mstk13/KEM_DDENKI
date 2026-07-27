@@ -21,7 +21,8 @@ except Exception:  # python-dotenv 未導入でも環境変数があれば動く
 
 # --- パス ---
 BASE_DIR = Path(__file__).resolve().parent
-DB_PATH = Path(os.getenv("NIPPOU_DB_PATH", BASE_DIR / "database.db"))
+_data_dir = os.getenv("KEM_DATA_DIR")
+DB_PATH = Path(os.path.join(_data_dir, "sagyo_nippou.db")) if _data_dir else Path(os.getenv("NIPPOU_DB_PATH", BASE_DIR / "database.db"))
 DATA_DIR = Path(os.getenv("NIPPOU_DATA_DIR", BASE_DIR / "data"))  # 写真等の非構造化データ
 
 # --- 会社名（画面表示用） ---

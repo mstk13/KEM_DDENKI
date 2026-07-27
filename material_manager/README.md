@@ -24,12 +24,9 @@ KEM_DDENKI（入札案件管理）と統合可能な設計:
 
 ## セットアップ
 
-```bash
-pip install -r requirements.txt
-python -c "from db import init_db; init_db()"
-python app.py
-# → http://127.0.0.1:5000
-```
+全アプリ共通のセットアップ手順は **[セットアップガイド（docs/setup_guide.md）](../docs/setup_guide.md)** を参照してください。
+
+> 個別に起動する場合: `cd material_manager && pip install -r requirements.txt && python -c "from db import init_db; init_db()" && python app.py`
 
 ## 将来計画
 

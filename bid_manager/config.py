@@ -17,7 +17,8 @@ except Exception:  # python-dotenv 未導入でも環境変数があれば動く
 
 # --- パス ---
 BASE_DIR = Path(__file__).resolve().parent
-DB_PATH = Path(os.getenv("BID_DB_PATH", BASE_DIR / "database.db"))
+_data_dir = os.getenv("KEM_DATA_DIR")
+DB_PATH = Path(os.path.join(_data_dir, "bid_manager.db")) if _data_dir else Path(os.getenv("BID_DB_PATH", BASE_DIR / "database.db"))
 DATA_DIR = Path(os.getenv("BID_DATA_DIR", BASE_DIR / "data"))  # 非構造化データ（PDF等）
 
 # --- スクレイピング対象キーワード ---

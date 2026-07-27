@@ -16,21 +16,9 @@
 
 ## セットアップ
 
-```bash
-cd bid_manager
-python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
+全アプリ共通のセットアップ手順は **[セットアップガイド（docs/setup_guide.md）](../docs/setup_guide.md)** を参照してください。
 
-# Playwright を使う場合（Cloudflare サイト巡回）
-playwright install chromium
-
-cp .env.example .env        # メール送信・GEPS取込を使う場合は編集
-python database.py          # DB初期化
-python seed.py              # （任意）デモデータ投入ですぐ試せる
-streamlit run app.py        # アプリ起動 -> http://localhost:8501
-```
-
-> メール通知やスクレイピングを使わず、UI・分析だけ試すなら `seed.py` のデモデータだけで動きます。
+> 個別に起動する場合: `cd bid_manager && pip install -r requirements.txt && python database.py && streamlit run app.py`
 
 ### 環境変数（`.env`）
 

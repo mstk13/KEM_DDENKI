@@ -37,6 +37,19 @@ echo ""
 # venv 有効化
 source .venv/bin/activate
 
+# .env 読み込み（KEM_DATA_DIR 等の共通設定）
+if [ -f "$SCRIPT_DIR/.env" ]; then
+    set -a
+    source "$SCRIPT_DIR/.env"
+    set +a
+fi
+
+# KEM_DATA_DIR が設定されている場合、フォルダを自動作成
+if [ -n "$KEM_DATA_DIR" ]; then
+    mkdir -p "$KEM_DATA_DIR" 2>/dev/null || true
+    echo "[データ共有] DB保存先: $KEM_DATA_DIR"
+fi
+
 # 依存パッケージインストール
 echo "[2/4] 依存パッケージをインストール中..."
 pip install -r bid_manager/requirements.txt \

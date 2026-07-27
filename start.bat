@@ -1,6 +1,6 @@
 @echo off
 chcp 65001 >nul
-setlocal
+setlocal EnableDelayedExpansion
 
 echo ========================================
 echo   ケンモチ電機 施工コスト最適化システム
@@ -33,6 +33,25 @@ if not exist ".venv\Scripts\activate.bat" (
 
 :: venv 有効化
 call .venv\Scripts\activate.bat
+
+:: .env 読み込み（KEM_DATA_DIR 等の共通設定）
+if exist ".env" (
+    for /f "usebackq tokens=1,* delims==" %%A in (".env") do (
+        set "LINE=%%A"
+        if not "!LINE:~0,1!"=="#" (
+            if not "%%A"=="" set "%%A=%%B"
+        )
+    )
+)
+
+:: KEM_DATA_DIR が設定されている場合、フォルダを自動作成
+if defined KEM_DATA_DIR (
+    if not exist "%KEM_DATA_DIR%" (
+        echo [データ共有] フォルダを作成中: %KEM_DATA_DIR%
+        mkdir "%KEM_DATA_DIR%" 2>nul
+    )
+    echo [データ共有] DB保存先: %KEM_DATA_DIR%
+)
 
 :: ===== 自動アップデート =====
 where git >nul 2>&1

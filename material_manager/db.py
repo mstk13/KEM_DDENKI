@@ -1,10 +1,13 @@
 """DB — 統合スキーマ（KEM_DDENKI互換の裏側 + 材料管理UI用）"""
+import os
 import sqlite3
 from contextlib import contextmanager
 from datetime import datetime
+from pathlib import Path
 from typing import Iterator
 
-DATABASE = "construction.db"
+_data_dir = os.getenv("KEM_DATA_DIR")
+DATABASE = os.path.join(_data_dir, "material_manager.db") if _data_dir else "construction.db"
 
 
 def get_db():

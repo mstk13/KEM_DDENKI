@@ -23,17 +23,10 @@
 
 ## セットアップ
 
-```bash
-cd nippou_manager
-python -m venv .venv && source .venv/bin/activate   # 任意
-pip install -r requirements.txt
+全アプリ共通のセットアップ手順は **[セットアップガイド（docs/setup_guide.md）](../docs/setup_guide.md)** を参照してください。
 
-python database.py     # DB 初期化
-python seed.py         # （任意）デモデータ投入ですぐ試せる
-streamlit run app.py   # 起動 -> http://localhost:8501
-```
-
-> メール通知を使わなければ `.env` は不要です。UI・分析だけなら `seed.py` のデモデータで動きます。
+> 個別に起動する場合: `cd sagyo-nippou && pip install -r requirements.txt && python database.py && streamlit run app.py --server.port 8502`  
+> メール通知を使わなければ `.env` は不要です。デモデータは `python seed.py` で投入できます。
 
 ### 環境変数（`.env`／メール通知を使う場合のみ）
 

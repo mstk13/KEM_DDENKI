@@ -17,6 +17,19 @@ else
     echo "       venv なしで続行します..."
 fi
 
+# .env 読み込み（KEM_DATA_DIR 等の共通設定）
+if [ -f "$SCRIPT_DIR/.env" ]; then
+    set -a
+    source "$SCRIPT_DIR/.env"
+    set +a
+fi
+
+# KEM_DATA_DIR が設定されている場合、フォルダを自動作成
+if [ -n "$KEM_DATA_DIR" ]; then
+    mkdir -p "$KEM_DATA_DIR" 2>/dev/null || true
+    echo "[データ共有] DB保存先: $KEM_DATA_DIR"
+fi
+
 # Python チェック
 if command -v python3 &>/dev/null; then
     PYTHON=python3

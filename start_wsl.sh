@@ -15,15 +15,34 @@ else
     exit 1
 fi
 
+# .env 読み込み（KEM_DATA_DIR 等の共通設定）
+if [ -f "$SCRIPT_DIR/.env" ]; then
+    set -a
+    source "$SCRIPT_DIR/.env"
+    set +a
+fi
+
+# KEM_DATA_DIR が設定されている場合、フォルダを自動作成
+if [ -n "$KEM_DATA_DIR" ]; then
+    mkdir -p "$KEM_DATA_DIR" 2>/dev/null || true
+    echo "[データ共有] DB保存先: $KEM_DATA_DIR"
+fi
+
 # cleanup
 cleanup() {
     echo ""
     echo "Stopping apps..."
-    kill $PID_MAT $PID_BID $PID_NIP $PID_EVA 2>/dev/null
+    kill $PID_PORTAL $PID_MAT $PID_BID $PID_NIP $PID_EVA 2>/dev/null
     echo "Done."
     exit 0
 }
 trap cleanup INT TERM
+
+# 0. Portal (port 8080)
+echo "[0/4] Portal (port 8080)"
+cd "$SCRIPT_DIR/portal"
+python3 portal_server.py &
+PID_PORTAL=$!
 
 # 1. Material Manager (Flask, port 5000)
 echo "[1/4] Material Manager (port 5000)"
@@ -58,17 +77,15 @@ WIN_IP=$(cmd.exe /c "ipconfig" 2>/dev/null | iconv -f SHIFT_JIS -t UTF-8 2>/dev/
 echo ""
 echo "=== Started! ==="
 echo ""
-echo "  This PC:"
+echo "  Portal (launcher):"
+echo "    http://localhost:8080"
+echo "    http://${WIN_IP}:8080"
+echo ""
+echo "  Apps:"
 echo "    http://localhost:5000    Material Manager"
 echo "    http://localhost:8501    Bid Manager"
 echo "    http://localhost:8502    Work Report"
 echo "    http://localhost:8503    Evaluation"
-echo ""
-echo "  Other PCs:"
-echo "    http://${WIN_IP}:5000"
-echo "    http://${WIN_IP}:8501"
-echo "    http://${WIN_IP}:8502"
-echo "    http://${WIN_IP}:8503"
 echo ""
 echo "  Press Ctrl+C to stop all apps."
 

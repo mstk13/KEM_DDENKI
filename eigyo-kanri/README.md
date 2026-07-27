@@ -24,17 +24,10 @@
 
 ## セットアップ
 
-```powershell
-cd KEM_DDENKI\eigyo-kanri
-python -m pip install -r requirements.txt
+全アプリ共通のセットアップ手順は **[セットアップガイド（docs/setup_guide.md）](../docs/setup_guide.md)** を参照してください。
 
-copy .env.example .env      # .env を編集して ANTHROPIC_API_KEY を設定
-python database.py          # DB初期化（初回のみ）
-python seed.py              # （任意）デモデータ投入。APIキー不要でUIを試せる
-python -m streamlit run app.py   # 起動 -> http://localhost:8503
-```
-
-> **自動抽出・HP事業概要取得には `ANTHROPIC_API_KEY` が必須**です（`.env` に設定）。
+> 個別に起動する場合: `cd eigyo-kanri && pip install -r requirements.txt && python database.py && streamlit run app.py`  
+> **自動抽出・HP事業概要取得には `ANTHROPIC_API_KEY` が必須**です（`.env` に設定）。  
 > キーが無くても、手動追加・一覧・ダッシュボード・資料の閲覧は利用できます。
 > 自動再起動つきで起動するには `start_eigyo.bat` をダブルクリックしてください。
 

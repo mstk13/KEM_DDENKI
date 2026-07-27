@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
 import subprocess
 from contextlib import contextmanager
@@ -22,9 +23,10 @@ import streamlit as st
 # ---------------------------------------------------------------------------
 BASE_DIR = Path(__file__).resolve().parent
 REPO_DIR = BASE_DIR.parent
-EVAL_DB_PATH = BASE_DIR / "evaluation.db"
+_data_dir = os.getenv("KEM_DATA_DIR")
+EVAL_DB_PATH = Path(os.path.join(_data_dir, "evaluation.db")) if _data_dir else BASE_DIR / "evaluation.db"
 EVAL_ITEMS_JSON = BASE_DIR / "eval_items.json"
-NIPPOU_DB_PATH = REPO_DIR / "sagyo-nippou" / "database.db"
+NIPPOU_DB_PATH = Path(os.path.join(_data_dir, "sagyo_nippou.db")) if _data_dir else REPO_DIR / "sagyo-nippou" / "database.db"
 
 # ---------------------------------------------------------------------------
 # デフォルト評価項目（初回DB投入用）
