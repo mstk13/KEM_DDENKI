@@ -228,29 +228,56 @@ def page_entry() -> None:
 
 def _entry_genba() -> None:
     """現場担当の日報入力（紙の作業日報フォーム準拠の1枚型）。"""
+    st.subheader("🏗️ 現場日報")
     st.caption("🎤 「🎤」が付いた欄はタップして、スマホのキーボードのマイクで話すと入力できます。")
 
     if st.session_state.get("entry_flash"):
         st.success(st.session_state.pop("entry_flash"))
 
     sites = site_options(active_only=False)
-    if not sites:
-        st.warning("先に「現場管理」で現場を登録してください。")
-        return
     st.session_state.setdefault("entry_workers", [])
     st.session_state.setdefault("entry_subs", [])
     n = st.session_state.get("entry_nonce", 0)
     wn = st.session_state.get("wname_nonce", 0)
     sn = st.session_state.get("sub_nonce", 0)
 
+    # ---- 名前（作業員管理からプルダウン／未登録は手入力→自動登録。事務員日報と同じ様式） ----
+    roster_name = [w["name"] for w in db.list_workers(active_only=True)]
+    NAME_NONE = "―（作業員管理一覧から選択）―"
+    nc1, nc2 = st.columns(2)
+    name_pick = nc1.selectbox("名前（プルダウン）", [NAME_NONE] + roster_name, key=f"e_name_pick_{n}")
+    name_typed = nc2.text_input("名簿にない場合はこちらに入力（🎤・漢字/ひらがな可）",
+                                key=f"e_name_{n}", placeholder="例：山田 花子 / やまだ")
+
     # ---- ヘッダー（現場名・発注先は音声対象外） ----
     c1, c2 = st.columns([2, 1])
     report_date = c1.date_input("作業日", value=date.today(), key=f"e_date_{n}")
     # 曜日は作業日から毎回算出（key を付けると古い値が残るため付けない）
     c2.text_input("曜日", value=f"{config.weekday_jp(report_date.isoformat())}曜日", disabled=True)
-    site_label = st.selectbox("現場名", list(sites.keys()), key=f"e_site_{n}")
-    site = db.get_site(sites[site_label])
-    client = st.text_input("発注先", value=(site or {}).get("client") or "", key=f"e_client_{n}")
+    # 現場名は現場管理からプルダウン選択。一覧に無ければ手入力し、登録時に現場管理へ追加する。
+    SITE_NONE = "―（現場管理一覧から選択）―"
+    s1, s2 = st.columns(2)
+    site_label = s1.selectbox("現場名（プルダウン）", [SITE_NONE] + list(sites.keys()),
+                              key=f"e_site_{n}")
+    site_typed = s2.text_input("一覧にない現場名はこちらに入力　🎤", key=f"e_site_new_{n}",
+                               placeholder="新しい現場名（現場管理に登録されます）")
+    # 手入力があればそちらを優先。既存現場を選んでいるときだけ発注先の既定値を引く。
+    site = None if site_typed.strip() else (
+        db.get_site(sites[site_label]) if site_label != SITE_NONE else None)
+
+    # 発注先も発注先管理からプルダウン選択。一覧に無ければ手入力し、登録時に発注先管理へ追加する。
+    CLIENT_NONE = "―（発注先管理一覧から選択）―"
+    client_names = [c["name"] for c in db.list_clients(active_only=True)]
+    # 選んだ現場の発注先が登録済みなら初期選択にしておく
+    site_client = (site or {}).get("client") or ""
+    c_index = client_names.index(site_client) + 1 if site_client in client_names else 0
+    cc1, cc2 = st.columns(2)
+    # key に現場名を含める。key が固定だと現場を切り替えても index（既定値）が反映されないため。
+    client_pick = cc1.selectbox("発注先（プルダウン）", [CLIENT_NONE] + client_names,
+                                index=c_index, key=f"e_client_pick_{n}_{site_label}")
+    client_typed = cc2.text_input("一覧にない発注先はこちらに入力　🎤", key=f"e_client_new_{n}",
+                                  placeholder="新しい発注先（発注先管理に登録されます）")
+    client = client_typed.strip() or ("" if client_pick == CLIENT_NONE else client_pick)
 
     work_content = st.text_area("作業内容・使用材料　🎤", height=120, key=f"e_content_{n}",
                                 placeholder="本日の作業内容・使用した材料")
@@ -357,22 +384,53 @@ def _entry_genba() -> None:
     status = st.selectbox("ステータス", config.REPORT_STATUSES, index=1, key=f"e_status_{n}")
 
     if st.button("✅ 日報を登録", type="primary", use_container_width=True):
+        # 名前の確定（手入力優先。ひらがな等は名簿と照合して漢字に変換）
+        typed_name = name_typed.strip()
+        if typed_name:
+            reporter, _matched = db.match_worker_name(typed_name)
+        elif name_pick != NAME_NONE:
+            reporter = name_pick
+        else:
+            reporter = ""
+        if not reporter:
+            st.error("名前をプルダウンで選ぶか、入力してください。")
+            return
+        # 現場名の確定（手入力優先。一覧に無ければ現場管理へ新規登録）
+        typed_site = site_typed.strip()
+        new_site = False
+        if typed_site:
+            site_id, new_site = db.get_or_create_site(typed_site, client)
+        elif site_label != SITE_NONE:
+            site_id = sites[site_label]
+        else:
+            st.error("現場名をプルダウンで選ぶか、入力してください。")
+            return
+        # 発注先の確定（手入力なら発注先管理へ新規登録）
+        new_client = False
+        if client_typed.strip():
+            _cid, new_client = db.get_or_create_client(client_typed.strip())
         workers = st.session_state.get("entry_workers", [])
         if not workers:
             st.error("自社作業員を1名以上追加してください。")
             return
         subs = st.session_state.get("entry_subs", [])
         rid = db.add_report(
-            report_date=report_date.isoformat(), site_id=sites[site_label],
-            client=client.strip(), work_content=work_content.strip(),
+            report_date=report_date.isoformat(), reporter_name=reporter, site_id=site_id,
+            client=client, work_content=work_content.strip(),
             own_car=own_car, own_train=own_train,
             own_car_count=int(own_car_count) if own_car else 0,
             own_transport_cost=int(own_cost),
             manager=manager.strip(), status=status,
             workers=workers, subcontractors=subs,
         )
-        new_names = db.register_new_workers([w["worker_name"] for w in workers])
-        msg = f"日報を登録しました（ID: {rid}・作業員{len(workers)}名・協力会社{len(subs)}件）。"
+        new_names = db.register_new_workers(
+            [reporter] + [w["worker_name"] for w in workers])
+        msg = (f"日報を登録しました（ID: {rid}・{reporter}"
+               f"・作業員{len(workers)}名・協力会社{len(subs)}件）。")
+        if new_site:
+            msg += f"　🆕 現場管理に新規登録: {typed_site}"
+        if new_client:
+            msg += f"　🆕 発注先管理に新規登録: {client}"
         if new_names:
             msg += f"　🆕 名簿に新規登録: {'、'.join(new_names)}"
         st.session_state["entry_flash"] = msg
@@ -388,7 +446,7 @@ def _entry_genba() -> None:
 def _entry_office(role: str, icon: str, key: str) -> None:
     """事務員・役員 共通の日報入力（名前・日付・勤務時間・業務内容・報告内容・次の業務内容）。
     role で保存先を区別（同一様式）。key は画面ごとの session_state 名前空間。"""
-    st.subheader(f"{icon} {role} 日報")
+    st.subheader(f"{icon} {role}日報")
     st.caption("🎤 「🎤」が付いた欄はタップして、スマホのキーボードのマイクで話すと入力できます。")
 
     flash_key = f"{key}_flash"
@@ -518,17 +576,17 @@ def page_list() -> None:
     st.caption(f"{len(reports)} 枚 / のべ {total_p} 名 / 総作業時間 {total_h:.1f} 時間")
 
     # 各行の右端に「詳細」ボタン（下までスクロール不要で遷移）
-    widths = [1.7, 3, 0.9, 1.1, 1.1, 1]
+    widths = [1.7, 2.6, 2.2, 0.9, 1.1, 1]
     hcols = st.columns(widths)
-    for col, label in zip(hcols, ["作業日", "現場", "人数", "作業時間", "状態", ""]):
+    for col, label in zip(hcols, ["作業日", "現場", "発注先", "人数", "状態", ""]):
         col.markdown(f"**{label}**")
     for r in reports:
         wd = config.weekday_jp(r["report_date"])
         cols = st.columns(widths)
         cols[0].write(f"{r['report_date']}（{wd}）")
         cols[1].write(r["site_name"])
-        cols[2].write(f"{r['worker_count'] + r['sub_headcount']}名")
-        cols[3].write(f"{r['total_hours']:.1f}h")
+        cols[2].write(r.get("client") or "―")
+        cols[3].write(f"{r['worker_count'] + r['sub_headcount']}名")
         cols[4].write(r["status"])
         if cols[5].button("詳細", key=f"detail_{r['id']}", use_container_width=True):
             st.session_state["selected_report"] = r["id"]
@@ -564,7 +622,8 @@ def page_detail() -> None:
 
     wd = config.weekday_jp(r["report_date"])
     st.header(f"🔎 作業日報  #{r['id']}")
-    st.caption(f"{r['report_date']}（{wd}） ／ 現場: {r['site_name']} ／ 発注先: {r['client'] or '-'}")
+    st.caption(f"{r['report_date']}（{wd}） ／ 名前: {r.get('reporter_name') or '-'}"
+               f" ／ 現場: {r['site_name']} ／ 発注先: {r['client'] or '-'}")
 
     total_h = sum(w["work_hours"] for w in workers)
     sub_head = sum(s["headcount"] for s in subs)
@@ -756,12 +815,10 @@ def page_workers() -> None:
             c1, c2 = st.columns(2)
             name = c1.text_input("氏名（漢字）", placeholder="例：剣持 大輔")
             kana = c2.text_input("よみがな", placeholder="例：けんもちだいすけ")
-            c3, c4 = st.columns(2)
-            role = c3.text_input("役職", placeholder="職長 / 電工 / 見習い")
-            phone = c4.text_input("電話番号")
+            phone = st.text_input("電話番号")
             if st.form_submit_button("追加", type="primary"):
                 if name.strip():
-                    db.add_worker(name.strip(), role.strip(), phone.strip(), kana.strip())
+                    db.add_worker(name.strip(), "", phone.strip(), kana.strip())
                     st.success(f"{name} を追加しました。")
                     st.rerun()
                 else:
@@ -773,9 +830,8 @@ def page_workers() -> None:
         return
     df = pd.DataFrame(workers)
     df["状態"] = df["is_active"].map({1: "有効", 0: "無効"})
-    st.dataframe(df[["id", "name", "kana", "role", "phone", "状態"]].rename(
-        columns={"id": "ID", "name": "氏名", "kana": "よみがな", "role": "役職",
-                 "phone": "電話番号"}),
+    st.dataframe(df[["id", "name", "kana", "phone", "状態"]].rename(
+        columns={"id": "ID", "name": "氏名", "kana": "よみがな", "phone": "電話番号"}),
         use_container_width=True, hide_index=True)
 
     st.markdown("**作業員情報の編集**")
@@ -786,15 +842,14 @@ def page_workers() -> None:
     e1, e2 = st.columns(2)
     new_name = e1.text_input("氏名（漢字）", value=wk["name"], key=f"edit_name_{wk['id']}")
     new_kana = e2.text_input("よみがな", value=wk.get("kana") or "", key=f"edit_kana_{wk['id']}")
-    e3, e4, e5 = st.columns(3)
-    new_role = e3.text_input("役職", value=wk.get("role") or "", key=f"edit_role_{wk['id']}")
-    new_phone = e4.text_input("電話番号", value=wk.get("phone") or "", key=f"edit_phone_{wk['id']}")
-    new_active = e5.selectbox("状態", ["有効", "無効"], index=0 if wk["is_active"] else 1,
+    e3, e4 = st.columns(2)
+    new_phone = e3.text_input("電話番号", value=wk.get("phone") or "", key=f"edit_phone_{wk['id']}")
+    new_active = e4.selectbox("状態", ["有効", "無効"], index=0 if wk["is_active"] else 1,
                               key=f"edit_active_{wk['id']}")
     if st.button("変更を保存", type="primary", key="w_edit_save"):
         if new_name.strip():
             db.update_worker(wk["id"], name=new_name.strip(), kana=new_kana.strip(),
-                             role=new_role.strip(), phone=new_phone.strip(),
+                             phone=new_phone.strip(),
                              is_active=1 if new_active == "有効" else 0)
             st.success("保存しました。")
             st.rerun()
@@ -853,6 +908,77 @@ def page_sites() -> None:
 
 
 # --------------------------------------------------------------------------
+# 画面: 発注先管理
+# --------------------------------------------------------------------------
+def page_clients() -> None:
+    st.header("🏢 発注先管理")
+    st.caption("ここに登録した発注先が、日報入力の「発注先」プルダウンに出ます。")
+
+    clients = db.list_clients()
+    with st.expander("➕ 発注先を追加", expanded=not clients):
+        with st.form("add_client", clear_on_submit=True):
+            c1, c2 = st.columns(2)
+            name = c1.text_input("発注先名", placeholder="例：株式会社○○電設")
+            contact = c2.text_input("担当者", placeholder="例：山田 太郎")
+            c3, c4 = st.columns(2)
+            phone = c3.text_input("電話番号")
+            memo = c4.text_input("備考")
+            if st.form_submit_button("追加", type="primary"):
+                if name.strip():
+                    _cid, created = db.get_or_create_client(name.strip())
+                    if created:
+                        db.update_client(_cid, contact=contact.strip(),
+                                         phone=phone.strip(), memo=memo.strip())
+                        st.success(f"{name} を追加しました。")
+                    else:
+                        st.warning(f"「{name}」は既に登録されています。")
+                    st.rerun()
+                else:
+                    st.error("発注先名を入力してください。")
+
+    # 現場管理に入力済みの発注先を後から拾えるようにする
+    if st.button("🔄 現場管理の発注先を取り込む", key="import_clients"):
+        added = db.import_clients_from_sites()
+        if added:
+            st.success(f"{len(added)} 件を取り込みました: {'、'.join(added)}")
+        else:
+            st.info("取り込む発注先はありませんでした。")
+        st.rerun()
+
+    if not clients:
+        st.info("発注先が登録されていません。")
+        return
+    df = pd.DataFrame(clients)
+    df["状態"] = df["is_active"].map({1: "有効", 0: "無効"})
+    st.dataframe(df[["id", "name", "contact", "phone", "memo", "状態"]].rename(
+        columns={"id": "ID", "name": "発注先名", "contact": "担当者",
+                 "phone": "電話番号", "memo": "備考"}),
+        use_container_width=True, hide_index=True)
+
+    st.markdown("**発注先情報の編集**")
+    copts = {f"#{c['id']} {c['name']}": c for c in clients}
+    pick = st.selectbox("編集する発注先", list(copts.keys()), key="c_edit_pick")
+    cl = copts[pick]
+    e1, e2 = st.columns(2)
+    new_name = e1.text_input("発注先名", value=cl["name"], key=f"c_name_{cl['id']}")
+    new_contact = e2.text_input("担当者", value=cl.get("contact") or "", key=f"c_contact_{cl['id']}")
+    e3, e4, e5 = st.columns(3)
+    new_phone = e3.text_input("電話番号", value=cl.get("phone") or "", key=f"c_phone_{cl['id']}")
+    new_memo = e4.text_input("備考", value=cl.get("memo") or "", key=f"c_memo_{cl['id']}")
+    new_active = e5.selectbox("状態", ["有効", "無効"], index=0 if cl["is_active"] else 1,
+                              key=f"c_active_{cl['id']}")
+    if st.button("変更を保存", type="primary", key="c_edit_save"):
+        if new_name.strip():
+            db.update_client(cl["id"], name=new_name.strip(), contact=new_contact.strip(),
+                             phone=new_phone.strip(), memo=new_memo.strip(),
+                             is_active=1 if new_active == "有効" else 0)
+            st.success("保存しました。")
+            st.rerun()
+        else:
+            st.error("発注先名を入力してください。")
+
+
+# --------------------------------------------------------------------------
 # ルーティング
 # --------------------------------------------------------------------------
 PAGES = {
@@ -862,6 +988,7 @@ PAGES = {
     "ダッシュボード": page_dashboard,
     "作業員管理": page_workers,
     "現場管理": page_sites,
+    "発注先管理": page_clients,
 }
 
 st.sidebar.title("🛠️ 作業日報管理")

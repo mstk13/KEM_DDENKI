@@ -50,6 +50,16 @@ CREATE TABLE IF NOT EXISTS workers (
     created_at  TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS clients (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    name        TEXT NOT NULL,              -- 発注先名
+    contact     TEXT,                       -- 担当者
+    phone       TEXT,
+    memo        TEXT,
+    is_active   INTEGER NOT NULL DEFAULT 1,
+    created_at  TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS sites (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     name        TEXT NOT NULL,              -- 現場名
@@ -66,6 +76,7 @@ CREATE TABLE IF NOT EXISTS sites (
 CREATE TABLE IF NOT EXISTS reports (
     id                  INTEGER PRIMARY KEY AUTOINCREMENT,
     report_date         TEXT NOT NULL,      -- 年月日
+    reporter_name       TEXT,               -- 名前（日報を書いた人）
     site_id             INTEGER NOT NULL,   -- 現場名
     client              TEXT,               -- 発注先（現場から既定・上書き可）
     work_content        TEXT,               -- 作業内容・使用材料（共通欄）
@@ -153,6 +164,10 @@ def _migrate(conn) -> None:
     ocols = {r["name"] for r in conn.execute("PRAGMA table_info(office_reports)")}
     if ocols and "role" not in ocols:
         conn.execute("ALTER TABLE office_reports ADD COLUMN role TEXT NOT NULL DEFAULT '事務員'")
+    # reports.reporter_name（記入者名）を後方互換で追加
+    rcols = {r["name"] for r in conn.execute("PRAGMA table_info(reports)")}
+    if rcols and "reporter_name" not in rcols:
+        conn.execute("ALTER TABLE reports ADD COLUMN reporter_name TEXT")
 
 
 # --------------------------------------------------------------------------
@@ -316,6 +331,96 @@ def list_sites(active_only: bool = False) -> list[dict[str, Any]]:
         return _dicts(conn.execute(sql).fetchall())
 
 
+def get_or_create_site(name: str, client: str = "") -> tuple[int, bool]:
+    """現場名から現場IDを取得し、無ければ現場マスタに新規登録する。
+
+    日報入力で一覧に無い現場名を手入力したときに使う。
+    (site_id, 新規登録したか) を返す。名前の一致は前後空白を無視した完全一致。
+    """
+    nm = (name or "").strip()
+    if not nm:
+        raise ValueError("現場名が空です")
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT id FROM sites WHERE TRIM(name) = ? COLLATE NOCASE", (nm,)
+        ).fetchone()
+        if row:
+            return row["id"], False
+    return add_site(nm, client=(client or "").strip()), True
+
+
+# --------------------------------------------------------------------------
+# 発注先マスタ CRUD
+# --------------------------------------------------------------------------
+def add_client(name: str, contact: str = "", phone: str = "", memo: str = "") -> int:
+    with get_conn() as conn:
+        cur = conn.execute(
+            "INSERT INTO clients (name, contact, phone, memo, created_at) VALUES (?, ?, ?, ?, ?)",
+            (name, contact, phone, memo, _now()),
+        )
+        return cur.lastrowid
+
+
+def update_client(client_id: int, **fields: Any) -> None:
+    if not fields:
+        return
+    cols = ", ".join(f"{k} = ?" for k in fields)
+    with get_conn() as conn:
+        conn.execute(f"UPDATE clients SET {cols} WHERE id = ?", (*fields.values(), client_id))
+
+
+def list_clients(active_only: bool = False) -> list[dict[str, Any]]:
+    sql = "SELECT * FROM clients"
+    if active_only:
+        sql += " WHERE is_active = 1"
+    sql += " ORDER BY is_active DESC, name"
+    with get_conn() as conn:
+        return _dicts(conn.execute(sql).fetchall())
+
+
+def get_or_create_client(name: str) -> tuple[int, bool]:
+    """発注先名から発注先IDを取得し、無ければ発注先マスタに新規登録する。
+
+    日報入力で一覧に無い発注先名を手入力したときに使う。
+    (client_id, 新規登録したか) を返す。
+    """
+    nm = (name or "").strip()
+    if not nm:
+        raise ValueError("発注先名が空です")
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT id FROM clients WHERE TRIM(name) = ? COLLATE NOCASE", (nm,)
+        ).fetchone()
+        if row:
+            return row["id"], False
+    return add_client(nm), True
+
+
+def import_clients_from_sites() -> list[str]:
+    """現場マスタに入力済みの発注先名のうち、発注先マスタに無いものを取り込む。
+
+    発注先管理を後から追加したため、既存データを拾えるようにする。
+    取り込んだ発注先名の一覧を返す。
+    """
+    added: list[str] = []
+    with get_conn() as conn:
+        existing = {
+            (r["name"] or "").strip().lower()
+            for r in conn.execute("SELECT name FROM clients").fetchall()
+        }
+        rows = conn.execute(
+            "SELECT DISTINCT client FROM sites WHERE client IS NOT NULL AND TRIM(client) <> ''"
+        ).fetchall()
+    for r in rows:
+        nm = (r["client"] or "").strip()
+        if not nm or nm.lower() in existing:
+            continue
+        add_client(nm)
+        existing.add(nm.lower())
+        added.append(nm)
+    return added
+
+
 # --------------------------------------------------------------------------
 # 日報 CRUD
 # --------------------------------------------------------------------------
@@ -366,6 +471,7 @@ def _insert_subs(conn, report_id: int, subs: list[dict[str, Any]]) -> None:
 def add_report(
     report_date: str,
     site_id: int,
+    reporter_name: str = "",
     client: str = "",
     work_content: str = "",
     own_car: bool = False,
@@ -380,11 +486,11 @@ def add_report(
     now = _now()
     with get_conn() as conn:
         cur = conn.execute(
-            "INSERT INTO reports (report_date, site_id, client, work_content, own_car, "
+            "INSERT INTO reports (report_date, reporter_name, site_id, client, work_content, own_car, "
             "own_train, own_car_count, own_transport_cost, manager, status, created_at, updated_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
-                report_date, site_id, client, work_content,
+                report_date, reporter_name, site_id, client, work_content,
                 1 if own_car else 0, 1 if own_train else 0,
                 int(own_car_count or 0), int(own_transport_cost or 0),
                 manager, status, now, now,
