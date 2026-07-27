@@ -114,24 +114,73 @@
                         <h5 class="mb-0">📊 人事評価</h5>
                     </div>
                     <div class="card-body">
-                        <p>事務方・現場方・役員の3役割で人事評価を管理</p>
+                        <p>事務方・現場方・役員の3役割で人事評価を管理（入力／管理の2アプリ）</p>
                         <ul class="small">
+                            <li>設問アンケート方式（1〜5のボタンで回答）</li>
                             <li>作業日報の勤怠データを自動参照</li>
-                            <li>役割別の評価基準で採点</li>
                             <li>現場方はシニア/ジュニア択一評価</li>
-                            <li>評価履歴の一覧・比較</li>
+                            <li>従業員ごとの一覧・履歴・達成率グラフ</li>
                             <li>評価ランク自動判定（S〜D）</li>
+                        </ul>
+                        <span class="badge bg-info status-badge">Streamlit</span>
+                        <span class="badge bg-secondary status-badge">Port 8504 / 8505</span>
+                    </div>
+                    <div class="card-footer">
+                        <a href="http://localhost:8504" target="_blank" class="btn btn-warning w-100 mb-2">📝 入力アプリを開く →</a>
+                        <a href="http://localhost:8505" target="_blank" class="btn btn-outline-warning w-100">🗂️ 管理アプリを開く →</a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 5. 営業管理 -->
+            <div class="col-md-6 col-lg-3">
+                <div class="card app-card h-100 border-danger">
+                    <div class="card-header bg-danger text-white">
+                        <h5 class="mb-0">🤝 営業管理</h5>
+                    </div>
+                    <div class="card-body">
+                        <p>営業に来た会社・担当者・営業内容を一覧管理</p>
+                        <ul class="small">
+                            <li>資料(PDF・画像・名刺)から自動抽出（Claude API）</li>
+                            <li>業界→会社→記録のドリルダウン閲覧</li>
+                            <li>会社HPから事業概要を自動生成</li>
+                            <li>資料の自動命名保存・プレビュー</li>
+                            <li>KPI・業界別/状態別グラフのダッシュボード</li>
                         </ul>
                         <span class="badge bg-info status-badge">Streamlit</span>
                         <span class="badge bg-secondary status-badge">Port 8503</span>
                     </div>
                     <div class="card-footer">
-                        <a href="http://localhost:8503" target="_blank" class="btn btn-warning w-100">アプリを開く →</a>
+                        <a href="http://localhost:8503" target="_blank" class="btn btn-danger w-100">アプリを開く →</a>
                     </div>
                 </div>
             </div>
 
-            <!-- 5. コスト分析・AI見積もり（将来） -->
+            <!-- 6. 日報管理（勤怠集計） -->
+            <div class="col-md-6 col-lg-3">
+                <div class="card app-card h-100 border-dark">
+                    <div class="card-header bg-dark text-white">
+                        <h5 class="mb-0">⏱️ 日報管理（勤怠集計）</h5>
+                    </div>
+                    <div class="card-body">
+                        <p>日報テキストから勤怠を自動抽出し、社員別に集計</p>
+                        <ul class="small">
+                            <li>日報を貼り付けるだけで自動抽出</li>
+                            <li>日付・現場・社員・出退勤・休憩を認識</li>
+                            <li>早朝／通常／残業時間を自動集計</li>
+                            <li>作業日報アプリからの取り込み（重複なし）</li>
+                            <li>手入力タブでの修正にも対応</li>
+                        </ul>
+                        <span class="badge bg-info status-badge">Streamlit</span>
+                        <span class="badge bg-secondary status-badge">Port 8510</span>
+                    </div>
+                    <div class="card-footer">
+                        <a href="http://localhost:8510" target="_blank" class="btn btn-dark w-100">アプリを開く →</a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 7. コスト分析・AI見積もり（将来） -->
             <div class="col-md-6 col-lg-3">
                 <div class="card app-card h-100 border-warning">
                     <div class="card-header bg-warning text-dark">

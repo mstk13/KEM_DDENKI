@@ -74,7 +74,7 @@ echo [データ] DB保存先: %KEM_DATA_DIR%
 
 :: 依存パッケージインストール
 echo [2/4] 依存パッケージをインストール中...（数分かかる場合があります）
-pip install --no-cache-dir -r bid_manager\requirements.txt -r material_manager\requirements.txt -r sagyo-nippou\requirements.txt -r evaluation\requirements.txt --quiet
+pip install --no-cache-dir -r bid_manager\requirements.txt -r material_manager\requirements.txt -r sagyo-nippou\requirements.txt -r evaluation\requirements.txt -r eigyo-kanri\requirements.txt -r nippou-kanri\requirements.txt --quiet
 if %errorlevel% neq 0 (
     echo [エラー] パッケージのインストールに失敗しました。
     pause
@@ -99,6 +99,15 @@ cd sagyo-nippou
 %PYTHON% database.py
 cd ..
 
+cd eigyo-kanri
+if not exist ".env" if exist ".env.example" copy ".env.example" ".env" >nul
+%PYTHON% database.py
+cd ..
+
+cd nippou-kanri
+%PYTHON% database.py
+cd ..
+
 echo       完了
 echo.
 
@@ -108,6 +117,10 @@ echo.
 echo ========================================
 echo   次回からは start.bat で起動できます。
 echo   起動時に自動でアップデートも行います。
+echo.
+echo   ※ 営業管理の資料自動抽出を使うには
+echo      eigyo-kanri\.env に ANTHROPIC_API_KEY を設定してください。
+echo      未設定でも手動登録・一覧・閲覧は使えます。
 echo ========================================
 echo.
 pause

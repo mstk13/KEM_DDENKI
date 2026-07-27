@@ -58,12 +58,16 @@ if command -v git &>/dev/null && [ -d ".git" ]; then
             pip install -r bid_manager/requirements.txt \
                         -r material_manager/requirements.txt \
                         -r sagyo-nippou/requirements.txt \
-                        -r evaluation/requirements.txt --quiet 2>/dev/null || true
+                        -r evaluation/requirements.txt \
+                        -r eigyo-kanri/requirements.txt \
+                        -r nippou-kanri/requirements.txt --quiet 2>/dev/null || true
 
             # DB マイグレーション（テーブル追加のみ、既存データは維持）
             (cd bid_manager && $PYTHON database.py 2>/dev/null) || true
             (cd material_manager && $PYTHON -c "from db import init_db; init_db()" 2>/dev/null) || true
             (cd sagyo-nippou && $PYTHON database.py 2>/dev/null) || true
+            (cd eigyo-kanri && $PYTHON database.py 2>/dev/null) || true
+            (cd nippou-kanri && $PYTHON database.py 2>/dev/null) || true
 
             echo "[完了] アプリを最新版で起動します。"
         else
@@ -87,7 +91,10 @@ cleanup() {
     [ -n "$PID_MATERIAL" ] && kill "$PID_MATERIAL" 2>/dev/null
     [ -n "$PID_BID" ] && kill "$PID_BID" 2>/dev/null
     [ -n "$PID_NIPPOU" ] && kill "$PID_NIPPOU" 2>/dev/null
+    [ -n "$PID_EIGYO" ] && kill "$PID_EIGYO" 2>/dev/null
     [ -n "$PID_EVAL" ] && kill "$PID_EVAL" 2>/dev/null
+    [ -n "$PID_EVAL_ADMIN" ] && kill "$PID_EVAL_ADMIN" 2>/dev/null
+    [ -n "$PID_NIPPOU_KANRI" ] && kill "$PID_NIPPOU_KANRI" 2>/dev/null
     echo "停止完了。"
     exit 0
 }
@@ -114,8 +121,8 @@ else
 fi
 
 # 3. 作業日報 (Streamlit, port 8502)
-echo "[3/4] 作業日報を起動中... (port 8502)"
-cd "$SCRIPT_DIR/作業日報"
+echo "[3/6] 作業日報を起動中... (port 8502)"
+cd "$SCRIPT_DIR/sagyo-nippou"
 if command -v streamlit &>/dev/null; then
     streamlit run app.py --server.port 8502 --server.headless true &>/dev/null &
     PID_NIPPOU=$!
@@ -125,19 +132,48 @@ else
     PID_NIPPOU=""
 fi
 
-# 4. 人事評価 (Streamlit, port 8503)
-echo "[4/4] 人事評価を起動中... (port 8503)"
+# 4. 営業管理 (Streamlit, port 8503)
+echo "[4/6] 営業管理を起動中... (port 8503)"
+cd "$SCRIPT_DIR/eigyo-kanri"
+if command -v streamlit &>/dev/null; then
+    $PYTHON database.py &>/dev/null
+    streamlit run app.py --server.port 8503 --server.headless true &>/dev/null &
+    PID_EIGYO=$!
+    echo "      PID: $PID_EIGYO"
+else
+    echo "      ⚠ streamlit 未インストール。skip"
+    PID_EIGYO=""
+fi
+
+# 5. 人事評価 — 入力アプリ (port 8504) / 管理アプリ (port 8505)
+echo "[5/6] 人事評価を起動中... (入力 port 8504 / 管理 port 8505)"
 cd "$SCRIPT_DIR/evaluation"
 if command -v streamlit &>/dev/null; then
-    streamlit run app.py --server.port 8503 --server.headless true &>/dev/null &
+    streamlit run app.py --server.port 8504 --server.headless true &>/dev/null &
     PID_EVAL=$!
-    echo "      PID: $PID_EVAL"
+    streamlit run admin_app.py --server.port 8505 --server.headless true &>/dev/null &
+    PID_EVAL_ADMIN=$!
+    echo "      PID: $PID_EVAL (入力) / $PID_EVAL_ADMIN (管理)"
 else
     echo "      ⚠ streamlit 未インストール。skip"
     PID_EVAL=""
+    PID_EVAL_ADMIN=""
 fi
 
-# 5. ポータルページを開く
+# 6. 日報管理（勤怠集計） (Streamlit, port 8510)
+echo "[6/6] 日報管理を起動中... (port 8510)"
+cd "$SCRIPT_DIR/nippou-kanri"
+if command -v streamlit &>/dev/null; then
+    $PYTHON database.py &>/dev/null
+    streamlit run app.py --server.port 8510 --server.headless true &>/dev/null &
+    PID_NIPPOU_KANRI=$!
+    echo "      PID: $PID_NIPPOU_KANRI"
+else
+    echo "      ⚠ streamlit 未インストール。skip"
+    PID_NIPPOU_KANRI=""
+fi
+
+# 7. ポータルページを開く
 echo ""
 sleep 2
 
@@ -155,7 +191,10 @@ echo "  ポータル:   file://$SCRIPT_DIR/portal/index.html"
 echo "  材料管理:   http://localhost:5000"
 echo "  入札管理:   http://localhost:8501"
 echo "  作業日報:   http://localhost:8502"
-echo "  人事評価:   http://localhost:8503"
+echo "  営業管理:   http://localhost:8503"
+echo "  人事評価(入力): http://localhost:8504"
+echo "  人事評価(管理): http://localhost:8505"
+echo "  日報管理:   http://localhost:8510"
 echo ""
 echo "  Ctrl+C で全アプリを停止します。"
 
