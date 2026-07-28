@@ -437,6 +437,40 @@ CREATE TABLE IF NOT EXISTS eval.eval_overall (
 );
 
 -- ============================================================
+-- 工期管理 (schedule) — 現場ごとの工程・マイルストーン
+-- ============================================================
+CREATE SCHEMA IF NOT EXISTS schedule;
+
+-- 工程（1現場に複数の工程フェーズ）
+CREATE TABLE IF NOT EXISTS schedule.phases (
+    id          SERIAL PRIMARY KEY,
+    site_id     INTEGER NOT NULL REFERENCES master.sites(id) ON DELETE CASCADE,
+    name        TEXT NOT NULL,              -- 工程名（例: 仮設, 幹線, 照明, 検査）
+    start_date  DATE,
+    end_date    DATE,
+    progress    INTEGER NOT NULL DEFAULT 0, -- 進捗率 0-100
+    sort_order  INTEGER NOT NULL DEFAULT 0,
+    color       TEXT DEFAULT '',            -- ガントチャート色 (例: #3b82f6)
+    memo        TEXT DEFAULT '',
+    created_at  TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at  TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+-- マイルストーン（検査日・引き渡し日など重要日）
+CREATE TABLE IF NOT EXISTS schedule.milestones (
+    id          SERIAL PRIMARY KEY,
+    site_id     INTEGER NOT NULL REFERENCES master.sites(id) ON DELETE CASCADE,
+    name        TEXT NOT NULL,              -- 例: 中間検査, 完了検査, 引き渡し
+    target_date DATE NOT NULL,
+    completed   BOOLEAN NOT NULL DEFAULT FALSE,
+    memo        TEXT DEFAULT '',
+    created_at  TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_schedule_phases_site ON schedule.phases(site_id);
+CREATE INDEX IF NOT EXISTS idx_schedule_milestones_site ON schedule.milestones(site_id);
+
+-- ============================================================
 -- インデックス
 -- ============================================================
 
