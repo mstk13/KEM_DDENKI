@@ -1,25 +1,41 @@
-# Git 運用ルール
+# Git 運用ルール（作業手順）
 
-このリポジトリの編集手順です。**このルールを守れば、ブランチが分岐して収拾がつかなくなる事故は起きません。**
+このリポジトリの編集手順です。ブランチの役割は README「ブランチ運用ルール」に従います。
 
----
+```
+main    ← 本番環境（サーバーが毎朝自動でpull）   管理者のみマージ
+ ↑
+develop ← 開発用（コードの追加・修正はここ）      開発者全員
+```
 
-## いちばん大事なこと
-
-> **始めるときに「作り直す」、終わったら「マージして消す」**
-
-`deploy-update` は**使い捨てのブランチ**です。同じブランチを何日も使い回さないでください。
+**編集は必ず `develop` で行います。`main` を直接編集しないでください。**
 
 ---
 
 ## かんたんな方法（.bat をダブルクリック）
 
-| 場面 | 実行するファイル |
-|------|-----------------|
-| 作業を始めるとき | `work_start.bat` |
-| 編集が終わったとき | `work_finish.bat` |
+| 場面 | 実行するファイル | 何をするか |
+|------|-----------------|-----------|
+| 作業を始めるとき | `work_start.bat` | develop を最新にする |
+| 編集が終わったとき | `work_finish.bat` | develop に反映する |
+| 本番に反映するとき | `release.bat` | develop → main（管理者用） |
 
-`work_start.bat` は未コミットの変更や未反映のコミットがあると**停止して警告**します。その場合は先に `work_finish.bat` を実行してください。
+`work_finish.bat` は develop までです。**本番には反映されません。**
+本番に出すときだけ `release.bat` を実行します。
+
+---
+
+## 1日の流れ
+
+```
+🌅 朝    work_start.bat     ← 他の開発者の変更と本番の修正を取り込む
+              ↓
+💻 日中   ファイルを編集
+              ↓
+🌇 夕方   work_finish.bat    ← develop に反映（ここまでは本番に影響なし）
+              ↓
+🚀 頃合いを見て release.bat  ← 本番(main)に反映
+```
 
 ---
 
@@ -29,15 +45,11 @@
 
 ```powershell
 cd C:\Users\Kenmo\KEM_DDENKI
-git fetch origin
-git switch -C deploy-update origin/main
-git log --oneline -1
+git fetch origin --prune
+git switch develop
+git merge origin/develop     # 他の開発者の変更を取り込む
+git merge origin/main        # 本番側の修正を取り込む
 ```
-
-`switch -C` は「deploy-update を、最新の main の地点で作り直す」という意味です。
-古いブランチが残っていても分岐点ごと上書きされます。
-
-> ⚠️ 前回の変更を main にマージしていない場合、この操作で失われます。先に手順3を済ませてください。
 
 ### 2. 編集してコミット
 
@@ -46,24 +58,48 @@ git add -A
 git commit -m "feat(evaluation): 評価項目に自由記述欄を追加"
 ```
 
-### 3. main に反映
-
-```powershell
-git push -u origin deploy-update
-gh pr create --base main --head deploy-update --fill
-gh pr merge --merge --delete-branch
-```
-
-`--delete-branch` でマージと同時にブランチが消えます。**これが事故防止の要**です。
-
-### 4. 確認
+### 3. develop に反映
 
 ```powershell
 git fetch origin
-git log --oneline -3 origin/main
+git merge origin/develop     # 送る前に相手の変更を取り込む
+git push origin develop
 ```
 
-自分の変更が載っていれば完了。次はまた手順1に戻ります。
+### 4. 本番(main)に反映（管理者のみ）
+
+```powershell
+gh pr create --base main --head develop --fill
+gh pr merge --merge
+git merge origin/main        # develop を main に追いつかせる
+git push origin develop
+```
+
+---
+
+## 大事な注意
+
+### `develop` は消さない・作り直さない
+
+`develop` は**他の開発者と共有する常設ブランチ**です。
+
+```powershell
+git switch -C develop ...    # ❌ 絶対にやらない（相手の作業が消えます）
+git push --force             # ❌ 絶対にやらない
+```
+
+以前の `deploy-update` は使い捨てブランチでしたが、**`develop` は扱いが逆**です。取り込む（merge）ことはあっても、作り直すことはありません。
+
+### 作業前と作業後を必ずセットで
+
+- **作業前**: `work_start.bat` で相手の変更を取り込む
+- **作業後**: `work_finish.bat` でその日のうちに push
+
+push しないまま別のPCで作業すると、同じ機能を二重に作ることになります。
+
+### `main` を直接編集しない
+
+`main` に直接コミットすると `develop` との間に差ができ、そこから分岐が始まります。`main` への反映は必ず `release.bat`（＝ develop → main のPR）経由で行ってください。
 
 ---
 
@@ -84,67 +120,31 @@ git log --oneline -3 origin/main
 ## 迷ったときの確認コマンド
 
 ```powershell
-git branch --show-current            # 今どのブランチにいる？
-git status                           # 未コミットの変更は？
-git log --oneline -1 origin/main     # main はどこまで進んだ？
-git log --oneline origin/main..HEAD  # 自分の未反映コミット一覧
+git branch --show-current                    # 今どのブランチにいる？
+git status                                   # 未コミットの変更は？
+git log --oneline origin/develop..HEAD       # developに未反映の自分のコミット
+git log --oneline origin/main..origin/develop # 本番に未反映の変更
 ```
 
 **push する前に1行目を確認する癖をつけてください。**
 
 ---
 
-## 複数のPCで作業する場合
+## 困ったとき
 
-このリポジトリは2つの環境から更新されています。二重作業を防ぐため:
+| 症状 | 対処 |
+|---|---|
+| `[エラー] 衝突しました` | 同じ場所を2人が変更しています。画面を見せて相談してください |
+| 警告が出て進めない | 作業が消えるのを防ぐ門番です。無視せず読んでください |
+| 何をしたか忘れた | 上の確認コマンドを実行してください |
+| 間違えて消したかも | **push前なら復元できます。** すぐ相談してください |
 
-- **作業前**: 必ず手順1（`work_start.bat`）を実行して最新に合わせる
-- **作業後**: その日のうちに手順3（`work_finish.bat`）で反映してから閉じる
-
-push しないまま別のPCで作業すると、同じ機能を二重に作ることになります。
-
----
-
-## 作業が長引いて main が進んだとき
-
-数日にわたる作業中に main が更新された場合:
-
-```powershell
-git fetch origin
-git rebase origin/main
-```
-
-自分の変更を最新 main の上に載せ直せます。週1回程度やっておくと分岐が開きません。
-
----
-
-## 仕組みのイメージ
-
-main を**コピー**して、コピー側で編集し、最後に main へ**合流**させています。
-
-```
-main ●━━━━━━━━━━━━━━━●━━━●  ← 本体は進み続ける
-      ┃                    ↑
-      ┗━ コピー ●━━●━━━━━━┛  合流(マージ)
-```
-
-コピーは**写真**と同じで、撮った瞬間で時間が止まります。
-本体が先に進んでも写真は古いままなので、**毎回撮り直す**必要があります。
-
-合流は上書きではなく**差分の足し込み**です。自分が変えた部分だけが main に加わるので、他の人の変更は消えません。ただし同じ場所を両方が変えているとコンフリクト（衝突）になります。こまめに撮り直せばほぼ起きません。
-
----
-
-## 補足
-
-- GitHub の `tree/ブランチ名` は別フォルダではなく、**同じリポジトリの別バージョンの見え方**です。
-- 作業フォルダ `C:\Users\Kenmo\KEM_DDENKI` は1つのままで、中身が切り替わります。
-- `git switch main` は `main` が `C:\Users\Kenmo\kem_wt` で使用中のためエラーになります。上の手順は main に切り替えずに済むように作られています。
+`.bat` は途中で止まっても壊れません。迷ったら閉じて相談してください。
 
 ---
 
 ## 過去の経緯（2026-07）
 
-7/23に一時的な作業用として作った `deploy-update` を削除し忘れ、7/27にそのブランチ上で作業を再開したため、main と完全に分岐しました（19ファイルでコンフリクト）。同じ機能が両方のブランチに別々のコミットとして存在する状態になり、7/28に `deploy-update` を削除して main 1本に整理しました。
+7/23に一時的な作業用として作った `deploy-update` を削除し忘れ、7/27にそのブランチ上で作業を再開したため、main と完全に分岐しました（19ファイルでコンフリクト）。同じ機能が両方に別々のコミットとして存在する状態になり、7/28に整理しました。
 
-**原因は「ブランチの使い回し」です。** 毎回作り直せば再発しません。
+**原因は「合流し忘れた古いブランチの上で作業したこと」です。** `work_start.bat` が毎回 `origin/develop` と `origin/main` を取り込むのは、これを防ぐためです。
