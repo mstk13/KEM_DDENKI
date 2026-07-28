@@ -3,6 +3,8 @@
 従業員ごとの評価一覧・詳細・集計と、評価基準／設問の編集を行う。
 評価の入力は入力アプリ（app.py）側。
 
+閲覧には社員IDによるログインが必要（admin_users.json で許可した社員のみ）。
+
 起動: streamlit run admin_app.py --server.port 8505
 """
 from __future__ import annotations
@@ -17,6 +19,7 @@ import streamlit as st
 
 # core / views / pdf_export はこのファイルと同じフォルダにある（起動ディレクトリに依存しない）
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import auth          # noqa: E402
 import core          # noqa: E402
 import pdf_export    # noqa: E402
 import views         # noqa: E402
@@ -25,6 +28,11 @@ st.set_page_config(page_title="人事評価 管理", page_icon="🗂️", layout
 # 設問文がブラウザに翻訳され別の意味に書き換わるのを防ぐ（title より先に実行する）
 views.disable_browser_translation()
 st.title("🗂️ 人事評価 管理")
+
+# ログインしていなければ、ここでログイン画面を出して以降を実行しない。
+current_user = auth.require_login()
+auth.render_sidebar_user()
+st.sidebar.divider()
 
 ALL_ROLES = core.get_all_roles() or ["事務方", "現場方", "役員"]
 
