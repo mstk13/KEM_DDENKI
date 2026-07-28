@@ -1,5 +1,8 @@
-﻿# 作業完了 - deploy-update の変更を main に反映する
+﻿# 作業完了 - 編集内容を develop に反映する
 # work_finish.bat から呼び出されます
+#
+# ここでは develop への反映までを行う。
+# 本番(main)への反映は release.bat（管理者用）で別途行う。
 
 $repo = Split-Path -Parent $PSScriptRoot
 Set-Location $repo
@@ -18,9 +21,8 @@ function Stop-Here($code) {
     exit $code
 }
 
-Show-Title '作業完了 - main に反映します'
+Show-Title '作業完了 - develop に反映します'
 
-# --- Git チェック ---
 if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
     Write-Host '[エラー] Git が見つかりません。' -ForegroundColor Red
     Stop-Here 1
@@ -28,9 +30,9 @@ if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
 
 # --- ブランチ確認 ---
 $branch = git branch --show-current
-if ($branch -ne 'deploy-update') {
+if ($branch -ne 'develop') {
     Write-Host "[警告] 現在のブランチは `"$branch`" です。" -ForegroundColor Yellow
-    Write-Host '  このスクリプトは deploy-update 用です。'
+    Write-Host '  編集は develop で行う決まりです（README「ブランチ運用ルール」）。'
     Write-Host '  work_start.bat から始めてください。'
     Stop-Here 1
 }
@@ -65,19 +67,28 @@ if ($dirty) {
     Write-Host '[情報] 未コミットの変更はありません。'
 }
 
-# --- リモートの最新を取得 ---
+# --- リモートの最新を取得して取り込む ---
 Write-Host ''
 Write-Host '[確認中] リモートの最新状態を取得しています...'
-git fetch origin --quiet
+git fetch origin --prune --quiet
 if ($LASTEXITCODE -ne 0) {
-    Write-Host '[エラー] GitHub への接続に失敗しました。ネットワークを確認してください。' -ForegroundColor Red
+    Write-Host '[エラー] GitHub への接続に失敗しました。' -ForegroundColor Red
     Stop-Here 1
 }
 
-# --- 反映するコミットがあるか ---
-$commits = git log --oneline origin/main..HEAD
+# 送る前に相手の変更を取り込んでおく（push が弾かれるのを防ぐ）
+git merge origin/develop --no-edit
+if ($LASTEXITCODE -ne 0) {
+    Write-Host ''
+    Write-Host '[エラー] 他の開発者の変更と衝突しました。' -ForegroundColor Red
+    Write-Host '  そのまま画面を見せて相談してください。'
+    Stop-Here 1
+}
+
+# --- 送る変更があるか ---
+$commits = git log --oneline origin/develop..HEAD
 if (-not $commits) {
-    Write-Host '[情報] main に反映する変更がありません。作業は完了しています。' -ForegroundColor Green
+    Write-Host '[情報] develop に反映する変更がありません。作業は完了しています。' -ForegroundColor Green
     Stop-Here 0
 }
 
@@ -87,61 +98,30 @@ $commits | ForEach-Object { Write-Host "  $_" }
 
 # --- push ---
 Write-Host ''
-Write-Host '[送信中] GitHub に push しています...'
-git push -u origin deploy-update
+Write-Host '[送信中] develop に push しています...'
+git push origin develop
 if ($LASTEXITCODE -ne 0) {
     Write-Host '[エラー] push に失敗しました。' -ForegroundColor Red
     Stop-Here 1
 }
 
-# --- GitHub CLI が無ければ手動案内 ---
-if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
+git fetch origin --quiet
+
+Show-Title 'develop への反映が完了しました'
+
+Write-Host '  現在の develop:'
+git log --oneline -5 origin/develop | ForEach-Object { Write-Host "    $_" }
+Write-Host ''
+
+# --- 本番との差を知らせる ---
+$unreleased = git log --oneline origin/main..origin/develop
+if ($unreleased) {
+    Write-Host '  本番(main)にまだ反映されていない変更:' -ForegroundColor Yellow
+    $unreleased | ForEach-Object { Write-Host "    $_" -ForegroundColor Yellow }
     Write-Host ''
-    Write-Host '[注意] GitHub CLI (gh) が見つかりません。' -ForegroundColor Yellow
-    Write-Host '  push は完了しました。以下のページから手動で Pull Request を作成してください。'
-    Write-Host '  https://github.com/mstk13/KEM_DDENKI/pull/new/deploy-update' -ForegroundColor Cyan
-    Stop-Here 0
+    Write-Host '  本番に反映するときは release.bat を実行してください。' -ForegroundColor Yellow
+    Write-Host '  （main はサーバーが毎朝自動でpullする本番用ブランチです）'
 }
 
-# --- PR 作成 ---
-Write-Host ''
-Write-Host '[PR作成中] Pull Request を作成しています...'
-gh pr create --base main --head deploy-update --fill
-if ($LASTEXITCODE -ne 0) {
-    Write-Host '[注意] PR は既に存在する可能性があります。続けてマージを試みます。' -ForegroundColor Yellow
-}
-
-# --- マージ ---
-# --delete-branch は使わない。gh はマージ後にローカルを main へ切り替えてから
-# 削除するため、切り替えを妨げるもの（別ワークツリーでの使用、未コミットの変更）が
-# あると失敗し、GitHub上に作業ブランチが消し残る。実際に PR #3 でこれが起きた。
-# マージとブランチ削除を分けて実行し、確実に消す。
-Write-Host ''
-Write-Host '[マージ中] main に反映しています...'
-gh pr merge --merge
-if ($LASTEXITCODE -ne 0) {
-    Write-Host ''
-    Write-Host '[エラー] マージに失敗しました。' -ForegroundColor Red
-    Write-Host '  コンフリクト (変更の衝突) が起きている可能性があります。'
-    Write-Host '  GitHub のページで確認してください:'
-    Write-Host '  https://github.com/mstk13/KEM_DDENKI/pulls' -ForegroundColor Cyan
-    Stop-Here 1
-}
-
-# --- 使い終わったブランチをGitHubから削除する ---
-Write-Host '[片付け中] GitHub 上の作業ブランチを削除しています...'
-git push origin --delete deploy-update
-if ($LASTEXITCODE -ne 0) {
-    Write-Host '[注意] ブランチの削除に失敗しました。次回 work_start.bat 実行時に作り直されるため実害はありません。' -ForegroundColor Yellow
-}
-
-git fetch origin --prune --quiet
-
-Show-Title '反映完了！'
-
-Write-Host '  現在の main:'
-git log --oneline -5 origin/main | ForEach-Object { Write-Host "    $_" }
-Write-Host ''
-Write-Host '  次に作業を始めるときは work_start.bat を実行してください。' -ForegroundColor Green
 Write-Host ''
 Stop-Here 0
