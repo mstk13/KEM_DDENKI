@@ -8,7 +8,7 @@ import psycopg2
 import psycopg2.extras
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "shared"))
-from db import get_conn as _shared_get_conn, DATABASE_URL  # noqa: E402
+from dbconn import get_conn as _shared_get_conn, DATABASE_URL  # noqa: E402
 
 
 class _PgWrapper:

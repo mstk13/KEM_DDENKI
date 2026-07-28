@@ -13,7 +13,7 @@ from typing import Any
 import psycopg2.extras
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "shared"))
-from db import get_conn  # noqa: E402
+from dbconn import get_conn  # noqa: E402
 
 from config import DEFAULT_STATUS, DEFAULT_INDUSTRY
 

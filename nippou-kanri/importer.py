@@ -228,16 +228,23 @@ def sync(path: str | Path = DEFAULT_SOURCE_DB, date_from: str = "", date_to: str
 def imported_count() -> int:
     """取込済みの日報件数。"""
     with db.get_conn() as conn:
-        return conn.execute(
-            "SELECT COUNT(*) FROM reports WHERE source_key LIKE ?", (f"{SOURCE_PREFIX}:%",)
-        ).fetchone()[0]
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT COUNT(*) FROM attend.reports WHERE source_key LIKE %s",
+                (f"{SOURCE_PREFIX}:%",),
+            )
+            return cur.fetchone()[0]
 
 
 def delete_imported() -> int:
     """取込分だけを削除する(手入力・自動抽出したデータは残す)。"""
     with db.get_conn() as conn:
-        ids = [r[0] for r in conn.execute(
-            "SELECT id FROM reports WHERE source_key LIKE ?", (f"{SOURCE_PREFIX}:%",))]
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT id FROM attend.reports WHERE source_key LIKE %s",
+                (f"{SOURCE_PREFIX}:%",),
+            )
+            ids = [r[0] for r in cur.fetchall()]
     for rid in ids:
         db.delete_report(rid)
     return len(ids)
