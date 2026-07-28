@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ミニPC選定アドバイザー</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f0f4f8; color: #2d3748; }
+
+        .header {
+            background: linear-gradient(135deg, #1e6bb8, #2e8b57);
+            color: #fff; padding: 1.2rem 1.5rem; text-align: center;
+        }
+        .header h1 { font-size: 1.2rem; font-weight: 700; }
+        .header p { font-size: 0.8rem; opacity: 0.85; margin-top: 0.2rem; }
+
+        .container { display: flex; height: calc(100vh - 72px); }
+
+        /* --- 左: チャット --- */
+        .chat-panel { flex: 1; display: flex; flex-direction: column; background: #fff; }
+        .chat-messages {
+            flex: 1; overflow-y: auto; padding: 1.2rem;
+            display: flex; flex-direction: column; gap: 0.8rem;
+        }
+        .msg { max-width: 85%; padding: 0.8rem 1rem; border-radius: 12px; line-height: 1.6; font-size: 0.9rem; }
+        .msg a { color: #1e6bb8; text-decoration: underline; }
+        .msg-bot { background: #f0f4f8; align-self: flex-start; border-bottom-left-radius: 4px; }
+        .msg-user { background: #1e6bb8; color: #fff; align-self: flex-end; border-bottom-right-radius: 4px; }
+        .msg-user a { color: #bee3f8; }
+
+        .chat-input-area { display: flex; gap: 0.5rem; padding: 0.8rem 1rem; border-top: 1px solid #e2e8f0; }
+        .chat-input-area input {
+            flex: 1; padding: 0.6rem 1rem; border: 1px solid #cbd5e0; border-radius: 8px;
+            font-size: 0.9rem; outline: none;
+        }
+        .chat-input-area input:focus { border-color: #1e6bb8; }
+        .chat-input-area button {
+            padding: 0.6rem 1.2rem; background: #1e6bb8; color: #fff; border: none;
+            border-radius: 8px; font-weight: 600; cursor: pointer;
+        }
+        .chat-input-area button:hover { background: #1a5c9e; }
+
+        /* --- 右: 商品カード --- */
+        .products-panel {
+            width: 420px; overflow-y: auto; padding: 1rem;
+            background: #f7fafc; border-left: 1px solid #e2e8f0;
+        }
+        .products-panel h2 { font-size: 1rem; font-weight: 600; margin-bottom: 0.8rem; color: #4a5568; }
+
+        .pc-card {
+            background: #fff; border: 1px solid #e2e8f0; border-radius: 12px;
+            padding: 1rem; margin-bottom: 0.8rem; transition: box-shadow 0.2s;
+        }
+        .pc-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+        .pc-card .badge {
+            display: inline-block; font-size: 0.65rem; font-weight: 600;
+            padding: 0.15rem 0.5rem; border-radius: 6px; margin-bottom: 0.5rem;
+        }
+        .badge-recommend { background: #c6f6d5; color: #22543d; }
+        .badge-budget { background: #bee3f8; color: #2a4365; }
+        .badge-upgrade { background: #fefcbf; color: #744210; }
+        .pc-card h3 { font-size: 0.95rem; font-weight: 600; margin-bottom: 0.3rem; }
+        .pc-card .price { font-size: 1.1rem; font-weight: 700; color: #e53e3e; margin-bottom: 0.4rem; }
+        .pc-card .specs { font-size: 0.78rem; color: #718096; line-height: 1.5; margin-bottom: 0.6rem; }
+        .pc-card .pros { font-size: 0.78rem; color: #2d3748; margin-bottom: 0.6rem; }
+        .pc-card .pros li { margin-bottom: 0.15rem; }
+        .pc-card a.buy-btn {
+            display: block; text-align: center; padding: 0.5rem;
+            background: #f59e0b; color: #fff; border-radius: 8px;
+            text-decoration: none; font-weight: 600; font-size: 0.85rem;
+        }
+        .pc-card a.buy-btn:hover { background: #d97706; }
+
+        .compare-table { width: 100%; border-collapse: collapse; font-size: 0.78rem; margin-top: 0.8rem; }
+        .compare-table th, .compare-table td {
+            padding: 0.4rem 0.5rem; border: 1px solid #e2e8f0; text-align: center;
+        }
+        .compare-table th { background: #f0f4f8; font-weight: 600; }
+        .compare-table td:first-child { text-align: left; font-weight: 500; }
+
+        .section-title {
+            font-size: 0.85rem; font-weight: 600; color: #4a5568;
+            margin: 1rem 0 0.5rem; padding-bottom: 0.3rem; border-bottom: 1px solid #e2e8f0;
+        }
+
+        @media (max-width: 900px) {
+            .container { flex-direction: column; }
+            .products-panel { width: 100%; max-height: 50vh; border-left: none; border-top: 1px solid #e2e8f0; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <h1>🖥️ ミニPC選定アドバイザー</h1>
+    <p>ケンモチ電機サーバー用ミニPCの検討</p>
+</div>
+
+<div class="container">
+    <!-- チャット -->
+    <div class="chat-panel">
+        <div class="chat-messages" id="chatMessages"></div>
+        <div class="chat-input-area">
+            <input type="text" id="chatInput" placeholder="質問を入力（例: 電気代はどのくらい？）" />
+            <button onclick="sendMessage()">送信</button>
+        </div>
+    </div>
+
+    <!-- 商品パネル -->
+    <div class="products-panel">
+        <h2>おすすめモデル</h2>
+
+        <div class="pc-card">
+            <span class="badge badge-recommend">おすすめ</span>
+            <h3>Beelink EQ12 Pro (N100)</h3>
+            <div class="price">約 ¥25,000〜30,000</div>
+            <div class="specs">
+                CPU: Intel N100 (4コア, 最大3.4GHz)<br>
+                RAM: 16GB DDR5 / SSD: 500GB<br>
+                LAN: 2.5Gbps デュアル / WiFi6<br>
+                消費電力: アイドル6W / 最大15W<br>
+                サイズ: 約12.4 x 11.3 x 3.7cm
+            </div>
+            <ul class="pros">
+                <li>✅ サーバー用途で最も実績あり</li>
+                <li>✅ デュアルLANでネットワーク冗長化可能</li>
+                <li>✅ DDR5で高速メモリ</li>
+                <li>✅ 電気代 月150〜300円</li>
+            </ul>
+            <a href="https://www.amazon.co.jp/-/en/EQ12/dp/B0C339KVH9" target="_blank" class="buy-btn">Amazon で見る →</a>
+        </div>
+
+        <div class="pc-card">
+            <span class="badge badge-budget">コスパ重視</span>
+            <h3>GMKtec NucBox G3 (N100)</h3>
+            <div class="price">約 ¥20,000〜25,000</div>
+            <div class="specs">
+                CPU: Intel N100 (4コア, 最大3.4GHz)<br>
+                RAM: 16GB DDR4 / SSD: 512GB<br>
+                LAN: 2.5Gbps / WiFi5<br>
+                消費電力: アイドル6W / 最大15W<br>
+                サイズ: 約11.4 x 10.6 x 4.3cm
+            </div>
+            <ul class="pros">
+                <li>✅ 最も安い価格帯</li>
+                <li>✅ 十分なスペック（Docker 10〜15コンテナ対応）</li>
+                <li>✅ VESAマウント付属（モニター裏に設置可能）</li>
+            </ul>
+            <a href="https://www.amazon.co.jp/GMKtec-%E6%9C%80%E6%96%B0%E7%AC%AC12%E4%B8%96%E4%BB%A3%E3%82%A4%E3%83%B3%E3%83%86%E3%83%ABAlder-%E6%9C%80%E5%A4%A7%E5%91%A8%E6%B3%A2%E6%95%B03-4GHz-NVMe%EF%BC%88PCIe3-0%EF%BC%89GMKtec-2-5G%E6%9C%89%E7%B7%9ALAN%E3%83%9D%E3%83%BC%E3%83%88%E4%BB%98%E3%81%8D/dp/B0BXS9DWGM" target="_blank" class="buy-btn">Amazon で見る →</a>
+        </div>
+
+        <div class="pc-card">
+            <span class="badge badge-upgrade">最新モデル</span>
+            <h3>GMKtec N150 (Twin Lake)</h3>
+            <div class="price">約 ¥28,000〜33,000</div>
+            <div class="specs">
+                CPU: Intel N150 (4コア, 最大3.6GHz)<br>
+                RAM: 12-16GB DDR5 / SSD: 512GB<br>
+                LAN: 2.5Gbps / WiFi6 / BT5.2<br>
+                消費電力: アイドル6W / 最大15W<br>
+                サイズ: 約11.4 x 10.6 x 4.3cm
+            </div>
+            <ul class="pros">
+                <li>✅ N100の後継（約6-10%性能向上）</li>
+                <li>✅ DDR5対応の最新設計</li>
+                <li>✅ 長期間使える将来性</li>
+            </ul>
+            <a href="https://www.amazon.co.jp/GMKtec%E3%83%9F%E3%83%8Bpc-%E6%9C%80%E6%96%B0%E7%AC%AC12%E4%B8%96%E4%BB%A3%E3%82%A4%E3%83%B3%E3%83%86%E3%83%ABAlder-%E6%9C%80%E5%A4%A7%E5%91%A8%E6%B3%A2%E6%95%B03-4GHz-SATA%EF%BC%88PCIe3-0%EF%BC%89-RJ45%E6%9C%89%E7%B7%9ALAN%E3%83%9D%E3%83%BC%E3%83%88%E4%BB%98%E3%81%8D/dp/B0C6T2T4JH" target="_blank" class="buy-btn">Amazon で見る →</a>
+        </div>
+
+        <div class="section-title">スペック比較表</div>
+        <table class="compare-table">
+            <tr>
+                <th></th>
+                <th>Beelink EQ12</th>
+                <th>GMKtec G3</th>
+                <th>GMKtec N150</th>
+            </tr>
+            <tr><td>CPU</td><td>N100</td><td>N100</td><td>N150</td></tr>
+            <tr><td>RAM</td><td>16GB DDR5</td><td>16GB DDR4</td><td>12-16GB DDR5</td></tr>
+            <tr><td>SSD</td><td>500GB</td><td>512GB</td><td>512GB</td></tr>
+            <tr><td>LAN</td><td>2.5G x2</td><td>2.5G x1</td><td>2.5G x1</td></tr>
+            <tr><td>WiFi</td><td>WiFi6</td><td>WiFi5</td><td>WiFi6</td></tr>
+            <tr><td>消費電力</td><td>6-15W</td><td>6-15W</td><td>6-15W</td></tr>
+            <tr><td>月の電気代</td><td>約¥150-300</td><td>約¥150-300</td><td>約¥150-300</td></tr>
+            <tr><td>価格帯</td><td>¥25,000〜</td><td>¥20,000〜</td><td>¥28,000〜</td></tr>
+        </table>
+
+        <div class="section-title">ケンモチ電機の要件</div>
+        <div style="font-size:0.78rem; color:#4a5568; line-height:1.6;">
+            <b>必要なもの:</b><br>
+            ・Docker で7つのアプリを同時実行<br>
+            ・RAM 8GB以上（16GB推奨）<br>
+            ・SSD 5GB以上の空き<br>
+            ・有線LAN（安定性のため）<br>
+            ・24時間常時稼働<br><br>
+            <b>結論:</b> どのモデルでも十分対応可能です。<br>
+            迷ったら <b>Beelink EQ12</b>（実績・デュアルLAN）がおすすめ。
+        </div>
+    </div>
+</div>
+
+<script>
+const QA = [
+    {
+        keywords: ["電気代", "電気", "電力", "消費"],
+        answer: "N100/N150搭載ミニPCのアイドル時消費電力は約6〜8W、フル負荷でも15W以下です。<br><br>24時間つけっぱなしにした場合の電気代は<b>月150〜300円</b>程度です（1kWh=30円で計算）。<br><br>普通のデスクトップPC（100〜300W）をサーバーにする場合と比べると、<b>年間で2〜3万円の電気代節約</b>になります。"
+    },
+    {
+        keywords: ["うるさい", "音", "静か", "騒音", "ファン"],
+        answer: "ミニPCは非常に静かです。アイドル時はファンがほぼ回らず<b>無音に近い</b>状態です。<br><br>負荷がかかってもファンの音は30dB以下（ささやき声程度）なので、事務所に置いても気になりません。<br><br>Beelinkは特に静音性に定評があります。"
+    },
+    {
+        keywords: ["おすすめ", "どれ", "どっち", "選ぶ", "迷"],
+        answer: "ケンモチ電機のサーバー用途なら <b>Beelink EQ12 Pro（N100, 16GB, 500GB）</b> が一番おすすめです。<br><br>理由:<br>・デュアルLAN（2.5Gbps x2）でネットワークが安定<br>・DDR5メモリで高速<br>・サーバー用途での実績が最も多い<br>・価格も2.5〜3万円と手頃<br><br>予算を抑えたいなら GMKtec G3（約2万円）でも十分動きます。"
+    },
+    {
+        keywords: ["docker", "コンテナ", "アプリ", "動く", "スペック", "性能"],
+        answer: "N100/N150は Docker で<b>10〜15コンテナを余裕で同時実行</b>できます。<br><br>ケンモチ電機のアプリ構成（7アプリ + Nginx）は問題なく動きます。CPU使用率は通常10〜20%程度に収まるでしょう。<br><br>RAM は <b>16GB を推奨</b>します。8GBでも動きますが、余裕を持って16GBあると安心です。"
+    },
+    {
+        keywords: ["設定", "セットアップ", "インストール", "手順", "やり方"],
+        answer: "ミニPCが届いたら以下の手順でセットアップできます:<br><br>1. ミニPCの電源を入れて Windows が起動<br>2. Docker Desktop をインストール（<a href='https://www.docker.com/products/docker-desktop/' target='_blank'>ダウンロード</a>）<br>3. Git をインストール（<a href='https://gitforwindows.org/' target='_blank'>ダウンロード</a>）<br>4. コマンドプロンプトで:<br><code>git clone https://github.com/mstk13/KEM_DDENKI.git</code><br><code>cd KEM_DDENKI</code><br><code>docker\\setup_server.bat</code><br><br>これで全アプリが起動します。他のPCからは<br><code>http://ミニPCのIP/</code> でアクセスできます。"
+    },
+    {
+        keywords: ["壊れ", "故障", "寿命", "耐久", "保証"],
+        answer: "ミニPCの一般的な寿命は <b>3〜5年以上</b> です。<br><br>・SSD: 書き込み量が少ないサーバー用途なら5年以上持つ<br>・ファン: 省電力CPUのため負荷が低く長持ち<br>・保証: Amazon購入なら通常1年のメーカー保証<br><br>万が一壊れても、Docker構成なので <b>別のPCに同じ手順でセットアップすれば即復旧</b> できます。DBのバックアップだけ定期的に取っておけば安心です。"
+    },
+    {
+        keywords: ["場所", "置き場", "設置", "大き"],
+        answer: "ミニPCは手のひらサイズです:<br><br>・Beelink EQ12: <b>12.4 x 11.3 x 3.7cm</b>（CDケースくらい）<br>・GMKtec G3: <b>11.4 x 10.6 x 4.3cm</b><br><br>VESAマウント付きなので<b>モニターの裏に取り付け</b>ることもできます。事務所のどこにでも邪魔にならず置けます。"
+    },
+    {
+        keywords: ["n150", "n100", "違い", "差"],
+        answer: "N150 は N100 の後継モデルですが、性能差は<b>わずか6〜10%</b>です。<br><br>・N100: 最大3.4GHz、実績豊富、安い<br>・N150: 最大3.6GHz、最新設計、やや高い<br><br>サーバー用途では体感できる差はほぼありません。価格差が小さければ N150、コスパ重視なら N100 で十分です。"
+    },
+    {
+        keywords: ["wifi", "有線", "lan", "ネットワーク", "接続"],
+        answer: "サーバーとして使う場合は<b>有線LAN接続を強く推奨</b>します。<br><br>理由:<br>・WiFiは電子レンジ等の干渉で接続が切れることがある<br>・有線の方が安定して高速<br>・サーバーが落ちると全員がアクセスできなくなる<br><br>Beelink EQ12 はデュアルLAN（2ポート）なので、片方が壊れてももう片方で接続できます。"
+    },
+    {
+        keywords: ["買う", "購入", "注文", "amazon"],
+        answer: "以下のリンクから購入できます:<br><br>・<a href='https://www.amazon.co.jp/-/en/EQ12/dp/B0C339KVH9' target='_blank'>Beelink EQ12 Pro (16GB/500GB) → Amazon</a><br>・<a href='https://www.amazon.co.jp/GMKtec-%E6%9C%80%E6%96%B0%E7%AC%AC12%E4%B8%96%E4%BB%A3%E3%82%A4%E3%83%B3%E3%83%86%E3%83%ABAlder-%E6%9C%80%E5%A4%A7%E5%91%A8%E6%B3%A2%E6%95%B03-4GHz-NVMe%EF%BC%88PCIe3-0%EF%BC%89GMKtec-2-5G%E6%9C%89%E7%B7%9ALAN%E3%83%9D%E3%83%BC%E3%83%88%E4%BB%98%E3%81%8D/dp/B0BXS9DWGM' target='_blank'>GMKtec NucBox G3 (16GB/512GB) → Amazon</a><br><br>購入時の注意:<br>・<b>RAM 16GB</b> のモデルを選ぶこと（8GBモデルもあるので注意）<br>・プライムで買えば翌日届きます"
+    }
+];
+
+function addMessage(text, isUser) {
+    const div = document.createElement('div');
+    div.className = 'msg ' + (isUser ? 'msg-user' : 'msg-bot');
+    div.innerHTML = text;
+    document.getElementById('chatMessages').appendChild(div);
+    document.getElementById('chatMessages').scrollTop = 999999;
+}
+
+function findAnswer(input) {
+    const lower = input.toLowerCase();
+    for (const qa of QA) {
+        if (qa.keywords.some(k => lower.includes(k))) return qa.answer;
+    }
+    return "すみません、その質問にはまだ対応していません。<br><br>以下のような質問ができます:<br>・「電気代はどのくらい？」<br>・「おすすめはどれ？」<br>・「Dockerは動く？」<br>・「設置場所は？」<br>・「N100とN150の違いは？」<br>・「有線LANは必要？」<br>・「購入リンクを教えて」<br>・「壊れたらどうなる？」<br>・「セットアップ手順は？」";
+}
+
+function sendMessage() {
+    const input = document.getElementById('chatInput');
+    const text = input.value.trim();
+    if (!text) return;
+    addMessage(text, true);
+    input.value = '';
+    setTimeout(() => addMessage(findAnswer(text), false), 300);
+}
+
+document.getElementById('chatInput').addEventListener('keydown', e => {
+    if (e.key === 'Enter') sendMessage();
+});
+
+// 初期メッセージ
+addMessage(
+    "ケンモチ電機のサーバー用ミニPCの選定をお手伝いします。<br><br>" +
+    "右側に <b>おすすめ3モデル</b> と比較表を表示しています。<br>" +
+    "気になることを質問してください。例:<br><br>" +
+    "・「電気代はどのくらい？」<br>" +
+    "・「おすすめはどれ？」<br>" +
+    "・「セットアップ手順は？」<br>" +
+    "・「購入リンクを教えて」",
+    false
+);
+</script>
+
+</body>
+</html>

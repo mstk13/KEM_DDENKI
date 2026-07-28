@@ -1,138 +1,67 @@
-"""SQLite データベースの初期化と操作。
+"""PostgreSQL データベースの初期化と操作。
 
-仕様書 4章のテーブル設計（projects / costs / competitors / scrape_targets /
-unit_prices）を実装する。利益・原価率・差額などの派生値は保存時に自動計算する。
+仕様書 4章のテーブル設計（bid.projects / bid.costs / bid.competitors /
+bid.scrape_targets / bid.unit_prices / bid.qualifications）を実装する。
+利益・原価率・差額などの派生値は保存時に自動計算する。
 """
 from __future__ import annotations
 
-import sqlite3
-from contextlib import contextmanager
+import json
+import sys
 from datetime import datetime
-from typing import Any, Iterable, Iterator, Optional
+from pathlib import Path
+from typing import Any, Optional
 
-from config import BASE_DIR, DB_PATH
+import psycopg2
+import psycopg2.extras
+
+# shared モジュールをパスに追加
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "shared"))
+from db import get_conn  # noqa: E402
+
+from config import BASE_DIR
 
 
 # --------------------------------------------------------------------------- #
-# 接続ヘルパ
+# ヘルパー
 # --------------------------------------------------------------------------- #
-@contextmanager
-def get_conn() -> Iterator[sqlite3.Connection]:
-    """行を dict 風に扱える接続を返すコンテキストマネージャ。"""
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA foreign_keys = ON")
-    try:
-        yield conn
-        conn.commit()
-    finally:
-        conn.close()
-
-
 def _now() -> str:
     return datetime.now().isoformat(timespec="seconds")
 
 
+def _dict(row) -> dict[str, Any] | None:
+    return dict(row) if row else None
+
+
+def _dicts(rows) -> list[dict[str, Any]]:
+    return [dict(r) for r in rows]
+
+
+def _cur(conn):
+    return conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+
+
 # --------------------------------------------------------------------------- #
-# スキーマ
+# スキーマ初期化
 # --------------------------------------------------------------------------- #
-SCHEMA = """
-CREATE TABLE IF NOT EXISTS projects (
-    id          INTEGER PRIMARY KEY AUTOINCREMENT,
-    title       TEXT NOT NULL,
-    client      TEXT,
-    region      TEXT,
-    category    TEXT,
-    deadline    DATE,
-    budget      INTEGER,
-    source_url  TEXT,
-    status      TEXT NOT NULL DEFAULT '新着',
-    created_at  DATETIME NOT NULL,
-    updated_at  DATETIME NOT NULL,
-    UNIQUE(title, source_url)
-);
-
-CREATE TABLE IF NOT EXISTS costs (
-    id              INTEGER PRIMARY KEY AUTOINCREMENT,
-    project_id      INTEGER NOT NULL UNIQUE REFERENCES projects(id) ON DELETE CASCADE,
-    estimate_amount INTEGER,
-    actual_cost     INTEGER,
-    profit          INTEGER,
-    profit_rate     REAL,
-    memo            TEXT,
-    updated_at      DATETIME NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS competitors (
-    id                INTEGER PRIMARY KEY AUTOINCREMENT,
-    project_id        INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
-    competitor_name   TEXT,
-    competitor_amount INTEGER,
-    diff_amount       INTEGER,
-    source            TEXT,
-    memo              TEXT
-);
-
-CREATE TABLE IF NOT EXISTS scrape_targets (
-    id              INTEGER PRIMARY KEY AUTOINCREMENT,
-    name            TEXT NOT NULL,
-    url             TEXT NOT NULL UNIQUE,
-    region          TEXT,
-    is_active       INTEGER NOT NULL DEFAULT 1,
-    last_scraped_at DATETIME
-);
-
-CREATE TABLE IF NOT EXISTS unit_prices (
-    id         INTEGER PRIMARY KEY AUTOINCREMENT,
-    category   TEXT,
-    item_name  TEXT NOT NULL,
-    unit       TEXT,
-    unit_price INTEGER,
-    memo       TEXT,
-    updated_at DATETIME NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS qualifications (
-    id              INTEGER PRIMARY KEY AUTOINCREMENT,
-    issuer          TEXT NOT NULL,
-    category        TEXT,
-    grade           TEXT,
-    keisin_score    INTEGER,
-    total_score     INTEGER,
-    vendor_number   TEXT,
-    valid_from      DATE,
-    valid_until     DATE,
-    application_type TEXT,
-    application_method TEXT,
-    renewed         INTEGER NOT NULL DEFAULT 0,
-    memo            TEXT,
-    imported_at     DATETIME NOT NULL,
-    updated_at      DATETIME NOT NULL
-);
-"""
-
-
 QUALIFICATIONS_JSON = BASE_DIR / "data" / "qualifications.json"
 
 
 def init_db() -> None:
-    """全テーブルを作成（既存なら何もしない）。
+    """スキーマは docker-entrypoint-initdb.d で適用済み。
     資格テーブルが空で qualifications.json が存在すれば自動復元する。"""
-    with get_conn() as conn:
-        conn.executescript(SCHEMA)
-    # 資格データの自動復元
     _restore_qualifications_if_empty()
 
 
 def _restore_qualifications_if_empty() -> None:
-    """資格テーブルが空で JSON ファイルがあれば自動インポートする。"""
-    import json
     if not QUALIFICATIONS_JSON.exists():
         return
     with get_conn() as conn:
-        count = conn.execute("SELECT COUNT(*) FROM qualifications").fetchone()[0]
-        if count > 0:
-            return  # 既にデータがある
+        with _cur(conn) as cur:
+            cur.execute("SELECT COUNT(*) AS cnt FROM bid.qualifications")
+            count = cur.fetchone()["cnt"]
+            if count > 0:
+                return
     try:
         records = json.loads(QUALIFICATIONS_JSON.read_text(encoding="utf-8"))
         for rec in records:
@@ -143,8 +72,6 @@ def _restore_qualifications_if_empty() -> None:
 
 
 def save_qualifications_to_json() -> None:
-    """現在の資格データを JSON ファイルに保存する（リポジトリに含めて共有用）。"""
-    import json
     quals = list_qualifications()
     records = []
     for q in quals:
@@ -155,8 +82,8 @@ def save_qualifications_to_json() -> None:
             "keisin_score": q["keisin_score"],
             "total_score": q["total_score"],
             "vendor_number": q["vendor_number"],
-            "valid_from": q["valid_from"],
-            "valid_until": q["valid_until"],
+            "valid_from": str(q["valid_from"]) if q["valid_from"] else None,
+            "valid_until": str(q["valid_until"]) if q["valid_until"] else None,
             "application_type": q["application_type"],
             "application_method": q["application_method"],
             "memo": q["memo"],
@@ -183,30 +110,29 @@ def add_project(
     source_url: Optional[str] = None,
     status: str = "新着",
 ) -> Optional[int]:
-    """案件を追加。重複（title + source_url）なら None を返してスキップ。"""
     now = _now()
     with get_conn() as conn:
-        # SQLite の UNIQUE 制約は NULL 同士を異なる値として扱うため、
-        # source_url が NULL の場合は title のみで重複チェックする
-        if source_url is None:
-            existing = conn.execute(
-                "SELECT id FROM projects WHERE title = ? AND source_url IS NULL",
-                (title,),
-            ).fetchone()
-            if existing:
+        with _cur(conn) as cur:
+            if source_url is None:
+                cur.execute(
+                    "SELECT id FROM bid.projects WHERE title = %s AND source_url IS NULL",
+                    (title,),
+                )
+                if cur.fetchone():
+                    return None
+            try:
+                cur.execute(
+                    """INSERT INTO bid.projects
+                       (title, client, region, category, deadline, budget,
+                        source_url, status, created_at, updated_at)
+                       VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id""",
+                    (title, client, region, category, deadline, budget,
+                     source_url, status, now, now),
+                )
+                return cur.fetchone()["id"]
+            except psycopg2.IntegrityError:
+                conn.rollback()
                 return None
-        try:
-            cur = conn.execute(
-                """INSERT INTO projects
-                   (title, client, region, category, deadline, budget,
-                    source_url, status, created_at, updated_at)
-                   VALUES (?,?,?,?,?,?,?,?,?,?)""",
-                (title, client, region, category, deadline, budget,
-                 source_url, status, now, now),
-            )
-            return cur.lastrowid
-        except sqlite3.IntegrityError:
-            return None  # 重複
 
 
 def list_projects(
@@ -216,56 +142,46 @@ def list_projects(
     keyword: Optional[str] = None,
     within_days: Optional[int] = None,
     order_by: str = "deadline",
-) -> list[sqlite3.Row]:
-    """フィルタ・ソート付きで案件一覧を取得。"""
+) -> list[dict]:
     where: list[str] = []
     params: list[Any] = []
     if status:
-        where.append("status = ?")
+        where.append("status = %s")
         params.append(status)
     if region:
-        where.append("region = ?")
+        where.append("region = %s")
         params.append(region)
     if keyword:
-        where.append("(title LIKE ? OR client LIKE ?)")
+        where.append("(title LIKE %s OR client LIKE %s)")
         params.extend([f"%{keyword}%", f"%{keyword}%"])
     if within_days is not None:
-        where.append("deadline IS NOT NULL AND date(deadline) <= date('now', ?)")
-        params.append(f"+{within_days} day")
+        where.append("deadline IS NOT NULL AND deadline <= CURRENT_DATE + make_interval(days => %s)")
+        params.append(within_days)
 
     order = {
-        "deadline": "deadline ASC",
+        "deadline": "deadline ASC NULLS LAST",
         "created": "created_at DESC",
-    }.get(order_by, "deadline ASC")
+    }.get(order_by, "deadline ASC NULLS LAST")
 
-    sql = "SELECT * FROM projects"
+    sql = "SELECT * FROM bid.projects"
     if where:
         sql += " WHERE " + " AND ".join(where)
     sql += f" ORDER BY {order}"
     with get_conn() as conn:
-        return conn.execute(sql, params).fetchall()
+        with _cur(conn) as cur:
+            cur.execute(sql, params)
+            return _dicts(cur.fetchall())
 
 
-def get_project(project_id: int) -> Optional[sqlite3.Row]:
+def get_project(project_id: int) -> Optional[dict]:
     with get_conn() as conn:
-        return conn.execute(
-            "SELECT * FROM projects WHERE id = ?", (project_id,)
-        ).fetchone()
+        with _cur(conn) as cur:
+            cur.execute("SELECT * FROM bid.projects WHERE id = %s", (project_id,))
+            return _dict(cur.fetchone())
 
 
-def update_project(
-    project_id: int,
-    *,
-    title: Optional[str] = None,
-    client: Optional[str] = None,
-    region: Optional[str] = None,
-    category: Optional[str] = None,
-    deadline: Optional[str] = None,
-    budget: Optional[int] = None,
-    source_url: Optional[str] = None,
-    status: Optional[str] = None,
-) -> None:
-    """案件の各フィールドを更新する。None でないフィールドのみ更新。"""
+def update_project(project_id: int, *, title=None, client=None, region=None,
+    category=None, deadline=None, budget=None, source_url=None, status=None) -> None:
     fields: list[str] = []
     params: list[Any] = []
     for col, val in [
@@ -274,244 +190,226 @@ def update_project(
         ("source_url", source_url), ("status", status),
     ]:
         if val is not None:
-            fields.append(f"{col} = ?")
+            fields.append(f"{col} = %s")
             params.append(val)
     if not fields:
         return
-    fields.append("updated_at = ?")
+    fields.append("updated_at = %s")
     params.append(_now())
     params.append(project_id)
     with get_conn() as conn:
-        conn.execute(
-            f"UPDATE projects SET {', '.join(fields)} WHERE id = ?",
-            params,
-        )
+        with conn.cursor() as cur:
+            cur.execute(f"UPDATE bid.projects SET {', '.join(fields)} WHERE id = %s", params)
 
 
 def update_status(project_id: int, status: str) -> None:
     with get_conn() as conn:
-        conn.execute(
-            "UPDATE projects SET status = ?, updated_at = ? WHERE id = ?",
-            (status, _now(), project_id),
-        )
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE bid.projects SET status = %s, updated_at = %s WHERE id = %s",
+                (status, _now(), project_id),
+            )
 
 
 # --------------------------------------------------------------------------- #
-# costs（利益・原価率を自動計算）
+# costs
 # --------------------------------------------------------------------------- #
-def upsert_cost(
-    project_id: int,
-    *,
-    estimate_amount: Optional[int],
-    actual_cost: Optional[int],
-    memo: Optional[str] = None,
-) -> None:
-    profit: Optional[int] = None
-    profit_rate: Optional[float] = None
+def upsert_cost(project_id, *, estimate_amount, actual_cost, memo=None) -> None:
+    profit = None
+    profit_rate = None
     if estimate_amount is not None and actual_cost is not None:
         profit = estimate_amount - actual_cost
         if estimate_amount:
-            profit_rate = round(actual_cost / estimate_amount * 100, 2)  # 原価率(%)
+            profit_rate = round(actual_cost / estimate_amount * 100, 2)
     with get_conn() as conn:
-        conn.execute(
-            """INSERT INTO costs
-               (project_id, estimate_amount, actual_cost, profit, profit_rate, memo, updated_at)
-               VALUES (?,?,?,?,?,?,?)
-               ON CONFLICT(project_id) DO UPDATE SET
-                   estimate_amount=excluded.estimate_amount,
-                   actual_cost=excluded.actual_cost,
-                   profit=excluded.profit,
-                   profit_rate=excluded.profit_rate,
-                   memo=excluded.memo,
-                   updated_at=excluded.updated_at""",
-            (project_id, estimate_amount, actual_cost, profit, profit_rate, memo, _now()),
-        )
+        with conn.cursor() as cur:
+            cur.execute(
+                """INSERT INTO bid.costs
+                   (project_id, estimate_amount, actual_cost, profit, profit_rate, memo, updated_at)
+                   VALUES (%s,%s,%s,%s,%s,%s,%s)
+                   ON CONFLICT(project_id) DO UPDATE SET
+                       estimate_amount=EXCLUDED.estimate_amount,
+                       actual_cost=EXCLUDED.actual_cost,
+                       profit=EXCLUDED.profit,
+                       profit_rate=EXCLUDED.profit_rate,
+                       memo=EXCLUDED.memo,
+                       updated_at=EXCLUDED.updated_at""",
+                (project_id, estimate_amount, actual_cost, profit, profit_rate, memo, _now()),
+            )
 
 
-def get_cost(project_id: int) -> Optional[sqlite3.Row]:
+def get_cost(project_id: int) -> Optional[dict]:
     with get_conn() as conn:
-        return conn.execute(
-            "SELECT * FROM costs WHERE project_id = ?", (project_id,)
-        ).fetchone()
+        with _cur(conn) as cur:
+            cur.execute("SELECT * FROM bid.costs WHERE project_id = %s", (project_id,))
+            return _dict(cur.fetchone())
 
 
 # --------------------------------------------------------------------------- #
-# competitors（自社見積との差額を自動計算）
+# competitors
 # --------------------------------------------------------------------------- #
-def add_competitor(
-    project_id: int,
-    *,
-    competitor_name: Optional[str],
-    competitor_amount: Optional[int],
-    source: Optional[str] = None,
-    memo: Optional[str] = None,
-) -> None:
-    diff_amount: Optional[int] = None
+def add_competitor(project_id, *, competitor_name, competitor_amount, source=None, memo=None) -> None:
+    diff_amount = None
     cost = get_cost(project_id)
     if cost and cost["estimate_amount"] is not None and competitor_amount is not None:
         diff_amount = cost["estimate_amount"] - competitor_amount
     with get_conn() as conn:
-        conn.execute(
-            """INSERT INTO competitors
-               (project_id, competitor_name, competitor_amount, diff_amount, source, memo)
-               VALUES (?,?,?,?,?,?)""",
-            (project_id, competitor_name, competitor_amount, diff_amount, source, memo),
-        )
+        with conn.cursor() as cur:
+            cur.execute(
+                """INSERT INTO bid.competitors
+                   (project_id, competitor_name, competitor_amount, diff_amount, source, memo)
+                   VALUES (%s,%s,%s,%s,%s,%s)""",
+                (project_id, competitor_name, competitor_amount, diff_amount, source, memo),
+            )
 
 
-def list_competitors(project_id: int) -> list[sqlite3.Row]:
+def list_competitors(project_id: int) -> list[dict]:
     with get_conn() as conn:
-        return conn.execute(
-            "SELECT * FROM competitors WHERE project_id = ? ORDER BY id", (project_id,)
-        ).fetchall()
+        with _cur(conn) as cur:
+            cur.execute(
+                "SELECT * FROM bid.competitors WHERE project_id = %s ORDER BY id", (project_id,)
+            )
+            return _dicts(cur.fetchall())
 
 
 # --------------------------------------------------------------------------- #
 # scrape_targets
 # --------------------------------------------------------------------------- #
-def add_target(name: str, url: str, region: Optional[str] = None) -> Optional[int]:
+def add_target(name, url, region=None) -> Optional[int]:
     with get_conn() as conn:
-        try:
-            cur = conn.execute(
-                "INSERT INTO scrape_targets (name, url, region, is_active) VALUES (?,?,?,1)",
-                (name, url, region),
-            )
-            return cur.lastrowid
-        except sqlite3.IntegrityError:
-            return None
+        with _cur(conn) as cur:
+            try:
+                cur.execute(
+                    "INSERT INTO bid.scrape_targets (name, url, region, is_active) VALUES (%s,%s,%s,TRUE) RETURNING id",
+                    (name, url, region),
+                )
+                return cur.fetchone()["id"]
+            except psycopg2.IntegrityError:
+                conn.rollback()
+                return None
 
 
-def list_targets(active_only: bool = False) -> list[sqlite3.Row]:
-    sql = "SELECT * FROM scrape_targets"
+def list_targets(active_only=False) -> list[dict]:
+    sql = "SELECT * FROM bid.scrape_targets"
     if active_only:
-        sql += " WHERE is_active = 1"
+        sql += " WHERE is_active = TRUE"
     sql += " ORDER BY id"
     with get_conn() as conn:
-        return conn.execute(sql).fetchall()
+        with _cur(conn) as cur:
+            cur.execute(sql)
+            return _dicts(cur.fetchall())
 
 
-def set_target_active(target_id: int, active: bool) -> None:
+def set_target_active(target_id, active) -> None:
     with get_conn() as conn:
-        conn.execute(
-            "UPDATE scrape_targets SET is_active = ? WHERE id = ?",
-            (1 if active else 0, target_id),
-        )
+        with conn.cursor() as cur:
+            cur.execute("UPDATE bid.scrape_targets SET is_active = %s WHERE id = %s",
+                        (bool(active), target_id))
 
 
-def delete_target(target_id: int) -> None:
+def delete_target(target_id) -> None:
     with get_conn() as conn:
-        conn.execute("DELETE FROM scrape_targets WHERE id = ?", (target_id,))
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM bid.scrape_targets WHERE id = %s", (target_id,))
 
 
-def mark_target_scraped(target_id: int) -> None:
+def mark_target_scraped(target_id) -> None:
     with get_conn() as conn:
-        conn.execute(
-            "UPDATE scrape_targets SET last_scraped_at = ? WHERE id = ?",
-            (_now(), target_id),
-        )
+        with conn.cursor() as cur:
+            cur.execute("UPDATE bid.scrape_targets SET last_scraped_at = %s WHERE id = %s",
+                        (_now(), target_id))
 
 
 # --------------------------------------------------------------------------- #
-# unit_prices（単価マスタ）
+# unit_prices
 # --------------------------------------------------------------------------- #
-def add_unit_price(
-    *, category: str, item_name: str, unit: str, unit_price: int, memo: Optional[str] = None
-) -> int:
+def add_unit_price(*, category, item_name, unit, unit_price, memo=None) -> int:
     with get_conn() as conn:
-        cur = conn.execute(
-            """INSERT INTO unit_prices (category, item_name, unit, unit_price, memo, updated_at)
-               VALUES (?,?,?,?,?,?)""",
-            (category, item_name, unit, unit_price, memo, _now()),
-        )
-        return cur.lastrowid
+        with _cur(conn) as cur:
+            cur.execute(
+                """INSERT INTO bid.unit_prices (category, item_name, unit, unit_price, memo, updated_at)
+                   VALUES (%s,%s,%s,%s,%s,%s) RETURNING id""",
+                (category, item_name, unit, unit_price, memo, _now()),
+            )
+            return cur.fetchone()["id"]
 
 
-def list_unit_prices() -> list[sqlite3.Row]:
+def list_unit_prices() -> list[dict]:
     with get_conn() as conn:
-        return conn.execute("SELECT * FROM unit_prices ORDER BY category, item_name").fetchall()
+        with _cur(conn) as cur:
+            cur.execute("SELECT * FROM bid.unit_prices ORDER BY category, item_name")
+            return _dicts(cur.fetchall())
 
 
 # --------------------------------------------------------------------------- #
-# qualifications（入札参加資格）
+# qualifications
 # --------------------------------------------------------------------------- #
-def add_qualification(
-    *,
-    issuer: str,
-    category: Optional[str] = None,
-    grade: Optional[str] = None,
-    keisin_score: Optional[int] = None,
-    total_score: Optional[int] = None,
-    vendor_number: Optional[str] = None,
-    valid_from: Optional[str] = None,
-    valid_until: Optional[str] = None,
-    application_type: Optional[str] = None,
-    application_method: Optional[str] = None,
-    memo: Optional[str] = None,
-) -> int:
+def add_qualification(*, issuer, category=None, grade=None, keisin_score=None,
+    total_score=None, vendor_number=None, valid_from=None, valid_until=None,
+    application_type=None, application_method=None, memo=None) -> int:
     now = _now()
     with get_conn() as conn:
-        cur = conn.execute(
-            """INSERT INTO qualifications
-               (issuer, category, grade, keisin_score, total_score, vendor_number,
-                valid_from, valid_until, application_type, application_method,
-                renewed, memo, imported_at, updated_at)
-               VALUES (?,?,?,?,?,?,?,?,?,?,0,?,?,?)""",
-            (issuer, category, grade, keisin_score, total_score, vendor_number,
-             valid_from, valid_until, application_type, application_method,
-             memo, now, now),
-        )
-        return cur.lastrowid
+        with _cur(conn) as cur:
+            cur.execute(
+                """INSERT INTO bid.qualifications
+                   (issuer, category, grade, keisin_score, total_score, vendor_number,
+                    valid_from, valid_until, application_type, application_method,
+                    renewed, memo, imported_at, updated_at)
+                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,FALSE,%s,%s,%s) RETURNING id""",
+                (issuer, category, grade, keisin_score, total_score, vendor_number,
+                 valid_from, valid_until, application_type, application_method, memo, now, now),
+            )
+            return cur.fetchone()["id"]
 
 
-def list_qualifications() -> list[sqlite3.Row]:
+def list_qualifications() -> list[dict]:
     with get_conn() as conn:
-        return conn.execute(
-            "SELECT * FROM qualifications ORDER BY valid_until, issuer"
-        ).fetchall()
+        with _cur(conn) as cur:
+            cur.execute("SELECT * FROM bid.qualifications ORDER BY valid_until, issuer")
+            return _dicts(cur.fetchall())
 
 
-def get_qualification(qid: int) -> Optional[sqlite3.Row]:
+def get_qualification(qid) -> Optional[dict]:
     with get_conn() as conn:
-        return conn.execute(
-            "SELECT * FROM qualifications WHERE id = ?", (qid,)
-        ).fetchone()
+        with _cur(conn) as cur:
+            cur.execute("SELECT * FROM bid.qualifications WHERE id = %s", (qid,))
+            return _dict(cur.fetchone())
 
 
-def mark_qualification_renewed(qid: int) -> None:
+def mark_qualification_renewed(qid) -> None:
     with get_conn() as conn:
-        conn.execute(
-            "UPDATE qualifications SET renewed = 1, updated_at = ? WHERE id = ?",
-            (_now(), qid),
-        )
+        with conn.cursor() as cur:
+            cur.execute("UPDATE bid.qualifications SET renewed = TRUE, updated_at = %s WHERE id = %s",
+                        (_now(), qid))
 
 
-def unmark_qualification_renewed(qid: int) -> None:
+def unmark_qualification_renewed(qid) -> None:
     with get_conn() as conn:
-        conn.execute(
-            "UPDATE qualifications SET renewed = 0, updated_at = ? WHERE id = ?",
-            (_now(), qid),
-        )
+        with conn.cursor() as cur:
+            cur.execute("UPDATE bid.qualifications SET renewed = FALSE, updated_at = %s WHERE id = %s",
+                        (_now(), qid))
 
 
 def delete_all_qualifications() -> None:
-    """全資格データを削除（再インポート用）。"""
     with get_conn() as conn:
-        conn.execute("DELETE FROM qualifications")
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM bid.qualifications")
 
 
-def list_qualifications_expiring(within_days: int) -> list[sqlite3.Row]:
-    """有効期限が within_days 日以内で、未更新の資格を返す。"""
+def list_qualifications_expiring(within_days) -> list[dict]:
     with get_conn() as conn:
-        return conn.execute(
-            """SELECT * FROM qualifications
-               WHERE renewed = 0
-                 AND valid_until IS NOT NULL
-                 AND date(valid_until) <= date('now', ?)
-               ORDER BY valid_until, issuer""",
-            (f"+{within_days} day",),
-        ).fetchall()
+        with _cur(conn) as cur:
+            cur.execute(
+                """SELECT * FROM bid.qualifications
+                   WHERE renewed = FALSE
+                     AND valid_until IS NOT NULL
+                     AND valid_until <= CURRENT_DATE + make_interval(days => %s)
+                   ORDER BY valid_until, issuer""",
+                (within_days,),
+            )
+            return _dicts(cur.fetchall())
 
 
 if __name__ == "__main__":
     init_db()
-    print(f"Initialized database at {DB_PATH}")
+    print("Database initialized (PostgreSQL)")

@@ -17,6 +17,8 @@ RUN pip install --no-cache-dir \
     -r /tmp/req-eval.txt \
     -r /tmp/req-eigyo.txt \
     -r /tmp/req-nkanri.txt \
+    'psycopg2-binary>=2.9,<3.0' \
+    'anthropic>=0.40,<1.0' \
     && rm /tmp/req-*.txt
 
 # アプリ全体をコピー

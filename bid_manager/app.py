@@ -222,17 +222,17 @@ def page_detail() -> None:
                     new_category = None if e_category == "（未指定）" else e_category
                     new_deadline = e_deadline.isoformat() if e_deadline else None
                     # 全フィールドを直接 UPDATE する
-                    with db.get_conn() as conn:
-                        conn.execute(
-                            """UPDATE projects SET
-                                title=?, client=?, region=?, category=?,
-                                deadline=?, budget=?, source_url=?, status=?,
-                                updated_at=?
-                               WHERE id=?""",
-                            (e_title, e_client or None, new_region, new_category,
-                             new_deadline, e_budget or None, e_url or None, e_status,
-                             datetime.now().isoformat(timespec="seconds"), pid),
-                        )
+                    db.update_project(
+                        pid,
+                        title=e_title,
+                        client=e_client or None,
+                        region=new_region,
+                        category=new_category,
+                        deadline=new_deadline,
+                        budget=e_budget or None,
+                        source_url=e_url or None,
+                        status=e_status,
+                    )
                     st.success("基本情報を更新しました。")
                     st.rerun()
 
@@ -557,7 +557,7 @@ def page_qualifications() -> None:
         "renewed": "更新済",
     }
     show_df = df[[c for c in display_cols if c in df.columns]].rename(columns=display_cols)
-    show_df["更新済"] = show_df["更新済"].map({0: "—", 1: "✅"})
+    show_df["更新済"] = show_df["更新済"].map({False: "—", True: "✅", 0: "—", 1: "✅"})
 
     # 残り日数の列を追加
     today = date.today()
@@ -680,6 +680,93 @@ def _show_expiring_list(quals, today, within_days: int) -> None:
 
 
 # --------------------------------------------------------------------------- #
+# 7. AI見積もり
+# --------------------------------------------------------------------------- #
+def page_ai_estimate() -> None:
+    st.header("🤖 AI見積もり")
+    st.caption("過去の実績データを基に、Claude AI が最適な見積もり金額を提案します。")
+
+    import sys
+    sys.path.insert(0, str(config.REPO_DIR / "shared"))
+
+    tab1, tab2 = st.tabs(["案件から見積もり", "自由入力で見積もり"])
+
+    with tab1:
+        all_projects = db.list_projects(order_by="created")
+        if not all_projects:
+            st.info("案件がありません。まず案件を登録してください。")
+        else:
+            pid = st.selectbox(
+                "案件を選択",
+                [p["id"] for p in all_projects],
+                format_func=lambda i: f"#{i} {db.get_project(i)['title']}",
+                key="ai_project",
+            )
+            p = db.get_project(pid)
+            if p:
+                c1, c2, c3 = st.columns(3)
+                c1.metric("種別", p.get("category") or "—")
+                c2.metric("エリア", p.get("region") or "—")
+                c3.metric("予定価格", f"{p['budget']:,} 円" if p.get("budget") else "—")
+
+            if st.button("AI見積もりを実行", type="primary", key="ai_bid_run"):
+                with st.spinner("Claude AI が過去データを分析中..."):
+                    from ai_estimator import estimate_for_bid_project
+                    result = estimate_for_bid_project(pid)
+                _show_ai_result(result)
+
+    with tab2:
+        with st.form("ai_free_form"):
+            desc = st.text_area("工事内容の説明", placeholder="例: 〇〇基地 電気設備改修工事（照明LED化、幹線引替、分電盤更新）")
+            c1, c2, c3 = st.columns(3)
+            cat = c1.selectbox("工事種別", ["（指定なし）"] + config.CATEGORIES, key="ai_cat")
+            reg = c2.selectbox("エリア", ["（指定なし）"] + config.REGIONS, key="ai_reg")
+            bdg = c3.number_input("予定価格（円）※分かれば", min_value=0, step=100000, value=0, key="ai_bdg")
+            if st.form_submit_button("AI見積もりを実行", type="primary"):
+                if not desc:
+                    st.error("工事内容を入力してください。")
+                else:
+                    with st.spinner("Claude AI が過去データを分析中..."):
+                        from ai_estimator import estimate_project_cost
+                        result = estimate_project_cost(
+                            description=desc,
+                            category=None if cat == "（指定なし）" else cat,
+                            region=None if reg == "（指定なし）" else reg,
+                            budget=bdg or None,
+                        )
+                    _show_ai_result(result)
+
+
+def _show_ai_result(result: dict) -> None:
+    if result.get("total_estimate"):
+        st.success(f"### 推奨見積金額: ¥{result['total_estimate']:,}")
+
+        confidence_color = {"high": "🟢", "medium": "🟡", "low": "🔴"}.get(result.get("confidence", ""), "⚪")
+        st.write(f"信頼度: {confidence_color} {result.get('confidence', '不明')}")
+
+        if result.get("reasoning"):
+            st.info(result["reasoning"])
+
+        if result.get("breakdown"):
+            st.subheader("内訳")
+            bd_df = pd.DataFrame(result["breakdown"])
+            if "amount" in bd_df.columns:
+                bd_df["amount"] = bd_df["amount"].apply(lambda x: f"¥{x:,}" if x else "—")
+            st.dataframe(bd_df.rename(columns={
+                "category": "カテゴリ", "amount": "金額", "detail": "詳細"
+            }), use_container_width=True, hide_index=True)
+
+        if result.get("recommendations"):
+            st.subheader("改善提案")
+            for rec in result["recommendations"]:
+                st.write(f"- {rec}")
+    else:
+        st.warning(result.get("summary", "見積もりを生成できませんでした。"))
+        if result.get("reasoning"):
+            st.caption(result["reasoning"])
+
+
+# --------------------------------------------------------------------------- #
 # ルーティング
 # --------------------------------------------------------------------------- #
 PAGES = {
@@ -689,6 +776,7 @@ PAGES = {
     "対象サイト管理": page_targets,
     "単価マスタ": page_unit_prices,
     "入札資格管理": page_qualifications,
+    "AI見積もり": page_ai_estimate,
 }
 
 st.sidebar.title("⚡ 入札案件管理")
