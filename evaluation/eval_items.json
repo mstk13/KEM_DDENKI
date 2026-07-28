@@ -196,5 +196,68 @@
     "max_score": 10,
     "choice_group": "field-level",
     "sort_order": 14
+  },
+  {
+    "section": "社長",
+    "num": 5,
+    "name": "経営判断",
+    "description": "受注・投資・現場の判断を的確に行えているか、意思決定は速いか",
+    "max_score": 10,
+    "choice_group": null,
+    "sort_order": 0
+  },
+  {
+    "section": "社長",
+    "num": 6,
+    "name": "業績貢献",
+    "description": "売上・利益目標を達成できているか、新規顧客を獲得できているか、現場の予算の範囲内で最も効率よく施工するための判断ができているか",
+    "max_score": 10,
+    "choice_group": null,
+    "sort_order": 1
+  },
+  {
+    "section": "社長",
+    "num": 7,
+    "name": "組織マネジメント",
+    "description": "部下を育成できているか、チーム全体の生産性を高められているか、離職を防げているか",
+    "max_score": 10,
+    "choice_group": null,
+    "sort_order": 2
+  },
+  {
+    "section": "社長",
+    "num": 8,
+    "name": "リスク管理",
+    "description": "安全・法令遵守・財務のリスクに対応できているか、危機管理ができているか",
+    "max_score": 5,
+    "choice_group": null,
+    "sort_order": 3
+  },
+  {
+    "section": "社長",
+    "num": 9,
+    "name": "対外関係",
+    "description": "顧客・取引先・官公庁と関係を築けているか、業界内の信頼を得られているか",
+    "max_score": 10,
+    "choice_group": null,
+    "sort_order": 4
+  },
+  {
+    "section": "社長",
+    "num": 10,
+    "name": "原価管理",
+    "description": "無駄な材料の発注を抑えられているか、材料を管理できているか、人件費を管理できているか",
+    "max_score": 10,
+    "choice_group": null,
+    "sort_order": 5
+  },
+  {
+    "section": "社長",
+    "num": 11,
+    "name": "資格取得 / 自己研鑽",
+    "description": "新しい資格を取得できているか、自己研鑽に取り組めているか（読書・セミナー参加など）",
+    "max_score": 5,
+    "choice_group": null,
+    "sort_order": 6
   }
 ]
