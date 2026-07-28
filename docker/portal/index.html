@@ -5,212 +5,174 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ケンモチ電機 — 施工管理ポータル</title>
     <link rel="icon" href="/icon.ico">
+    <link rel="apple-touch-icon" href="/icon-192.png">
     <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#1e6bb8">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
-        body { background-color: #f8f9fa; }
-        .app-card { transition: transform 0.2s; cursor: pointer; }
-        .app-card:hover { transform: translateY(-4px); box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
-        .status-badge { font-size: 0.75rem; }
-        .goal-section { background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); color: white; }
+        * { box-sizing: border-box; }
+        body { background: #f0f4f8; color: #2d3748; font-family: 'Segoe UI', system-ui, sans-serif; margin: 0; }
+
+        .header {
+            background: linear-gradient(135deg, #1e6bb8 0%, #2e8b57 100%);
+            padding: 2.2rem 0 1.8rem;
+            text-align: center;
+            color: #fff;
+        }
+        .header h1 { font-size: 1.5rem; font-weight: 700; letter-spacing: 0.04em; margin-bottom: 0.2rem; }
+        .header p { font-size: 0.85rem; opacity: 0.9; margin: 0; }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+            gap: 1.2rem;
+            padding: 2rem 1.5rem;
+            max-width: 1100px;
+            margin: 0 auto;
+        }
+
+        .app-card {
+            background: #fff;
+            border-radius: 14px;
+            padding: 1.6rem 1.2rem 1.3rem;
+            text-decoration: none;
+            color: #2d3748;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            transition: transform 0.2s, box-shadow 0.2s;
+            border: 1px solid #e2e8f0;
+        }
+        .app-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+            color: #2d3748;
+            text-decoration: none;
+        }
+        .app-card.disabled {
+            opacity: 0.5;
+            pointer-events: none;
+        }
+
+        .icon-circle {
+            width: 60px; height: 60px;
+            border-radius: 14px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.7rem;
+            margin-bottom: 0.9rem;
+            color: #fff;
+        }
+
+        .app-card h3 { font-size: 0.95rem; font-weight: 600; margin: 0 0 0.35rem; }
+        .app-card p { font-size: 0.78rem; color: #718096; margin: 0 0 0.7rem; line-height: 1.4; }
+        .port-tag {
+            font-size: 0.65rem;
+            color: #a0aec0;
+            background: #f7fafc;
+            padding: 0.15rem 0.5rem;
+            border-radius: 6px;
+            margin-top: auto;
+        }
+        .badge-coming {
+            position: absolute;
+            top: 10px; right: 10px;
+            font-size: 0.6rem;
+            background: #fefcbf;
+            color: #b7791f;
+            padding: 0.15rem 0.5rem;
+            border-radius: 6px;
+        }
+
+        .eval-buttons { display: flex; gap: 0.5rem; width: 100%; margin-top: 0.5rem; }
+        .eval-buttons a {
+            flex: 1;
+            display: block;
+            padding: 0.4rem 0;
+            border-radius: 8px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-align: center;
+            text-decoration: none;
+            transition: opacity 0.2s;
+        }
+        .eval-buttons a:hover { opacity: 0.85; }
+        .btn-eval-input { background: #38a169; color: #fff; }
+        .btn-eval-admin { background: #fff; border: 1.5px solid #38a169; color: #38a169; }
+
+        footer {
+            text-align: center;
+            padding: 1.5rem;
+            color: #a0aec0;
+            font-size: 0.7rem;
+        }
     </style>
 </head>
 <body>
-    <nav class="navbar navbar-dark bg-dark">
-        <div class="container">
-            <span class="navbar-brand">&#9889; ケンモチ電機 — 施工コスト最適化システム</span>
-        </div>
-    </nav>
 
-    <section class="goal-section py-4 mb-4">
-        <div class="container">
-            <h5>&#127919; 最終目標: 施工コストの最適化</h5>
-            <p class="mb-0 small">
-                入札案件の収集 → 見積もり作成 → 材料発注管理 → 実績蓄積 → AIによる見積もり自動生成・コスト予測<br>
-                3つのアプリが統合データベースで連携し、過去実績から最適な施工コストを導きます。
-            </p>
-        </div>
-    </section>
+<div class="header">
+    <h1>&#9889; ケンモチ電機</h1>
+    <p>施工コスト最適化システム</p>
+</div>
 
-    <div class="container">
-        <div class="row g-4 mb-5">
-            <!-- 1. 入札案件管理 -->
-            <div class="col-md-6 col-lg-3">
-                <div class="card app-card h-100 border-primary">
-                    <div class="card-header bg-primary text-white">
-                        <h5 class="mb-0">&#128203; 入札案件管理</h5>
-                    </div>
-                    <div class="card-body">
-                        <p>入札案件の収集・進捗管理・費用分析・競合分析</p>
-                        <ul class="small">
-                            <li>自動スクレイピングで案件収集</li>
-                            <li>ステータス管理（新着→入札→受注/失注）</li>
-                            <li>見積金額 vs 実原価の利益分析</li>
-                            <li>競合の落札金額との比較</li>
-                            <li>入札参加資格の期限管理</li>
-                        </ul>
-                        <span class="badge bg-info status-badge">Streamlit</span>
-                    </div>
-                    <div class="card-footer">
-                        <a href="/bid/" target="_blank" class="btn btn-primary w-100">アプリを開く →</a>
-                    </div>
-                </div>
-            </div>
+<div class="grid">
 
-            <!-- 2. 材料管理 -->
-            <div class="col-md-6 col-lg-3">
-                <div class="card app-card h-100 border-success">
-                    <div class="card-header bg-success text-white">
-                        <h5 class="mb-0">&#128295; 材料管理</h5>
-                    </div>
-                    <div class="card-body">
-                        <p>工事現場ごとの見積もり vs 発注状況の比較管理</p>
-                        <ul class="small">
-                            <li>見積もりExcelインポート（自動現場登録）</li>
-                            <li>品目別の発注追跡（分割発注対応）</li>
-                            <li>消化率の可視化（超過:赤/完了:緑）</li>
-                            <li>発注書PDFインポート（自動マッチング）</li>
-                            <li>受領書アップロード（現場確認）</li>
-                        </ul>
-                        <span class="badge bg-info status-badge">Flask</span>
-                    </div>
-                    <div class="card-footer">
-                        <a href="/material/" target="_blank" class="btn btn-success w-100">アプリを開く →</a>
-                    </div>
-                </div>
-            </div>
+    <a href="/bid/" target="_blank" class="app-card">
+        <div class="icon-circle" style="background:#3b82f6;">&#128203;</div>
+        <h3>入札案件管理</h3>
+        <p>案件収集・進捗管理・費用分析</p>
+        <span class="port-tag">Streamlit</span>
+    </a>
 
-            <!-- 3. 作業日報 -->
-            <div class="col-md-6 col-lg-3">
-                <div class="card app-card h-100 border-info">
-                    <div class="card-header bg-info text-white">
-                        <h5 class="mb-0">&#128736;&#65039; 作業日報</h5>
-                    </div>
-                    <div class="card-body">
-                        <p>現場ごとの作業日報を登録・管理・集計</p>
-                        <ul class="small">
-                            <li>作業員名・作業時間・残業・宿泊を記録</li>
-                            <li>作業内容・使用材料の記録</li>
-                            <li>交通手段・交通費の管理</li>
-                            <li>協力会社の管理</li>
-                            <li>月次集計・稼働分析</li>
-                        </ul>
-                        <span class="badge bg-info status-badge">Streamlit</span>
-                    </div>
-                    <div class="card-footer">
-                        <a href="/nippou/" target="_blank" class="btn btn-info w-100 text-white">アプリを開く →</a>
-                    </div>
-                </div>
-            </div>
+    <a href="/material/" target="_blank" class="app-card">
+        <div class="icon-circle" style="background:#22c55e;">&#128295;</div>
+        <h3>材料管理</h3>
+        <p>見積 vs 発注の消化率追跡</p>
+        <span class="port-tag">Flask</span>
+    </a>
 
-            <!-- 4. 人事評価 -->
-            <div class="col-md-6 col-lg-3">
-                <div class="card app-card h-100 border-warning">
-                    <div class="card-header bg-warning text-dark">
-                        <h5 class="mb-0">&#128202; 人事評価</h5>
-                    </div>
-                    <div class="card-body">
-                        <p>事務方・現場方・役員の3役割で人事評価を管理</p>
-                        <ul class="small">
-                            <li>作業日報の勤怠データを自動参照</li>
-                            <li>役割別の評価基準で採点</li>
-                            <li>現場方はシニア/ジュニア択一評価</li>
-                            <li>評価履歴の一覧・比較</li>
-                            <li>評価ランク自動判定（S〜D）</li>
-                        </ul>
-                        <span class="badge bg-info status-badge">Streamlit</span>
-                    </div>
-                    <div class="card-footer">
-                        <a href="/eval/" target="_blank" class="btn btn-warning w-100">アプリを開く →</a>
-                    </div>
-                </div>
-            </div>
+    <a href="/nippou/" target="_blank" class="app-card">
+        <div class="icon-circle" style="background:#06b6d4;">&#128736;</div>
+        <h3>作業日報</h3>
+        <p>日報入力・作業員管理・集計</p>
+        <span class="port-tag">Streamlit</span>
+    </a>
 
-            <!-- 5. コスト分析・AI見積もり（将来） -->
-            <div class="col-md-6 col-lg-3">
-                <div class="card app-card h-100 border-warning">
-                    <div class="card-header bg-warning text-dark">
-                        <h5 class="mb-0">&#129302; コスト分析・AI見積もり</h5>
-                    </div>
-                    <div class="card-body">
-                        <p>過去実績から見積もりを自動生成し、施工コストを最適化</p>
-                        <ul class="small">
-                            <li>過去案件の見積もり×実発注データを学習</li>
-                            <li>類似案件検索（工事種別・規模・エリア）</li>
-                            <li>見積もり金額の自動提案</li>
-                            <li>単価トレンド分析（業者×品目×時期）</li>
-                            <li>受注確率予測・最適入札額の提案</li>
-                        </ul>
-                        <span class="badge bg-secondary status-badge">開発予定</span>
-                    </div>
-                    <div class="card-footer">
-                        <button class="btn btn-outline-warning w-100" disabled>準備中（データ蓄積フェーズ）</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- データベース統合構造 -->
-        <div class="card mb-4">
-            <div class="card-header bg-dark text-white">
-                <h5 class="mb-0">&#128452;&#65039; データベース統合構造</h5>
-            </div>
-            <div class="card-body">
-                <div class="row">
-                    <div class="col-md-8">
-                        <pre class="bg-light p-3 small">
-&#9484;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9488;
-&#9474;                    統合データベース                                &#9474;
-&#9500;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9508;
-&#9474;  [project] &#26696;&#20214;/&#29694;&#22580; ← &#20837;&#26413;&#31649;&#29702;&#12391;&#30331;&#37682;&#12289;&#21463;&#27880;&#24460;&#12395;&#26448;&#26009;&#31649;&#29702;&#12408;&#24341;&#12365;&#32153;&#12366;  &#9474;
-&#9474;       &#9474;                                                         &#9474;
-&#9474;       &#9500;&#9472;&#9472; [estimate_header + estimate_line] &#35211;&#31309;&#12418;&#12426;&#26126;&#32048;   &#9474;
-&#9474;       &#9474;       &#9492;&#9472;&#9472; [item_master] &#21697;&#30446;&#12510;&#12473;&#12479;&#65288;&#20840;&#29694;&#22580;&#20849;&#36890;&#65289;   &#9474;
-&#9474;       &#9474;                                                         &#9474;
-&#9474;       &#9500;&#9472;&#9472; [order] &#30330;&#27880;&#12524;&#12467;&#12540;&#12489;&#65288;&#20998;&#21106;&#30330;&#27880;&#23550;&#24540;&#65289;              &#9474;
-&#9474;       &#9474;       &#9492;&#9472;&#9472; [supplier] &#20181;&#20837;&#20808;&#12510;&#12473;&#12479;                 &#9474;
-&#9474;       &#9474;       &#9492;&#9472;&#9472; [receipt] &#21463;&#38936;&#26360;                                &#9474;
-&#9474;       &#9474;                                                         &#9474;
-&#9474;       &#9500;&#9472;&#9472; [competitor] &#31478;&#21512;&#24773;&#22577;                            &#9474;
-&#9474;       &#9492;&#9472;&#9472; [price_history] &#21336;&#20385;&#23653;&#27508; → AI&#23398;&#32722;&#12487;&#12540;&#12479;          &#9474;
-&#9474;                                                                 &#9474;
-&#9474;  &#20837;&#26413;&#31649;&#29702;(projects/costs) ←→ &#26448;&#26009;&#31649;&#29702;(project/estimate/order) &#9474;
-&#9474;  &#21516;&#12376;&#26696;&#20214;ID&#12391;&#36899;&#25658;&#12290;&#20837;&#26413;→&#21463;&#27880;→&#26045;&#24037;&#12398;&#20840;&#12521;&#12452;&#12501;&#12469;&#12452;&#12463;&#12523;&#12434;&#36861;&#36321;     &#9474;
-&#9474;                                                                 &#9474;
-&#9492;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9496;</pre>
-                    </div>
-                    <div class="col-md-4">
-                        <h6>データの流れ</h6>
-                        <ol class="small">
-                            <li><strong>入札管理</strong>で案件収集・見積提出</li>
-                            <li>受注したら<strong>材料管理</strong>に引き継ぎ</li>
-                            <li>Excelで見積もり明細をインポート</li>
-                            <li>発注・受領を記録し、消化率を追跡</li>
-                            <li>完工後、実績データが<strong>AI学習</strong>に蓄積</li>
-                            <li>次回の見積もりを自動提案</li>
-                        </ol>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- 起動スクリプト -->
-        <div class="card mb-4">
-            <div class="card-header">
-                <h5 class="mb-0">&#128640; サーバー管理</h5>
-            </div>
-            <div class="card-body">
-                <p class="small">サーバーPCでの管理コマンド:</p>
-                <pre class="bg-light p-3 small">./docker/manage.sh status     # 稼働状況の確認
-./docker/manage.sh restart    # 全アプリの再起動
-./docker/manage.sh update     # 最新版に更新
-./docker/manage.sh logs       # ログの確認</pre>
-            </div>
+    <div class="app-card" style="cursor:default;">
+        <div class="icon-circle" style="background:#38a169;">&#128202;</div>
+        <h3>人事評価</h3>
+        <p>アンケート回答・結果比較</p>
+        <div class="eval-buttons">
+            <a href="/eval/" target="_blank" class="btn-eval-input">入力</a>
+            <a href="/eval-admin/" target="_blank" class="btn-eval-admin">管理</a>
         </div>
     </div>
 
-    <footer class="bg-dark text-white text-center py-3 mt-4">
-        <small>ケンモチ電機 施工コスト最適化システム — 2026</small>
-    </footer>
+    <a href="/eigyo/" target="_blank" class="app-card">
+        <div class="icon-circle" style="background:#ef4444;">&#129309;</div>
+        <h3>営業管理</h3>
+        <p>訪問記録・資料自動抽出</p>
+        <span class="port-tag">Streamlit</span>
+    </a>
+
+    <a href="/nippou-kanri/" target="_blank" class="app-card">
+        <div class="icon-circle" style="background:#6366f1;">&#9201;</div>
+        <h3>日報管理</h3>
+        <p>勤怠テキスト抽出・集計</p>
+        <span class="port-tag">Streamlit</span>
+    </a>
+
+    <div class="app-card disabled" style="position:relative;">
+        <span class="badge-coming">準備中</span>
+        <div class="icon-circle" style="background:#a78bfa;">&#129302;</div>
+        <h3>コスト分析・AI見積</h3>
+        <p>過去実績から見積もり自動生成</p>
+        <span class="port-tag">データ蓄積中</span>
+    </div>
+
+</div>
+
+<footer>ケンモチ電機 施工コスト最適化システム &copy; 2026</footer>
+
 </body>
 </html>
