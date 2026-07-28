@@ -17,7 +17,7 @@ import psycopg2.extras
 
 # shared モジュールをパスに追加
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "shared"))
-from db import get_conn  # noqa: E402
+from dbconn import get_conn  # noqa: E402
 
 from config import BASE_DIR
 

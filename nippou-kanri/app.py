@@ -713,7 +713,7 @@ elif PAGE == "👥 社員マスタ":
     edf = pd.DataFrame([{
         "ID": e["id"], "社員コード": e["code"] or "", "氏名": e["name"],
         "フリガナ": e["kana"] or "", "部署": e["department"] or "",
-        "役職": e["position"] or "", "在籍": bool(e["active"]), "備考": e["note"] or "",
+        "役職": e["position"] or "", "在籍": bool(e["is_active"]), "備考": e["note"] or "",
     } for e in employees])
 
     edited = st.data_editor(

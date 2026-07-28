@@ -7,6 +7,9 @@ shift
 
 cd "/app/$APP_DIR"
 
+# ローカルの db.py を shared/db.py より優先させる
+export PYTHONPATH="/app/$APP_DIR:${PYTHONPATH:-}"
+
 # DB初期化（database.py または db.py があれば実行）
 if [ -f "database.py" ]; then
     python database.py 2>/dev/null || true

@@ -264,7 +264,8 @@ def _entry_genba() -> None:
     if st.session_state.get("entry_flash"):
         st.success(st.session_state.pop("entry_flash"))
 
-    sites = site_options(active_only=False)
+    active_sites = site_options(active_only=True)   # 施工中・着工前のみ
+    all_sites = site_options(active_only=False)      # 全現場（検索用）
     st.session_state.setdefault("entry_workers", [])
     st.session_state.setdefault("entry_subs", [])
     n = st.session_state.get("entry_nonce", 0)
@@ -284,16 +285,41 @@ def _entry_genba() -> None:
     report_date = c1.date_input("作業日", value=date.today(), key=f"e_date_{n}")
     # 曜日は作業日から毎回算出（key を付けると古い値が残るため付けない）
     c2.text_input("曜日", value=f"{config.weekday_jp(report_date.isoformat())}曜日", disabled=True)
-    # 現場名は現場管理からプルダウン選択。一覧に無ければ手入力し、登録時に現場管理へ追加する。
-    SITE_NONE = "―（現場管理一覧から選択）―"
-    s1, s2 = st.columns(2)
-    site_label = s1.selectbox("現場名（プルダウン）", [SITE_NONE] + list(sites.keys()),
+    # 現場名: 施工中の現場をプルダウンで選択。完了済み等はテキスト検索で探す。
+    SITE_NONE = "―（現場を選択）―"
+    site_label = st.selectbox("現場名（施工中の現場）", [SITE_NONE] + list(active_sites.keys()),
                               key=f"e_site_{n}")
-    site_typed = s2.text_input("一覧にない現場名はこちらに入力　🎤", key=f"e_site_new_{n}",
-                               placeholder="新しい現場名（現場管理に登録されます）")
-    # 手入力があればそちらを優先。既存現場を選んでいるときだけ発注先の既定値を引く。
-    site = None if site_typed.strip() else (
-        db.get_site(sites[site_label]) if site_label != SITE_NONE else None)
+
+    # 完了済み・着工前など施工中以外の現場を検索
+    other_sites = {k: v for k, v in all_sites.items() if k not in active_sites}
+    with st.expander("施工中以外の現場を検索 / 新規現場を入力", expanded=False):
+        site_search = st.text_input("現場名で検索　🎤", key=f"e_site_search_{n}",
+                                    placeholder="現場名の一部を入力して検索")
+        if site_search.strip():
+            matched = {k: v for k, v in other_sites.items()
+                       if site_search.strip() in k}
+            if matched:
+                search_label = st.selectbox("検索結果", list(matched.keys()),
+                                            key=f"e_site_result_{n}")
+            else:
+                search_label = None
+                st.caption("一致する現場がありません。下に新規現場名を入力してください。")
+        else:
+            search_label = None
+            matched = {}
+        site_typed = st.text_input("新規現場名（現場管理に登録されます）", key=f"e_site_new_{n}",
+                                   placeholder="一覧にない現場名を入力")
+
+    # 優先順: 新規入力 > 検索結果 > プルダウン選択
+    if site_typed.strip():
+        site = None  # 新規現場
+    elif site_search.strip() and search_label and search_label in all_sites:
+        site = db.get_site(all_sites[search_label])
+        site_label = search_label
+    elif site_label != SITE_NONE:
+        site = db.get_site(active_sites[site_label])
+    else:
+        site = None
 
     # 発注先も発注先管理からプルダウン選択。一覧に無ければ手入力し、登録時に発注先管理へ追加する。
     CLIENT_NONE = "―（発注先管理一覧から選択）―"
@@ -322,32 +348,46 @@ def _entry_genba() -> None:
         w_start = cc[0].time_input("開始", value=_t(config.DEFAULT_START_TIME), key=f"w_start_{n}")
         w_end = cc[1].time_input("終了", value=_t(config.DEFAULT_END_TIME), key=f"w_end_{n}")
 
-        # 作業員管理一覧からプルダウン選択。名簿に無ければ下欄に手入力。
+        # 社員リストから複数選択で一括追加
         roster = [w["name"] for w in db.list_workers(active_only=True)]
-        PICK_NONE = "―（作業員管理一覧から選択）―"
-        w_pick = st.selectbox("作業員名（プルダウン）", [PICK_NONE] + roster, key=f"w_pick_{wn}")
+        already_added = {w["worker_name"] for w in st.session_state.get("entry_workers", [])}
+        available = [name for name in roster if name not in already_added]
+
+        selected_workers = st.multiselect(
+            "社員リストから選択（複数選択可）",
+            available,
+            key=f"w_multi_{wn}",
+            placeholder="名前を選んでください",
+        )
+
+        # 名簿にない人の手入力（音声・ひらがな対応）
         wname = st.text_input("名簿にない場合はこちらに入力（🎤・ひらがな可）", key=f"w_name_{wn}",
                               placeholder="例：けんもち")
-        if st.button("➕ この作業員を追加", key=f"w_add_{n}", use_container_width=True):
-            typed = wname.strip()
-            if typed:  # 手入力優先（読みは漢字に変換）
-                name, matched = db.match_worker_name(typed)
-                note = (f"「{typed}」→ **{name}** に変換して追加しました。" if matched
-                        else f"「{name}」を追加しました（名簿に一致なし・そのまま登録）。")
-            elif w_pick != PICK_NONE:  # プルダウン選択
-                name, note = w_pick, f"「{w_pick}」を追加しました。"
-            else:
-                name, note = "", ""
-            if name:
+
+        if st.button("➕ 選択した作業員を追加", key=f"w_add_{n}", use_container_width=True):
+            added_names = []
+            # multiselectで選択した人を一括追加
+            for name in selected_workers:
                 st.session_state["entry_workers"].append({
                     "worker_name": name, "start_time": _time_str(w_start),
                     "end_time": _time_str(w_end),
                 })
+                added_names.append(name)
+            # 手入力があればそちらも追加
+            typed = wname.strip()
+            if typed:
+                name, matched = db.match_worker_name(typed)
+                st.session_state["entry_workers"].append({
+                    "worker_name": name, "start_time": _time_str(w_start),
+                    "end_time": _time_str(w_end),
+                })
+                added_names.append(f"{typed}→{name}" if matched else name)
+            if added_names:
                 st.session_state["wname_nonce"] = wn + 1
-                st.session_state["entry_flash2"] = note
+                st.session_state["entry_flash2"] = f"**{', '.join(added_names)}** を追加しました。"
                 st.rerun()
             else:
-                st.warning("プルダウンで選ぶか、名前を入力してください。")
+                st.warning("社員リストから選ぶか、名前を入力してください。")
     if st.session_state.get("entry_flash2"):
         st.info(st.session_state.pop("entry_flash2"))
 
@@ -430,8 +470,10 @@ def _entry_genba() -> None:
         new_site = False
         if typed_site:
             site_id, new_site = db.get_or_create_site(typed_site, client)
-        elif site_label != SITE_NONE:
-            site_id = sites[site_label]
+        elif site_label != SITE_NONE and site_label in active_sites:
+            site_id = active_sites[site_label]
+        elif site_label != SITE_NONE and site_label in all_sites:
+            site_id = all_sites[site_label]
         else:
             st.error("現場名をプルダウンで選ぶか、入力してください。")
             return

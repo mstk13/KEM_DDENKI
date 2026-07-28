@@ -16,7 +16,7 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from db import get_conn  # noqa: E402
+from dbconn import get_conn  # noqa: E402
 
 # =====================================================================
 # マスターデータ（全アプリ共通）
