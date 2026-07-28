@@ -26,7 +26,7 @@ EVAL_ITEMS_JSON = BASE_DIR / "eval_items.json"
 SURVEY_JSON = BASE_DIR / "survey_questions.json"
 
 sys.path.insert(0, str(REPO_DIR / "shared"))
-from db import get_conn, DATABASE_URL  # noqa: E402
+from dbconn import get_conn, DATABASE_URL  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # 5段階尺度
