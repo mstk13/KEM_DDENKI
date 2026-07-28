@@ -4,28 +4,10 @@
 
 ---
 
-## セットアップ（他のPCで立ち上げる方法）
+## セットアップ手順（他のPCで立ち上げる方法）
 
-### 推奨: Docker で一発セットアップ
-
-Python のインストールや仮想環境の構築は不要です。  
-Docker さえあれば **コマンド2つ** で全アプリが起動します。
-
-```bash
-git clone https://github.com/mstk13/KEM_DDENKI.git
-cd KEM_DDENKI
-./docker/setup_server.sh      # Linux / Mac / WSL
-# docker\setup_server.bat     # Windows（要 Docker Desktop）
-```
-
-これだけで:
-- 全アプリのビルド・起動が自動で行われる
-- Nginx がポート **80** で一括受付し、パスで各アプリに振り分ける
-- 毎朝5時に GitHub から自動更新される（cron登録済み）
-- DBは Docker ボリューム（`kem_data`）に保存される
-
-**起動後、ブラウザで `http://localhost/` を開けばポータルが表示されます。**  
-他のPCからは `http://サーバーのIPアドレス/` でアクセスできます（ブラウザだけでOK）。
+Docker を使えば、**サーバーPC 1台にセットアップするだけ**で、  
+他のPCはブラウザでアクセスするだけで全アプリが使えます。
 
 ```
 他のPC（何台でも）                サーバーPC（1台）
@@ -33,90 +15,144 @@ cd KEM_DDENKI
 │ ブラウザだけ    │             │  Docker が全アプリを実行   │
 │ インストール不要 │── LAN ──→ │                          │
 │               │             │  http://サーバーIP/       │
-│               │             │    /bid/     入札案件管理  │
-│               │             │    /material/ 材料管理    │
-│               │             │    /nippou/  作業日報     │
-│               │             │    /eval/    人事評価入力  │
-│               │             │    /eval-admin/ 人事評価管理│
-│               │             │                          │
 │               │             │  DB・データはすべてここに  │
 └───────────────┘             └──────────────────────────┘
 ```
 
-#### 管理コマンド
+---
+
+### Step 0: サーバーPCの準備
+
+| 項目 | 要件 |
+|------|------|
+| OS | Windows 10/11 Pro、Linux（Ubuntu推奨）、Mac |
+| RAM | 8 GB 以上 |
+| ディスク空き | 5 GB 以上 |
+| ネットワーク | 社内LANに接続（固定IP推奨） |
+
+---
+
+### Step 1: Git をインストールする
+
+コマンドプロンプトで `git --version` と打って表示されればOKです。  
+表示されない場合はインストールしてください。
+
+- **Windows**: https://gitforwindows.org/ からダウンロードしてインストール
+  - インストール中の選択肢はすべてデフォルトのままで大丈夫です
+- **Linux（Ubuntu）**: `sudo apt install git`
+- **Mac**: `xcode-select --install`
+
+---
+
+### Step 2: Docker をインストールする
+
+#### Windows の場合
+
+1. https://www.docker.com/products/docker-desktop/ を開く
+2. 「Download for Windows」をクリックしてインストーラをダウンロード
+3. ダウンロードした `Docker Desktop Installer.exe` を実行
+4. インストールが完了したら **PCを再起動**
+5. 再起動後、Docker Desktop が自動で起動する（タスクバーにクジラのアイコンが出る）
+6. 初回はアカウント作成を求められますが、「Continue without signing in」でスキップ可能
+
+> **注意**: Windows Home では WSL2 が必要です。  
+> Docker Desktop のインストーラが自動で案内してくれるので、指示に従ってください。
+
+#### Linux（Ubuntu）の場合
+
+下の Step 3 のスクリプトが **Docker を自動でインストール** するので、手動でのインストールは不要です。
+
+もし手動でやる場合:
+```bash
+curl -fsSL https://get.docker.com | sh
+sudo usermod -aG docker $USER
+# ログアウトして再ログイン
+```
+
+#### Mac の場合
+
+1. https://www.docker.com/products/docker-desktop/ を開く
+2. 「Download for Mac」をクリックしてインストール
+3. アプリケーションフォルダの Docker を起動
+
+#### インストール確認
+
+コマンドプロンプト（またはターミナル）で以下を実行:
 
 ```bash
-./docker/manage.sh start              # 全アプリ起動
+docker --version
+```
+
+`Docker version 27.x.x` のように表示されればOKです。
+
+---
+
+### Step 3: アプリをセットアップする
+
+```bash
+# 1. リポジトリを取得
+git clone https://github.com/mstk13/KEM_DDENKI.git
+cd KEM_DDENKI
+
+# 2. セットアップ実行（全アプリのビルド・起動を自動で行います。初回は数分かかります）
+./docker/setup_server.sh      # Linux / Mac / WSL
+# docker\setup_server.bat     # Windows
+```
+
+以上で完了です。
+
+---
+
+### Step 4: 動作確認
+
+ブラウザで **http://localhost/** を開き、ポータルページが表示されれば成功です。
+
+---
+
+### Step 5: 他のPCからアクセスする
+
+サーバーPCのIPアドレスを確認します:
+
+```bash
+ipconfig        # Windows
+hostname -I     # Linux
+```
+
+例えばIPが `192.168.0.27` なら、他のPCのブラウザで **http://192.168.0.27/** を開くだけです。  
+ブックマークしておけば次回からすぐアクセスできます。
+
+デスクトップにショートカットを作りたい場合は、`setup_client_docker.bat` を他のPCで実行してください。
+
+---
+
+### 管理コマンド（サーバーPCで実行）
+
+```bash
+./docker/manage.sh status             # 稼働状況を確認
 ./docker/manage.sh stop               # 全アプリ停止
+./docker/manage.sh start              # 全アプリ起動
 ./docker/manage.sh restart evaluation  # 特定アプリだけ再起動
-./docker/manage.sh status             # 稼働状況
-./docker/manage.sh update             # 最新版に更新
+./docker/manage.sh update             # GitHubから最新版に更新
 ./docker/manage.sh logs bid_manager   # ログ確認
 ./docker/manage.sh backup             # DBバックアップ
 ```
 
-#### サーバーPCの要件
-
-| 項目 | 要件 |
-|------|------|
-| OS | Windows 10/11 Pro、Linux、Mac |
-| Docker | Docker Desktop（Windows/Mac）または Docker Engine（Linux） |
-| RAM | 8 GB 以上 |
-| ディスク空き | 5 GB 以上 |
-
----
-
-### Docker を使わない場合
-
-Python を直接使って起動することもできます。
-
-```bash
-git clone https://github.com/mstk13/KEM_DDENKI.git
-cd KEM_DDENKI
-
-# 初回セットアップ（仮想環境作成・パッケージ・DB初期化を一括実行）
-./setup.sh          # Linux / Mac / WSL
-# setup.bat         # Windows
-
-# 起動（起動時にGitHubから自動更新も行われる）
-./start_all.sh      # Linux / Mac / WSL
-# start.bat         # Windows
-```
-
-ブラウザで `http://localhost:8080` を開くとポータルが表示されます。  
-他のPCからは `http://サーバーIP:8080` でアクセスできます。
-
-#### 複数PCでDBを共有する場合
-
-`.env` ファイルでDBの保存先をネットワーク共有フォルダに変更できます。
-
-```bash
-cp .env.example .env
-```
-
-`.env` を編集:
-```
-KEM_DATA_DIR=\\192.168.0.27\kem_data    # Windows 共有フォルダ
-# KEM_DATA_DIR=/mnt/shared/kem_data     # Linux NFS/SMBマウント
-```
-
-> SQLite はネットワークドライブでの同時書き込みに弱いため、  
-> 本格運用ではサーバー1台で動かす方式（Docker推奨）をおすすめします。
+> 毎朝5時にGitHubから自動更新されます。
 
 ---
 
 ## アプリ一覧
 
-| アプリ | ポート | Docker パス | 概要 |
-|--------|--------|------------|------|
-| 入札案件管理 | 8501 | `/bid/` | 案件収集・進捗管理・費用分析・競合分析 |
-| 材料管理 | 5000 | `/material/` | 見積もり vs 発注の消化率追跡 |
-| 作業日報 | 8502 | `/nippou/` | 日報入力・作業員管理・月次集計 |
-| 人事評価（入力） | 8504 | `/eval/` | アンケート方式の評価入力 |
-| 人事評価（管理） | 8505 | `/eval-admin/` | 結果閲覧・自己vs他己比較・PDF出力 |
-| 営業管理 | 8503 | `/eigyo/` | 訪問記録・資料自動抽出（Claude API） |
-| 日報管理 | 8510 | `/nippou-kanri/` | 勤怠テキスト抽出・集計 |
-| ポータル | 8080 / 80 | `/` | 全アプリへのランチャーページ |
+| アプリ | Docker URL | 概要 |
+|--------|-----------|------|
+| 入札案件管理 | `/bid/` | 案件収集・進捗管理・費用分析・競合分析 |
+| 材料管理 | `/material/` | 見積もり vs 発注の消化率追跡 |
+| 作業日報 | `/nippou/` | 日報入力・作業員管理・月次集計 |
+| 人事評価（入力） | `/eval/` | アンケート方式の評価入力 |
+| 人事評価（管理） | `/eval-admin/` | 結果閲覧・自己vs他己比較・PDF出力 |
+| 営業管理 | `/eigyo/` | 訪問記録・資料自動抽出（Claude API） |
+| 日報管理 | `/nippou-kanri/` | 勤怠テキスト抽出・集計 |
+| ポータル | `/` | 全アプリへのランチャーページ |
 
 ### データの流れ
 
@@ -132,7 +168,22 @@ KEM_DATA_DIR=\\192.168.0.27\kem_data    # Windows 共有フォルダ
 
 ---
 
-## 個別にアプリを起動する（開発者向け）
+## Docker を使わない場合
+
+```bash
+git clone https://github.com/mstk13/KEM_DDENKI.git
+cd KEM_DDENKI
+./setup.sh          # 初回セットアップ（Linux/Mac/WSL）
+./start_all.sh      # 全アプリ起動
+# Windows: setup.bat → start.bat
+```
+
+ブラウザで `http://localhost:8080` を開くとポータルが表示されます。  
+詳細は [docs/setup_guide.md](docs/setup_guide.md) を参照。
+
+---
+
+## 開発者向け（個別起動）
 
 各アプリは独立しており、1つだけ起動してテスト・修正できます。
 
@@ -159,7 +210,7 @@ source .venv/bin/activate     # Linux/Mac
 
 | ドキュメント | 内容 |
 |-------------|------|
-| [docs/setup_guide.md](docs/setup_guide.md) | セットアップ詳細・Docker運用・トラブルシューティング |
+| [docs/setup_guide.md](docs/setup_guide.md) | セットアップ詳細・トラブルシューティング |
 | [docs/DEVELOPER.md](docs/DEVELOPER.md) | 開発者向け: 個別開発・テスト・新アプリ追加手順 |
 | [docs/spec.md](docs/spec.md) | システム仕様書（DB設計・機能仕様） |
 | [docs/geps_setup.md](docs/geps_setup.md) | GEPS メール連携のセットアップ |
