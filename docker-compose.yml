@@ -78,10 +78,25 @@ services:
       - streamlit
       - run
       - app.py
-      - --server.port=8503
+      - --server.port=8504
       - --server.headless=true
       - --server.address=0.0.0.0
       - --server.baseUrlPath=/eval
+
+  evaluation_admin:
+    <<: *app-base
+    environment:
+      <<: *common-env
+    command:
+      - /entrypoint.sh
+      - evaluation
+      - streamlit
+      - run
+      - admin_app.py
+      - --server.port=8505
+      - --server.headless=true
+      - --server.address=0.0.0.0
+      - --server.baseUrlPath=/eval-admin
 
   # --- オプションアプリ (docker compose --profile optional up -d) ---
   eigyo_kanri:

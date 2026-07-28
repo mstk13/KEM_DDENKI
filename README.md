@@ -4,80 +4,91 @@
 
 ---
 
-## はじめに — 立ち上げ方法
+## セットアップ（他のPCで立ち上げる方法）
 
-用途に合わせて **3つの方法** があります。
+### 推奨: Docker で一発セットアップ
 
-### 方法1: サーバー1台＋ブラウザだけ（推奨）
+Python のインストールや仮想環境の構築は不要です。  
+Docker さえあれば **コマンド2つ** で全アプリが起動します。
 
-1台のPCで全アプリを動かし、他のPCはブラウザでアクセスするだけの構成です。  
-**データは自動的に全PCで共有されます。**
+```bash
+git clone https://github.com/mstk13/KEM_DDENKI.git
+cd KEM_DDENKI
+./docker/setup_server.sh      # Linux / Mac / WSL
+# docker\setup_server.bat     # Windows（要 Docker Desktop）
+```
+
+これだけで:
+- 全アプリのビルド・起動が自動で行われる
+- Nginx がポート **80** で一括受付し、パスで各アプリに振り分ける
+- 毎朝5時に GitHub から自動更新される（cron登録済み）
+- DBは Docker ボリューム（`kem_data`）に保存される
+
+**起動後、ブラウザで `http://localhost/` を開けばポータルが表示されます。**  
+他のPCからは `http://サーバーのIPアドレス/` でアクセスできます（ブラウザだけでOK）。
 
 ```
 他のPC（何台でも）                サーバーPC（1台）
-┌───────────────┐             ┌────────────────────────┐
-│ ブラウザだけ    │             │  全アプリが動いている    │
-│ インストール不要 │── LAN ──→ │                        │
-│               │             │  http://サーバーIP:8080 │
-│               │             │  DBはすべてここに保存    │
-└───────────────┘             └────────────────────────┘
+┌───────────────┐             ┌──────────────────────────┐
+│ ブラウザだけ    │             │  Docker が全アプリを実行   │
+│ インストール不要 │── LAN ──→ │                          │
+│               │             │  http://サーバーIP/       │
+│               │             │    /bid/     入札案件管理  │
+│               │             │    /material/ 材料管理    │
+│               │             │    /nippou/  作業日報     │
+│               │             │    /eval/    人事評価入力  │
+│               │             │    /eval-admin/ 人事評価管理│
+│               │             │                          │
+│               │             │  DB・データはすべてここに  │
+└───────────────┘             └──────────────────────────┘
 ```
 
-**サーバーPCのセットアップ（初回のみ）:**
+#### 管理コマンド
+
+```bash
+./docker/manage.sh start              # 全アプリ起動
+./docker/manage.sh stop               # 全アプリ停止
+./docker/manage.sh restart evaluation  # 特定アプリだけ再起動
+./docker/manage.sh status             # 稼働状況
+./docker/manage.sh update             # 最新版に更新
+./docker/manage.sh logs bid_manager   # ログ確認
+./docker/manage.sh backup             # DBバックアップ
+```
+
+#### サーバーPCの要件
+
+| 項目 | 要件 |
+|------|------|
+| OS | Windows 10/11 Pro、Linux、Mac |
+| Docker | Docker Desktop（Windows/Mac）または Docker Engine（Linux） |
+| RAM | 8 GB 以上 |
+| ディスク空き | 5 GB 以上 |
+
+---
+
+### Docker を使わない場合
+
+Python を直接使って起動することもできます。
 
 ```bash
 git clone https://github.com/mstk13/KEM_DDENKI.git
 cd KEM_DDENKI
 
-# Linux / Mac / WSL
-./setup.sh          # 仮想環境の作成・パッケージ・DB初期化を一括で行う
+# 初回セットアップ（仮想環境作成・パッケージ・DB初期化を一括実行）
+./setup.sh          # Linux / Mac / WSL
+# setup.bat         # Windows
 
-# Windows
-setup.bat
+# 起動（起動時にGitHubから自動更新も行われる）
+./start_all.sh      # Linux / Mac / WSL
+# start.bat         # Windows
 ```
 
-**アプリの起動:**
+ブラウザで `http://localhost:8080` を開くとポータルが表示されます。  
+他のPCからは `http://サーバーIP:8080` でアクセスできます。
 
-```bash
-# Linux / Mac / WSL
-./start_all.sh      # 全アプリを一括起動（起動時にGitHubから自動更新）
+#### 複数PCでDBを共有する場合
 
-# Windows
-start.bat
-```
-
-起動後、ブラウザで `http://localhost:8080` を開くとポータルが表示されます。  
-**他のPCからは `http://サーバーのIPアドレス:8080`** でアクセスできます。
-
-> サーバーPCの要件: Python 3.11以上、RAM 8GB以上、ディスク空き 5GB以上
-
----
-
-### 方法2: 複数PCでDBを共有して使う
-
-各PCでアプリを起動しつつ、**データだけをネットワーク共有フォルダで共有**する構成です。
-
-```
-PC-A                          PC-B
-┌───────────────┐             ┌───────────────┐
-│ アプリを起動    │             │ アプリを起動    │
-│ http://        │             │ http://        │
-│ localhost:8080 │             │ localhost:8080 │
-└──────┬────────┘             └──────┬────────┘
-       │                             │
-       └──────────┬──────────────────┘
-                  ↓
-       ┌─────────────────┐
-       │ 共有フォルダ      │
-       │ \\サーバー\kem_data │
-       │ (DBファイル一式)  │
-       └─────────────────┘
-```
-
-**手順:**
-
-1. ネットワーク共有フォルダを用意する（例: `\\192.168.0.27\kem_data`）
-2. 各PCで `.env` ファイルを作成し、共有フォルダのパスを指定する:
+`.env` ファイルでDBの保存先をネットワーク共有フォルダに変更できます。
 
 ```bash
 cp .env.example .env
@@ -85,52 +96,27 @@ cp .env.example .env
 
 `.env` を編集:
 ```
-# Windows の共有フォルダの場合
-KEM_DATA_DIR=\\192.168.0.27\kem_data
-
-# Linux / Mac の NFS/SMB マウントの場合
-KEM_DATA_DIR=/mnt/shared/kem_data
+KEM_DATA_DIR=\\192.168.0.27\kem_data    # Windows 共有フォルダ
+# KEM_DATA_DIR=/mnt/shared/kem_data     # Linux NFS/SMBマウント
 ```
 
-3. 各PCで `setup.sh`（または `setup.bat`）→ `start_all.sh`（または `start.bat`）
-
-> **注意:** SQLiteはネットワークドライブ上での同時書き込みに弱いため、  
-> 同じアプリに複数人が同時にデータを書き込むと稀にエラーになる場合があります。  
-> 本格運用には方法1（サーバー集中）を推奨します。
-
----
-
-### 方法3: Docker で本番運用する
-
-Docker を使うとポート管理が不要になり、Nginxが全アプリをポート80に集約します。
-
-```bash
-git clone https://github.com/mstk13/KEM_DDENKI.git
-cd KEM_DDENKI
-
-# Linux
-./docker/setup_server.sh
-
-# Windows（要 Docker Desktop）
-docker\setup_server.bat
-```
-
-他のPCからは `http://サーバーIP/` でアクセス。詳細は [docs/setup_guide.md](docs/setup_guide.md) を参照。
+> SQLite はネットワークドライブでの同時書き込みに弱いため、  
+> 本格運用ではサーバー1台で動かす方式（Docker推奨）をおすすめします。
 
 ---
 
 ## アプリ一覧
 
-| アプリ | ポート | 概要 |
-|--------|--------|------|
-| **入札案件管理** | 8501 | 案件収集・進捗管理・費用分析・競合分析 |
-| **材料管理** | 5000 | 見積もり vs 発注の消化率追跡 |
-| **作業日報** | 8502 | 日報入力・作業員管理・月次集計 |
-| **人事評価（入力）** | 8504 | アンケート方式の評価入力 |
-| **人事評価（管理）** | 8505 | 結果閲覧・自己vs他己比較・PDF出力 |
-| **営業管理** | 8503 | 訪問記録・資料自動抽出（Claude API） |
-| **日報管理** | 8510 | 勤怠テキスト抽出・集計 |
-| **ポータル** | 8080 | 全アプリへのランチャーページ |
+| アプリ | ポート | Docker パス | 概要 |
+|--------|--------|------------|------|
+| 入札案件管理 | 8501 | `/bid/` | 案件収集・進捗管理・費用分析・競合分析 |
+| 材料管理 | 5000 | `/material/` | 見積もり vs 発注の消化率追跡 |
+| 作業日報 | 8502 | `/nippou/` | 日報入力・作業員管理・月次集計 |
+| 人事評価（入力） | 8504 | `/eval/` | アンケート方式の評価入力 |
+| 人事評価（管理） | 8505 | `/eval-admin/` | 結果閲覧・自己vs他己比較・PDF出力 |
+| 営業管理 | 8503 | `/eigyo/` | 訪問記録・資料自動抽出（Claude API） |
+| 日報管理 | 8510 | `/nippou-kanri/` | 勤怠テキスト抽出・集計 |
+| ポータル | 8080 / 80 | `/` | 全アプリへのランチャーページ |
 
 ### データの流れ
 
@@ -151,14 +137,8 @@ docker\setup_server.bat
 各アプリは独立しており、1つだけ起動してテスト・修正できます。
 
 ```bash
-# 仮想環境を有効化
 source .venv/bin/activate     # Linux/Mac
 # .venv\Scripts\activate      # Windows
-
-# 例: 人事評価の入力アプリだけ起動
-cd evaluation
-pip install -r requirements.txt
-streamlit run app.py --server.port 8504
 ```
 
 | アプリ | 起動コマンド |
@@ -170,6 +150,8 @@ streamlit run app.py --server.port 8504
 | 人事評価（管理） | `cd evaluation && streamlit run admin_app.py --server.port 8505` |
 | 営業管理 | `cd eigyo-kanri && python database.py && streamlit run app.py --server.port 8503` |
 | 日報管理 | `cd nippou-kanri && python database.py && streamlit run app.py --server.port 8510` |
+
+> 詳細は [docs/DEVELOPER.md](docs/DEVELOPER.md) を参照
 
 ---
 
