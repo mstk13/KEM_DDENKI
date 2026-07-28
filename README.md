@@ -139,14 +139,84 @@ hostname -I     # Linux
 
 ---
 
+## ブランチ運用ルール
+
+```
+main ← 本番環境（サーバーが自動で参照するブランチ）
+ ↑
+develop ← 開発用（コードの追加・修正はここで行う）
+```
+
+| ブランチ | 用途 | 誰が使う |
+|---------|------|---------|
+| `main` | 本番用。サーバーが毎朝自動でpullする | 管理者のみマージ |
+| `develop` | 開発・テスト用。新機能やバグ修正はここで行う | 開発者全員 |
+
+### 開発の流れ
+
+```bash
+# 1. developブランチで作業する
+git checkout develop
+git pull origin develop
+
+# 2. コードを修正・テスト
+
+# 3. developにpush
+git add -A && git commit -m "変更内容"
+git push origin develop
+
+# 4. 本番に反映したい時 → GitHubでPull Requestを作成
+#    develop → main のPRを作り、確認してからマージする
+#    （または管理者がコマンドで直接マージ）
+git checkout main
+git merge develop
+git push origin main
+```
+
+### テストデータの投入
+
+developブランチには全アプリ共通のテストデータ投入スクリプトがあります。  
+全アプリで同じ従業員名・現場名を使うので、実運用を模したテストができます。
+
+```bash
+# Docker環境で実行
+docker compose exec bid_manager python /app/shared/seed_all.py
+
+# データを全削除してから投入し直す場合
+docker compose exec bid_manager python /app/shared/seed_all.py --reset
+```
+
+テストデータの従業員（10名）:
+
+| コード | 名前 | 部署 | 役割 |
+|--------|------|------|------|
+| E001 | 剣持 太郎 | 役員 | 代表取締役 |
+| E002 | 剣持 花子 | 役員 | 取締役 |
+| E003 | 佐藤 健一 | 電気工事部 | 職長 |
+| E004 | 田中 翔太 | 電気工事部 | 主任 |
+| E005 | 鈴木 誠 | 電気工事部 | 社員 |
+| E006 | 高橋 健太 | 電気工事部 | 社員 |
+| E007 | 山田 美咲 | 総務部 | 事務主任 |
+| E008 | 中村 裕子 | 総務部 | 事務社員 |
+| E009 | 伊藤 大輔 | 電気工事部 | 見習い |
+| E010 | 渡辺 拓也 | 電気工事部 | 見習い |
+
+これらの名前が入札・材料・日報・勤怠・営業・人事評価の全アプリに横断的に使われます。
+
+---
+
 ## コードの変更とデプロイ
 
 ```bash
-# 1. コードを修正
-# 2. GitHubにpush
-git add -A && git commit -m "変更内容" && git push origin main
+# developで作業 → mainにマージ → サーバーに反映
+git checkout develop
+# ... 修正 ...
+git add -A && git commit -m "変更内容" && git push origin develop
 
-# 3. サーバーに反映（自動更新を待たない場合）
+# 本番反映
+git checkout main && git merge develop && git push origin main
+
+# サーバーに即時反映（自動更新を待たない場合）
 ./docker/manage.sh update
 ```
 
