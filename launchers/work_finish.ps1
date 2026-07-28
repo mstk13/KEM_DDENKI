@@ -112,9 +112,12 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 # --- マージ ---
+# --delete-branch は使わない。gh がローカルで main に切り替えようとするが、
+# main は kem_wt ワークツリーが掴んでいるため失敗し、ブランチが消し残る。
+# マージ後に自分でリモートブランチを削除する。
 Write-Host ''
 Write-Host '[マージ中] main に反映しています...'
-gh pr merge --merge --delete-branch
+gh pr merge --merge
 if ($LASTEXITCODE -ne 0) {
     Write-Host ''
     Write-Host '[エラー] マージに失敗しました。' -ForegroundColor Red
@@ -124,7 +127,14 @@ if ($LASTEXITCODE -ne 0) {
     Stop-Here 1
 }
 
-git fetch origin --quiet
+# --- 使い終わったブランチをGitHubから削除する ---
+Write-Host '[片付け中] GitHub 上の作業ブランチを削除しています...'
+git push origin --delete deploy-update
+if ($LASTEXITCODE -ne 0) {
+    Write-Host '[注意] ブランチの削除に失敗しました。次回 work_start.bat 実行時に作り直されるため実害はありません。' -ForegroundColor Yellow
+}
+
+git fetch origin --prune --quiet
 
 Show-Title '反映完了！'
 
