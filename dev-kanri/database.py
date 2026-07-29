@@ -266,9 +266,22 @@ def add_comment(task_id: int, author: str, body: str) -> int:
 # 従業員一覧（担当者選択用）
 # ---------------------------------------------------------------------------
 def list_members() -> list[str]:
+    """全アクティブ従業員（タスク担当者・コメント用）。"""
     with get_conn() as conn:
         with _cur(conn) as cur:
             cur.execute("SELECT name FROM master.employees WHERE is_active = TRUE ORDER BY code")
+            return [r["name"] for r in cur.fetchall()]
+
+
+def list_project_assignees() -> list[str]:
+    """プロジェクト責任者の候補（社員番号がGから始まる人のみ）。"""
+    with get_conn() as conn:
+        with _cur(conn) as cur:
+            cur.execute("""
+                SELECT name FROM master.employees
+                WHERE is_active = TRUE AND code LIKE 'G%'
+                ORDER BY code
+            """)
             return [r["name"] for r in cur.fetchall()]
 
 

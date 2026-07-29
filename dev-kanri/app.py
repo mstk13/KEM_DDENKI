@@ -281,6 +281,7 @@ def page_projects() -> None:
     st.header("プロジェクト管理")
 
     members = db.list_members()
+    assignee_candidates = db.list_project_assignees()
 
     # --- プロジェクト追加 ---
     with st.expander("プロジェクトを作成"):
@@ -288,7 +289,9 @@ def page_projects() -> None:
             p_name = st.text_input("プロジェクト名*", placeholder="例: 施工管理システム v2")
             p_desc = st.text_area("説明", height=80)
             pa1, pa2 = st.columns(2)
-            p_assignee = pa1.selectbox("責任者 (assignee)", [""] + members, key="proj_assignee")
+            p_assignee = pa1.selectbox("責任者 (assignee)", [""] + assignee_candidates, key="proj_assignee")
+            if not assignee_candidates:
+                pa1.caption("※ 社員番号がGから始まる社員がいません")
             p_repo = pa2.text_input("リポジトリURL", placeholder="https://github.com/...")
             pc1, pc2 = st.columns(2)
             p_start = pc1.date_input("開始日", value=None)
@@ -362,8 +365,8 @@ def page_projects() -> None:
                     if p.get("status") in ["計画中", "進行中", "完了", "中断"] else 1,
                 key=f"ps_{p['id']}")
             cur_assignee = p.get("assignee") or ""
-            new_assignee = ec2.selectbox("責任者 (assignee)", [""] + members,
-                index=(members.index(cur_assignee) + 1) if cur_assignee in members else 0,
+            new_assignee = ec2.selectbox("責任者 (assignee)", [""] + assignee_candidates,
+                index=(assignee_candidates.index(cur_assignee) + 1) if cur_assignee in assignee_candidates else 0,
                 key=f"pa_{p['id']}")
             if ec3.button("更新", key=f"pu_{p['id']}", type="primary"):
                 db.update_project(p["id"], status=new_status, assignee=new_assignee)
