@@ -1029,12 +1029,20 @@ def _render_weekly_calendar(base_date: date, sites: list[dict], employees: list[
                         f"<div style='font-size:1.0rem;font-weight:700;'>{d.month}/{d.day}</div></th>")
     header_html += "</tr>"
 
+    # 週全体の配置を1回のクエリで取得し、日×現場でグルーピング
+    week_assignments = {}  # (date, site_id) -> [assignments]
+    for d in days:
+        day_all = db.get_effective_assignments(d)
+        for a in day_all:
+            key = (d, a["site_id"])
+            week_assignments.setdefault(key, []).append(a)
+
     # 各現場の行
     rows_html = ""
     for s in sites:
         rows_html += f"<tr><td style='padding:0.5rem;font-weight:700;font-size:0.95rem;border-right:2px solid #e2e8f0;'>{s['name'][:15]}</td>"
         for i, d in enumerate(days):
-            day_assignments = db.get_site_assignments(s["id"], d)
+            day_assignments = week_assignments.get((d, s["id"]), [])
             bg = "#fef3c7" if d == today else ("#f8fafc" if i >= 5 else "#fff")
             names = "<br>".join(
                 f"<span style='background:#dbeafe;padding:0.1rem 0.4rem;border-radius:4px;"
