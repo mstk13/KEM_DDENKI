@@ -1,45 +1,45 @@
 [
   {
-    "issuer": "内閣府",
+    "issuer": "国土交通省",
     "category": "電気工事",
     "grade": "A",
     "keisin_score": 884,
     "total_score": 884,
-    "vendor_number": "10701715394",
+    "vendor_number": "2514024304",
     "valid_from": "2025-04-01",
     "valid_until": "2027-03-31",
-    "application_type": null,
-    "application_method": null,
+    "application_type": "一元定期",
+    "application_method": "インターネット",
     "memo": null
   },
   {
-    "issuer": "内閣府",
+    "issuer": "国土交通省",
     "category": "電気通信",
-    "grade": "C",
+    "grade": "B",
     "keisin_score": 696,
     "total_score": 696,
-    "vendor_number": null,
-    "valid_from": null,
+    "vendor_number": "2514024304",
+    "valid_from": "2025-04-01",
     "valid_until": "2027-03-31",
-    "application_type": null,
-    "application_method": null,
+    "application_type": "一元定期",
+    "application_method": "インターネット",
     "memo": null
   },
   {
-    "issuer": "内閣府(沖縄総合事務局)",
+    "issuer": "国土交通省(東北地方整備局)",
     "category": "電気設備",
     "grade": "B",
     "keisin_score": 871,
-    "total_score": 1947,
-    "vendor_number": "161869",
+    "total_score": 1957,
+    "vendor_number": "17002225000",
     "valid_from": "2025-04-01",
     "valid_until": "2027-03-31",
-    "application_type": null,
-    "application_method": null,
+    "application_type": "一元定期",
+    "application_method": "インターネット",
     "memo": null
   },
   {
-    "issuer": "内閣府(沖縄総合事務局)",
+    "issuer": "国土交通省(東北地方整備局)",
     "category": "維持修繕",
     "grade": null,
     "keisin_score": 818,
@@ -52,7 +52,7 @@
     "memo": null
   },
   {
-    "issuer": "内閣府(沖縄総合事務局)",
+    "issuer": "国土交通省(東北地方整備局)",
     "category": "通信設備",
     "grade": null,
     "keisin_score": 696,
@@ -65,7 +65,7 @@
     "memo": null
   },
   {
-    "issuer": "内閣府(沖縄総合事務局)",
+    "issuer": "国土交通省(東北地方整備局)",
     "category": "受変電",
     "grade": null,
     "keisin_score": 845,
@@ -78,7 +78,7 @@
     "memo": null
   },
   {
-    "issuer": "内閣府(沖縄総合事務局)",
+    "issuer": "国土交通省(東北地方整備局)",
     "category": "橋梁補修",
     "grade": null,
     "keisin_score": 816,
@@ -91,90 +91,12 @@
     "memo": null
   },
   {
-    "issuer": "北海道開発局",
-    "category": "電気",
-    "grade": "B",
-    "keisin_score": 880,
-    "total_score": 880,
-    "vendor_number": "11-05563",
-    "valid_from": "2025-04-01",
-    "valid_until": "2027-03-31",
-    "application_type": null,
-    "application_method": null,
-    "memo": null
-  },
-  {
-    "issuer": "北海道開発局",
-    "category": "維持",
-    "grade": null,
-    "keisin_score": 829,
-    "total_score": 829,
-    "vendor_number": null,
-    "valid_from": "2025-04-01",
-    "valid_until": "2027-03-31",
-    "application_type": null,
-    "application_method": null,
-    "memo": null
-  },
-  {
-    "issuer": "厚生労働省",
-    "category": "電気工事",
-    "grade": "B",
-    "keisin_score": 884,
-    "total_score": 884,
-    "vendor_number": "5021001019709",
-    "valid_from": "2025-04-01",
-    "valid_until": "2027-03-31",
-    "application_type": null,
-    "application_method": null,
-    "memo": null
-  },
-  {
-    "issuer": "厚生労働省",
-    "category": "電気通信",
-    "grade": "Ｄ",
-    "keisin_score": 696,
-    "total_score": 696,
-    "vendor_number": null,
-    "valid_from": null,
-    "valid_until": "2027-03-31",
-    "application_type": null,
-    "application_method": null,
-    "memo": null
-  },
-  {
-    "issuer": "国土交通省",
-    "category": "電気工事",
-    "grade": "A",
-    "keisin_score": 884,
-    "total_score": 884,
-    "vendor_number": "2514024304",
-    "valid_from": "2025-04-01",
-    "valid_until": "2027-03-31",
-    "application_type": "一元定期",
-    "application_method": "インターネット",
-    "memo": null
-  },
-  {
-    "issuer": "国土交通省",
-    "category": "電気通信",
-    "grade": "B",
-    "keisin_score": 696,
-    "total_score": 696,
-    "vendor_number": "2514024304",
-    "valid_from": "2025-04-01",
-    "valid_until": "2027-03-31",
-    "application_type": "一元定期",
-    "application_method": "インターネット",
-    "memo": null
-  },
-  {
-    "issuer": "国土交通省(中国地方整備局)",
+    "issuer": "国土交通省(関東地方整備局)",
     "category": "電気設備",
     "grade": "B",
     "keisin_score": 871,
-    "total_score": 1957,
-    "vendor_number": "17000316000",
+    "total_score": 2054,
+    "vendor_number": "10022158000",
     "valid_from": "2025-04-01",
     "valid_until": "2027-03-31",
     "application_type": null,
@@ -182,7 +104,7 @@
     "memo": null
   },
   {
-    "issuer": "国土交通省(中国地方整備局)",
+    "issuer": "国土交通省(関東地方整備局)",
     "category": "維持修繕",
     "grade": null,
     "keisin_score": 818,
@@ -195,7 +117,7 @@
     "memo": null
   },
   {
-    "issuer": "国土交通省(中国地方整備局)",
+    "issuer": "国土交通省(関東地方整備局)",
     "category": "通信設備",
     "grade": null,
     "keisin_score": 696,
@@ -208,7 +130,7 @@
     "memo": null
   },
   {
-    "issuer": "国土交通省(中国地方整備局)",
+    "issuer": "国土交通省(関東地方整備局)",
     "category": "受変電",
     "grade": null,
     "keisin_score": 845,
@@ -221,7 +143,7 @@
     "memo": null
   },
   {
-    "issuer": "国土交通省(中国地方整備局)",
+    "issuer": "国土交通省(関東地方整備局)",
     "category": "橋梁補修",
     "grade": null,
     "keisin_score": 816,
@@ -299,12 +221,12 @@
     "memo": null
   },
   {
-    "issuer": "国土交通省(九州地方整備局)",
+    "issuer": "国土交通省(近畿地方整備局)",
     "category": "電気設備",
     "grade": "B",
     "keisin_score": 871,
     "total_score": 1957,
-    "vendor_number": "00024690000",
+    "vendor_number": "10040083000",
     "valid_from": "2025-04-01",
     "valid_until": "2027-03-31",
     "application_type": null,
@@ -312,7 +234,7 @@
     "memo": null
   },
   {
-    "issuer": "国土交通省(九州地方整備局)",
+    "issuer": "国土交通省(近畿地方整備局)",
     "category": "維持修繕",
     "grade": null,
     "keisin_score": 818,
@@ -325,7 +247,7 @@
     "memo": null
   },
   {
-    "issuer": "国土交通省(九州地方整備局)",
+    "issuer": "国土交通省(近畿地方整備局)",
     "category": "通信設備",
     "grade": null,
     "keisin_score": 696,
@@ -338,7 +260,7 @@
     "memo": null
   },
   {
-    "issuer": "国土交通省(九州地方整備局)",
+    "issuer": "国土交通省(近畿地方整備局)",
     "category": "受変電",
     "grade": null,
     "keisin_score": 845,
@@ -351,7 +273,7 @@
     "memo": null
   },
   {
-    "issuer": "国土交通省(九州地方整備局)",
+    "issuer": "国土交通省(近畿地方整備局)",
     "category": "橋梁補修",
     "grade": null,
     "keisin_score": 816,
@@ -429,6 +351,71 @@
     "memo": null
   },
   {
+    "issuer": "国土交通省(中国地方整備局)",
+    "category": "電気設備",
+    "grade": "B",
+    "keisin_score": 871,
+    "total_score": 1957,
+    "vendor_number": "17000316000",
+    "valid_from": "2025-04-01",
+    "valid_until": "2027-03-31",
+    "application_type": null,
+    "application_method": null,
+    "memo": null
+  },
+  {
+    "issuer": "国土交通省(中国地方整備局)",
+    "category": "維持修繕",
+    "grade": null,
+    "keisin_score": 818,
+    "total_score": 818,
+    "vendor_number": null,
+    "valid_from": null,
+    "valid_until": "2027-03-31",
+    "application_type": null,
+    "application_method": null,
+    "memo": null
+  },
+  {
+    "issuer": "国土交通省(中国地方整備局)",
+    "category": "通信設備",
+    "grade": null,
+    "keisin_score": 696,
+    "total_score": 696,
+    "vendor_number": null,
+    "valid_from": null,
+    "valid_until": "2027-03-31",
+    "application_type": null,
+    "application_method": null,
+    "memo": null
+  },
+  {
+    "issuer": "国土交通省(中国地方整備局)",
+    "category": "受変電",
+    "grade": null,
+    "keisin_score": 845,
+    "total_score": 845,
+    "vendor_number": null,
+    "valid_from": null,
+    "valid_until": "2027-03-31",
+    "application_type": null,
+    "application_method": null,
+    "memo": null
+  },
+  {
+    "issuer": "国土交通省(中国地方整備局)",
+    "category": "橋梁補修",
+    "grade": null,
+    "keisin_score": 816,
+    "total_score": 816,
+    "vendor_number": null,
+    "valid_from": null,
+    "valid_until": "2027-03-31",
+    "application_type": null,
+    "application_method": null,
+    "memo": null
+  },
+  {
     "issuer": "国土交通省(四国地方整備局)",
     "category": "電気設備",
     "grade": "B",
@@ -494,12 +481,12 @@
     "memo": null
   },
   {
-    "issuer": "国土交通省(国土技術政策総合研究所)",
+    "issuer": "国土交通省(九州地方整備局)",
     "category": "電気設備",
     "grade": "B",
     "keisin_score": 871,
-    "total_score": 2054,
-    "vendor_number": "10022158000",
+    "total_score": 1957,
+    "vendor_number": "00024690000",
     "valid_from": "2025-04-01",
     "valid_until": "2027-03-31",
     "application_type": null,
@@ -507,7 +494,7 @@
     "memo": null
   },
   {
-    "issuer": "国土交通省(国土技術政策総合研究所)",
+    "issuer": "国土交通省(九州地方整備局)",
     "category": "維持修繕",
     "grade": null,
     "keisin_score": 818,
@@ -520,7 +507,7 @@
     "memo": null
   },
   {
-    "issuer": "国土交通省(国土技術政策総合研究所)",
+    "issuer": "国土交通省(九州地方整備局)",
     "category": "通信設備",
     "grade": null,
     "keisin_score": 696,
@@ -533,7 +520,7 @@
     "memo": null
   },
   {
-    "issuer": "国土交通省(国土技術政策総合研究所)",
+    "issuer": "国土交通省(九州地方整備局)",
     "category": "受変電",
     "grade": null,
     "keisin_score": 845,
@@ -546,7 +533,7 @@
     "memo": null
   },
   {
-    "issuer": "国土交通省(国土技術政策総合研究所)",
+    "issuer": "国土交通省(九州地方整備局)",
     "category": "橋梁補修",
     "grade": null,
     "keisin_score": 816,
@@ -598,137 +585,7 @@
     "memo": null
   },
   {
-    "issuer": "国土交通省(東北地方整備局)",
-    "category": "電気設備",
-    "grade": "B",
-    "keisin_score": 871,
-    "total_score": 1957,
-    "vendor_number": "17002225000",
-    "valid_from": "2025-04-01",
-    "valid_until": "2027-03-31",
-    "application_type": "一元定期",
-    "application_method": "インターネット",
-    "memo": null
-  },
-  {
-    "issuer": "国土交通省(東北地方整備局)",
-    "category": "維持修繕",
-    "grade": null,
-    "keisin_score": 818,
-    "total_score": 818,
-    "vendor_number": null,
-    "valid_from": null,
-    "valid_until": "2027-03-31",
-    "application_type": null,
-    "application_method": null,
-    "memo": null
-  },
-  {
-    "issuer": "国土交通省(東北地方整備局)",
-    "category": "通信設備",
-    "grade": null,
-    "keisin_score": 696,
-    "total_score": 696,
-    "vendor_number": null,
-    "valid_from": null,
-    "valid_until": "2027-03-31",
-    "application_type": null,
-    "application_method": null,
-    "memo": null
-  },
-  {
-    "issuer": "国土交通省(東北地方整備局)",
-    "category": "受変電",
-    "grade": null,
-    "keisin_score": 845,
-    "total_score": 845,
-    "vendor_number": null,
-    "valid_from": null,
-    "valid_until": "2027-03-31",
-    "application_type": null,
-    "application_method": null,
-    "memo": null
-  },
-  {
-    "issuer": "国土交通省(東北地方整備局)",
-    "category": "橋梁補修",
-    "grade": null,
-    "keisin_score": 816,
-    "total_score": 816,
-    "vendor_number": null,
-    "valid_from": null,
-    "valid_until": "2027-03-31",
-    "application_type": null,
-    "application_method": null,
-    "memo": null
-  },
-  {
-    "issuer": "国土交通省(近畿地方整備局)",
-    "category": "電気設備",
-    "grade": "B",
-    "keisin_score": 871,
-    "total_score": 1957,
-    "vendor_number": "10040083000",
-    "valid_from": "2025-04-01",
-    "valid_until": "2027-03-31",
-    "application_type": null,
-    "application_method": null,
-    "memo": null
-  },
-  {
-    "issuer": "国土交通省(近畿地方整備局)",
-    "category": "維持修繕",
-    "grade": null,
-    "keisin_score": 818,
-    "total_score": 818,
-    "vendor_number": null,
-    "valid_from": null,
-    "valid_until": "2027-03-31",
-    "application_type": null,
-    "application_method": null,
-    "memo": null
-  },
-  {
-    "issuer": "国土交通省(近畿地方整備局)",
-    "category": "通信設備",
-    "grade": null,
-    "keisin_score": 696,
-    "total_score": 696,
-    "vendor_number": null,
-    "valid_from": null,
-    "valid_until": "2027-03-31",
-    "application_type": null,
-    "application_method": null,
-    "memo": null
-  },
-  {
-    "issuer": "国土交通省(近畿地方整備局)",
-    "category": "受変電",
-    "grade": null,
-    "keisin_score": 845,
-    "total_score": 845,
-    "vendor_number": null,
-    "valid_from": null,
-    "valid_until": "2027-03-31",
-    "application_type": null,
-    "application_method": null,
-    "memo": null
-  },
-  {
-    "issuer": "国土交通省(近畿地方整備局)",
-    "category": "橋梁補修",
-    "grade": null,
-    "keisin_score": 816,
-    "total_score": 816,
-    "vendor_number": null,
-    "valid_from": null,
-    "valid_until": "2027-03-31",
-    "application_type": null,
-    "application_method": null,
-    "memo": null
-  },
-  {
-    "issuer": "国土交通省(関東地方整備局)",
+    "issuer": "国土交通省(国土技術政策総合研究所)",
     "category": "電気設備",
     "grade": "B",
     "keisin_score": 871,
@@ -741,7 +598,7 @@
     "memo": null
   },
   {
-    "issuer": "国土交通省(関東地方整備局)",
+    "issuer": "国土交通省(国土技術政策総合研究所)",
     "category": "維持修繕",
     "grade": null,
     "keisin_score": 818,
@@ -754,7 +611,7 @@
     "memo": null
   },
   {
-    "issuer": "国土交通省(関東地方整備局)",
+    "issuer": "国土交通省(国土技術政策総合研究所)",
     "category": "通信設備",
     "grade": null,
     "keisin_score": 696,
@@ -767,7 +624,7 @@
     "memo": null
   },
   {
-    "issuer": "国土交通省(関東地方整備局)",
+    "issuer": "国土交通省(国土技術政策総合研究所)",
     "category": "受変電",
     "grade": null,
     "keisin_score": 845,
@@ -780,39 +637,13 @@
     "memo": null
   },
   {
-    "issuer": "国土交通省(関東地方整備局)",
+    "issuer": "国土交通省(国土技術政策総合研究所)",
     "category": "橋梁補修",
     "grade": null,
     "keisin_score": 816,
     "total_score": 816,
     "vendor_number": null,
     "valid_from": null,
-    "valid_until": "2027-03-31",
-    "application_type": null,
-    "application_method": null,
-    "memo": null
-  },
-  {
-    "issuer": "最高裁判所",
-    "category": "電気工事",
-    "grade": "B",
-    "keisin_score": 884,
-    "total_score": 884,
-    "vendor_number": "0038034",
-    "valid_from": "2025-04-01",
-    "valid_until": "2027-03-31",
-    "application_type": null,
-    "application_method": null,
-    "memo": null
-  },
-  {
-    "issuer": "最高裁判所",
-    "category": "電気通信",
-    "grade": null,
-    "keisin_score": 696,
-    "total_score": 696,
-    "vendor_number": null,
-    "valid_from": "2025-04-01",
     "valid_until": "2027-03-31",
     "application_type": null,
     "application_method": null,
@@ -845,45 +676,6 @@
     "memo": null
   },
   {
-    "issuer": "環境省",
-    "category": "電気工事",
-    "grade": "A",
-    "keisin_score": 884,
-    "total_score": 884,
-    "vendor_number": "14-005170",
-    "valid_from": "2025-04-01",
-    "valid_until": "2027-03-31",
-    "application_type": null,
-    "application_method": null,
-    "memo": null
-  },
-  {
-    "issuer": "経済産業省",
-    "category": "電気工事",
-    "grade": "B",
-    "keisin_score": null,
-    "total_score": null,
-    "vendor_number": "0701103506",
-    "valid_from": "2025-04-01",
-    "valid_until": "2027-03-31",
-    "application_type": null,
-    "application_method": null,
-    "memo": null
-  },
-  {
-    "issuer": "経済産業省",
-    "category": "電気通信",
-    "grade": "C",
-    "keisin_score": null,
-    "total_score": null,
-    "vendor_number": null,
-    "valid_from": "2025-04-01",
-    "valid_until": "2027-03-31",
-    "application_type": null,
-    "application_method": null,
-    "memo": null
-  },
-  {
     "issuer": "財務省",
     "category": "電気工事",
     "grade": "B",
@@ -910,6 +702,84 @@
     "memo": null
   },
   {
+    "issuer": "財務省(北海道財務局)",
+    "category": "電気工事",
+    "grade": "B",
+    "keisin_score": 884,
+    "total_score": 884,
+    "vendor_number": "482489",
+    "valid_from": "2025-04-01",
+    "valid_until": "2027-03-31",
+    "application_type": null,
+    "application_method": null,
+    "memo": null
+  },
+  {
+    "issuer": "財務省(北海道財務局)",
+    "category": "電気通信",
+    "grade": "C",
+    "keisin_score": 696,
+    "total_score": 696,
+    "vendor_number": null,
+    "valid_from": null,
+    "valid_until": "2027-03-31",
+    "application_type": null,
+    "application_method": null,
+    "memo": null
+  },
+  {
+    "issuer": "財務省(関東財務局)",
+    "category": "電気工事",
+    "grade": "B",
+    "keisin_score": 884,
+    "total_score": 884,
+    "vendor_number": "204703",
+    "valid_from": "2025-04-01",
+    "valid_until": "2027-03-31",
+    "application_type": null,
+    "application_method": null,
+    "memo": null
+  },
+  {
+    "issuer": "財務省(関東財務局)",
+    "category": "電気通信",
+    "grade": "C",
+    "keisin_score": 696,
+    "total_score": 696,
+    "vendor_number": null,
+    "valid_from": null,
+    "valid_until": "2027-03-31",
+    "application_type": null,
+    "application_method": null,
+    "memo": null
+  },
+  {
+    "issuer": "財務省(東北財務局)",
+    "category": "電気工事",
+    "grade": "B",
+    "keisin_score": 884,
+    "total_score": 884,
+    "vendor_number": "103336",
+    "valid_from": "2025-04-01",
+    "valid_until": "2027-03-31",
+    "application_type": "一元定期",
+    "application_method": "インターネット",
+    "memo": null
+  },
+  {
+    "issuer": "財務省(東北財務局)",
+    "category": "電気通信",
+    "grade": "C",
+    "keisin_score": 696,
+    "total_score": 696,
+    "vendor_number": null,
+    "valid_from": null,
+    "valid_until": "2027-03-31",
+    "application_type": null,
+    "application_method": null,
+    "memo": null
+  },
+  {
     "issuer": "財務省(中国財務局)",
     "category": "電気工事",
     "grade": "B",
@@ -923,12 +793,12 @@
     "memo": null
   },
   {
-    "issuer": "財務省(九州財務局)",
+    "issuer": "財務省(東海財務局)",
     "category": "電気工事",
-    "grade": "B",
+    "grade": null,
     "keisin_score": 884,
     "total_score": 884,
-    "vendor_number": "711438",
+    "vendor_number": "711684",
     "valid_from": "2025-04-01",
     "valid_until": "2027-03-31",
     "application_type": null,
@@ -936,35 +806,9 @@
     "memo": null
   },
   {
-    "issuer": "財務省(九州財務局)",
+    "issuer": "財務省(東海財務局)",
     "category": "電気通信",
-    "grade": "C",
-    "keisin_score": 696,
-    "total_score": 696,
-    "vendor_number": null,
-    "valid_from": null,
-    "valid_until": "2027-03-31",
-    "application_type": null,
-    "application_method": null,
-    "memo": null
-  },
-  {
-    "issuer": "財務省(北海道財務局)",
-    "category": "電気工事",
-    "grade": "B",
-    "keisin_score": 8884,
-    "total_score": 884,
-    "vendor_number": "482489",
-    "valid_from": "2025-04-01",
-    "valid_until": "2027-03-31",
-    "application_type": null,
-    "application_method": null,
-    "memo": null
-  },
-  {
-    "issuer": "財務省(北海道財務局)",
-    "category": "電気通信",
-    "grade": "C",
+    "grade": null,
     "keisin_score": 696,
     "total_score": 696,
     "vendor_number": null,
@@ -1009,8 +853,8 @@
     "vendor_number": "871308",
     "valid_from": "2025-04-01",
     "valid_until": "2027-03-31",
-    "application_type": null,
-    "application_method": null,
+    "application_type": "一元定期",
+    "application_method": "インターネット",
     "memo": null
   },
   {
@@ -1022,17 +866,17 @@
     "vendor_number": null,
     "valid_from": null,
     "valid_until": "2027-03-31",
-    "application_type": null,
-    "application_method": null,
+    "application_type": "一元定期",
+    "application_method": "インターネット",
     "memo": null
   },
   {
-    "issuer": "財務省(東北財務局)",
+    "issuer": "財務省(近畿財務局)",
     "category": "電気工事",
     "grade": "B",
     "keisin_score": 884,
     "total_score": 884,
-    "vendor_number": "103336",
+    "vendor_number": "501761",
     "valid_from": "2025-04-01",
     "valid_until": "2027-03-31",
     "application_type": null,
@@ -1040,7 +884,20 @@
     "memo": null
   },
   {
-    "issuer": "財務省(東北財務局)",
+    "issuer": "財務省(九州財務局)",
+    "category": "電気工事",
+    "grade": "B",
+    "keisin_score": 884,
+    "total_score": 884,
+    "vendor_number": "711438",
+    "valid_from": "2025-04-01",
+    "valid_until": "2027-03-31",
+    "application_type": "一元定期",
+    "application_method": "インターネット",
+    "memo": null
+  },
+  {
+    "issuer": "財務省(九州財務局)",
     "category": "電気通信",
     "grade": "C",
     "keisin_score": 696,
@@ -1048,34 +905,8 @@
     "vendor_number": null,
     "valid_from": null,
     "valid_until": "2027-03-31",
-    "application_type": null,
-    "application_method": null,
-    "memo": null
-  },
-  {
-    "issuer": "財務省(東海財務局)",
-    "category": "電気工事",
-    "grade": null,
-    "keisin_score": 884,
-    "total_score": 884,
-    "vendor_number": "711684",
-    "valid_from": "2025-04-01",
-    "valid_until": "2027-03-31",
-    "application_type": null,
-    "application_method": null,
-    "memo": null
-  },
-  {
-    "issuer": "財務省(東海財務局)",
-    "category": "電気通信",
-    "grade": null,
-    "keisin_score": 696,
-    "total_score": 696,
-    "vendor_number": null,
-    "valid_from": null,
-    "valid_until": "2027-03-31",
-    "application_type": null,
-    "application_method": null,
+    "application_type": "一元定期",
+    "application_method": "インターネット",
     "memo": null
   },
   {
@@ -1105,12 +936,12 @@
     "memo": null
   },
   {
-    "issuer": "財務省(近畿財務局)",
+    "issuer": "厚生労働省",
     "category": "電気工事",
     "grade": "B",
     "keisin_score": 884,
     "total_score": 884,
-    "vendor_number": "501761",
+    "vendor_number": "5021001019709",
     "valid_from": "2025-04-01",
     "valid_until": "2027-03-31",
     "application_type": null,
@@ -1118,12 +949,38 @@
     "memo": null
   },
   {
-    "issuer": "財務省(関東財務局)",
+    "issuer": "厚生労働省",
+    "category": "電気通信",
+    "grade": "Ｄ",
+    "keisin_score": 696,
+    "total_score": 696,
+    "vendor_number": null,
+    "valid_from": null,
+    "valid_until": "2027-03-31",
+    "application_type": "一元定期",
+    "application_method": "インターネット",
+    "memo": null
+  },
+  {
+    "issuer": "環境省",
     "category": "電気工事",
-    "grade": "B",
+    "grade": "A",
     "keisin_score": 884,
     "total_score": 884,
-    "vendor_number": "204703",
+    "vendor_number": "14-005170",
+    "valid_from": "2025-04-01",
+    "valid_until": "2027-03-31",
+    "application_type": "一元定期",
+    "application_method": "インターネット",
+    "memo": null
+  },
+  {
+    "issuer": "内閣府",
+    "category": "電気工事",
+    "grade": "A",
+    "keisin_score": 884,
+    "total_score": 884,
+    "vendor_number": "10701715394",
     "valid_from": "2025-04-01",
     "valid_until": "2027-03-31",
     "application_type": null,
@@ -1131,7 +988,7 @@
     "memo": null
   },
   {
-    "issuer": "財務省(関東財務局)",
+    "issuer": "内閣府",
     "category": "電気通信",
     "grade": "C",
     "keisin_score": 696,
@@ -1144,6 +1001,123 @@
     "memo": null
   },
   {
+    "issuer": "内閣府(沖縄総合事務局)",
+    "category": "電気設備",
+    "grade": "B",
+    "keisin_score": 871,
+    "total_score": 1947,
+    "vendor_number": "161869",
+    "valid_from": "2025-04-01",
+    "valid_until": "2027-03-31",
+    "application_type": null,
+    "application_method": null,
+    "memo": null
+  },
+  {
+    "issuer": "内閣府(沖縄総合事務局)",
+    "category": "維持修繕",
+    "grade": null,
+    "keisin_score": 818,
+    "total_score": 818,
+    "vendor_number": null,
+    "valid_from": null,
+    "valid_until": "2027-03-31",
+    "application_type": null,
+    "application_method": null,
+    "memo": null
+  },
+  {
+    "issuer": "内閣府(沖縄総合事務局)",
+    "category": "通信設備",
+    "grade": null,
+    "keisin_score": 696,
+    "total_score": 696,
+    "vendor_number": null,
+    "valid_from": null,
+    "valid_until": "2027-03-31",
+    "application_type": null,
+    "application_method": null,
+    "memo": null
+  },
+  {
+    "issuer": "内閣府(沖縄総合事務局)",
+    "category": "受変電",
+    "grade": null,
+    "keisin_score": 845,
+    "total_score": 845,
+    "vendor_number": null,
+    "valid_from": null,
+    "valid_until": "2027-03-31",
+    "application_type": "随時申請",
+    "application_method": "郵送",
+    "memo": null
+  },
+  {
+    "issuer": "内閣府(沖縄総合事務局)",
+    "category": "橋梁補修",
+    "grade": null,
+    "keisin_score": 816,
+    "total_score": 816,
+    "vendor_number": null,
+    "valid_from": null,
+    "valid_until": "2027-03-31",
+    "application_type": "一元定期",
+    "application_method": "インターネット",
+    "memo": null
+  },
+  {
+    "issuer": "経済産業省",
+    "category": "電気工事",
+    "grade": "B",
+    "keisin_score": null,
+    "total_score": null,
+    "vendor_number": "0701103506",
+    "valid_from": "2025-04-01",
+    "valid_until": "2027-03-31",
+    "application_type": "一元定期",
+    "application_method": "インターネット",
+    "memo": null
+  },
+  {
+    "issuer": "経済産業省",
+    "category": "電気通信",
+    "grade": "C",
+    "keisin_score": null,
+    "total_score": null,
+    "vendor_number": null,
+    "valid_from": "2025-04-01",
+    "valid_until": "2027-03-31",
+    "application_type": "一元定期",
+    "application_method": "インターネット",
+    "memo": null
+  },
+  {
+    "issuer": "最高裁判所",
+    "category": "電気工事",
+    "grade": "B",
+    "keisin_score": 884,
+    "total_score": 884,
+    "vendor_number": "0038034",
+    "valid_from": "2025-04-01",
+    "valid_until": "2027-03-31",
+    "application_type": "一元定期",
+    "application_method": "インターネット",
+    "memo": null
+  },
+  {
+    "issuer": "最高裁判所",
+    "category": "電気通信",
+    "grade": null,
+    "keisin_score": 696,
+    "total_score": 696,
+    "vendor_number": null,
+    "valid_from": "2025-04-01",
+    "valid_until": "2027-03-31",
+    "application_type": "一元定期",
+    "application_method": "インターネット",
+    "memo": null
+  },
+  {
     "issuer": "防衛省",
     "category": "電気工事",
     "grade": "A",
@@ -1152,8 +1126,8 @@
     "vendor_number": "2-05-05074",
     "valid_from": "2025-04-01",
     "valid_until": "2027-03-31",
-    "application_type": null,
-    "application_method": null,
+    "application_type": "一元定期",
+    "application_method": "インターネット",
     "memo": null
   },
   {
@@ -1165,8 +1139,34 @@
     "vendor_number": null,
     "valid_from": "2025-04-01",
     "valid_until": "2027-03-31",
-    "application_type": null,
-    "application_method": null,
+    "application_type": "一元定期",
+    "application_method": "インターネット",
+    "memo": null
+  },
+  {
+    "issuer": "北海道開発局",
+    "category": "電気",
+    "grade": "B",
+    "keisin_score": 880,
+    "total_score": 880,
+    "vendor_number": "11-05563",
+    "valid_from": "2025-04-01",
+    "valid_until": "2027-03-31",
+    "application_type": "一元定期",
+    "application_method": "インターネット",
+    "memo": null
+  },
+  {
+    "issuer": "北海道開発局",
+    "category": "維持",
+    "grade": null,
+    "keisin_score": 829,
+    "total_score": 829,
+    "vendor_number": null,
+    "valid_from": "2025-04-01",
+    "valid_until": "2027-03-31",
+    "application_type": "一元定期",
+    "application_method": "インターネット",
     "memo": null
   }
 ]
