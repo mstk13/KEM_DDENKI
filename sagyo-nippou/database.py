@@ -622,6 +622,35 @@ def list_reports_for_worker(
             return _dicts(cur.fetchall())
 
 
+def list_reports_for_site(
+    site_id: int,
+    date_from: str | None = None,
+    date_to: str | None = None,
+) -> list[dict[str, Any]]:
+    """指定現場の日報一覧（作業員数・作業時間・協力人数を含む）を返す。"""
+    sql = [
+        """
+        SELECT r.*, s.name AS site_name,
+          (SELECT COUNT(*) FROM labor.report_workers rw WHERE rw.report_id = r.id) AS worker_count,
+          (SELECT COALESCE(SUM(rw.work_hours),0) FROM labor.report_workers rw WHERE rw.report_id = r.id) AS total_hours,
+          (SELECT COALESCE(SUM(rs.headcount),0) FROM labor.report_subcontractors rs WHERE rs.report_id = r.id) AS sub_headcount
+        FROM labor.reports r
+        JOIN master.sites s ON s.id = r.site_id
+        WHERE r.site_id = %s
+        """
+    ]
+    params: list[Any] = [site_id]
+    if date_from:
+        sql.append("AND r.report_date >= %s"); params.append(date_from)
+    if date_to:
+        sql.append("AND r.report_date <= %s"); params.append(date_to)
+    sql.append("ORDER BY r.report_date DESC, r.id DESC")
+    with get_conn() as conn:
+        with _cur(conn) as cur:
+            cur.execute("\n".join(sql), params)
+            return _dicts(cur.fetchall())
+
+
 if __name__ == "__main__":
     init_db()
     print(f"DB を初期化しました (PostgreSQL)")
