@@ -1,3 +1,19 @@
+# =====================================================================
+# ポート割り当て一覧（重複禁止 — 新規追加時は空き番号を使うこと）
+# ---------------------------------------------------------------------
+#   80   : nginx (ポータル + リバースプロキシ)
+#   5000 : material_manager (Flask)
+#   5432 : postgres
+#   8501 : bid_manager
+#   8502 : sagyo_nippou
+#   8503 : eigyo_kanri          [optional]
+#   8504 : evaluation
+#   8505 : evaluation_admin
+#   8506 : kouki_kanri
+#   8510 : nippou_kanri         [optional]
+#   8507〜8509, 8511〜 : 空き（次のアプリ用に予約）
+# =====================================================================
+
 x-common-env: &common-env
   KEM_DATA_DIR: /data
   DATABASE_URL: postgresql://kem:kem@postgres:5432/kem_ddenki
@@ -136,7 +152,7 @@ services:
       - streamlit
       - run
       - app.py
-      - --server.port=8504
+      - --server.port=8503
       - --server.headless=true
       - --server.address=0.0.0.0
       - --server.baseUrlPath=/eigyo
