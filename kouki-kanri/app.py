@@ -295,6 +295,7 @@ def page_gantt_all() -> None:
 
 def _render_site_phases_inline(site: dict, phases: list[dict], milestones: list[dict]) -> None:
     """現場カードの下に工程ガントとマイルストーンを展開表示する。"""
+    site_id = site["id"]
     # 工程ミニガント
     phase_rows = []
     for p in phases:
@@ -330,7 +331,7 @@ def _render_site_phases_inline(site: dict, phases: list[dict], milestones: list[
                                text=f"◆ {ms['name']}", showarrow=False,
                                font=dict(size=11, color="#f59e0b"))
         fig.update_layout(legend_title_text="進捗率")
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, use_container_width=True, key=f"phase_gantt_{site_id}")
 
     # 工程リスト
     for p in phases:
