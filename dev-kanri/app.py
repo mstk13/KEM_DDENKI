@@ -280,15 +280,19 @@ def page_tasks() -> None:
 def page_projects() -> None:
     st.header("プロジェクト管理")
 
+    members = db.list_members()
+
     # --- プロジェクト追加 ---
     with st.expander("プロジェクトを作成"):
         with st.form("add_project_form"):
             p_name = st.text_input("プロジェクト名*", placeholder="例: 施工管理システム v2")
             p_desc = st.text_area("説明", height=80)
-            pc1, pc2, pc3 = st.columns(3)
-            p_repo = pc1.text_input("リポジトリURL", placeholder="https://github.com/...")
-            p_start = pc2.date_input("開始日", value=None)
-            p_due = pc3.date_input("期限", value=None)
+            pa1, pa2 = st.columns(2)
+            p_assignee = pa1.selectbox("責任者 (assignee)", [""] + members, key="proj_assignee")
+            p_repo = pa2.text_input("リポジトリURL", placeholder="https://github.com/...")
+            pc1, pc2 = st.columns(2)
+            p_start = pc1.date_input("開始日", value=None)
+            p_due = pc2.date_input("期限", value=None)
 
             if st.form_submit_button("作成", type="primary"):
                 if not p_name.strip():
@@ -296,6 +300,7 @@ def page_projects() -> None:
                 else:
                     pid = db.add_project(
                         p_name.strip(), p_desc,
+                        assignee=p_assignee,
                         repo_url=p_repo,
                         start_date=p_start.isoformat() if p_start else None,
                         due_date=p_due.isoformat() if p_due else None,
@@ -320,6 +325,8 @@ def page_projects() -> None:
         status_color = {"進行中": "#3b82f6", "計画中": "#94a3b8", "完了": "#22c55e",
                         "中断": "#ef4444"}.get(p.get("status", ""), "#6b7280")
 
+        assignee_text = p.get('assignee') or '未設定'
+
         st.markdown(f"""
         <div style="background:#fff;border:2px solid #e2e8f0;border-radius:10px;
                     padding:1.2rem;margin-bottom:0.8rem;">
@@ -327,6 +334,9 @@ def page_projects() -> None:
                 <span style="font-size:1.3rem;font-weight:700;color:#1e293b;">{p['name']}</span>
                 <span style="background:{status_color};color:#fff;padding:0.15rem 0.6rem;
                       border-radius:5px;font-size:0.85rem;font-weight:600;">{p.get('status','')}</span>
+            </div>
+            <div style="font-size:1.0rem;color:#1e40af;font-weight:600;margin-bottom:0.3rem;">
+                責任者: {assignee_text}
             </div>
             <div style="font-size:0.95rem;color:#64748b;margin-bottom:0.4rem;">
                 {p.get('description','') or '説明なし'}
@@ -345,14 +355,18 @@ def page_projects() -> None:
 
         # 編集
         with st.expander(f"「{p['name']}」を編集"):
-            ec1, ec2 = st.columns(2)
+            ec1, ec2, ec3 = st.columns(3)
             new_status = ec1.selectbox("ステータス",
                 ["計画中", "進行中", "完了", "中断"],
                 index=["計画中", "進行中", "完了", "中断"].index(p["status"])
                     if p.get("status") in ["計画中", "進行中", "完了", "中断"] else 1,
                 key=f"ps_{p['id']}")
-            if ec2.button("ステータス更新", key=f"pu_{p['id']}"):
-                db.update_project(p["id"], status=new_status)
+            cur_assignee = p.get("assignee") or ""
+            new_assignee = ec2.selectbox("責任者 (assignee)", [""] + members,
+                index=(members.index(cur_assignee) + 1) if cur_assignee in members else 0,
+                key=f"pa_{p['id']}")
+            if ec3.button("更新", key=f"pu_{p['id']}", type="primary"):
+                db.update_project(p["id"], status=new_status, assignee=new_assignee)
                 st.rerun()
             if st.button("プロジェクトを削除", key=f"pd_{p['id']}"):
                 db.delete_project(p["id"])

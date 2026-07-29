@@ -41,6 +41,7 @@ def init_db() -> None:
                     name        TEXT NOT NULL,
                     description TEXT DEFAULT '',
                     status      TEXT NOT NULL DEFAULT '進行中',
+                    assignee    TEXT DEFAULT '',
                     repo_url    TEXT DEFAULT '',
                     start_date  DATE,
                     due_date    DATE,
@@ -79,6 +80,13 @@ def init_db() -> None:
             cur.execute("CREATE INDEX IF NOT EXISTS idx_dev_tasks_project ON dev.tasks(project_id)")
             cur.execute("CREATE INDEX IF NOT EXISTS idx_dev_tasks_status ON dev.tasks(status)")
             cur.execute("CREATE INDEX IF NOT EXISTS idx_dev_comments_task ON dev.comments(task_id)")
+            # マイグレーション: projects.assignee カラム追加
+            cur.execute("""
+                DO $$ BEGIN
+                    ALTER TABLE dev.projects ADD COLUMN assignee TEXT DEFAULT '';
+                EXCEPTION WHEN duplicate_column THEN NULL;
+                END $$
+            """)
 
 
 # ---------------------------------------------------------------------------
@@ -103,20 +111,20 @@ def get_project(project_id: int) -> dict | None:
             return dict(r) if r else None
 
 
-def add_project(name: str, description: str = "", repo_url: str = "",
-                start_date=None, due_date=None) -> int:
+def add_project(name: str, description: str = "", assignee: str = "",
+                repo_url: str = "", start_date=None, due_date=None) -> int:
     now = _now()
     with get_conn() as conn:
         with _cur(conn) as cur:
             cur.execute("""
-                INSERT INTO dev.projects (name, description, repo_url, start_date, due_date, created_at, updated_at)
-                VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id
-            """, (name, description, repo_url, start_date, due_date, now, now))
+                INSERT INTO dev.projects (name, description, assignee, repo_url, start_date, due_date, created_at, updated_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s) RETURNING id
+            """, (name, description, assignee, repo_url, start_date, due_date, now, now))
             return cur.fetchone()["id"]
 
 
 def update_project(project_id: int, **fields) -> None:
-    allowed = {"name", "description", "status", "repo_url", "start_date", "due_date"}
+    allowed = {"name", "description", "status", "assignee", "repo_url", "start_date", "due_date"}
     sets = {k: v for k, v in fields.items() if k in allowed}
     if not sets:
         return
