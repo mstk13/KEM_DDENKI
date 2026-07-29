@@ -141,6 +141,20 @@ services:
       - --server.address=0.0.0.0
       - --server.baseUrlPath=/kouki
 
+  jinzai_kanri:
+    <<: *app-base
+    environment:
+      <<: *common-env
+    command:
+      - jinzai-kanri
+      - streamlit
+      - run
+      - app.py
+      - --server.port=8507
+      - --server.headless=true
+      - --server.address=0.0.0.0
+      - --server.baseUrlPath=/jinzai
+
   # --- オプションアプリ (docker compose --profile optional up -d) ---
   eigyo_kanri:
     <<: *app-base
