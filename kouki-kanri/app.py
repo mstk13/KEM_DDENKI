@@ -149,8 +149,14 @@ def _badge_class(status: str) -> str:
             "完了": "badge-done", "中断": "badge-stopped"}.get(status, "badge-active")
 
 
-def _build_gantt_figure(gantt_rows: list[dict], color_map: dict, height: int) -> go.Figure:
-    """ガントチャートの共通ビルダー。日付軸を上に配置、凡例は右側。"""
+def _build_gantt_figure(gantt_rows: list[dict], color_map: dict, height: int,
+                        today_position: str = "top",
+                        bottom_margin: int = 10) -> go.Figure:
+    """ガントチャートの共通ビルダー。日付軸を上に配置、凡例は右側。
+
+    today_position: "top"=日付軸の上にTODAY表示, "bottom"=チャートの下に表示
+    bottom_margin: 下マージン（マイルストーン文字用に広げる場合に使用）
+    """
     df = pd.DataFrame(gantt_rows)
     fig = px.timeline(df, x_start="Start", x_end="Finish", y="Task", color="Resource",
                       color_discrete_map=color_map, title="")
@@ -164,12 +170,17 @@ def _build_gantt_figure(gantt_rows: list[dict], color_map: dict, height: int) ->
                      minor=dict(dtick=86400000, gridcolor="#f7fafc"))
     today_dt = datetime.combine(date.today(), datetime.min.time())
     fig.add_vline(x=today_dt, line_dash="dash", line_color="#ef4444", line_width=2)
-    fig.add_annotation(x=today_dt, y=1.0, yref="paper",
-                       text="TODAY", showarrow=False, yshift=22,
-                       font=dict(size=13, color="#ef4444", family="Arial Black"))
+    if today_position == "top":
+        fig.add_annotation(x=today_dt, y=1.0, yref="paper",
+                           text="TODAY", showarrow=False, yshift=22,
+                           font=dict(size=13, color="#ef4444", family="Arial Black"))
+    else:
+        fig.add_annotation(x=today_dt, y=0.0, yref="paper",
+                           text="TODAY", showarrow=False, yshift=-20,
+                           font=dict(size=13, color="#ef4444", family="Arial Black"))
     fig.update_layout(
         height=height,
-        margin=dict(l=10, r=160, t=40, b=10),
+        margin=dict(l=10, r=160, t=40, b=bottom_margin),
         legend_title_text="",
         legend=dict(
             orientation="v",
@@ -331,18 +342,22 @@ def _render_site_phases_inline(site: dict, phases: list[dict], milestones: list[
             pct = int(r["Resource"].replace("%", ""))
             color_map[r["Resource"]] = r["color"] if pct < 100 else "#22c55e"
 
+        ms_valid = [ms for ms in milestones if _to_date(ms["target_date"])]
+        extra_b = 50 + len(ms_valid) * 18
+
         fig = _build_gantt_figure(phase_rows, color_map,
-                                  height=max(200, len(phase_rows) * 48 + 80))
+                                  height=max(280, len(phase_rows) * 55 + 80 + extra_b),
+                                  today_position="bottom",
+                                  bottom_margin=extra_b)
         # マイルストーン線を追加
-        for ms in milestones:
-            td_d = _to_date(ms["target_date"])
-            if not td_d:
-                continue
-            td_dt = datetime.combine(td_d, datetime.min.time())
+        for i, ms in enumerate(ms_valid):
+            td_dt = datetime.combine(_to_date(ms["target_date"]), datetime.min.time())
             fig.add_vline(x=td_dt, line_dash="dot", line_color="#f59e0b", line_width=2)
-            fig.add_annotation(x=td_dt, y=-0.08, yref="paper",
-                               text=f"◆ {ms['name']}", showarrow=False,
-                               font=dict(size=11, color="#f59e0b"))
+            fig.add_annotation(x=td_dt, y=0.0, yref="paper",
+                               text=f"◆ {ms['name']}", showarrow=True,
+                               ay=25 + i * 20, ax=0,
+                               arrowcolor="#f59e0b", arrowwidth=1, arrowhead=0,
+                               font=dict(size=13, color="#f59e0b", family="Arial"))
         fig.update_layout(legend_title_text="進捗率")
         st.plotly_chart(fig, use_container_width=True, key=f"phase_gantt_{site_id}")
 
@@ -709,21 +724,29 @@ def _site_gantt(site: dict, phases: list[dict]) -> None:
     if not rows:
         return
 
+    milestones = db.list_milestones(site["id"])
+    # マイルストーンの数に応じて下マージンを確保
+    ms_count = len([ms for ms in milestones if _to_date(ms["target_date"])])
+    extra_bottom = 50 + ms_count * 18
+
     color_map = {r["Resource"]: r["color"] for r in rows}
     fig = _build_gantt_figure(rows, color_map,
-                              height=max(220, len(rows) * 48 + 80))
+                              height=max(300, len(rows) * 55 + 80 + extra_bottom),
+                              today_position="bottom",
+                              bottom_margin=extra_bottom)
     fig.update_layout(legend_title_text="進捗率")
 
-    milestones = db.list_milestones(site["id"])
-    for ms in milestones:
+    for i, ms in enumerate(milestones):
         td_d = _to_date(ms["target_date"])
         if not td_d:
             continue
         td_dt = datetime.combine(td_d, datetime.min.time())
         fig.add_vline(x=td_dt, line_dash="dot", line_color="#f59e0b", line_width=2)
-        fig.add_annotation(x=td_dt, y=-0.08, yref="paper",
-                           text=f"◆ {ms['name']}", showarrow=False,
-                           font=dict(size=11, color="#f59e0b"))
+        fig.add_annotation(x=td_dt, y=0.0, yref="paper",
+                           text=f"◆ {ms['name']}", showarrow=True,
+                           ay=25 + i * 20, ax=0,
+                           arrowcolor="#f59e0b", arrowwidth=1, arrowhead=0,
+                           font=dict(size=13, color="#f59e0b", family="Arial"))
 
     st.plotly_chart(fig, use_container_width=True)
 
