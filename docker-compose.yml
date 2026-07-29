@@ -27,6 +27,7 @@ x-app-base: &app-base
     dockerfile: docker/Dockerfile.app
   volumes:
     - kem_data:/data
+    - .:/app
   env_file:
     - .env
   restart: unless-stopped
