@@ -25,23 +25,29 @@ st.set_page_config(page_title="工期管理 | ケンモチ電機", page_icon="�
 st.markdown("""
 <style>
     /* サイドバー */
-    section[data-testid="stSidebar"] .stMarkdown h1 { font-size: 1.6rem !important; }
-    section[data-testid="stSidebar"] .stRadio label { font-size: 1.05rem !important; }
+    section[data-testid="stSidebar"] .stMarkdown h1 { font-size: 1.8rem !important; }
+    section[data-testid="stSidebar"] .stRadio label { font-size: 1.15rem !important; }
 
     /* ヘッダー */
-    h1 { font-size: 2rem !important; letter-spacing: 0.02em; }
-    h2 { font-size: 1.5rem !important; }
-    h3 { font-size: 1.25rem !important; }
+    h1 { font-size: 2.2rem !important; letter-spacing: 0.02em; }
+    h2 { font-size: 1.6rem !important; }
+    h3 { font-size: 1.35rem !important; }
 
     /* メトリクス */
-    [data-testid="stMetricValue"] { font-size: 1.5rem !important; }
-    [data-testid="stMetricLabel"] { font-size: 0.95rem !important; }
+    [data-testid="stMetricValue"] { font-size: 1.7rem !important; }
+    [data-testid="stMetricLabel"] { font-size: 1.05rem !important; }
 
     /* ボタン */
-    .stButton button { font-size: 0.95rem !important; padding: 0.5rem 1.2rem !important; }
+    .stButton button { font-size: 1.05rem !important; padding: 0.6rem 1.4rem !important; }
 
     /* データフレーム */
-    .stDataFrame { font-size: 0.95rem !important; }
+    .stDataFrame { font-size: 1.0rem !important; }
+
+    /* expander */
+    .stExpander summary { font-size: 1.1rem !important; }
+
+    /* 全体のベースフォント */
+    .stMarkdown, .stText, .stCaption { font-size: 1.0rem !important; }
 
     /* 現場カード */
     .site-card {
@@ -58,15 +64,15 @@ st.markdown("""
         flex-wrap: wrap;
     }
     .site-card-header .site-name {
-        font-size: 1.15rem;
+        font-size: 1.3rem;
         font-weight: 700;
         color: #1a202c;
     }
     .site-card-header .badge {
         display: inline-block;
-        padding: 0.2rem 0.7rem;
+        padding: 0.25rem 0.8rem;
         border-radius: 6px;
-        font-size: 0.85rem;
+        font-size: 0.95rem;
         font-weight: 600;
         color: #fff;
     }
@@ -75,14 +81,14 @@ st.markdown("""
     .site-card-header .badge-done     { background: #22c55e; }
     .site-card-header .badge-stopped  { background: #ef4444; }
     .site-card .site-dates {
-        font-size: 1rem;
+        font-size: 1.1rem;
         color: #4a5568;
-        margin-top: 0.3rem;
+        margin-top: 0.4rem;
     }
     .site-card .site-meta {
-        font-size: 0.9rem;
+        font-size: 1.0rem;
         color: #718096;
-        margin-top: 0.15rem;
+        margin-top: 0.2rem;
     }
 
     /* 工程バー */
@@ -94,21 +100,21 @@ st.markdown("""
         border-bottom: 1px solid #f0f0f0;
     }
     .phase-name {
-        font-size: 0.95rem;
+        font-size: 1.1rem;
         font-weight: 600;
-        min-width: 140px;
+        min-width: 160px;
         color: #2d3748;
     }
     .phase-dates {
-        font-size: 0.85rem;
+        font-size: 1.0rem;
         color: #718096;
-        min-width: 180px;
+        min-width: 200px;
     }
     .phase-pct-badge {
         display: inline-block;
-        padding: 0.15rem 0.6rem;
-        border-radius: 4px;
-        font-size: 0.85rem;
+        padding: 0.2rem 0.7rem;
+        border-radius: 5px;
+        font-size: 1.0rem;
         font-weight: 700;
         color: #fff;
     }
@@ -144,33 +150,40 @@ def _badge_class(status: str) -> str:
 
 
 def _build_gantt_figure(gantt_rows: list[dict], color_map: dict, height: int) -> go.Figure:
-    """ガントチャートの共通ビルダー。日付軸を上に配置。"""
+    """ガントチャートの共通ビルダー。日付軸を上に配置、凡例は右側。"""
     df = pd.DataFrame(gantt_rows)
     fig = px.timeline(df, x_start="Start", x_end="Finish", y="Task", color="Resource",
                       color_discrete_map=color_map, title="")
     fig.update_yaxes(autorange="reversed", title="",
-                     tickfont=dict(size=14))
+                     tickfont=dict(size=15))
     fig.update_xaxes(title="", side="top",
-                     tickfont=dict(size=13),
+                     tickfont=dict(size=14),
                      tickformat="%m/%d",
                      dtick=7 * 86400000,  # 1週間刻み
                      gridcolor="#e2e8f0", gridwidth=1,
                      minor=dict(dtick=86400000, gridcolor="#f7fafc"))
     today_dt = datetime.combine(date.today(), datetime.min.time())
     fig.add_vline(x=today_dt, line_dash="dash", line_color="#ef4444", line_width=2)
-    fig.add_annotation(x=today_dt, y=-0.15, yref="paper",
-                       text="TODAY", showarrow=False,
-                       font=dict(size=12, color="#ef4444", family="Arial Black"))
+    fig.add_annotation(x=today_dt, y=1.0, yref="paper",
+                       text="TODAY", showarrow=False, yshift=22,
+                       font=dict(size=13, color="#ef4444", family="Arial Black"))
     fig.update_layout(
         height=height,
-        margin=dict(l=10, r=20, t=50, b=10),
+        margin=dict(l=10, r=160, t=40, b=10),
         legend_title_text="",
-        legend=dict(orientation="h", yanchor="bottom", y=1.08,
-                    font=dict(size=13)),
+        legend=dict(
+            orientation="v",
+            yanchor="top", y=1.0,
+            xanchor="left", x=1.02,
+            font=dict(size=14),
+            bgcolor="rgba(255,255,255,0.9)",
+            bordercolor="#e2e8f0",
+            borderwidth=1,
+        ),
         showlegend=True,
         plot_bgcolor="#fafbfc",
         paper_bgcolor="#fff",
-        bargap=0.35,
+        bargap=0.3,
     )
     return fig
 
