@@ -10,7 +10,7 @@
 """
 from __future__ import annotations
 
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
 import pandas as pd
 import plotly.express as px
@@ -143,7 +143,7 @@ def page_gantt_all() -> None:
                       color_discrete_map=color_map, title="")
     fig.update_yaxes(autorange="reversed", title="")
     fig.update_xaxes(title="")
-    fig.add_vline(x=today.isoformat(), line_dash="dash", line_color="red",
+    fig.add_vline(x=datetime.combine(today, datetime.min.time()), line_dash="dash", line_color="red",
                   annotation_text="今日", annotation_position="top")
     fig.update_layout(
         height=max(400, len(gantt_rows) * 35 + 100),
@@ -497,7 +497,7 @@ def _site_gantt(site: dict, phases: list[dict]) -> None:
                       color_discrete_map=color_map)
     fig.update_yaxes(autorange="reversed", title="")
     fig.update_xaxes(title="")
-    fig.add_vline(x=date.today().isoformat(), line_dash="dash", line_color="red",
+    fig.add_vline(x=datetime.combine(date.today(), datetime.min.time()), line_dash="dash", line_color="red",
                   annotation_text="今日")
     fig.update_layout(
         height=max(250, len(rows) * 40 + 80),
@@ -507,9 +507,12 @@ def _site_gantt(site: dict, phases: list[dict]) -> None:
 
     milestones = db.list_milestones(site["id"])
     for ms in milestones:
-        td_str = str(ms["target_date"])
-        fig.add_vline(x=td_str, line_dash="dot", line_color="#f59e0b", line_width=1)
-        fig.add_annotation(x=td_str, y=0, text=f"◆{ms['name']}", showarrow=False,
+        td_d = _to_date(ms["target_date"])
+        if not td_d:
+            continue
+        td_dt = datetime.combine(td_d, datetime.min.time())
+        fig.add_vline(x=td_dt, line_dash="dot", line_color="#f59e0b", line_width=1)
+        fig.add_annotation(x=td_dt, y=0, text=f"◆{ms['name']}", showarrow=False,
                            yshift=15, font=dict(size=10, color="#f59e0b"))
 
     st.plotly_chart(fig, use_container_width=True)
