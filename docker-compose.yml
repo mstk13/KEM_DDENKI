@@ -11,7 +11,8 @@
 #   8505 : evaluation_admin
 #   8506 : kouki_kanri
 #   8510 : nippou_kanri         [optional]
-#   8507〜8509, 8511〜 : 空き（次のアプリ用に予約）
+#   8508 : dev_kanri            [develop only]
+#   8509, 8511〜 : 空き（次のアプリ用に予約）
 # =====================================================================
 
 x-common-env: &common-env
@@ -185,6 +186,20 @@ services:
       - --server.headless=true
       - --server.address=0.0.0.0
       - --server.baseUrlPath=/nippou-kanri
+
+  dev_kanri:
+    <<: *app-base
+    environment:
+      <<: *common-env
+    command:
+      - dev-kanri
+      - streamlit
+      - run
+      - app.py
+      - --server.port=8508
+      - --server.headless=true
+      - --server.address=0.0.0.0
+      - --server.baseUrlPath=/dev
 
 volumes:
   kem_data:
