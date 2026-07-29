@@ -353,6 +353,106 @@ def get_site_estimate_summary(site_id: int) -> dict | None:
             return dict(header)
 
 
+# ---------------------------------------------------------------------------
+# 配置管理（schedule.assignments）
+# ---------------------------------------------------------------------------
+def list_employees(active_only: bool = True) -> list[dict]:
+    """従業員マスタから一覧を取得。"""
+    sql = "SELECT id, code, name, kana, department, position, role FROM master.employees"
+    if active_only:
+        sql += " WHERE is_active = TRUE"
+    sql += " ORDER BY code"
+    with get_conn() as conn:
+        with _cur(conn) as cur:
+            cur.execute(sql)
+            return _dicts(cur.fetchall())
+
+
+def get_effective_assignments(target_date) -> list[dict]:
+    """指定日における各従業員の有効な配置を取得。
+
+    同一従業員に複数の配置がある場合、最も新しく作成されたものが優先される。
+    期間指定の配置は無期限配置より優先される（一時配置の仕組み）。
+    """
+    with get_conn() as conn:
+        with _cur(conn) as cur:
+            cur.execute("""
+                SELECT DISTINCT ON (a.employee_id)
+                    a.id, a.employee_id, a.employee_name,
+                    a.site_id, a.site_name,
+                    a.start_date, a.end_date, a.memo, a.created_at
+                FROM schedule.assignments a
+                WHERE a.start_date <= %s
+                  AND (a.end_date IS NULL OR a.end_date >= %s)
+                ORDER BY a.employee_id,
+                         CASE WHEN a.end_date IS NOT NULL THEN 0 ELSE 1 END,
+                         a.created_at DESC
+            """, (target_date, target_date))
+            return _dicts(cur.fetchall())
+
+
+def get_site_assignments(site_id: int, target_date) -> list[dict]:
+    """指定日に特定の現場に配置されている従業員を取得。"""
+    all_assignments = get_effective_assignments(target_date)
+    return [a for a in all_assignments if a["site_id"] == site_id]
+
+
+def assign_employee(employee_id: int, employee_name: str,
+                    site_id: int, site_name: str,
+                    start_date, end_date=None, memo: str = "") -> int:
+    """従業員を現場に配置する。
+
+    end_date=None の場合（無期限配置）:
+      同じ従業員の既存の無期限配置の end_date を start_date - 1 に設定。
+    end_date が指定された場合（一時配置）:
+      既存の配置はそのまま残り、指定期間のみ上書きされる。
+    """
+    now = _now()
+    with get_conn() as conn:
+        with _cur(conn) as cur:
+            if end_date is None:
+                # 無期限配置: 既存の無期限配置を終了させる
+                cur.execute("""
+                    UPDATE schedule.assignments
+                    SET end_date = %s, updated_at = %s
+                    WHERE employee_id = %s
+                      AND end_date IS NULL
+                      AND start_date < %s
+                """, (start_date, now, employee_id, start_date))
+
+            cur.execute("""
+                INSERT INTO schedule.assignments
+                (employee_id, employee_name, site_id, site_name,
+                 start_date, end_date, memo, created_at, updated_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                RETURNING id
+            """, (employee_id, employee_name, site_id, site_name,
+                  start_date, end_date, memo, now, now))
+            return cur.fetchone()["id"]
+
+
+def remove_assignment(assignment_id: int) -> None:
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM schedule.assignments WHERE id = %s",
+                        (assignment_id,))
+
+
+def list_assignments_range(start_date, end_date) -> list[dict]:
+    """期間内に有効な全配置を取得（カレンダー表示用）。"""
+    with get_conn() as conn:
+        with _cur(conn) as cur:
+            cur.execute("""
+                SELECT a.*, s.status AS site_status
+                FROM schedule.assignments a
+                LEFT JOIN master.sites s ON s.id = a.site_id
+                WHERE a.start_date <= %s
+                  AND (a.end_date IS NULL OR a.end_date >= %s)
+                ORDER BY a.site_id, a.employee_name
+            """, (end_date, start_date))
+            return _dicts(cur.fetchall())
+
+
 if __name__ == "__main__":
     init_db()
     print("工期管理 DB 初期化完了 (PostgreSQL)")

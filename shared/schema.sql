@@ -467,8 +467,25 @@ CREATE TABLE IF NOT EXISTS schedule.milestones (
     created_at  TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
+-- 配置管理（作業員の現場配置）
+CREATE TABLE IF NOT EXISTS schedule.assignments (
+    id          SERIAL PRIMARY KEY,
+    employee_id INTEGER NOT NULL REFERENCES master.employees(id) ON DELETE CASCADE,
+    employee_name TEXT NOT NULL,
+    site_id     INTEGER NOT NULL REFERENCES master.sites(id) ON DELETE CASCADE,
+    site_name   TEXT NOT NULL DEFAULT '',
+    start_date  DATE NOT NULL,
+    end_date    DATE,              -- NULL = 無期限（次の配置まで有効）
+    memo        TEXT DEFAULT '',
+    created_at  TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at  TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
 CREATE INDEX IF NOT EXISTS idx_schedule_phases_site ON schedule.phases(site_id);
 CREATE INDEX IF NOT EXISTS idx_schedule_milestones_site ON schedule.milestones(site_id);
+CREATE INDEX IF NOT EXISTS idx_assignments_emp ON schedule.assignments(employee_id);
+CREATE INDEX IF NOT EXISTS idx_assignments_site ON schedule.assignments(site_id);
+CREATE INDEX IF NOT EXISTS idx_assignments_dates ON schedule.assignments(start_date, end_date);
 
 -- ============================================================
 -- インデックス
