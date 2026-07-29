@@ -19,10 +19,10 @@ COMPANY_NAME = os.getenv("JINZAI_COMPANY_NAME", "株式会社ケンモチ電機"
 EMPLOYEES_JSON = REPO_DIR / "shared" / "data" / "employees.json"
 
 # 職種区分（role）
-ROLES = ["役員", "電工", "事務", "システムデベロッパー"]
+ROLES = ["役員", "電工", "事務", "developer"]
 
 # 部署
-DEPARTMENTS = ["役員", "電気工事部", "総務部", "AIシステム開発部"]
+DEPARTMENTS = ["役員", "電気工事部", "総務部", "AI system development"]
 
 # 役職
-POSITIONS = ["代表取締役", "取締役", "職長", "主任", "社員", "見習い", "エンジニア"]
+POSITIONS = ["代表取締役", "取締役", "職長", "主任", "社員", "見習い", "engineer"]
