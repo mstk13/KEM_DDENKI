@@ -21,6 +21,100 @@ import database as db
 
 st.set_page_config(page_title="工期管理 | ケンモチ電機", page_icon="📅", layout="wide")
 
+# --- グローバルCSS: 全体のフォント・余白を大きめに ---
+st.markdown("""
+<style>
+    /* サイドバー */
+    section[data-testid="stSidebar"] .stMarkdown h1 { font-size: 1.6rem !important; }
+    section[data-testid="stSidebar"] .stRadio label { font-size: 1.05rem !important; }
+
+    /* ヘッダー */
+    h1 { font-size: 2rem !important; letter-spacing: 0.02em; }
+    h2 { font-size: 1.5rem !important; }
+    h3 { font-size: 1.25rem !important; }
+
+    /* メトリクス */
+    [data-testid="stMetricValue"] { font-size: 1.5rem !important; }
+    [data-testid="stMetricLabel"] { font-size: 0.95rem !important; }
+
+    /* ボタン */
+    .stButton button { font-size: 0.95rem !important; padding: 0.5rem 1.2rem !important; }
+
+    /* データフレーム */
+    .stDataFrame { font-size: 0.95rem !important; }
+
+    /* 現場カード */
+    .site-card {
+        border: 2px solid #e2e8f0;
+        border-radius: 12px;
+        padding: 1.2rem 1.4rem;
+        margin-bottom: 0.6rem;
+        background: #fff;
+    }
+    .site-card-header {
+        display: flex;
+        align-items: center;
+        gap: 0.8rem;
+        flex-wrap: wrap;
+    }
+    .site-card-header .site-name {
+        font-size: 1.15rem;
+        font-weight: 700;
+        color: #1a202c;
+    }
+    .site-card-header .badge {
+        display: inline-block;
+        padding: 0.2rem 0.7rem;
+        border-radius: 6px;
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: #fff;
+    }
+    .site-card-header .badge-active   { background: #3b82f6; }
+    .site-card-header .badge-upcoming { background: #94a3b8; }
+    .site-card-header .badge-done     { background: #22c55e; }
+    .site-card-header .badge-stopped  { background: #ef4444; }
+    .site-card .site-dates {
+        font-size: 1rem;
+        color: #4a5568;
+        margin-top: 0.3rem;
+    }
+    .site-card .site-meta {
+        font-size: 0.9rem;
+        color: #718096;
+        margin-top: 0.15rem;
+    }
+
+    /* 工程バー */
+    .phase-row {
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+        padding: 0.35rem 0;
+        border-bottom: 1px solid #f0f0f0;
+    }
+    .phase-name {
+        font-size: 0.95rem;
+        font-weight: 600;
+        min-width: 140px;
+        color: #2d3748;
+    }
+    .phase-dates {
+        font-size: 0.85rem;
+        color: #718096;
+        min-width: 180px;
+    }
+    .phase-pct-badge {
+        display: inline-block;
+        padding: 0.15rem 0.6rem;
+        border-radius: 4px;
+        font-size: 0.85rem;
+        font-weight: 700;
+        color: #fff;
+    }
+</style>
+""", unsafe_allow_html=True)
+
 db.init_db()
 
 SITE_STATUSES = ["着工前", "施工中", "完了", "中断"]
@@ -29,6 +123,8 @@ PHASE_COLORS = [
     "#3b82f6", "#22c55e", "#f59e0b", "#ef4444", "#8b5cf6",
     "#06b6d4", "#ec4899", "#14b8a6", "#f97316", "#6366f1",
 ]
+
+STATUS_COLORS = {"着工前": "#94a3b8", "施工中": "#3b82f6", "完了": "#22c55e", "中断": "#ef4444"}
 
 
 def _to_date(val) -> date | None:
@@ -42,14 +138,51 @@ def _to_date(val) -> date | None:
         return None
 
 
+def _badge_class(status: str) -> str:
+    return {"施工中": "badge-active", "着工前": "badge-upcoming",
+            "完了": "badge-done", "中断": "badge-stopped"}.get(status, "badge-active")
+
+
+def _build_gantt_figure(gantt_rows: list[dict], color_map: dict, height: int) -> go.Figure:
+    """ガントチャートの共通ビルダー。日付軸を上に配置。"""
+    df = pd.DataFrame(gantt_rows)
+    fig = px.timeline(df, x_start="Start", x_end="Finish", y="Task", color="Resource",
+                      color_discrete_map=color_map, title="")
+    fig.update_yaxes(autorange="reversed", title="",
+                     tickfont=dict(size=14))
+    fig.update_xaxes(title="", side="top",
+                     tickfont=dict(size=13),
+                     tickformat="%m/%d",
+                     dtick=7 * 86400000,  # 1週間刻み
+                     gridcolor="#e2e8f0", gridwidth=1,
+                     minor=dict(dtick=86400000, gridcolor="#f7fafc"))
+    today_dt = datetime.combine(date.today(), datetime.min.time())
+    fig.add_vline(x=today_dt, line_dash="dash", line_color="#ef4444", line_width=2)
+    fig.add_annotation(x=today_dt, y=-0.15, yref="paper",
+                       text="TODAY", showarrow=False,
+                       font=dict(size=12, color="#ef4444", family="Arial Black"))
+    fig.update_layout(
+        height=height,
+        margin=dict(l=10, r=20, t=50, b=10),
+        legend_title_text="",
+        legend=dict(orientation="h", yanchor="bottom", y=1.08,
+                    font=dict(size=13)),
+        showlegend=True,
+        plot_bgcolor="#fafbfc",
+        paper_bgcolor="#fff",
+        bargap=0.35,
+    )
+    return fig
+
+
 # ===================================================================
 # 1. 全現場ガントチャート
 # ===================================================================
 def page_gantt_all() -> None:
-    st.header("📅 全現場 工期ガントチャート")
+    st.header("全現場 工期ガントチャート")
 
     # --- 現場を新規登録 ---
-    with st.expander("➕ 工事（現場）を新規登録", expanded=False):
+    with st.expander("工事（現場）を新規登録", expanded=False):
         with st.form("add_site_form"):
             s_name = st.text_input("現場名（工事名）*", placeholder="例: 〇〇基地 電気設備改修工事")
             ac1, ac2, ac3 = st.columns(3)
@@ -91,72 +224,141 @@ def page_gantt_all() -> None:
         st.info("現場が登録されていません。上の「工事を新規登録」から追加してください。")
         return
 
-    # ガントチャート用データ構築
+    # --- メインガントチャート（現場レベルのみ） ---
     gantt_rows = []
-    today = date.today()
-
+    valid_sites = []
     for s in sites:
         start = _to_date(s.get("start_date"))
         end = _to_date(s.get("end_date"))
         if not start:
             continue
-
         end = end or (start + timedelta(days=30))
-
+        status = s.get("status", "施工中")
         gantt_rows.append({
             "Task": s["name"],
             "Start": start,
             "Finish": end,
-            "Resource": s.get("status", "施工中"),
-            "Type": "現場",
+            "Resource": status,
         })
-
-        phases = db.list_phases(s["id"])
-        for p in phases:
-            p_start = _to_date(p.get("start_date"))
-            p_end = _to_date(p.get("end_date"))
-            if p_start and p_end:
-                gantt_rows.append({
-                    "Task": f"  {p['name']}",
-                    "Start": p_start,
-                    "Finish": p_end,
-                    "Resource": f"{p.get('progress', 0)}%",
-                    "Type": "工程",
-                })
+        valid_sites.append(s)
 
     if not gantt_rows:
-        st.warning("工期（開始日・終了日）が設定されている現場がありません。現場を選択して工期を入力してください。")
+        st.warning("工期が設定されている現場がありません。")
         return
 
-    df = pd.DataFrame(gantt_rows)
-
-    color_map = {"着工前": "#94a3b8", "施工中": "#3b82f6", "完了": "#22c55e", "中断": "#ef4444"}
-    for r in df["Resource"].unique():
-        if r not in color_map:
-            if "%" in str(r):
-                pct = int(str(r).replace("%", ""))
-                color_map[r] = "#22c55e" if pct >= 100 else ("#f59e0b" if pct >= 50 else "#94a3b8")
-            else:
-                color_map[r] = "#6366f1"
-
-    fig = px.timeline(df, x_start="Start", x_end="Finish", y="Task", color="Resource",
-                      color_discrete_map=color_map, title="")
-    fig.update_yaxes(autorange="reversed", title="")
-    fig.update_xaxes(title="")
-    today_dt = datetime.combine(today, datetime.min.time())
-    fig.add_vline(x=today_dt, line_dash="dash", line_color="red")
-    fig.add_annotation(x=today_dt, y=0, text="今日", showarrow=False,
-                       yshift=-15, font=dict(size=11, color="red"))
-    fig.update_layout(
-        height=max(400, len(gantt_rows) * 35 + 100),
-        margin=dict(l=10, r=10, t=30, b=30),
-        legend_title_text="ステータス / 進捗", showlegend=True,
-    )
+    fig = _build_gantt_figure(gantt_rows, STATUS_COLORS,
+                              height=max(300, len(gantt_rows) * 55 + 120))
     st.plotly_chart(fig, use_container_width=True)
 
-    # 月別カレンダービュー
-    st.subheader("月別カレンダービュー")
+    st.divider()
+
+    # --- 現場ごとのカード + 工程展開 ---
+    st.subheader("現場一覧")
+    for s in valid_sites:
+        start = _to_date(s.get("start_date"))
+        end = _to_date(s.get("end_date"))
+        status = s.get("status", "施工中")
+        badge_cls = _badge_class(status)
+        days_total = (end - start).days if start and end else 0
+        days_elapsed = (date.today() - start).days if start else 0
+
+        st.markdown(f"""
+        <div class="site-card">
+            <div class="site-card-header">
+                <span class="site-name">{s['name']}</span>
+                <span class="badge {badge_cls}">{status}</span>
+            </div>
+            <div class="site-dates">
+                {str(start)} ～ {str(end or '未定')}
+                {'　（' + str(days_total) + '日間 / 経過' + str(max(0, days_elapsed)) + '日）' if days_total else ''}
+            </div>
+            <div class="site-meta">
+                {('発注: ' + s.get('client', '')) if s.get('client') else ''}
+                {('　|　種別: ' + s.get('category', '')) if s.get('category') else ''}
+                {('　|　代理人: ' + s.get('manager', '')) if s.get('manager') else ''}
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        # 工程展開ボタン
+        phases = db.list_phases(s["id"])
+        milestones = db.list_milestones(s["id"])
+        if phases or milestones:
+            with st.expander(f"工程を表示（{len(phases)} 工程 / {len(milestones)} マイルストーン）"):
+                _render_site_phases_inline(s, phases, milestones)
+
+    # --- 月別カレンダービュー ---
+    st.divider()
+    st.subheader("月別カレンダー")
     _month_selector_view(sites)
+
+
+def _render_site_phases_inline(site: dict, phases: list[dict], milestones: list[dict]) -> None:
+    """現場カードの下に工程ガントとマイルストーンを展開表示する。"""
+    # 工程ミニガント
+    phase_rows = []
+    for p in phases:
+        p_start = _to_date(p.get("start_date"))
+        p_end = _to_date(p.get("end_date"))
+        if not p_start or not p_end:
+            continue
+        pct = p.get("progress", 0)
+        phase_rows.append({
+            "Task": p["name"],
+            "Start": p_start,
+            "Finish": p_end,
+            "Resource": f"{pct}%",
+            "color": p.get("color") or "#3b82f6",
+        })
+
+    if phase_rows:
+        color_map = {}
+        for r in phase_rows:
+            pct = int(r["Resource"].replace("%", ""))
+            color_map[r["Resource"]] = r["color"] if pct < 100 else "#22c55e"
+
+        fig = _build_gantt_figure(phase_rows, color_map,
+                                  height=max(200, len(phase_rows) * 48 + 80))
+        # マイルストーン線を追加
+        for ms in milestones:
+            td_d = _to_date(ms["target_date"])
+            if not td_d:
+                continue
+            td_dt = datetime.combine(td_d, datetime.min.time())
+            fig.add_vline(x=td_dt, line_dash="dot", line_color="#f59e0b", line_width=2)
+            fig.add_annotation(x=td_dt, y=-0.08, yref="paper",
+                               text=f"◆ {ms['name']}", showarrow=False,
+                               font=dict(size=11, color="#f59e0b"))
+        fig.update_layout(legend_title_text="進捗率")
+        st.plotly_chart(fig, use_container_width=True)
+
+    # 工程リスト
+    for p in phases:
+        pct = p.get("progress", 0)
+        color = p.get("color") or "#3b82f6"
+        p_start = _to_date(p.get("start_date"))
+        p_end = _to_date(p.get("end_date"))
+        st.markdown(f"""
+        <div class="phase-row">
+            <span class="phase-name">{p['name']}</span>
+            <span class="phase-dates">{str(p_start or '?')} ～ {str(p_end or '?')}</span>
+            <span class="phase-pct-badge" style="background:{color}">{pct}%</span>
+        </div>
+        """, unsafe_allow_html=True)
+
+    # マイルストーン
+    if milestones:
+        st.markdown("---")
+        today = date.today()
+        for ms in milestones:
+            td_d = _to_date(ms["target_date"])
+            if not td_d:
+                continue
+            days_left = (td_d - today).days
+            done = ms.get("completed", False)
+            icon = "✅" if done else ("🔴" if days_left < 0 else ("🟡" if days_left <= 7 else "⚪"))
+            label = "完了" if done else (f"あと {days_left} 日" if days_left >= 0 else f"{-days_left} 日超過")
+            st.markdown(f"**{icon} {ms['name']}** — {td_d}（{label}）")
 
 
 def _month_selector_view(sites: list[dict]) -> None:
@@ -188,7 +390,7 @@ def _month_selector_view(sites: list[dict]) -> None:
             })
 
     if overlapping:
-        st.caption(f"{selected_month.year}年{selected_month.month}月に工期がかかる現場: {len(overlapping)} 件")
+        st.caption(f"{selected_month.year}年{selected_month.month}月に工期がかかる現場: **{len(overlapping)} 件**")
         st.dataframe(pd.DataFrame(overlapping), use_container_width=True, hide_index=True)
     else:
         st.info(f"{selected_month.year}年{selected_month.month}月に工期がかかる現場はありません。")
@@ -198,7 +400,7 @@ def _month_selector_view(sites: list[dict]) -> None:
 # 2. 現場別 詳細工程管理
 # ===================================================================
 def page_site_detail() -> None:
-    st.header("🏗 現場別 詳細管理")
+    st.header("現場別 詳細管理")
 
     sites = db.list_sites()
     if not sites:
@@ -262,7 +464,7 @@ def page_site_detail() -> None:
     st.divider()
 
     # --- タブで工程 / 日報 / 材料費 を切り替え ---
-    tab_phase, tab_nippou, tab_material = st.tabs(["📐 工程フェーズ", "📝 日報データ", "📦 材料費"])
+    tab_phase, tab_nippou, tab_material = st.tabs(["工程フェーズ", "日報データ", "材料費"])
 
     with tab_phase:
         _render_phases(site_id, site)
@@ -309,7 +511,8 @@ def _render_phases(site_id: int, site: dict) -> None:
             color = p.get("color") or "#3b82f6"
             col_bar.markdown(
                 f"**{p['name']}** — {str(p.get('start_date','?'))} ~ {str(p.get('end_date','?'))} "
-                f"<span style='background:{color};color:#fff;padding:2px 8px;border-radius:4px;'>"
+                f"<span style='background:{color};color:#fff;padding:3px 10px;border-radius:6px;"
+                f"font-size:0.95rem;font-weight:700;'>"
                 f"{pct}%</span>", unsafe_allow_html=True)
             col_bar.progress(pct / 100)
 
@@ -355,7 +558,7 @@ def _render_phases(site_id: int, site: dict) -> None:
             days_left = (td_d - today).days
             done = ms.get("completed", False)
             icon = "✅" if done else ("🔴" if days_left < 0 else ("🟡" if days_left <= 7 else "⚪"))
-            status_text = "完了" if done else (f"あと{days_left}日" if days_left >= 0 else f"{-days_left}日超過")
+            status_text = "完了" if done else (f"あと {days_left} 日" if days_left >= 0 else f"{-days_left} 日超過")
             mc1, mc2, mc3 = st.columns([3, 2, 1])
             mc1.write(f"{icon} **{ms['name']}** — {td_d} ({status_text})")
             mc2.write(ms.get("memo", ""))
@@ -371,7 +574,7 @@ def _render_phases(site_id: int, site: dict) -> None:
 
 # --- 日報データ ---
 def _render_nippou(site_id: int) -> None:
-    st.subheader("📝 この現場の日報データ")
+    st.subheader("この現場の日報データ")
 
     reports = db.list_site_reports(site_id)
     if not reports:
@@ -422,7 +625,7 @@ def _render_nippou(site_id: int) -> None:
 
 # --- 材料費 ---
 def _render_materials(site_id: int) -> None:
-    st.subheader("📦 この現場の材料費")
+    st.subheader("この現場の材料費")
 
     mat_summary = db.get_site_material_summary(site_id)
     est_summary = db.get_site_estimate_summary(site_id)
@@ -484,30 +687,18 @@ def _site_gantt(site: dict, phases: list[dict]) -> None:
         if not p_start or not p_end:
             continue
         rows.append({
-            "工程": p["name"], "Start": p_start, "Finish": p_end,
-            "進捗": f"{p.get('progress', 0)}%",
+            "Task": p["name"], "Start": p_start, "Finish": p_end,
+            "Resource": f"{p.get('progress', 0)}%",
             "color": p.get("color") or "#3b82f6",
         })
 
     if not rows:
         return
 
-    df = pd.DataFrame(rows)
-    color_map = {r["進捗"]: r["color"] for r in rows}
-
-    fig = px.timeline(df, x_start="Start", x_end="Finish", y="工程", color="進捗",
-                      color_discrete_map=color_map)
-    fig.update_yaxes(autorange="reversed", title="")
-    fig.update_xaxes(title="")
-    today_dt = datetime.combine(date.today(), datetime.min.time())
-    fig.add_vline(x=today_dt, line_dash="dash", line_color="red")
-    fig.add_annotation(x=today_dt, y=0, text="今日", showarrow=False,
-                       yshift=-15, font=dict(size=11, color="red"))
-    fig.update_layout(
-        height=max(250, len(rows) * 40 + 80),
-        margin=dict(l=10, r=10, t=10, b=10),
-        showlegend=True, legend_title_text="進捗率",
-    )
+    color_map = {r["Resource"]: r["color"] for r in rows}
+    fig = _build_gantt_figure(rows, color_map,
+                              height=max(220, len(rows) * 48 + 80))
+    fig.update_layout(legend_title_text="進捗率")
 
     milestones = db.list_milestones(site["id"])
     for ms in milestones:
@@ -515,9 +706,10 @@ def _site_gantt(site: dict, phases: list[dict]) -> None:
         if not td_d:
             continue
         td_dt = datetime.combine(td_d, datetime.min.time())
-        fig.add_vline(x=td_dt, line_dash="dot", line_color="#f59e0b", line_width=1)
-        fig.add_annotation(x=td_dt, y=0, text=f"◆{ms['name']}", showarrow=False,
-                           yshift=15, font=dict(size=10, color="#f59e0b"))
+        fig.add_vline(x=td_dt, line_dash="dot", line_color="#f59e0b", line_width=2)
+        fig.add_annotation(x=td_dt, y=-0.08, yref="paper",
+                           text=f"◆ {ms['name']}", showarrow=False,
+                           font=dict(size=11, color="#f59e0b"))
 
     st.plotly_chart(fig, use_container_width=True)
 
@@ -526,7 +718,7 @@ def _site_gantt(site: dict, phases: list[dict]) -> None:
 # 3. 進捗サマリー
 # ===================================================================
 def page_summary() -> None:
-    st.header("📊 進捗サマリー")
+    st.header("進捗サマリー")
 
     sites = db.list_sites()
     if not sites:
@@ -605,7 +797,7 @@ def page_summary() -> None:
             names=list(status_counts.keys()), values=list(status_counts.values()),
             title="現場ステータス分布",
             color=list(status_counts.keys()),
-            color_discrete_map={"着工前": "#94a3b8", "施工中": "#3b82f6", "完了": "#22c55e", "中断": "#ef4444"},
+            color_discrete_map=STATUS_COLORS,
         )
         fig.update_layout(height=350)
         st.plotly_chart(fig, use_container_width=True)
@@ -620,7 +812,7 @@ PAGES = {
     "進捗サマリー": page_summary,
 }
 
-st.sidebar.title("📅 工期管理")
+st.sidebar.title("工期管理")
 st.sidebar.caption("株式会社ケンモチ電機")
 
 default = st.session_state.get("page", "全現場ガントチャート")
