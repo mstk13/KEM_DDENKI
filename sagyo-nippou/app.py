@@ -1379,3 +1379,19 @@ today_count = len(db.list_reports(date_from=date.today().isoformat(),
 st.sidebar.metric("本日の提出枚数", f"{today_count} 枚")
 
 PAGES[st.session_state["page"]]()
+
+# GitHub反映（devブランチのみ、サイドバー下部に表示）
+import sys as _sys
+_sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "shared"))
+import git_sync as _gs  # noqa: E402
+if _gs.is_dev():
+    st.sidebar.divider()
+    if st.sidebar.button("🔄 GitHubに反映", use_container_width=True, key="nippou_sync"):
+        with st.spinner("GitHubに反映中..."):
+            ok, msg = _gs.push_changes("sagyo-nippou", [
+                "sagyo-nippou/app.py", "sagyo-nippou/config.py", "sagyo-nippou/database.py",
+            ])
+        if ok:
+            st.sidebar.success(msg)
+        else:
+            st.sidebar.error(msg)
