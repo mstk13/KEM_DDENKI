@@ -507,20 +507,22 @@ elif menu == "評価基準の編集":
 
         if delete_ids:
             with core.eval_conn() as conn:
-                for did in delete_ids:
-                    conn.execute("DELETE FROM eval_items WHERE id = ?", (did,))
+                with conn.cursor() as cur:
+                    for did in delete_ids:
+                        cur.execute("DELETE FROM eval.eval_items WHERE id = %s", (did,))
             st.success(f"{len(delete_ids)} 件削除しました。")
             st.rerun()
 
         if st.button("変更を保存", type="primary", use_container_width=True):
             with core.eval_conn() as conn:
-                for it in edited_items:
-                    conn.execute(
-                        "UPDATE eval_items SET num=?, name=?, description=?, max_score=?, "
-                        "choice_group=?, sort_order=? WHERE id=?",
-                        (it["num"], it["name"], it["description"], it["max_score"],
-                         it["choice_group"], it["sort_order"], it["id"]),
-                    )
+                with conn.cursor() as cur:
+                    for it in edited_items:
+                        cur.execute(
+                            "UPDATE eval.eval_items SET num=%s, name=%s, description=%s, max_score=%s, "
+                            "choice_group=%s, sort_order=%s WHERE id=%s",
+                            (it["num"], it["name"], it["description"], it["max_score"],
+                             it["choice_group"], it["sort_order"], it["id"]),
+                        )
             st.success("保存しました。")
             st.rerun()
     else:
@@ -570,16 +572,17 @@ elif menu == "評価基準の編集":
             ]
             new_rows = [(qnum, text) for qnum, text in new_rows if text]
             with core.eval_conn() as conn:
-                conn.execute("DELETE FROM survey_questions WHERE item_id = ?", (target["id"],))
-                for order, (qnum, text) in enumerate(new_rows):
-                    conn.execute(
-                        "INSERT INTO survey_questions (item_id, qnum, text, sort_order) VALUES (?, ?, ?, ?)",
-                        (target["id"], qnum, text, order),
+                with conn.cursor() as cur:
+                    cur.execute("DELETE FROM eval.survey_questions WHERE item_id = %s", (target["id"],))
+                    for order, (qnum, text) in enumerate(new_rows):
+                        cur.execute(
+                            "INSERT INTO eval.survey_questions (item_id, qnum, text, sort_order) VALUES (%s, %s, %s, %s)",
+                            (target["id"], qnum, text, order),
+                        )
+                    cur.execute(
+                        "UPDATE eval.eval_items SET anchor_5 = %s, anchor_3 = %s, anchor_1 = %s, free_text = %s WHERE id = %s",
+                        (a5, a3, a1, ft, target["id"]),
                     )
-                conn.execute(
-                    "UPDATE eval_items SET anchor_5 = ?, anchor_3 = ?, anchor_1 = ?, free_text = ? WHERE id = ?",
-                    (a5, a3, a1, ft, target["id"]),
-                )
             st.success(f"「{target['name']}」の設問を保存しました（{len(new_rows)}問）。")
             st.rerun()
 
@@ -607,12 +610,13 @@ elif menu == "評価基準の編集":
             else:
                 max_order = items[-1]["sort_order"] + 1 if items else 0
                 with core.eval_conn() as conn:
-                    conn.execute(
-                        "INSERT INTO eval_items (section, num, name, description, max_score, choice_group, sort_order) "
-                        "VALUES (?, ?, ?, ?, ?, ?, ?)",
-                        (edit_section, add_num, add_name.strip(), add_desc.strip(), add_score,
-                         add_cg.strip() or None, max_order),
-                    )
+                    with conn.cursor() as cur:
+                        cur.execute(
+                            "INSERT INTO eval.eval_items (section, num, name, description, max_score, choice_group, sort_order) "
+                            "VALUES (%s, %s, %s, %s, %s, %s, %s)",
+                            (edit_section, add_num, add_name.strip(), add_desc.strip(), add_score,
+                             add_cg.strip() or None, max_order),
+                        )
                 st.success(f"「{add_name}」を追加しました。")
                 st.rerun()
 
@@ -631,11 +635,12 @@ elif menu == "評価基準の編集":
                     st.error("その役割は既に存在します。")
                 else:
                     with core.eval_conn() as conn:
-                        conn.execute(
-                            "INSERT INTO eval_items (section, num, name, description, max_score, sort_order) "
-                            "VALUES (?, 5, '（項目名を設定）', '（評価内容を設定）', 10, 0)",
-                            (new_role.strip(),),
-                        )
+                        with conn.cursor() as cur:
+                            cur.execute(
+                                "INSERT INTO eval.eval_items (section, num, name, description, max_score, sort_order) "
+                                "VALUES (%s, 5, '（項目名を設定）', '（評価内容を設定）', 10, 0)",
+                                (new_role.strip(),),
+                            )
                     st.success(f"役割「{new_role}」を追加しました。「評価基準の編集」で項目を設定してください。")
                     st.rerun()
 
