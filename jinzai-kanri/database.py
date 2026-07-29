@@ -101,6 +101,25 @@ def add_employee(*, code: str = "", name: str, kana: str = "",
             return cur.fetchone()["id"]
 
 
+def next_code(prefix: str = "G") -> str:
+    """次に使える社員番号を返す（例: G011）。"""
+    with get_conn() as conn:
+        with _cur(conn) as cur:
+            cur.execute(
+                "SELECT code FROM master.employees WHERE code LIKE %s ORDER BY code DESC LIMIT 1",
+                (f"{prefix}%",),
+            )
+            row = cur.fetchone()
+    if not row or not row["code"]:
+        return f"{prefix}001"
+    num_part = row["code"][len(prefix):]
+    try:
+        next_num = int(num_part) + 1
+    except ValueError:
+        next_num = 1
+    return f"{prefix}{next_num:03d}"
+
+
 def update_employee(emp_id: int, **fields: Any) -> None:
     if not fields:
         return

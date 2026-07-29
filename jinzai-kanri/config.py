@@ -18,6 +18,9 @@ COMPANY_NAME = os.getenv("JINZAI_COMPANY_NAME", "株式会社ケンモチ電機"
 # 社員マスターJSONのパス（DB が空のとき自動復元に使う）
 EMPLOYEES_JSON = REPO_DIR / "shared" / "data" / "employees.json"
 
+# 社員番号のプレフィックス
+CODE_PREFIX = "G"
+
 # 職種区分（role）
 ROLES = ["役員", "電工", "事務", "developer"]
 

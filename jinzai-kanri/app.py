@@ -99,9 +99,12 @@ def page_add() -> None:
     if st.session_state.get("add_flash"):
         st.success(st.session_state.pop("add_flash"))
 
+    suggested = db.next_code(config.CODE_PREFIX)
+
     with st.form("add_employee", clear_on_submit=True):
         c1, c2 = st.columns(2)
-        code = c1.text_input("社員番号", placeholder="E011")
+        code = c1.text_input("社員番号", value=suggested,
+                             help=f"自動採番（変更可）。プレフィックス: {config.CODE_PREFIX}")
         name = c2.text_input("氏名（漢字）", placeholder="田中 太郎")
         c3, c4 = st.columns(2)
         kana = c3.text_input("よみがな", placeholder="たなか たろう")
