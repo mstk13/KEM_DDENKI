@@ -859,3 +859,18 @@ choice = st.sidebar.radio(
 )
 st.session_state["page"] = choice
 PAGES[choice]()
+
+# GitHub反映（devブランチのみ）
+import sys as _sys
+from pathlib import Path as _Path
+_sys.path.insert(0, str(_Path(__file__).resolve().parent.parent / "shared"))
+import git_sync as _gs  # noqa: E402
+if _gs.is_dev():
+    st.sidebar.divider()
+    if st.sidebar.button("🔄 GitHubに反映", use_container_width=True, key="kouki_sync"):
+        with st.spinner("GitHubに反映中..."):
+            ok, msg = _gs.push_changes("kouki-kanri", ["kouki-kanri/app.py"])
+        if ok:
+            st.sidebar.success(msg)
+        else:
+            st.sidebar.error(msg)

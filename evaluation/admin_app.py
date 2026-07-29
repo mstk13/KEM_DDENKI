@@ -644,15 +644,22 @@ elif menu == "評価基準の編集":
                     st.success(f"役割「{new_role}」を追加しました。「評価基準の編集」で項目を設定してください。")
                     st.rerun()
 
-    # --- GitHubに反映 ---
-    st.divider()
-    st.subheader("GitHubに反映")
-    st.caption("現在の評価項目と設問（eval_items.json / survey_questions.json）をGitHubにプッシュして、"
-               "他のPCにも反映させます。")
-    if st.button("GitHubに反映する", type="primary", use_container_width=True, key="push_github"):
-        with st.spinner("GitHubに反映中..."):
-            ok, msg = core.push_to_github()
-        if ok:
-            st.success(msg)
-        else:
-            st.error(msg)
+    # --- GitHubに反映（devブランチのみ表示） ---
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "shared"))
+    import git_sync  # noqa: E402
+    if git_sync.is_dev():
+        st.divider()
+        st.subheader("🔄 GitHubに反映（dev）")
+        st.caption("評価項目と設問をJSONに書き出してGitHubにプッシュします。")
+        if st.button("GitHubに反映する", type="primary", use_container_width=True, key="push_github"):
+            with st.spinner("GitHubに反映中..."):
+                core.export_items_to_json()
+                core.export_survey_to_json()
+                ok, msg = git_sync.push_changes(
+                    "evaluation",
+                    ["evaluation/eval_items.json", "evaluation/survey_questions.json"],
+                )
+            if ok:
+                st.success(msg)
+            else:
+                st.error(msg)

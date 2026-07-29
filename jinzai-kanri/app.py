@@ -277,6 +277,25 @@ def page_sync() -> None:
             st.rerun()
 
 
+    # GitHub反映（devブランチのみ）
+    import sys as _sys
+    from pathlib import Path as _Path
+    _sys.path.insert(0, str(_Path(__file__).resolve().parent.parent / "shared"))
+    import git_sync
+    if git_sync.is_dev():
+        st.divider()
+        st.subheader("🔄 GitHubに反映（dev）")
+        st.caption("JSONに書き出した社員データをGitHubのdevブランチにプッシュします。")
+        if st.button("GitHubに反映する", type="primary", use_container_width=True, key="sync_github"):
+            with st.spinner("GitHubに反映中..."):
+                db.save_to_json()
+                ok, msg = git_sync.push_changes("jinzai-kanri", ["shared/data/employees.json"])
+            if ok:
+                st.success(msg)
+            else:
+                st.error(msg)
+
+
 def get_conn_for_reset():
     import sys
     from pathlib import Path
