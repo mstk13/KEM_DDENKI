@@ -143,8 +143,10 @@ def page_gantt_all() -> None:
                       color_discrete_map=color_map, title="")
     fig.update_yaxes(autorange="reversed", title="")
     fig.update_xaxes(title="")
-    fig.add_vline(x=datetime.combine(today, datetime.min.time()), line_dash="dash", line_color="red",
-                  annotation_text="今日", annotation_position="top")
+    today_dt = datetime.combine(today, datetime.min.time())
+    fig.add_vline(x=today_dt, line_dash="dash", line_color="red")
+    fig.add_annotation(x=today_dt, y=0, text="今日", showarrow=False,
+                       yshift=-15, font=dict(size=11, color="red"))
     fig.update_layout(
         height=max(400, len(gantt_rows) * 35 + 100),
         margin=dict(l=10, r=10, t=30, b=30),
@@ -497,8 +499,10 @@ def _site_gantt(site: dict, phases: list[dict]) -> None:
                       color_discrete_map=color_map)
     fig.update_yaxes(autorange="reversed", title="")
     fig.update_xaxes(title="")
-    fig.add_vline(x=datetime.combine(date.today(), datetime.min.time()), line_dash="dash", line_color="red",
-                  annotation_text="今日")
+    today_dt = datetime.combine(date.today(), datetime.min.time())
+    fig.add_vline(x=today_dt, line_dash="dash", line_color="red")
+    fig.add_annotation(x=today_dt, y=0, text="今日", showarrow=False,
+                       yshift=-15, font=dict(size=11, color="red"))
     fig.update_layout(
         height=max(250, len(rows) * 40 + 80),
         margin=dict(l=10, r=10, t=10, b=10),

@@ -621,18 +621,160 @@ def _entry_yakuin() -> None:
 # --------------------------------------------------------------------------
 def page_list() -> None:
     st.header("📋 日報一覧")
+
+    tab_person, tab_site, tab_all = st.tabs(["👤 個人単位", "🏗️ 現場単位", "📊 全件一覧"])
+
+    with tab_person:
+        _list_by_person()
+    with tab_site:
+        _list_by_site()
+    with tab_all:
+        _list_all()
+
+
+def _list_by_person() -> None:
+    """個人単位の日報一覧 — 50音順 + 担当区分フィルタ。"""
+    role_options = ["全員"] + config.EMPLOYEE_ROLES
+    selected_role = st.radio("担当区分", role_options, horizontal=True, key="lst_p_role")
+
+    role_filter = None if selected_role == "全員" else selected_role
+    workers = db.list_workers_by_kana(active_only=True, role=role_filter)
+
+    if not workers:
+        st.info("該当する社員がいません。" + (
+            "　作業員管理で「担当区分」を設定してください。" if role_filter else ""))
+        return
+
+    st.caption(f"表示中: {len(workers)} 名（50音順）"
+               + (f"　— {selected_role}" if role_filter else ""))
+
+    c1, c2 = st.columns(2)
+    date_from = c1.date_input("開始日", value=date.today() - timedelta(days=14), key="lst_p_from")
+    date_to = c2.date_input("終了日", value=date.today(), key="lst_p_to")
+
+    st.divider()
+
+    for w in workers:
+        display_name = w["name"]
+        if w.get("kana"):
+            display_name += f"（{w['kana']}）"
+        role_badge = f"　`{w['role']}`" if w.get("role") else ""
+        with st.expander(f"👤 {display_name}{role_badge}", expanded=False):
+            _render_worker_reports_list(w, date_from.isoformat(), date_to.isoformat())
+
+
+def _render_worker_reports_list(worker: dict, date_from: str, date_to: str) -> None:
+    """個人の日報一覧（日報一覧タブ用）。"""
+    name = worker["name"]
+
+    genba = db.list_reports_for_worker(name, date_from=date_from, date_to=date_to)
+    office = db.list_office_reports(
+        date_from=date_from, date_to=date_to, worker_name=name)
+
+    if not genba and not office:
+        st.caption("この期間の日報はありません。")
+        return
+
+    if genba:
+        st.markdown("**現場日報**")
+        total_h = sum(r["w_hours"] for r in genba)
+        st.caption(f"{len(genba)} 件 / 作業時間合計 {total_h:.1f}h")
+        widths = [2, 2.5, 1.5, 1]
+        hcols = st.columns(widths)
+        for col, label in zip(hcols, ["作業日", "現場", "時間", ""]):
+            col.markdown(f"**{label}**")
+        for r in genba:
+            wd = config.weekday_jp(str(r["report_date"]))
+            cols = st.columns(widths)
+            cols[0].write(f"{r['report_date']}（{wd}）")
+            cols[1].write(r["site_name"])
+            cols[2].write(f"{r['w_start']}〜{r['w_end']}（{r['w_hours']:.1f}h）")
+            if cols[3].button("詳細", key=f"lst_g_{name}_{r['id']}", use_container_width=True):
+                st.session_state["selected_report"] = r["id"]
+                st.session_state["page"] = "日報詳細"
+                st.rerun()
+
+    if office:
+        st.markdown("**事務員/役員日報**")
+        total_h = sum(r["work_hours"] for r in office)
+        st.caption(f"{len(office)} 件 / 勤務時間合計 {total_h:.1f}h")
+        for r in office:
+            wd = config.weekday_jp(str(r["report_date"]))
+            st.markdown(
+                f"{r['report_date']}（{wd}）　`{r['role']}`"
+                f"　{r.get('start_time') or ''}〜{r.get('end_time') or ''}"
+                f"（{r['work_hours']:.1f}h）"
+            )
+            if r.get("work_content"):
+                st.caption(f"業務: {r['work_content']}")
+
+
+def _list_by_site() -> None:
+    """現場単位の日報一覧。"""
+    status_options = ["施工中の現場", "すべての現場"]
+    status_sel = st.radio("表示対象", status_options, horizontal=True, key="lst_s_status")
+    active_only = status_sel == "施工中の現場"
+
+    sites = db.list_sites(active_only=active_only)
+    if not sites:
+        st.info("現場が登録されていません。")
+        return
+
+    st.caption(f"表示中: {len(sites)} 現場")
+
+    c1, c2 = st.columns(2)
+    date_from = c1.date_input("開始日", value=date.today() - timedelta(days=14), key="lst_s_from")
+    date_to = c2.date_input("終了日", value=date.today(), key="lst_s_to")
+
+    st.divider()
+
+    for s in sites:
+        status_badge = f"　`{s['status']}`" if s.get("status") else ""
+        client_info = f"　{s['client']}" if s.get("client") else ""
+        with st.expander(f"🏗️ {s['name']}{client_info}{status_badge}", expanded=False):
+            reports = db.list_reports_for_site(s["id"], date_from=date_from.isoformat(),
+                                               date_to=date_to.isoformat())
+            if not reports:
+                st.caption("この期間の日報はありません。")
+                continue
+
+            total_h = sum(r["total_hours"] for r in reports)
+            total_p = sum(r["worker_count"] + r["sub_headcount"] for r in reports)
+            st.caption(f"{len(reports)} 枚 / のべ {total_p} 名 / 作業時間合計 {total_h:.1f}h")
+
+            widths = [2, 3, 1, 1]
+            hcols = st.columns(widths)
+            for col, label in zip(hcols, ["作業日", "作業員", "人数", ""]):
+                col.markdown(f"**{label}**")
+            for r in reports:
+                wd = config.weekday_jp(str(r["report_date"]))
+                cols = st.columns(widths)
+                cols[0].write(f"{r['report_date']}（{wd}）")
+                workers = db.get_report_workers(r["id"])
+                worker_names = "、".join(w["worker_name"] for w in workers) if workers else "―"
+                cols[1].write(worker_names)
+                total_people = r["worker_count"] + r["sub_headcount"]
+                cols[2].write(f"{total_people}名")
+                if cols[3].button("詳細", key=f"lst_s_{s['id']}_{r['id']}", use_container_width=True):
+                    st.session_state["selected_report"] = r["id"]
+                    st.session_state["page"] = "日報詳細"
+                    st.rerun()
+
+
+def _list_all() -> None:
+    """従来の全件一覧（フィルタ付き）。"""
     sites = {"（すべて）": None} | site_options(active_only=False)
 
     with st.expander("🔍 フィルタ", expanded=True):
         f1, f2, f3 = st.columns(3)
         with f1:
-            date_from = st.date_input("開始日", value=date.today() - timedelta(days=14))
-            site_sel = st.selectbox("現場", list(sites.keys()))
+            date_from = st.date_input("開始日", value=date.today() - timedelta(days=14), key="lst_a_from")
+            site_sel = st.selectbox("現場", list(sites.keys()), key="lst_a_site")
         with f2:
-            date_to = st.date_input("終了日", value=date.today())
-            status_sel = st.selectbox("ステータス", ["（すべて）"] + config.REPORT_STATUSES)
+            date_to = st.date_input("終了日", value=date.today(), key="lst_a_to")
+            status_sel = st.selectbox("ステータス", ["（すべて）"] + config.REPORT_STATUSES, key="lst_a_status")
         with f3:
-            keyword = st.text_input("キーワード検索", placeholder="作業内容・作業員・責任者")
+            keyword = st.text_input("キーワード検索", placeholder="作業内容・作業員・責任者", key="lst_a_kw")
 
     reports = db.list_reports(
         date_from=date_from.isoformat(), date_to=date_to.isoformat(),
@@ -647,7 +789,6 @@ def page_list() -> None:
     total_p = sum(r["worker_count"] + r["sub_headcount"] for r in reports)
     st.caption(f"{len(reports)} 枚 / のべ {total_p} 名 / 総作業時間 {total_h:.1f} 時間")
 
-    # 各行の右端に「詳細」ボタン（下までスクロール不要で遷移）
     widths = [1.7, 2.6, 2.2, 0.9, 1.1, 1]
     hcols = st.columns(widths)
     for col, label in zip(hcols, ["作業日", "現場", "発注先", "人数", "状態", ""]):
@@ -810,6 +951,155 @@ def _detail_edit(r: dict, workers: list[dict], subs: list[dict]) -> None:
 
 
 # --------------------------------------------------------------------------
+# 画面: 日報確認
+# --------------------------------------------------------------------------
+def page_check() -> None:
+    st.header("🔍 日報確認")
+
+    tab_person, tab_site = st.tabs(["👤 個人単位", "🏗️ 現場単位"])
+
+    with tab_person:
+        _check_by_person()
+    with tab_site:
+        _check_by_site()
+
+
+# ---- 個人単位 ----
+def _check_by_person() -> None:
+    # 担当区分フィルタ
+    role_options = ["全員"] + config.EMPLOYEE_ROLES
+    selected_role = st.radio("担当区分", role_options, horizontal=True, key="chk_role")
+
+    role_filter = None if selected_role == "全員" else selected_role
+    workers = db.list_workers_by_kana(active_only=True, role=role_filter)
+
+    if not workers:
+        st.info("該当する社員がいません。" + (
+            "　作業員管理で「担当区分」を設定してください。" if role_filter else ""))
+        return
+
+    st.caption(f"表示中: {len(workers)} 名（50音順）"
+               + (f"　— {selected_role}" if role_filter else ""))
+
+    # 日付範囲
+    c1, c2 = st.columns(2)
+    date_from = c1.date_input("開始日", value=date.today() - timedelta(days=14), key="chk_p_from")
+    date_to = c2.date_input("終了日", value=date.today(), key="chk_p_to")
+
+    st.divider()
+
+    for w in workers:
+        display_name = w["name"]
+        if w.get("kana"):
+            display_name += f"（{w['kana']}）"
+        role_badge = f"　`{w['role']}`" if w.get("role") else ""
+        with st.expander(f"👤 {display_name}{role_badge}", expanded=False):
+            _render_worker_reports(w, date_from.isoformat(), date_to.isoformat())
+
+
+def _render_worker_reports(worker: dict, date_from: str, date_to: str) -> None:
+    """指定社員の日報（現場＋事務員/役員）を表示。"""
+    name = worker["name"]
+
+    genba = db.list_reports_for_worker(name, date_from=date_from, date_to=date_to)
+    office = db.list_office_reports(
+        date_from=date_from, date_to=date_to, worker_name=name)
+
+    if not genba and not office:
+        st.caption("この期間の日報はありません。")
+        return
+
+    if genba:
+        st.markdown("**現場日報**")
+        total_h = sum(r["w_hours"] for r in genba)
+        st.caption(f"{len(genba)} 件 / 作業時間合計 {total_h:.1f}h")
+        for r in genba:
+            wd = config.weekday_jp(str(r["report_date"]))
+            col1, col2 = st.columns([6, 1])
+            col1.markdown(
+                f"{r['report_date']}（{wd}）　**{r['site_name']}**"
+                f"　{r['w_start']}〜{r['w_end']}（{r['w_hours']:.1f}h）"
+            )
+            if col2.button("詳細", key=f"chk_g_{name}_{r['id']}", use_container_width=True):
+                st.session_state["selected_report"] = r["id"]
+                st.session_state["page"] = "日報詳細"
+                st.rerun()
+
+    if office:
+        st.markdown("**事務員/役員日報**")
+        total_h = sum(r["work_hours"] for r in office)
+        st.caption(f"{len(office)} 件 / 勤務時間合計 {total_h:.1f}h")
+        for r in office:
+            wd = config.weekday_jp(str(r["report_date"]))
+            st.markdown(
+                f"{r['report_date']}（{wd}）　`{r['role']}`"
+                f"　{r.get('start_time') or ''}〜{r.get('end_time') or ''}"
+                f"（{r['work_hours']:.1f}h）"
+            )
+            if r.get("work_content"):
+                st.caption(f"業務: {r['work_content']}")
+
+
+# ---- 現場単位 ----
+def _check_by_site() -> None:
+    # 現場ステータスフィルタ
+    status_options = ["施工中の現場", "すべての現場"]
+    status_sel = st.radio("表示対象", status_options, horizontal=True, key="chk_s_status")
+    active_only = status_sel == "施工中の現場"
+
+    sites = db.list_sites(active_only=active_only)
+    if not sites:
+        st.info("現場が登録されていません。")
+        return
+
+    st.caption(f"表示中: {len(sites)} 現場")
+
+    # 日付範囲
+    c1, c2 = st.columns(2)
+    date_from = c1.date_input("開始日", value=date.today() - timedelta(days=14), key="chk_s_from")
+    date_to = c2.date_input("終了日", value=date.today(), key="chk_s_to")
+
+    st.divider()
+
+    for s in sites:
+        status_badge = f"　`{s['status']}`" if s.get("status") else ""
+        client_info = f"　{s['client']}" if s.get("client") else ""
+        with st.expander(f"🏗️ {s['name']}{client_info}{status_badge}", expanded=False):
+            _render_site_reports(s, date_from.isoformat(), date_to.isoformat())
+
+
+def _render_site_reports(site: dict, date_from: str, date_to: str) -> None:
+    """指定現場の日報一覧を表示。"""
+    reports = db.list_reports_for_site(site["id"], date_from=date_from, date_to=date_to)
+
+    if not reports:
+        st.caption("この期間の日報はありません。")
+        return
+
+    total_h = sum(r["total_hours"] for r in reports)
+    total_p = sum(r["worker_count"] + r["sub_headcount"] for r in reports)
+    st.caption(f"{len(reports)} 枚 / のべ {total_p} 名 / 作業時間合計 {total_h:.1f}h")
+
+    for r in reports:
+        wd = config.weekday_jp(str(r["report_date"]))
+        col1, col2 = st.columns([6, 1])
+        workers = db.get_report_workers(r["id"])
+        worker_names = "、".join(w["worker_name"] for w in workers) if workers else "―"
+        col1.markdown(
+            f"**{r['report_date']}（{wd}）**　{worker_names}"
+            f"　自社{r['worker_count']}名"
+            + (f"+協力{r['sub_headcount']}名" if r["sub_headcount"] else "")
+            + f"　{r['total_hours']:.1f}h"
+        )
+        if r.get("work_content"):
+            col1.caption(f"作業内容: {r['work_content'][:80]}")
+        if col2.button("詳細", key=f"chk_s_{site['id']}_{r['id']}", use_container_width=True):
+            st.session_state["selected_report"] = r["id"]
+            st.session_state["page"] = "日報詳細"
+            st.rerun()
+
+
+# --------------------------------------------------------------------------
 # 画面: ダッシュボード
 # --------------------------------------------------------------------------
 def page_dashboard() -> None:
@@ -887,10 +1177,13 @@ def page_workers() -> None:
             c1, c2 = st.columns(2)
             name = c1.text_input("氏名（漢字）", placeholder="例：剣持 大輔")
             kana = c2.text_input("よみがな", placeholder="例：けんもちだいすけ")
-            phone = st.text_input("電話番号")
+            c3, c4 = st.columns(2)
+            phone = c3.text_input("電話番号")
+            role = c4.selectbox("担当区分", [""] + config.EMPLOYEE_ROLES,
+                                help="日報確認のフィルタに使います")
             if st.form_submit_button("追加", type="primary"):
                 if name.strip():
-                    db.add_worker(name.strip(), "", phone.strip(), kana.strip())
+                    db.add_worker(name.strip(), role, phone.strip(), kana.strip())
                     st.success(f"{name} を追加しました。")
                     st.rerun()
                 else:
@@ -902,7 +1195,8 @@ def page_workers() -> None:
         return
     df = pd.DataFrame(workers)
     df["状態"] = df["is_active"].map({1: "有効", 0: "無効"})
-    st.dataframe(df[["id", "name", "kana", "phone", "状態"]].rename(
+    df["担当区分"] = df["role"].fillna("").replace("", "―")
+    st.dataframe(df[["id", "name", "kana", "担当区分", "phone", "状態"]].rename(
         columns={"id": "ID", "name": "氏名", "kana": "よみがな", "phone": "電話番号"}),
         use_container_width=True, hide_index=True)
 
@@ -914,14 +1208,19 @@ def page_workers() -> None:
     e1, e2 = st.columns(2)
     new_name = e1.text_input("氏名（漢字）", value=wk["name"], key=f"edit_name_{wk['id']}")
     new_kana = e2.text_input("よみがな", value=wk.get("kana") or "", key=f"edit_kana_{wk['id']}")
-    e3, e4 = st.columns(2)
+    e3, e4, e5 = st.columns(3)
     new_phone = e3.text_input("電話番号", value=wk.get("phone") or "", key=f"edit_phone_{wk['id']}")
-    new_active = e4.selectbox("状態", ["有効", "無効"], index=0 if wk["is_active"] else 1,
+    role_opts = [""] + config.EMPLOYEE_ROLES
+    cur_role = wk.get("role") or ""
+    role_idx = role_opts.index(cur_role) if cur_role in role_opts else 0
+    new_role = e4.selectbox("担当区分", role_opts, index=role_idx,
+                            key=f"edit_role_{wk['id']}")
+    new_active = e5.selectbox("状態", ["有効", "無効"], index=0 if wk["is_active"] else 1,
                               key=f"edit_active_{wk['id']}")
     if st.button("変更を保存", type="primary", key="w_edit_save"):
         if new_name.strip():
             db.update_worker(wk["id"], name=new_name.strip(), kana=new_kana.strip(),
-                             phone=new_phone.strip(),
+                             phone=new_phone.strip(), role=new_role,
                              is_active=1 if new_active == "有効" else 0)
             st.success("保存しました。")
             st.rerun()
@@ -1055,6 +1354,7 @@ def page_clients() -> None:
 # --------------------------------------------------------------------------
 PAGES = {
     "日報入力": page_entry,
+    "日報確認": page_check,
     "日報一覧": page_list,
     "日報詳細": page_detail,
     "ダッシュボード": page_dashboard,
