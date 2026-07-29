@@ -57,6 +57,9 @@ DEFAULT_START_TIME = os.getenv("NIPPOU_DEFAULT_START", "08:00")
 DEFAULT_END_TIME = os.getenv("NIPPOU_DEFAULT_END", "17:00")
 STANDARD_WORK_HOURS = float(os.getenv("NIPPOU_STANDARD_HOURS", "8"))  # これを超えると残業目安
 
+# --- 社員の担当区分（日報確認のフィルタに使用） ---
+EMPLOYEE_ROLES = ["現場", "事務員", "役員"]
+
 # --- メール通知 ---
 EMAIL_FROM = os.getenv("GMAIL_USER", "")
 EMAIL_PASSWORD = os.getenv("GMAIL_PASSWORD", "")
