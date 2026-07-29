@@ -17,6 +17,9 @@
 x-common-env: &common-env
   KEM_DATA_DIR: /data
   DATABASE_URL: postgresql://kem:kem@postgres:5432/kem_ddenki
+  # KEM_DEV_MODE=1 はdevブランチでのみ設定。GitHub反映ボタンの表示に必要。
+  # mainブランチではこの行を削除またはコメントアウトすること。
+  KEM_DEV_MODE: "1"
 
 x-app-base: &app-base
   build:

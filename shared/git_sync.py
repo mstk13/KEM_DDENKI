@@ -26,7 +26,15 @@ def current_branch() -> str:
 
 
 def is_dev() -> bool:
-    """devブランチかどうか。"""
+    """devブランチかどうか。二重チェックで安全性を確保。
+
+    1. 環境変数 KEM_DEV_MODE=1 が設定されていること（docker-compose.ymlで制御）
+    2. 実際のgitブランチが dev であること
+    両方が揃わなければFalseを返す。mainブランチではボタンが絶対に出ない。
+    """
+    import os
+    if os.getenv("KEM_DEV_MODE") != "1":
+        return False
     return current_branch() == "dev"
 
 
