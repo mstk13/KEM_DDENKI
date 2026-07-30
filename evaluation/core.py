@@ -108,6 +108,12 @@ DEFAULT_ROLE_ITEMS = {
         {"num": 10, "name": "原価管理", "desc": "無駄な材料の発注、材料の管理、人経費の管理", "max_score": 10},
         {"num": 11, "name": "資格取得 / 自己研鑽", "desc": "新しい資格の取得、自己研鑽のための取り組み（読書・セミナー参加など）", "max_score": 5},
     ],
+    "developer": [
+        {"num": 5, "name": "業務処理の正確性", "desc": "書類・データ入力のミスの少なさ、チェック体制の構築", "max_score": 20},
+        {"num": 6, "name": "業務効率", "desc": "処理スピード、業務改善の工夫、ムダの排除", "max_score": 15},
+        {"num": 7, "name": "PCスキル / AIスキル", "desc": "Excel・システム操作・事務ツールの活用力・AIを活用した改善提案", "max_score": 10},
+        {"num": 9, "name": "経費・原価管理の成長", "desc": "コスト意識、予算管理の精度、経費削減の取り組み", "max_score": 15},
+    ],
     "社長": [
         {"num": 5, "name": "経営判断", "desc": "受注判断・投資判断の的確さ・現場での判断の的確さ、意思決定のスピード", "max_score": 10},
         {"num": 6, "name": "業績貢献", "desc": "売上・利益目標の達成度、新規顧客の獲得、現場の予算の範囲内で最も効率よく施工するための判断ができているか", "max_score": 10},
@@ -498,6 +504,83 @@ def get_nippou_workers() -> list[str]:
                 return [r["name"] for r in cur.fetchall()]
     except Exception:
         return []
+
+
+def get_employees_by_role(role: str) -> list[str]:
+    """指定職種区分のアクティブ社員名リストを返す。"""
+    try:
+        with get_conn() as conn:
+            with _cur(conn) as cur:
+                cur.execute(
+                    "SELECT name FROM master.employees "
+                    "WHERE is_active = TRUE AND role = %s ORDER BY code",
+                    (role,),
+                )
+                return [r["name"] for r in cur.fetchall()]
+    except Exception:
+        return []
+
+
+def get_employee_role(name: str) -> str | None:
+    """社員名から職種区分を返す。"""
+    try:
+        with get_conn() as conn:
+            with _cur(conn) as cur:
+                cur.execute(
+                    "SELECT role FROM master.employees "
+                    "WHERE is_active = TRUE AND name = %s LIMIT 1",
+                    (name,),
+                )
+                r = cur.fetchone()
+                return r["role"] if r else None
+    except Exception:
+        return None
+
+
+def get_evaluation_targets(evaluator_name: str) -> list[str]:
+    """評価者の職種区分に応じて評価対象者リストを返す。
+
+    - developer: 自分 + 他のdeveloper + 社長(役員のうち代表取締役)
+    - 社長/役員(代表取締役): 全developer
+    - その他: 全社員（従来通り制限なし）
+    """
+    evaluator_role = get_employee_role(evaluator_name)
+
+    if evaluator_role == "developer":
+        # 全developer（自分含む）+ 社長
+        targets = get_employees_by_role("developer")
+        # 社長 = 役員のうち代表取締役
+        try:
+            with get_conn() as conn:
+                with _cur(conn) as cur:
+                    cur.execute(
+                        "SELECT name FROM master.employees "
+                        "WHERE is_active = TRUE AND role = '役員' AND position = '代表取締役' "
+                        "ORDER BY code"
+                    )
+                    targets += [r["name"] for r in cur.fetchall()]
+        except Exception:
+            pass
+        return sorted(set(targets))
+
+    # 社長（代表取締役）→ 全developer
+    if evaluator_role == "役員":
+        try:
+            with get_conn() as conn:
+                with _cur(conn) as cur:
+                    cur.execute(
+                        "SELECT position FROM master.employees "
+                        "WHERE is_active = TRUE AND name = %s LIMIT 1",
+                        (evaluator_name,),
+                    )
+                    r = cur.fetchone()
+                    if r and r["position"] == "代表取締役":
+                        return get_employees_by_role("developer")
+        except Exception:
+            pass
+
+    # その他: 制限なし（None を返して呼び出し側で全員表示）
+    return []
 
 
 def get_evaluator_options() -> list[str]:
