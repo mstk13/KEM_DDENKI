@@ -485,7 +485,7 @@ def _update_config_list(content: str, var_name: str, new_list: list[str]) -> str
 
 def page_master_settings() -> None:
     st.header("⚙️ マスター設定（人材管理）")
-    st.caption("人材管理アプリの部署・役職・職種区分を編集します。変更後「保存」→「GitHubに反映」してください。")
+    st.caption("人材管理アプリの部署・役職・職種区分を編集します。保存すると自動でGitHubにpushされます。")
 
     if not JINZAI_CONFIG.exists():
         st.error(f"設定ファイルが見つかりません: {JINZAI_CONFIG}")
@@ -515,7 +515,7 @@ def page_master_settings() -> None:
     pos_text = st.text_area(
         "1行に1つずつ入力", value="\n".join(positions), height=120, key="edit_pos")
 
-    if st.button("💾 設定を保存", type="primary", use_container_width=True, key="save_master"):
+    if st.button("💾 保存してGitHubに反映", type="primary", use_container_width=True, key="save_master"):
         new_roles = [x.strip() for x in roles_text.strip().splitlines() if x.strip()]
         new_depts = [x.strip() for x in depts_text.strip().splitlines() if x.strip()]
         new_pos = [x.strip() for x in pos_text.strip().splitlines() if x.strip()]
@@ -525,21 +525,16 @@ def page_master_settings() -> None:
         updated = _update_config_list(updated, "DEPARTMENTS", new_depts)
         updated = _update_config_list(updated, "POSITIONS", new_pos)
         JINZAI_CONFIG.write_text(updated, encoding="utf-8")
-        st.session_state["master_flash"] = "設定を保存しました。反映するにはGitHubに反映してください。"
-        st.rerun()
 
-    # GitHub反映ボタン
-    if git_sync.is_dev():
-        st.divider()
-        st.subheader("🔄 GitHubに反映（dev）")
-        st.caption("保存した設定をGitHubのdevブランチにプッシュします。")
-        if st.button("GitHubに反映する", type="primary", use_container_width=True, key="master_github"):
+        if git_sync.is_dev():
             with st.spinner("GitHubに反映中..."):
                 ok, msg = git_sync.push_changes("dev-kanri", ["jinzai-kanri/config.py"])
             if ok:
-                st.success(msg)
+                st.success(f"設定を保存し、{msg}")
             else:
-                st.error(msg)
+                st.warning(f"設定は保存しましたが、push失敗: {msg}")
+        else:
+            st.success("設定を保存しました（GitHub反映はdevブランチでのみ有効です）。")
 
 
 # ===================================================================
