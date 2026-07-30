@@ -65,8 +65,24 @@ def push_changes(app_name: str, files: list[str]) -> tuple[bool, str]:
             ["git", "commit", "-m", f"update({app_name}): ブラウザから変更を反映（{now}）"],
             cwd=str(REPO_DIR), capture_output=True, text=True, check=True, timeout=10,
         )
+        # コンテナ内ではgh credential helperが使えないため、
+        # GITHUB_TOKEN環境変数があればトークン付きURLでpushする
+        import os
+        push_cmd = ["git", "push", "origin", "dev"]
+        push_env = None
+        token = os.getenv("GITHUB_TOKEN")
+        if token:
+            # リモートURLからトークン付きURLを組み立て
+            remote = subprocess.run(
+                ["git", "remote", "get-url", "origin"],
+                cwd=str(REPO_DIR), capture_output=True, text=True, timeout=5,
+            ).stdout.strip()
+            if remote.startswith("https://github.com/"):
+                repo_path = remote.replace("https://github.com/", "")
+                auth_url = f"https://x-access-token:{token}@github.com/{repo_path}"
+                push_cmd = ["git", "push", auth_url, "dev"]
         result = subprocess.run(
-            ["git", "push", "origin", "dev"],
+            push_cmd,
             cwd=str(REPO_DIR), capture_output=True, text=True, timeout=30,
         )
         if result.returncode != 0:

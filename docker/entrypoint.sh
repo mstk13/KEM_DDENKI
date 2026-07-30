@@ -7,6 +7,10 @@ shift
 
 cd "/app/$APP_DIR"
 
+# git user設定（コンテナ内からのcommit/push用）
+git config --global user.email "kem-system@kenmochi-denki.local" 2>/dev/null || true
+git config --global user.name "KEM System" 2>/dev/null || true
+
 # ローカルの db.py を shared/db.py より優先させる
 export PYTHONPATH="/app/$APP_DIR:${PYTHONPATH:-}"
 
