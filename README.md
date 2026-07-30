@@ -8,12 +8,26 @@
 
 本番環境と開発環境はそれぞれ別のURLで動作しています。
 
+### 社内ネットワーク（LAN内）
+
 | 環境 | URL | 対象 | 説明 |
 |------|-----|------|------|
 | **本番** | http://192.168.0.35:8080/ | 全社員 | 業務で使用するアプリ群（mainブランチ） |
 | **開発** | http://192.168.0.35:8081/ | 開発者のみ | 開発・テスト用（devブランチ）。GitHub反映ボタン・開発管理あり |
 
 > ローカル（サーバーPC）からは `http://localhost:8080/`（本番）、`http://localhost/`（開発）でもアクセスできます。
+
+### 外部ネットワーク（社外・モバイル回線など）— Tailscale
+
+社外からアクセスする場合は Tailscale（無料VPN）を使用します。  
+端末に Tailscale をインストールし、共有アカウントでログインすると以下のURLでアクセスできます。
+
+| 環境 | URL | 対象 |
+|------|-----|------|
+| **本番** | http://100.120.92.15:8080/ | 全社員 |
+| **開発** | http://100.120.92.15:8081/ | 開発者のみ |
+
+> Tailscale未導入の端末からはアクセスできません。セットアップ手順は **[docs/tailscale_setup.md](docs/tailscale_setup.md)** を参照してください。
 
 ---
 
@@ -287,6 +301,7 @@ git checkout main && git merge develop && git push origin main
 | [docs/spec.md](docs/spec.md) | システム仕様書（DB設計・機能仕様） |
 | [docs/geps_setup.md](docs/geps_setup.md) | GEPS メール連携のセットアップ |
 | [docs/process.md](docs/process.md) | 業務プロセスフロー |
+| [docs/tailscale_setup.md](docs/tailscale_setup.md) | 外部アクセス（Tailscale）セットアップ手順 |
 
 ---
 
