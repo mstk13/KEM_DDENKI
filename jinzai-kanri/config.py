@@ -22,7 +22,7 @@ EMPLOYEES_JSON = REPO_DIR / "shared" / "data" / "employees.json"
 CODE_PREFIX = "E"
 
 # 職種区分（role）
-ROLES = ["役員", "電工", "事務"]
+ROLES = ["役員", "電工", "事務", "developer"]
 
 # 部署
 DEPARTMENTS = ["役員", "電気工事部", "総務部"]
