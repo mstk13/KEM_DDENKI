@@ -34,7 +34,7 @@ current_user = auth.require_login()
 auth.render_sidebar_user()
 st.sidebar.divider()
 
-ALL_ROLES = core.get_all_roles() or ["事務方", "現場方", "役員"]
+ALL_ROLES = core.get_all_roles() or ["事務", "電工", "役員"]
 
 menu = st.sidebar.radio(
     "メニュー", ["従業員一覧", "評価の履歴", "評価基準の閲覧", "評価基準の編集"]
@@ -624,7 +624,7 @@ elif menu == "評価基準の編集":
     if edit_section == "共通":
         st.divider()
         st.subheader("新しい役割を追加")
-        st.caption("事務方・現場方・役員以外の役割が必要な場合はここから追加できます。")
+        st.caption("事務・電工・役員以外の役割が必要な場合はここから追加できます。")
         with st.form("add_role_form"):
             new_role = st.text_input("役割名", placeholder="例: パート・アルバイト")
             role_submitted = st.form_submit_button("役割を追加")
