@@ -1,6 +1,6 @@
 FROM python:3.12-slim
 
-RUN apt-get update && apt-get install -y --no-install-recommends git && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends git && rm -rf /var/lib/apt/lists/* && git config --global --add safe.directory /app
 
 WORKDIR /app
 
@@ -13,6 +13,7 @@ COPY eigyo-kanri/requirements.txt /tmp/req-eigyo.txt
 COPY nippou-kanri/requirements.txt /tmp/req-nkanri.txt
 COPY kouki-kanri/requirements.txt /tmp/req-kouki.txt
 COPY jinzai-kanri/requirements.txt /tmp/req-jinzai.txt
+COPY dev-kanri/requirements.txt /tmp/req-dev.txt
 
 RUN pip install --no-cache-dir \
     -r /tmp/req-bid.txt \
@@ -23,6 +24,7 @@ RUN pip install --no-cache-dir \
     -r /tmp/req-nkanri.txt \
     -r /tmp/req-kouki.txt \
     -r /tmp/req-jinzai.txt \
+    -r /tmp/req-dev.txt \
     'psycopg2-binary>=2.9,<3.0' \
     'anthropic>=0.40,<1.0' \
     && rm /tmp/req-*.txt

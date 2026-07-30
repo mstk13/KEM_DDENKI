@@ -24,7 +24,7 @@ views.disable_browser_translation()
 views.compact_score_buttons()
 st.title("📝 人事評価 入力")
 
-ALL_ROLES = core.get_all_roles() or ["事務方", "現場方", "役員"]
+ALL_ROLES = core.get_all_roles() or ["事務", "電工", "役員"]
 
 st.sidebar.caption("集計・従業員別の一覧は **管理アプリ** で確認できます。")
 
