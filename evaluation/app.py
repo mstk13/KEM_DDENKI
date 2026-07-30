@@ -34,29 +34,46 @@ st.sidebar.caption("集計・従業員別の一覧は **管理アプリ** で確
 st.header("評価入力")
 
 nippou_workers = core.get_nippou_workers()
-col1, col2, col3 = st.columns(3)
+today = date.today()
+fy_start = date(today.year if today.month >= 4 else today.year - 1, 4, 1)
+fy_end = date(fy_start.year + 1, 3, 31)
+
+# 評価者を先に選ぶ（対象者の絞り込みに使う）
+col_ev, col_period = st.columns(2)
+with col_ev:
+    evaluator_options = core.get_evaluator_options()
+    if evaluator_options:
+        evaluator = st.selectbox("評価者（あなた）", ["（手入力）"] + evaluator_options)
+        if evaluator == "（手入力）":
+            evaluator = st.text_input("評価者名を入力")
+    else:
+        evaluator = st.text_input("評価者名")
+with col_period:
+    period = st.text_input("評価期間", f"{fy_start} 〜 {fy_end}")
+
+# 評価者の職種区分に応じて対象者を絞り込む
+target_candidates = []
+if evaluator:
+    target_candidates = core.get_evaluation_targets(evaluator)
+if not target_candidates:
+    target_candidates = nippou_workers
+
+col1, col2 = st.columns(2)
 with col1:
-    if nippou_workers:
-        employee = st.selectbox("対象者", ["（手入力）"] + nippou_workers)
+    if target_candidates:
+        employee = st.selectbox("対象者", ["（手入力）"] + target_candidates)
         if employee == "（手入力）":
             employee = st.text_input("対象者名を入力")
     else:
         employee = st.text_input("対象者名")
 with col2:
-    role = st.selectbox("役割", ALL_ROLES)
-with col3:
-    today = date.today()
-    fy_start = date(today.year if today.month >= 4 else today.year - 1, 4, 1)
-    fy_end = date(fy_start.year + 1, 3, 31)
-    period = st.text_input("評価期間", f"{fy_start} 〜 {fy_end}")
-    # 評価者も対象者と同じくプルダウン選択。候補に無ければ手入力する。
-    evaluator_options = core.get_evaluator_options()
-    if evaluator_options:
-        evaluator = st.selectbox("評価者", ["（手入力）"] + evaluator_options)
-        if evaluator == "（手入力）":
-            evaluator = st.text_input("評価者名を入力")
-    else:
-        evaluator = st.text_input("評価者名")
+    # 対象者の職種区分を自動検出してデフォルトにする
+    default_role_idx = 0
+    if employee and employee != "（手入力）":
+        emp_role = core.get_employee_role(employee)
+        if emp_role and emp_role in ALL_ROLES:
+            default_role_idx = ALL_ROLES.index(emp_role)
+    role = st.selectbox("役割", ALL_ROLES, index=default_role_idx)
 
 if not employee:
     st.info("対象者を選択または入力してください。")
