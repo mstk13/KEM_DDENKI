@@ -25,7 +25,7 @@ CODE_PREFIX = "E"
 ROLES = ["役員", "電工", "事務", "developer"]
 
 # 部署
-DEPARTMENTS = ["役員", "電気工事部", "総務部"]
+DEPARTMENTS = ["役員", "電気工事部", "総務部", "AI system development"]
 
 # 役職
-POSITIONS = ["代表取締役", "取締役", "職長", "主任", "社員", "見習い"]
+POSITIONS = ["代表取締役", "取締役", "職長", "主任", "社員", "見習い", "engineer"]

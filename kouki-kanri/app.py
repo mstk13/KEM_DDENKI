@@ -841,11 +841,234 @@ def page_summary() -> None:
 
 
 # ===================================================================
+# 4. 配置管理
+# ===================================================================
+def page_assignment() -> None:
+    st.header("配置管理")
+
+    sites = db.list_sites(active_only=True)
+    employees = db.list_employees()
+    if not sites:
+        st.info("施工中・着工前の現場がありません。")
+        return
+    if not employees:
+        st.info("従業員が登録されていません。")
+        return
+
+    # --- 日付選択 ---
+    today = date.today()
+    col_d1, col_d2 = st.columns([1, 2])
+    target_date = col_d1.date_input("配置日", value=today, key="assign_date")
+    col_d2.markdown(f"<div style='padding-top:1.6rem;font-size:1.2rem;'>"
+                    f"<b>{target_date.strftime('%Y年%m月%d日')}（{['月','火','水','木','金','土','日'][target_date.weekday()]}）</b>"
+                    f"</div>", unsafe_allow_html=True)
+
+    st.divider()
+
+    # --- 現在の配置を取得 ---
+    assignments = db.get_effective_assignments(target_date)
+    assigned_emp_ids = {a["employee_id"] for a in assignments}
+    unassigned = [e for e in employees if e["id"] not in assigned_emp_ids]
+
+    # --- 配置ボード: 現場ごとにカード表示 ---
+    st.subheader("配置ボード")
+
+    # 現場カラム表示
+    site_cols = st.columns(min(len(sites), 4))
+    for idx, s in enumerate(sites):
+        col = site_cols[idx % len(site_cols)]
+        site_assignments = [a for a in assignments if a["site_id"] == s["id"]]
+        status = s.get("status", "")
+        badge_cls = _badge_class(status)
+
+        with col:
+            # 現場ヘッダー
+            st.markdown(f"""
+            <div style="background:#f8fafc;border:2px solid #cbd5e1;border-radius:10px;
+                        padding:0.8rem;margin-bottom:0.5rem;min-height:120px;">
+                <div style="font-size:1.05rem;font-weight:700;color:#1e293b;margin-bottom:0.4rem;">
+                    {s['name'][:20]}
+                </div>
+                <div style="font-size:0.85rem;color:#64748b;margin-bottom:0.5rem;">
+                    <span class="badge {badge_cls}" style="display:inline-block;padding:0.15rem 0.5rem;
+                    border-radius:4px;font-size:0.8rem;font-weight:600;color:#fff;">{status}</span>
+                </div>
+            """, unsafe_allow_html=True)
+
+            # 配置済み作業員
+            if site_assignments:
+                for a in site_assignments:
+                    period = ""
+                    if a.get("end_date"):
+                        period = f" 〜{a['end_date']}"
+                    st.markdown(f"""
+                    <div style="background:#fff;border:1px solid #e2e8f0;border-radius:6px;
+                                padding:0.4rem 0.6rem;margin-bottom:0.3rem;
+                                display:flex;align-items:center;justify-content:space-between;">
+                        <span style="font-size:1.0rem;font-weight:600;">{a['employee_name']}</span>
+                        <span style="font-size:0.75rem;color:#94a3b8;">{period}</span>
+                    </div>
+                    """, unsafe_allow_html=True)
+            else:
+                st.markdown("""
+                <div style="color:#94a3b8;font-size:0.9rem;text-align:center;padding:0.5rem;">
+                    配置なし
+                </div>
+                """, unsafe_allow_html=True)
+
+            st.markdown("</div>", unsafe_allow_html=True)
+
+            # この現場への配置ボタン（ドロップ代わり）
+            if unassigned:
+                emp_to_assign = st.selectbox(
+                    "作業員を配置",
+                    ["--"] + [f"{e['name']}（{e['position']}）" for e in unassigned],
+                    key=f"assign_sel_{s['id']}",
+                    label_visibility="collapsed",
+                )
+                if emp_to_assign != "--":
+                    emp_name = emp_to_assign.split("（")[0]
+                    emp = next((e for e in unassigned if e["name"] == emp_name), None)
+                    if emp and st.button("配置", key=f"assign_btn_{s['id']}", type="primary",
+                                         use_container_width=True):
+                        db.assign_employee(
+                            emp["id"], emp["name"],
+                            s["id"], s["name"],
+                            start_date=target_date,
+                        )
+                        st.rerun()
+
+            # 配置解除
+            for a in site_assignments:
+                if st.button(f"× {a['employee_name']} を解除",
+                             key=f"unassign_{a['id']}",
+                             use_container_width=True):
+                    db.remove_assignment(a["id"])
+                    st.rerun()
+
+    # --- 未配置の作業員 ---
+    st.divider()
+    st.subheader("未配置の作業員")
+    if unassigned:
+        cols = st.columns(min(len(unassigned), 6))
+        for idx, e in enumerate(unassigned):
+            col = cols[idx % len(cols)]
+            role_color = {"電工": "#3b82f6", "事務": "#8b5cf6", "役員": "#f59e0b"}.get(e["role"], "#6b7280")
+            col.markdown(f"""
+            <div style="background:#fff;border:2px dashed #cbd5e1;border-radius:8px;
+                        padding:0.6rem;text-align:center;margin-bottom:0.4rem;">
+                <div style="font-size:1.1rem;font-weight:700;color:#1e293b;">{e['name']}</div>
+                <div style="font-size:0.85rem;color:{role_color};font-weight:600;">{e['position']}</div>
+            </div>
+            """, unsafe_allow_html=True)
+    else:
+        st.success("全員配置済みです。")
+
+    # --- フォーム入力（名前+現場+期間） ---
+    st.divider()
+    st.subheader("配置登録（名前・現場指定）")
+    st.caption("名前と現場を指定して配置します。期間を設定すると、その期間のみの一時配置になります。")
+
+    with st.form("manual_assign_form"):
+        fc1, fc2 = st.columns(2)
+        emp_choice = fc1.selectbox(
+            "作業員",
+            employees,
+            format_func=lambda e: f"{e['name']}（{e['position']} / {e['role']}）",
+            key="form_emp",
+        )
+        site_choice = fc2.selectbox(
+            "現場",
+            sites,
+            format_func=lambda s: f"{s['name']} [{s.get('status', '')}]",
+            key="form_site",
+        )
+        fc3, fc4, fc5 = st.columns(3)
+        f_start = fc3.date_input("開始日", value=target_date, key="form_start")
+        use_period = fc4.checkbox("期間を指定する", key="form_use_period")
+        f_end = fc5.date_input("終了日", value=target_date + timedelta(days=7),
+                               key="form_end")
+        f_memo = st.text_input("メモ", "", key="form_memo")
+
+        if st.form_submit_button("配置する", type="primary", use_container_width=True):
+            end_val = f_end if use_period else None
+            if use_period and f_end < f_start:
+                st.error("終了日は開始日以降にしてください。")
+            else:
+                db.assign_employee(
+                    emp_choice["id"], emp_choice["name"],
+                    site_choice["id"], site_choice["name"],
+                    start_date=f_start,
+                    end_date=end_val,
+                    memo=f_memo,
+                )
+                period_text = f"{f_start} 〜 {f_end}" if use_period else f"{f_start} 〜（無期限）"
+                st.success(f"{emp_choice['name']} → {site_choice['name']}（{period_text}）")
+                st.rerun()
+
+    # --- 週間カレンダー表示 ---
+    st.divider()
+    st.subheader("週間配置カレンダー")
+    _render_weekly_calendar(target_date, sites, employees)
+
+
+def _render_weekly_calendar(base_date: date, sites: list[dict], employees: list[dict]) -> None:
+    """1週間分の配置カレンダーを表示。"""
+    # 月曜始まりの週
+    monday = base_date - timedelta(days=base_date.weekday())
+    days = [monday + timedelta(days=i) for i in range(7)]
+    today = date.today()
+
+    # ヘッダー行
+    day_labels = ["月", "火", "水", "木", "金", "土", "日"]
+    header_html = "<tr><th style='padding:0.5rem;min-width:100px;'>現場</th>"
+    for i, d in enumerate(days):
+        bg = "#fef3c7" if d == today else ("#f1f5f9" if i >= 5 else "#fff")
+        header_html += (f"<th style='padding:0.5rem;background:{bg};min-width:90px;text-align:center;'>"
+                        f"<div style='font-size:0.85rem;color:#64748b;'>{day_labels[i]}</div>"
+                        f"<div style='font-size:1.0rem;font-weight:700;'>{d.month}/{d.day}</div></th>")
+    header_html += "</tr>"
+
+    # 週全体の配置を1回のクエリで取得し、日×現場でグルーピング
+    week_assignments = {}  # (date, site_id) -> [assignments]
+    for d in days:
+        day_all = db.get_effective_assignments(d)
+        for a in day_all:
+            key = (d, a["site_id"])
+            week_assignments.setdefault(key, []).append(a)
+
+    # 各現場の行
+    rows_html = ""
+    for s in sites:
+        rows_html += f"<tr><td style='padding:0.5rem;font-weight:700;font-size:0.95rem;border-right:2px solid #e2e8f0;'>{s['name'][:15]}</td>"
+        for i, d in enumerate(days):
+            day_assignments = week_assignments.get((d, s["id"]), [])
+            bg = "#fef3c7" if d == today else ("#f8fafc" if i >= 5 else "#fff")
+            names = "<br>".join(
+                f"<span style='background:#dbeafe;padding:0.1rem 0.4rem;border-radius:4px;"
+                f"font-size:0.85rem;display:inline-block;margin:0.1rem;'>{a['employee_name']}</span>"
+                for a in day_assignments
+            )
+            rows_html += f"<td style='padding:0.3rem;background:{bg};text-align:center;vertical-align:top;'>{names or '<span style=\"color:#cbd5e1;\">-</span>'}</td>"
+        rows_html += "</tr>"
+
+    st.markdown(f"""
+    <div style="overflow-x:auto;">
+    <table style="width:100%;border-collapse:collapse;border:1px solid #e2e8f0;font-family:system-ui;">
+        <thead style="background:#f1f5f9;">{header_html}</thead>
+        <tbody>{rows_html}</tbody>
+    </table>
+    </div>
+    """, unsafe_allow_html=True)
+
+
+# ===================================================================
 # ルーティング
 # ===================================================================
 PAGES = {
     "全現場ガントチャート": page_gantt_all,
     "現場別 詳細管理": page_site_detail,
+    "配置管理": page_assignment,
     "進捗サマリー": page_summary,
 }
 
