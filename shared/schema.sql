@@ -436,6 +436,15 @@ CREATE TABLE IF NOT EXISTS eval.eval_overall (
     answer_text   TEXT NOT NULL DEFAULT ''
 );
 
+-- 評価者→対象者の割り当て（管理画面で設定）
+CREATE TABLE IF NOT EXISTS eval.evaluator_targets (
+    id             SERIAL PRIMARY KEY,
+    evaluator_name TEXT NOT NULL,
+    target_name    TEXT NOT NULL,
+    created_at     TIMESTAMP NOT NULL DEFAULT NOW(),
+    UNIQUE (evaluator_name, target_name)
+);
+
 -- ============================================================
 -- 工期管理 (schedule) — 現場ごとの工程・マイルストーン
 -- ============================================================

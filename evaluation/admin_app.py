@@ -37,7 +37,7 @@ st.sidebar.divider()
 ALL_ROLES = core.get_all_roles() or ["事務", "電工", "役員"]
 
 menu = st.sidebar.radio(
-    "メニュー", ["従業員一覧", "評価の履歴", "評価基準の閲覧", "評価基準の編集"]
+    "メニュー", ["従業員一覧", "評価の履歴", "評価対象の設定", "評価基準の閲覧", "評価基準の編集"]
 )
 
 # 従業員一覧で行が選ばれている間は、詳細画面に切り替える
@@ -443,6 +443,50 @@ elif menu == "評価の履歴":
     fig.update_yaxes(range=[0, 100])
     fig.update_layout(height=320, margin=dict(t=30, b=20))
     st.plotly_chart(fig, use_container_width=True)
+
+
+# =====================================================================
+# 評価対象の設定
+# =====================================================================
+elif menu == "評価対象の設定":
+    st.header("評価対象の設定")
+    st.caption("評価者ごとに「誰を評価するか」を設定します。"
+               "ここで設定すると、入力アプリで評価者を選んだとき対象者が自動的に絞り込まれます。")
+
+    all_employees = core.get_nippou_workers()
+    current_assignments = core.get_all_evaluator_assignments()
+
+    # 評価者を選択
+    evaluator_to_edit = st.selectbox(
+        "評価者を選択", all_employees, key="et_evaluator",
+    )
+
+    if evaluator_to_edit:
+        current_targets = current_assignments.get(evaluator_to_edit, [])
+        other_employees = [e for e in all_employees if e != evaluator_to_edit]
+
+        st.markdown(f"**{evaluator_to_edit}** が評価する対象者を選んでください。")
+        selected_targets = st.multiselect(
+            "評価対象者",
+            other_employees,
+            default=[t for t in current_targets if t in other_employees],
+            key="et_targets",
+        )
+
+        if st.button("保存", type="primary", use_container_width=True, key="et_save"):
+            core.save_evaluator_targets(evaluator_to_edit, selected_targets)
+            st.success(f"**{evaluator_to_edit}** の評価対象を {len(selected_targets)} 名に設定しました。")
+            st.rerun()
+
+    # 現在の割り当て一覧
+    st.divider()
+    st.subheader("現在の割り当て一覧")
+    if current_assignments:
+        for ev_name, targets in sorted(current_assignments.items()):
+            st.markdown(f"- **{ev_name}** → {', '.join(targets)}")
+    else:
+        st.info("まだ割り当てが設定されていません。上のフォームから設定してください。"
+                "未設定の評価者は、従来の職種区分ベースで対象者が表示されます。")
 
 
 # =====================================================================

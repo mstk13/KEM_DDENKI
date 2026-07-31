@@ -11,17 +11,14 @@
 #   8505 : evaluation_admin
 #   8506 : kouki_kanri
 #   8510 : nippou_kanri         [optional]
-#   8508 : dev_kanri
-#   8509, 8511〜 : 空き（次のアプリ用に予約）
+#   8507〜8509, 8511〜 : 空き（次のアプリ用に予約）
 # =====================================================================
 
 x-common-env: &common-env
   KEM_DATA_DIR: /data
-  DATABASE_URL: postgresql://kem:kem@postgres:5432/kem_ddenki
-  # KEM_DEV_MODE=1 はdevブランチでのみ設定。GitHub反映ボタンの表示に必要。
-  # mainブランチではこの行を削除またはコメントアウトすること。
-  KEM_DEV_MODE: "1"
-  GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+  DATABASE_URL: postgresql://kem:kem@postgres:5432/kem_main
+  # KEM_DEV_MODE=1 はdevブランチでのみ設定。mainでは無効。
+  # KEM_DEV_MODE: "1"
 
 x-app-base: &app-base
   build:
@@ -29,7 +26,6 @@ x-app-base: &app-base
     dockerfile: docker/Dockerfile.app
   volumes:
     - kem_data:/data
-    - .:/app
   env_file:
     - .env
   restart: unless-stopped
@@ -44,15 +40,15 @@ services:
     environment:
       POSTGRES_USER: kem
       POSTGRES_PASSWORD: kem
-      POSTGRES_DB: kem_ddenki
+      POSTGRES_DB: kem_main
     volumes:
       - pg_data:/var/lib/postgresql/data
       - ./shared/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
     ports:
-      - "5432:5432"
+      - "5433:5432"
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U kem -d kem_ddenki"]
+      test: ["CMD-SHELL", "pg_isready -U kem -d kem_main"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -61,7 +57,7 @@ services:
   nginx:
     image: nginx:alpine
     ports:
-      - "8081:80"
+      - "8080:80"
     volumes:
       - ./docker/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./docker/portal:/usr/share/nginx/html:ro
@@ -160,20 +156,6 @@ services:
       - --server.headless=true
       - --server.address=0.0.0.0
       - --server.baseUrlPath=/jinzai
-
-  dev_kanri:
-    <<: *app-base
-    environment:
-      <<: *common-env
-    command:
-      - dev-kanri
-      - streamlit
-      - run
-      - app.py
-      - --server.port=8508
-      - --server.headless=true
-      - --server.address=0.0.0.0
-      - --server.baseUrlPath=/dev
 
   # --- オプションアプリ (docker compose --profile optional up -d) ---
   eigyo_kanri:

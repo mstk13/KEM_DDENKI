@@ -251,6 +251,7 @@ def get_overall_questions() -> list[dict]:
 
 
 init_eval_db()
+_ensure_evaluator_targets_table()
 
 
 # ---------------------------------------------------------------------------
@@ -538,18 +539,21 @@ def get_employee_role(name: str) -> str | None:
 
 
 def get_evaluation_targets(evaluator_name: str) -> list[str]:
-    """評価者の職種区分に応じて評価対象者リストを返す。
+    """評価者の評価対象者リストを返す。
 
-    - developer: 自分 + 他のdeveloper + 社長(役員のうち代表取締役)
-    - 社長/役員(代表取締役): 全developer
-    - その他: 全社員（従来通り制限なし）
+    1. eval.evaluator_targets テーブルに割り当てがあればそれを使う
+    2. なければ従来の職種区分ベースのフォールバック
     """
+    # --- 1. テーブルに明示的な割り当てがあればそれを優先 ---
+    assigned = get_assigned_targets(evaluator_name)
+    if assigned:
+        return assigned
+
+    # --- 2. フォールバック: 職種区分ベース ---
     evaluator_role = get_employee_role(evaluator_name)
 
     if evaluator_role == "developer":
-        # 全developer（自分含む）+ 社長
         targets = get_employees_by_role("developer")
-        # 社長 = 役員のうち代表取締役
         try:
             with get_conn() as conn:
                 with _cur(conn) as cur:
@@ -563,7 +567,6 @@ def get_evaluation_targets(evaluator_name: str) -> list[str]:
             pass
         return sorted(set(targets))
 
-    # 社長（代表取締役）→ 全developer
     if evaluator_role == "役員":
         try:
             with get_conn() as conn:
@@ -579,8 +582,76 @@ def get_evaluation_targets(evaluator_name: str) -> list[str]:
         except Exception:
             pass
 
-    # その他: 制限なし（None を返して呼び出し側で全員表示）
     return []
+
+
+# ---------------------------------------------------------------------------
+# 評価対象の割り当て管理 (eval.evaluator_targets)
+# ---------------------------------------------------------------------------
+def _ensure_evaluator_targets_table():
+    """evaluator_targets テーブルがなければ作成する。"""
+    try:
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS eval.evaluator_targets (
+                        id             SERIAL PRIMARY KEY,
+                        evaluator_name TEXT NOT NULL,
+                        target_name    TEXT NOT NULL,
+                        created_at     TIMESTAMP NOT NULL DEFAULT NOW(),
+                        UNIQUE (evaluator_name, target_name)
+                    )
+                """)
+    except Exception:
+        pass
+
+
+def get_assigned_targets(evaluator_name: str) -> list[str]:
+    """evaluator_targets テーブルから割り当て済みの対象者を返す。"""
+    try:
+        with get_conn() as conn:
+            with _cur(conn) as cur:
+                cur.execute(
+                    "SELECT target_name FROM eval.evaluator_targets "
+                    "WHERE evaluator_name = %s ORDER BY target_name",
+                    (evaluator_name,),
+                )
+                return [r["target_name"] for r in cur.fetchall()]
+    except Exception:
+        return []
+
+
+def get_all_evaluator_assignments() -> dict[str, list[str]]:
+    """全評価者の割り当てを {評価者: [対象者, ...]} で返す。"""
+    try:
+        with get_conn() as conn:
+            with _cur(conn) as cur:
+                cur.execute(
+                    "SELECT evaluator_name, target_name FROM eval.evaluator_targets "
+                    "ORDER BY evaluator_name, target_name"
+                )
+                result: dict[str, list[str]] = {}
+                for r in cur.fetchall():
+                    result.setdefault(r["evaluator_name"], []).append(r["target_name"])
+                return result
+    except Exception:
+        return {}
+
+
+def save_evaluator_targets(evaluator_name: str, target_names: list[str]):
+    """評価者の対象者リストを上書き保存する。"""
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "DELETE FROM eval.evaluator_targets WHERE evaluator_name = %s",
+                (evaluator_name,),
+            )
+            for name in target_names:
+                cur.execute(
+                    "INSERT INTO eval.evaluator_targets (evaluator_name, target_name) "
+                    "VALUES (%s, %s) ON CONFLICT DO NOTHING",
+                    (evaluator_name, name),
+                )
 
 
 def get_evaluator_options() -> list[str]:
