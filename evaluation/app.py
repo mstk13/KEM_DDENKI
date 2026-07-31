@@ -29,55 +29,84 @@ ALL_ROLES = core.get_all_roles() or ["事務", "電工", "役員"]
 st.sidebar.caption("集計・従業員別の一覧は **管理アプリ** で確認できます。")
 
 # =====================================================================
-# 評価入力
+# ステップ1: 評価者の選択
 # =====================================================================
 st.header("評価入力")
 
-nippou_workers = core.get_nippou_workers()
 today = date.today()
 fy_start = date(today.year if today.month >= 4 else today.year - 1, 4, 1)
 fy_end = date(fy_start.year + 1, 3, 31)
 
-# 評価者を先に選ぶ（対象者の絞り込みに使う）
 col_ev, col_period = st.columns(2)
 with col_ev:
     evaluator_options = core.get_evaluator_options()
     if evaluator_options:
-        evaluator = st.selectbox("評価者（あなた）", ["（手入力）"] + evaluator_options)
-        if evaluator == "（手入力）":
-            evaluator = st.text_input("評価者名を入力")
+        evaluator = st.selectbox("評価者（あなた）", [""] + evaluator_options,
+                                 format_func=lambda x: "選択してください" if x == "" else x)
+        if evaluator == "":
+            evaluator = ""
     else:
         evaluator = st.text_input("評価者名")
 with col_period:
     period = st.text_input("評価期間", f"{fy_start} 〜 {fy_end}")
 
-# 評価者の職種区分に応じて対象者を絞り込む
-target_candidates = []
-if evaluator:
-    target_candidates = core.get_evaluation_targets(evaluator)
-if not target_candidates:
-    target_candidates = nippou_workers
-
-col1, col2 = st.columns(2)
-with col1:
-    if target_candidates:
-        employee = st.selectbox("対象者", ["（手入力）"] + target_candidates)
-        if employee == "（手入力）":
-            employee = st.text_input("対象者名を入力")
-    else:
-        employee = st.text_input("対象者名")
-with col2:
-    # 対象者の職種区分を自動検出してデフォルトにする
-    default_role_idx = 0
-    if employee and employee != "（手入力）":
-        emp_role = core.get_employee_role(employee)
-        if emp_role and emp_role in ALL_ROLES:
-            default_role_idx = ALL_ROLES.index(emp_role)
-    role = st.selectbox("役割", ALL_ROLES, index=default_role_idx)
-
-if not employee:
-    st.info("対象者を選択または入力してください。")
+if not evaluator:
+    st.info("評価者を選択してください。")
     st.stop()
+
+# =====================================================================
+# ステップ2: 評価対象者の一覧表示
+# =====================================================================
+target_candidates = core.get_evaluation_targets(evaluator)
+if not target_candidates:
+    target_candidates = core.get_nippou_workers()
+
+# 対象者が選ばれていない場合 → 一覧を表示
+selected_target = st.session_state.get("selected_target")
+
+if selected_target is None:
+    st.subheader(f"📋 {evaluator} さんの評価対象者")
+    st.caption(f"{len(target_candidates)} 名が対象です。評価する人をクリックしてください。")
+
+    cols_per_row = 3
+    for i in range(0, len(target_candidates), cols_per_row):
+        cols = st.columns(cols_per_row)
+        for j, col in enumerate(cols):
+            idx = i + j
+            if idx >= len(target_candidates):
+                break
+            name = target_candidates[idx]
+            role = core.get_employee_role(name) or "—"
+            is_self = name.strip() == evaluator.strip()
+            label = f"👤 {name}（本人）" if is_self else f"👤 {name}"
+            with col:
+                with st.container(border=True):
+                    st.markdown(f"**{label}**")
+                    st.caption(f"役割: {role}")
+                    if st.button("評価する", key=f"sel_{idx}", use_container_width=True):
+                        st.session_state["selected_target"] = name
+                        st.rerun()
+    st.stop()
+
+# =====================================================================
+# ステップ3: アンケート入力（対象者が選ばれた状態）
+# =====================================================================
+employee = selected_target
+
+if st.button("← 対象者一覧に戻る"):
+    st.session_state.pop("selected_target", None)
+    st.rerun()
+
+is_self = employee.strip() == evaluator.strip()
+label = f"{employee}（本人評価）" if is_self else employee
+st.subheader(f"👤 {label} の評価")
+
+# 対象者の職種区分を自動検出
+emp_role = core.get_employee_role(employee)
+default_role_idx = 0
+if emp_role and emp_role in ALL_ROLES:
+    default_role_idx = ALL_ROLES.index(emp_role)
+role = st.selectbox("役割", ALL_ROLES, index=default_role_idx)
 
 # 勤怠データ
 st.subheader("📋 勤怠データ（作業日報から自動取得）")
@@ -124,7 +153,6 @@ st.info(
 
 # ------------------------------------------------------------------
 # 評価項目1つ分のアンケートを描画し、回答・コメントを返す
-# （得点の算出・表示はこの画面では行わない。保存時に core 側で換算する）
 # ------------------------------------------------------------------
 def render_item(item: dict, key_prefix: str, hint: str = "", fallback_default: int = 0) -> dict:
     questions = core.load_questions(item["id"])
@@ -149,8 +177,6 @@ def render_item(item: dict, key_prefix: str, hint: str = "", fallback_default: i
         if questions:
             for q in questions:
                 label = f"{q['qnum']}　{q['text']}" if q["qnum"] else q["text"]
-                # 設問側を広くとる（文章は複数行に折り返してよい）。
-                # スコア列は 1〜5 が横一列に収まる幅を確保し、右端に寄せる。
                 col_q, col_a = st.columns([4, 1.2], vertical_alignment="center")
                 with col_q:
                     st.markdown(label)
@@ -170,7 +196,7 @@ def render_item(item: dict, key_prefix: str, hint: str = "", fallback_default: i
                     "qnum": q["qnum"], "question_text": q["text"], "answer": value,
                 })
 
-            score = None    # 得点は保存時に算出する（入力画面では扱わない）
+            score = None
             if all(a is None for a in answers):
                 st.warning("この項目はすべて未選択です。")
         else:
