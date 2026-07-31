@@ -556,49 +556,81 @@ def get_employee_role(name: str) -> str | None:
         return None
 
 
+def _get_ceo_names() -> list[str]:
+    """代表取締役の名前リストを返す。"""
+    try:
+        with get_conn() as conn:
+            with _cur(conn) as cur:
+                cur.execute(
+                    "SELECT name FROM master.employees "
+                    "WHERE is_active = TRUE AND role = '役員' AND position = '代表取締役' "
+                    "ORDER BY code"
+                )
+                return [r["name"] for r in cur.fetchall()]
+    except Exception:
+        return []
+
+
+def _get_evaluator_position(name: str) -> str | None:
+    """社員名からpositionを返す。"""
+    try:
+        with get_conn() as conn:
+            with _cur(conn) as cur:
+                cur.execute(
+                    "SELECT position FROM master.employees "
+                    "WHERE is_active = TRUE AND name = %s LIMIT 1",
+                    (name,),
+                )
+                r = cur.fetchone()
+                return r["position"] if r else None
+    except Exception:
+        return None
+
+
 def get_evaluation_targets(evaluator_name: str) -> list[str]:
     """評価者の評価対象者リストを返す。
 
-    1. eval.evaluator_targets テーブルに割り当てがあればそれを使う
-    2. なければ従来の職種区分ベースのフォールバック
+    ルール:
+    - 代表取締役  → 自分含め全員
+    - 役員        → 自分 + 代表取締役
+    - 事務        → 自分 + 全役員
+    - 電工        → 自分 + 全役員
+    - developer   → 自分 + 他developer + 代表取締役
+
+    eval.evaluator_targets テーブルに明示的な割り当てがあればそちらを優先。
     """
-    # --- 1. テーブルに明示的な割り当てがあればそれを優先 ---
+    # --- テーブルに明示的な割り当てがあればそれを優先 ---
     assigned = get_assigned_targets(evaluator_name)
     if assigned:
         return assigned
 
-    # --- 2. フォールバック: 職種区分ベース ---
+    # --- 職種区分ベース ---
     evaluator_role = get_employee_role(evaluator_name)
+    evaluator_position = _get_evaluator_position(evaluator_name)
 
-    if evaluator_role == "developer":
-        targets = get_employees_by_role("developer")
-        try:
-            with get_conn() as conn:
-                with _cur(conn) as cur:
-                    cur.execute(
-                        "SELECT name FROM master.employees "
-                        "WHERE is_active = TRUE AND role = '役員' AND position = '代表取締役' "
-                        "ORDER BY code"
-                    )
-                    targets += [r["name"] for r in cur.fetchall()]
-        except Exception:
-            pass
+    # 代表取締役 → 全員
+    if evaluator_role == "役員" and evaluator_position == "代表取締役":
+        return get_nippou_workers()
+
+    # 役員（代表取締役以外）→ 自分 + 代表取締役
+    if evaluator_role == "役員":
+        targets = [evaluator_name] + _get_ceo_names()
         return sorted(set(targets))
 
-    if evaluator_role == "役員":
-        try:
-            with get_conn() as conn:
-                with _cur(conn) as cur:
-                    cur.execute(
-                        "SELECT position FROM master.employees "
-                        "WHERE is_active = TRUE AND name = %s LIMIT 1",
-                        (evaluator_name,),
-                    )
-                    r = cur.fetchone()
-                    if r and r["position"] == "代表取締役":
-                        return get_employees_by_role("developer")
-        except Exception:
-            pass
+    # 事務 → 自分 + 全役員
+    if evaluator_role == "事務":
+        targets = [evaluator_name] + get_employees_by_role("役員")
+        return sorted(set(targets))
+
+    # 電工 → 自分 + 全役員
+    if evaluator_role == "電工":
+        targets = [evaluator_name] + get_employees_by_role("役員")
+        return sorted(set(targets))
+
+    # developer → 自分 + 他developer + 代表取締役
+    if evaluator_role == "developer":
+        targets = get_employees_by_role("developer") + _get_ceo_names()
+        return sorted(set(targets))
 
     return []
 
