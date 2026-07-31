@@ -7,6 +7,9 @@
 """
 from __future__ import annotations
 
+import base64
+import json
+import os
 import sys
 from datetime import date
 from pathlib import Path
@@ -16,6 +19,7 @@ import streamlit as st
 # core / views はこのファイルと同じフォルダにある（起動ディレクトリに依存しないようにする）
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import core          # noqa: E402
+import pdf_export    # noqa: E402
 import views         # noqa: E402
 
 st.set_page_config(page_title="人事評価 入力", page_icon="📝", layout="wide")
@@ -55,7 +59,7 @@ if not evaluator:
     st.stop()
 
 # =====================================================================
-# ステップ2: 評価対象者の一覧表示
+# ステップ2: 評価対象者の一覧 + PDF / 取り込み
 # =====================================================================
 target_candidates = core.get_evaluation_targets(evaluator)
 if not target_candidates:
@@ -76,17 +80,267 @@ if selected_target is None:
             if idx >= len(target_candidates):
                 break
             name = target_candidates[idx]
-            role = core.get_employee_role(name) or "—"
+            emp_role = core.get_employee_role(name) or "—"
             is_self = name.strip() == evaluator.strip()
             label = f"👤 {name}（本人）" if is_self else f"👤 {name}"
             with col:
                 with st.container(border=True):
                     st.markdown(f"**{label}**")
-                    st.caption(f"役割: {role}")
+                    st.caption(f"役割: {emp_role}")
                     if st.button("評価する", key=f"sel_{idx}", use_container_width=True):
                         st.session_state["selected_target"] = name
                         st.rerun()
+
+    # =================================================================
+    # アンケートPDFダウンロード
+    # =================================================================
+    st.divider()
+    st.subheader("📄 アンケート用紙（PDF）")
+    st.caption("対象者ごとの空白アンケートをPDFでダウンロードできます。印刷して手書きで回答してもらう場合にご利用ください。")
+
+    pdf_target = st.selectbox("PDF出力する対象者", target_candidates, key="pdf_target")
+    if pdf_target and st.button("PDFを生成", key="gen_pdf"):
+        pdf_role = core.get_employee_role(pdf_target) or ALL_ROLES[0]
+        common_items = core.load_common_items()
+        role_items = core.load_role_items(pdf_role)
+        questions_by_item = {}
+        for item in common_items + role_items:
+            questions_by_item[item["id"]] = core.load_questions(item["id"])
+        overall_questions = core.get_overall_questions()
+        pdf_bytes = pdf_export.build_blank_questionnaire(
+            evaluator=evaluator,
+            employee=pdf_target,
+            role=pdf_role,
+            period=period,
+            common_items=common_items,
+            role_items=role_items,
+            questions_by_item=questions_by_item,
+            overall_questions=overall_questions,
+        )
+        st.download_button(
+            "📥 PDFをダウンロード",
+            pdf_bytes,
+            file_name=f"アンケート_{pdf_target}_{evaluator}.pdf",
+            mime="application/pdf",
+            key="dl_pdf",
+        )
+
+    # =================================================================
+    # 回答の取り込み（画像 / PDF アップロード → Claude API で読み取り）
+    # =================================================================
+    st.divider()
+    st.subheader("📤 回答の取り込み")
+    st.caption(
+        "手書き回答をスキャン／撮影した画像やPDFをアップロードすると、"
+        "AIが回答内容を読み取り、対象者を識別してデータベースに保存します。"
+    )
+
+    uploaded = st.file_uploader(
+        "回答画像またはPDFをアップロード",
+        type=["png", "jpg", "jpeg", "pdf"],
+        accept_multiple_files=True,
+        key="upload_answers",
+    )
+
+    if uploaded and st.button("回答を読み取って保存", type="primary", key="import_btn"):
+        api_key = os.environ.get("ANTHROPIC_API_KEY", "")
+        if not api_key:
+            st.error("ANTHROPIC_API_KEY が設定されていません。.env ファイルを確認してください。")
+        else:
+            with st.spinner("AIが回答を読み取り中..."):
+                result = _import_answers(uploaded, evaluator, period, api_key, target_candidates)
+            if result["success"]:
+                st.success(result["message"])
+                st.balloons()
+            else:
+                st.error(result["message"])
+            if result.get("details"):
+                with st.expander("読み取り詳細"):
+                    st.json(result["details"])
+
     st.stop()
+
+
+# =====================================================================
+# 回答取り込みロジック
+# =====================================================================
+def _import_answers(files, evaluator: str, period: str, api_key: str,
+                    candidates: list[str]) -> dict:
+    """アップロードされたファイルからClaude APIで回答を読み取り、DBに保存する。"""
+    import anthropic
+
+    # 全評価項目と設問を取得してプロンプトに含める
+    all_roles = core.get_all_roles() or []
+    items_info = []
+    for section in ["共通"] + all_roles:
+        for item in core.load_items(section):
+            qs = core.load_questions(item["id"])
+            items_info.append({
+                "section": section,
+                "item_id": item["id"],
+                "item_name": item["name"],
+                "max_score": item["max_score"],
+                "questions": [{"qnum": q["qnum"], "text": q["text"]} for q in qs],
+            })
+
+    items_json = json.dumps(items_info, ensure_ascii=False, indent=2)
+    candidates_str = ", ".join(candidates)
+
+    prompt = f"""この画像は人事評価アンケートの手書き回答です。以下の情報を読み取ってJSON形式で返してください。
+
+【対象者の候補】
+{candidates_str}
+
+【評価項目と設問の一覧】
+{items_json}
+
+【出力形式】
+以下のJSON形式で出力してください。JSONのみを出力し、他のテキストは含めないでください。
+```json
+{{
+  "employee": "被評価者の名前（上記候補から最も近いものを選ぶ）",
+  "role": "被評価者の役割（用紙に記載があれば）",
+  "answers": [
+    {{
+      "item_id": 評価項目ID（数値）,
+      "item_name": "評価項目名",
+      "qnum": "設問番号",
+      "answer": 回答（1-5の数値、読み取れない場合はnull）
+    }}
+  ],
+  "comments": [
+    {{
+      "item_name": "評価項目名",
+      "text": "自由記述の内容（読み取れない場合は空文字）"
+    }}
+  ],
+  "overall": [
+    {{
+      "qnum": "総合設問番号",
+      "text": "回答テキスト"
+    }}
+  ]
+}}
+```
+
+注意:
+- 被評価者名は候補リストから最も近い名前を選んでください
+- ○がついている数字を回答値としてください
+- 読み取れない部分はnullまたは空文字にしてください
+"""
+
+    # 画像をBase64エンコード
+    content_blocks = []
+    for f in files:
+        data = f.read()
+        if f.type == "application/pdf":
+            # PDFの場合はそのままdocumentとして送る
+            content_blocks.append({
+                "type": "document",
+                "source": {
+                    "type": "base64",
+                    "media_type": "application/pdf",
+                    "data": base64.b64encode(data).decode(),
+                },
+            })
+        else:
+            media_type = f.type or "image/png"
+            content_blocks.append({
+                "type": "image",
+                "source": {
+                    "type": "base64",
+                    "media_type": media_type,
+                    "data": base64.b64encode(data).decode(),
+                },
+            })
+
+    content_blocks.append({"type": "text", "text": prompt})
+
+    try:
+        client = anthropic.Anthropic(api_key=api_key)
+        response = client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=4096,
+            messages=[{"role": "user", "content": content_blocks}],
+        )
+        raw = response.content[0].text
+
+        # JSON部分を抽出
+        if "```json" in raw:
+            raw = raw.split("```json")[1].split("```")[0]
+        elif "```" in raw:
+            raw = raw.split("```")[1].split("```")[0]
+
+        parsed = json.loads(raw.strip())
+    except json.JSONDecodeError as e:
+        return {"success": False, "message": f"AIの応答をJSONとして解析できませんでした: {e}",
+                "details": {"raw_response": raw}}
+    except Exception as e:
+        return {"success": False, "message": f"AI読み取りに失敗しました: {e}"}
+
+    # DBに保存
+    employee = parsed.get("employee", "")
+    if not employee:
+        return {"success": False, "message": "被評価者を特定できませんでした。", "details": parsed}
+
+    role = parsed.get("role") or core.get_employee_role(employee) or "事務"
+
+    # 回答データを core.save_evaluation 互換の形式に変換
+    answers_by_item: dict[int, list] = {}
+    comments_by_item: dict[str, str] = {}
+
+    for a in parsed.get("answers", []):
+        item_id = a.get("item_id")
+        if item_id is not None:
+            answers_by_item.setdefault(item_id, []).append(a)
+
+    for c in parsed.get("comments", []):
+        if c.get("text"):
+            comments_by_item[c["item_name"]] = c["text"]
+
+    # results を組み立て
+    results = []
+    all_items = core.load_common_items() + core.load_role_items(role)
+    for item in all_items:
+        item_answers = answers_by_item.get(item["id"], [])
+        answer_rows = []
+        for a in item_answers:
+            answer_rows.append({
+                "item_id": item["id"],
+                "item_name": item["name"],
+                "qnum": a.get("qnum", ""),
+                "question_text": "",
+                "answer": a.get("answer"),
+            })
+        comment = comments_by_item.get(item["name"], "")
+        results.append({
+            "item": item,
+            "score": None,
+            "comment": comment,
+            "answers": answer_rows,
+        })
+
+    overall_answers = []
+    for o in parsed.get("overall", []):
+        if o.get("text"):
+            overall_answers.append({
+                "qnum": o.get("qnum", ""),
+                "question_text": "",
+                "answer_text": o.get("text", ""),
+            })
+
+    try:
+        core.save_evaluation(employee, role, period, evaluator, {}, results, overall_answers)
+    except Exception as e:
+        return {"success": False, "message": f"DB保存に失敗しました: {e}", "details": parsed}
+
+    n_answers = sum(1 for a in parsed.get("answers", []) if a.get("answer") is not None)
+    return {
+        "success": True,
+        "message": f"✅ {employee} さんの評価を取り込みました（{n_answers}問の回答を読み取り）",
+        "details": parsed,
+    }
+
 
 # =====================================================================
 # ステップ3: アンケート入力（対象者が選ばれた状態）
