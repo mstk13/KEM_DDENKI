@@ -96,33 +96,38 @@ if selected_target is None:
     # =================================================================
     st.divider()
     st.subheader("📄 アンケート用紙（PDF）")
-    st.caption("対象者ごとの空白アンケートをPDFでダウンロードできます。印刷して手書きで回答してもらう場合にご利用ください。")
+    st.caption("全対象者分のアンケートを1つのPDFにまとめてダウンロードできます。印刷して手書きで回答してもらう場合にご利用ください。")
 
-    pdf_target = st.selectbox("PDF出力する対象者", target_candidates, key="pdf_target")
-    if pdf_target and st.button("PDFを生成", key="gen_pdf"):
-        pdf_role = core.get_employee_role(pdf_target) or ALL_ROLES[0]
-        common_items = core.load_common_items()
-        role_items = core.load_role_items(pdf_role)
-        questions_by_item = {}
-        for item in common_items + role_items:
-            questions_by_item[item["id"]] = core.load_questions(item["id"])
-        overall_questions = core.get_overall_questions()
-        pdf_bytes = pdf_export.build_blank_questionnaire(
-            evaluator=evaluator,
-            employee=pdf_target,
-            role=pdf_role,
-            period=period,
-            common_items=common_items,
-            role_items=role_items,
-            questions_by_item=questions_by_item,
-            overall_questions=overall_questions,
-        )
+    if st.button("📥 全対象者のアンケートPDFを生成", key="gen_bulk_pdf", use_container_width=True):
+        with st.spinner("PDF生成中..."):
+            overall_questions = core.get_overall_questions()
+            targets_data = []
+            for name in target_candidates:
+                r = core.get_employee_role(name) or ALL_ROLES[0]
+                ci = core.load_common_items()
+                ri = core.load_role_items(r)
+                qbi = {}
+                for item in ci + ri:
+                    qbi[item["id"]] = core.load_questions(item["id"])
+                targets_data.append({
+                    "employee": name,
+                    "role": r,
+                    "common_items": ci,
+                    "role_items": ri,
+                    "questions_by_item": qbi,
+                    "overall_questions": overall_questions,
+                })
+            pdf_bytes = pdf_export.build_bulk_questionnaire(
+                evaluator=evaluator,
+                period=period,
+                targets=targets_data,
+            )
         st.download_button(
             "📥 PDFをダウンロード",
             pdf_bytes,
-            file_name=f"アンケート_{pdf_target}_{evaluator}.pdf",
+            file_name=f"アンケート一式_{evaluator}.pdf",
             mime="application/pdf",
-            key="dl_pdf",
+            key="dl_bulk_pdf",
         )
 
     # =================================================================
