@@ -354,6 +354,20 @@ def _norm_name(text) -> str:
     return "".join(str(text or "").split())
 
 
+def _get_choice_group_items() -> dict[str, list[str]]:
+    """choice_group → [item_name, ...] のマッピングを返す。"""
+    with eval_conn() as conn:
+        with _cur(conn) as cur:
+            cur.execute(
+                "SELECT name, choice_group FROM eval.eval_items "
+                "WHERE choice_group IS NOT NULL"
+            )
+            result: dict[str, list[str]] = {}
+            for r in cur.fetchall():
+                result.setdefault(r["choice_group"], []).append(r["name"])
+            return result
+
+
 def build_answer_matrix(employee: str, evals: list[dict]):
     self_cols, other_cols = [], []
     used_labels: dict[str, int] = {}
@@ -394,6 +408,29 @@ def build_answer_matrix(employee: str, evals: list[dict]):
             row["差（本人−他者）"] = (round(sum(selfs) / len(selfs) - sum(others) / len(others), 2)
                                  if selfs and others else None)
         records.append(row)
+
+    # choice_group のフィルタリング:
+    # 最新の評価の choice_field に基づいて、選ばれなかった方の項目を除外する。
+    # これにより PDF や比較表にシニア/ジュニア両方が出ることを防ぐ。
+    choice_groups = _get_choice_group_items()
+    if choice_groups:
+        selected_items: set[str] = set()
+        for e in sorted(evals, key=lambda x: str(x["created_at"]), reverse=True):
+            cf = e.get("choice_field")
+            if cf:
+                try:
+                    selections = json.loads(cf) if isinstance(cf, str) else cf
+                    if isinstance(selections, dict):
+                        selected_items.update(selections.values())
+                        break
+                except (json.JSONDecodeError, AttributeError, TypeError):
+                    pass
+        if selected_items:
+            all_cg_items: set[str] = set()
+            for names in choice_groups.values():
+                all_cg_items.update(names)
+            exclude = all_cg_items - selected_items
+            records = [r for r in records if r["項目"] not in exclude]
 
     return pd.DataFrame(records), self_labels, other_labels
 

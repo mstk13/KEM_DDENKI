@@ -101,13 +101,13 @@ st.divider()
 common_items = core.load_common_items()
 role_items = core.load_role_items(role)
 
-# 択一選択
+# シニア / ジュニア 択一選択
 choice_groups = set(i["choice_group"] for i in role_items if i["choice_group"])
 choice_selections = {}
 for cg in choice_groups:
     cg_items = [i for i in role_items if i["choice_group"] == cg]
     choice_selections[cg] = st.radio(
-        "以下の項目はどちらか一方を選択",
+        "被評価者のレベルを選択してください（該当しない方の項目は表示されません）",
         [i["name"] for i in cg_items],
         horizontal=True,
     )
