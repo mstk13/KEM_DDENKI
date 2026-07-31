@@ -14,18 +14,32 @@ from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.units import mm
 from reportlab.pdfbase import pdfmetrics
-from reportlab.pdfbase.cidfonts import UnicodeCIDFont
+from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.platypus import (PageBreak, Paragraph, SimpleDocTemplate, Spacer,
                                 Table, TableStyle)
 
-FONT = "HeiseiKakuGo-W5"
+FONT = "NotoSansJP"
 _FONT_READY = False
+
+# Noto Sans JP TTF のパス候補
+_FONT_PATHS = [
+    "/usr/share/fonts/noto-jp/NotoSansJP.ttf",
+]
 
 
 def _ensure_font():
-    global _FONT_READY
+    global _FONT_READY, FONT
     if not _FONT_READY:
-        pdfmetrics.registerFont(UnicodeCIDFont(FONT))
+        import os
+        for path in _FONT_PATHS:
+            if os.path.exists(path):
+                pdfmetrics.registerFont(TTFont(FONT, path))
+                _FONT_READY = True
+                return
+        # フォールバック: CIDフォント
+        from reportlab.pdfbase.cidfonts import UnicodeCIDFont
+        pdfmetrics.registerFont(UnicodeCIDFont("HeiseiKakuGo-W5"))
+        FONT = "HeiseiKakuGo-W5"
         _FONT_READY = True
 
 

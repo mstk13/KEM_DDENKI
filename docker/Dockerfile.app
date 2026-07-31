@@ -1,6 +1,11 @@
 FROM python:3.12-slim
 
-RUN apt-get update && apt-get install -y --no-install-recommends git && rm -rf /var/lib/apt/lists/* && git config --global --add safe.directory /app
+RUN apt-get update && apt-get install -y --no-install-recommends git wget unzip && rm -rf /var/lib/apt/lists/* && git config --global --add safe.directory /app
+
+# 日本語TTFフォント（PDF埋め込み用）
+RUN mkdir -p /usr/share/fonts/noto-jp \
+    && wget -q -O /usr/share/fonts/noto-jp/NotoSansJP.ttf \
+       "https://github.com/google/fonts/raw/main/ofl/notosansjp/NotoSansJP%5Bwght%5D.ttf"
 
 WORKDIR /app
 
