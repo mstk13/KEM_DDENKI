@@ -54,6 +54,8 @@ services:
       retries: 5
 
   # --- リバースプロキシ ---
+  # nginx は upstream の DNS を起動時に1回だけ解決する。
+  # depends_on により、アプリ再作成時に nginx も再起動され IP 不整合を防ぐ。
   nginx:
     image: nginx:alpine
     ports:
@@ -62,6 +64,14 @@ services:
       - ./docker/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./docker/portal:/usr/share/nginx/html:ro
     restart: unless-stopped
+    depends_on:
+      - bid_manager
+      - material_manager
+      - sagyo_nippou
+      - evaluation
+      - evaluation_admin
+      - kouki_kanri
+      - jinzai_kanri
 
   # --- コアアプリ (4つ) ---
   bid_manager:
