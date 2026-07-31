@@ -449,7 +449,7 @@ def render_item(item: dict, key_prefix: str, hint: str = "", fallback_default: i
     key = f"{key_prefix}_{item['id']}"
 
     with st.container(border=True):
-        st.markdown(f"**{item['num']}. {item['name']}** — 配点 {item['max_score']}点")
+        st.markdown(f"**{item['num']}. {item['name']}**")
         st.caption(item["description"])
         if hint:
             st.caption(f"📋 {hint}")
