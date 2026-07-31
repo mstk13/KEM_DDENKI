@@ -247,7 +247,7 @@ def build_blank_questionnaire(
 
             # 項目タイトル行
             story.append(Paragraph(
-                f"【{name}】　（配点: {max_score}）", st_item_title,
+                f"【{name}】", st_item_title,
             ))
             if desc:
                 story.append(Paragraph(desc, st_body))
@@ -421,7 +421,7 @@ def build_bulk_questionnaire(
             for item in items:
                 item_id = item["id"]
                 _story.append(Paragraph(
-                    f"【{item.get('name', '')}】　（配点: {item.get('max_score', '')}）",
+                    f"【{item.get('name', '')}】",
                     st_item_title,
                 ))
                 if item.get("description"):
