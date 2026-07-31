@@ -592,7 +592,7 @@ def get_evaluation_targets(evaluator_name: str) -> list[str]:
 
     ルール:
     - 代表取締役  → 自分含め全員
-    - 役員        → 自分 + 代表取締役
+    - 役員        → 自分 + 代表取締役 + 全電工
     - 事務        → 自分 + 全役員
     - 電工        → 自分 + 全役員
     - developer   → 自分 + 他developer + 代表取締役
@@ -612,9 +612,9 @@ def get_evaluation_targets(evaluator_name: str) -> list[str]:
     if evaluator_role == "役員" and evaluator_position == "代表取締役":
         return get_nippou_workers()
 
-    # 役員（代表取締役以外）→ 自分 + 代表取締役
+    # 役員（代表取締役以外）→ 自分 + 代表取締役 + 全電工
     if evaluator_role == "役員":
-        targets = [evaluator_name] + _get_ceo_names()
+        targets = [evaluator_name] + _get_ceo_names() + get_employees_by_role("電工")
         return sorted(set(targets))
 
     # 事務 → 自分 + 全役員
