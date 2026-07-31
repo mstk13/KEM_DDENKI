@@ -98,6 +98,31 @@ if selected_target is None:
     st.subheader("📄 アンケート用紙（PDF）")
     st.caption("全対象者分のアンケートを1つのPDFにまとめてダウンロードできます。印刷して手書きで回答してもらう場合にご利用ください。")
 
+    # choice_group（シニア/ジュニア）が未設定の電工を検出し、選択UIを表示
+    choice_groups_info = core._get_choice_group_items()
+    needs_level = {}
+    for name in target_candidates:
+        r = core.get_employee_role(name) or ALL_ROLES[0]
+        ri = core.load_role_items(r)
+        has_cg = any(item.get("choice_group") for item in ri)
+        if has_cg and not core.get_employee_choice_field(name):
+            needs_level[name] = ri
+
+    manual_choices: dict[str, dict] = {}
+    if needs_level:
+        st.info("以下の対象者はシニア/ジュニアの区分が未設定です。PDF生成前に選択してください。")
+        for name in needs_level:
+            ri = needs_level[name]
+            for cg in set(item["choice_group"] for item in ri if item.get("choice_group")):
+                cg_items = [item for item in ri if item.get("choice_group") == cg]
+                selected = st.radio(
+                    f"{name} のレベル",
+                    [item["name"] for item in cg_items],
+                    horizontal=True,
+                    key=f"pdf_level_{name}_{cg}",
+                )
+                manual_choices.setdefault(name, {})[cg] = selected
+
     if st.button("📥 全対象者のアンケートPDFを生成", key="gen_bulk_pdf", use_container_width=True):
         with st.spinner("PDF生成中..."):
             overall_questions = core.get_overall_questions()
@@ -106,6 +131,12 @@ if selected_target is None:
                 r = core.get_employee_role(name) or ALL_ROLES[0]
                 ci = core.load_common_items()
                 ri = core.load_role_items(r)
+                # シニア/ジュニア等のchoice_group項目を
+                # 過去の評価 or 手動選択に基づいてフィルタリング
+                cf = core.get_employee_choice_field(name)
+                if not cf and name in manual_choices:
+                    cf = manual_choices[name]
+                ri = core.filter_choice_group_items(ri, cf)
                 qbi = {}
                 for item in ci + ri:
                     qbi[item["id"]] = core.load_questions(item["id"])

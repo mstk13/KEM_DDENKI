@@ -28,4 +28,4 @@ ROLES = ["役員", "電工", "事務", "developer"]
 DEPARTMENTS = ["役員", "電気工事部", "総務部", "AI system development"]
 
 # 役職
-POSITIONS = ["代表取締役", "取締役", "職長", "主任", "社員", "見習い", "engineer"]
+POSITIONS = ["代表取締役", "取締役", "職長", "主任", "シニア", "ミドル", "ジュニア", "社員", "見習い", "engineer"]

@@ -387,6 +387,75 @@ def _get_choice_group_items() -> dict[str, list[str]]:
             return result
 
 
+def _position_to_choice_field(position: str) -> dict:
+    """役職（position）からchoice_fieldを推定する。
+
+    シニア/職長/主任 → 後輩指導 (シニア)
+    ジュニア/見習い  → 学ぶ姿勢 (ジュニア)
+    """
+    if not position:
+        return {}
+    p = position.strip()
+    if p in ("シニア", "職長", "主任"):
+        return {"field-level": "後輩指導 (シニア)"}
+    if p in ("ジュニア", "見習い"):
+        return {"field-level": "学ぶ姿勢 (ジュニア)"}
+    return {}
+
+
+def get_employee_choice_field(employee: str) -> dict:
+    """社員のchoice_fieldを返す。
+
+    1. 過去の評価の choice_field があればそれを使う
+    2. なければ人材管理の position（役職）から推定する
+    """
+    # 過去の評価から取得
+    with eval_conn() as conn:
+        with _cur(conn) as cur:
+            cur.execute(
+                "SELECT choice_field FROM eval.evaluations "
+                "WHERE employee = %s AND choice_field IS NOT NULL "
+                "ORDER BY created_at DESC LIMIT 1",
+                (employee,),
+            )
+            r = cur.fetchone()
+            if r and r["choice_field"]:
+                try:
+                    cf = r["choice_field"]
+                    return json.loads(cf) if isinstance(cf, str) else cf
+                except (json.JSONDecodeError, TypeError):
+                    pass
+    # position から推定
+    try:
+        with get_conn() as conn:
+            with _cur(conn) as cur:
+                cur.execute(
+                    "SELECT position FROM master.employees "
+                    "WHERE is_active = TRUE AND name = %s LIMIT 1",
+                    (employee,),
+                )
+                r = cur.fetchone()
+                if r:
+                    return _position_to_choice_field(r["position"])
+    except Exception:
+        pass
+    return {}
+
+
+def filter_choice_group_items(items: list[dict], choice_field: dict) -> list[dict]:
+    """choice_group に基づいて、選ばれなかった方の項目を除外する。"""
+    if not choice_field:
+        return items
+    selected_names = set(choice_field.values())
+    result = []
+    for item in items:
+        cg = item.get("choice_group")
+        if cg and cg in choice_field and item["name"] not in selected_names:
+            continue
+        result.append(item)
+    return result
+
+
 def build_answer_matrix(employee: str, evals: list[dict]):
     self_cols, other_cols = [], []
     used_labels: dict[str, int] = {}
