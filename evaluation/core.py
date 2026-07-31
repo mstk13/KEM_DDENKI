@@ -250,6 +250,24 @@ def get_overall_questions() -> list[dict]:
     return _load_survey_json().get("overall", [])
 
 
+def _ensure_evaluator_targets_table():
+    """evaluator_targets テーブルがなければ作成する。"""
+    try:
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS eval.evaluator_targets (
+                        id             SERIAL PRIMARY KEY,
+                        evaluator_name TEXT NOT NULL,
+                        target_name    TEXT NOT NULL,
+                        created_at     TIMESTAMP NOT NULL DEFAULT NOW(),
+                        UNIQUE (evaluator_name, target_name)
+                    )
+                """)
+    except Exception:
+        pass
+
+
 init_eval_db()
 _ensure_evaluator_targets_table()
 
@@ -588,24 +606,6 @@ def get_evaluation_targets(evaluator_name: str) -> list[str]:
 # ---------------------------------------------------------------------------
 # 評価対象の割り当て管理 (eval.evaluator_targets)
 # ---------------------------------------------------------------------------
-def _ensure_evaluator_targets_table():
-    """evaluator_targets テーブルがなければ作成する。"""
-    try:
-        with get_conn() as conn:
-            with conn.cursor() as cur:
-                cur.execute("""
-                    CREATE TABLE IF NOT EXISTS eval.evaluator_targets (
-                        id             SERIAL PRIMARY KEY,
-                        evaluator_name TEXT NOT NULL,
-                        target_name    TEXT NOT NULL,
-                        created_at     TIMESTAMP NOT NULL DEFAULT NOW(),
-                        UNIQUE (evaluator_name, target_name)
-                    )
-                """)
-    except Exception:
-        pass
-
-
 def get_assigned_targets(evaluator_name: str) -> list[str]:
     """evaluator_targets テーブルから割り当て済みの対象者を返す。"""
     try:
