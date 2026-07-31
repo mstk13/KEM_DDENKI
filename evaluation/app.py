@@ -7,6 +7,9 @@
 """
 from __future__ import annotations
 
+import base64
+import json
+import os
 import sys
 from datetime import date
 from pathlib import Path
@@ -16,6 +19,7 @@ import streamlit as st
 # core / views はこのファイルと同じフォルダにある（起動ディレクトリに依存しないようにする）
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import core          # noqa: E402
+import pdf_export    # noqa: E402
 import views         # noqa: E402
 
 st.set_page_config(page_title="人事評価 入力", page_icon="📝", layout="wide")
@@ -29,55 +33,339 @@ ALL_ROLES = core.get_all_roles() or ["事務", "電工", "役員"]
 st.sidebar.caption("集計・従業員別の一覧は **管理アプリ** で確認できます。")
 
 # =====================================================================
-# 評価入力
+# ステップ1: 評価者の選択
 # =====================================================================
 st.header("評価入力")
 
-nippou_workers = core.get_nippou_workers()
 today = date.today()
 fy_start = date(today.year if today.month >= 4 else today.year - 1, 4, 1)
 fy_end = date(fy_start.year + 1, 3, 31)
 
-# 評価者を先に選ぶ（対象者の絞り込みに使う）
 col_ev, col_period = st.columns(2)
 with col_ev:
     evaluator_options = core.get_evaluator_options()
     if evaluator_options:
-        evaluator = st.selectbox("評価者（あなた）", ["（手入力）"] + evaluator_options)
-        if evaluator == "（手入力）":
-            evaluator = st.text_input("評価者名を入力")
+        evaluator = st.selectbox("評価者（あなた）", [""] + evaluator_options,
+                                 format_func=lambda x: "選択してください" if x == "" else x)
+        if evaluator == "":
+            evaluator = ""
     else:
         evaluator = st.text_input("評価者名")
 with col_period:
     period = st.text_input("評価期間", f"{fy_start} 〜 {fy_end}")
 
-# 評価者の職種区分に応じて対象者を絞り込む
-target_candidates = []
-if evaluator:
-    target_candidates = core.get_evaluation_targets(evaluator)
-if not target_candidates:
-    target_candidates = nippou_workers
-
-col1, col2 = st.columns(2)
-with col1:
-    if target_candidates:
-        employee = st.selectbox("対象者", ["（手入力）"] + target_candidates)
-        if employee == "（手入力）":
-            employee = st.text_input("対象者名を入力")
-    else:
-        employee = st.text_input("対象者名")
-with col2:
-    # 対象者の職種区分を自動検出してデフォルトにする
-    default_role_idx = 0
-    if employee and employee != "（手入力）":
-        emp_role = core.get_employee_role(employee)
-        if emp_role and emp_role in ALL_ROLES:
-            default_role_idx = ALL_ROLES.index(emp_role)
-    role = st.selectbox("役割", ALL_ROLES, index=default_role_idx)
-
-if not employee:
-    st.info("対象者を選択または入力してください。")
+if not evaluator:
+    st.info("評価者を選択してください。")
     st.stop()
+
+# =====================================================================
+# ステップ2: 評価対象者の一覧 + PDF / 取り込み
+# =====================================================================
+target_candidates = core.get_evaluation_targets(evaluator)
+if not target_candidates:
+    target_candidates = core.get_nippou_workers()
+
+# 対象者が選ばれていない場合 → 一覧を表示
+selected_target = st.session_state.get("selected_target")
+
+if selected_target is None:
+    st.subheader(f"📋 {evaluator} さんの評価対象者")
+    st.caption(f"{len(target_candidates)} 名が対象です。評価する人をクリックしてください。")
+
+    cols_per_row = 3
+    for i in range(0, len(target_candidates), cols_per_row):
+        cols = st.columns(cols_per_row)
+        for j, col in enumerate(cols):
+            idx = i + j
+            if idx >= len(target_candidates):
+                break
+            name = target_candidates[idx]
+            emp_role = core.get_employee_role(name) or "—"
+            is_self = name.strip() == evaluator.strip()
+            label = f"👤 {name}（本人）" if is_self else f"👤 {name}"
+            with col:
+                with st.container(border=True):
+                    st.markdown(f"**{label}**")
+                    st.caption(f"役割: {emp_role}")
+                    if st.button("評価する", key=f"sel_{idx}", use_container_width=True):
+                        st.session_state["selected_target"] = name
+                        st.rerun()
+
+    # =================================================================
+    # アンケートPDFダウンロード
+    # =================================================================
+    st.divider()
+    st.subheader("📄 アンケート用紙（PDF）")
+    st.caption("全対象者分のアンケートを1つのPDFにまとめてダウンロードできます。印刷して手書きで回答してもらう場合にご利用ください。")
+
+    if st.button("📥 全対象者のアンケートPDFを生成", key="gen_bulk_pdf", use_container_width=True):
+        with st.spinner("PDF生成中..."):
+            overall_questions = core.get_overall_questions()
+            targets_data = []
+            for name in target_candidates:
+                r = core.get_employee_role(name) or ALL_ROLES[0]
+                ci = core.load_common_items()
+                ri = core.load_role_items(r)
+                qbi = {}
+                for item in ci + ri:
+                    qbi[item["id"]] = core.load_questions(item["id"])
+                targets_data.append({
+                    "employee": name,
+                    "role": r,
+                    "common_items": ci,
+                    "role_items": ri,
+                    "questions_by_item": qbi,
+                    "overall_questions": overall_questions,
+                })
+            pdf_bytes = pdf_export.build_bulk_questionnaire(
+                evaluator=evaluator,
+                period=period,
+                targets=targets_data,
+            )
+        st.download_button(
+            "📥 PDFをダウンロード",
+            pdf_bytes,
+            file_name=f"アンケート一式_{evaluator}.pdf",
+            mime="application/pdf",
+            key="dl_bulk_pdf",
+        )
+
+    # =================================================================
+    # 回答の取り込み（画像 / PDF アップロード → Claude API で読み取り）
+    # =================================================================
+    st.divider()
+    st.subheader("📤 回答の取り込み")
+    st.caption(
+        "手書き回答をスキャン／撮影した画像やPDFをアップロードすると、"
+        "AIが回答内容を読み取り、対象者を識別してデータベースに保存します。"
+    )
+
+    uploaded = st.file_uploader(
+        "回答画像またはPDFをアップロード",
+        type=["png", "jpg", "jpeg", "pdf"],
+        accept_multiple_files=True,
+        key="upload_answers",
+    )
+
+    if uploaded and st.button("回答を読み取って保存", type="primary", key="import_btn"):
+        api_key = os.environ.get("ANTHROPIC_API_KEY", "")
+        if not api_key:
+            st.error("ANTHROPIC_API_KEY が設定されていません。.env ファイルを確認してください。")
+        else:
+            with st.spinner("AIが回答を読み取り中..."):
+                result = _import_answers(uploaded, evaluator, period, api_key, target_candidates)
+            if result["success"]:
+                st.success(result["message"])
+                st.balloons()
+            else:
+                st.error(result["message"])
+            if result.get("details"):
+                with st.expander("読み取り詳細"):
+                    st.json(result["details"])
+
+    st.stop()
+
+
+# =====================================================================
+# 回答取り込みロジック
+# =====================================================================
+def _import_answers(files, evaluator: str, period: str, api_key: str,
+                    candidates: list[str]) -> dict:
+    """アップロードされたファイルからClaude APIで回答を読み取り、DBに保存する。"""
+    import anthropic
+
+    # 全評価項目と設問を取得してプロンプトに含める
+    all_roles = core.get_all_roles() or []
+    items_info = []
+    for section in ["共通"] + all_roles:
+        for item in core.load_items(section):
+            qs = core.load_questions(item["id"])
+            items_info.append({
+                "section": section,
+                "item_id": item["id"],
+                "item_name": item["name"],
+                "max_score": item["max_score"],
+                "questions": [{"qnum": q["qnum"], "text": q["text"]} for q in qs],
+            })
+
+    items_json = json.dumps(items_info, ensure_ascii=False, indent=2)
+    candidates_str = ", ".join(candidates)
+
+    prompt = f"""この画像は人事評価アンケートの手書き回答です。以下の情報を読み取ってJSON形式で返してください。
+
+【対象者の候補】
+{candidates_str}
+
+【評価項目と設問の一覧】
+{items_json}
+
+【出力形式】
+以下のJSON形式で出力してください。JSONのみを出力し、他のテキストは含めないでください。
+```json
+{{
+  "employee": "被評価者の名前（上記候補から最も近いものを選ぶ）",
+  "role": "被評価者の役割（用紙に記載があれば）",
+  "answers": [
+    {{
+      "item_id": 評価項目ID（数値）,
+      "item_name": "評価項目名",
+      "qnum": "設問番号",
+      "answer": 回答（1-5の数値、読み取れない場合はnull）
+    }}
+  ],
+  "comments": [
+    {{
+      "item_name": "評価項目名",
+      "text": "自由記述の内容（読み取れない場合は空文字）"
+    }}
+  ],
+  "overall": [
+    {{
+      "qnum": "総合設問番号",
+      "text": "回答テキスト"
+    }}
+  ]
+}}
+```
+
+注意:
+- 被評価者名は候補リストから最も近い名前を選んでください
+- ○がついている数字を回答値としてください
+- 読み取れない部分はnullまたは空文字にしてください
+"""
+
+    # 画像をBase64エンコード
+    content_blocks = []
+    for f in files:
+        data = f.read()
+        if f.type == "application/pdf":
+            # PDFの場合はそのままdocumentとして送る
+            content_blocks.append({
+                "type": "document",
+                "source": {
+                    "type": "base64",
+                    "media_type": "application/pdf",
+                    "data": base64.b64encode(data).decode(),
+                },
+            })
+        else:
+            media_type = f.type or "image/png"
+            content_blocks.append({
+                "type": "image",
+                "source": {
+                    "type": "base64",
+                    "media_type": media_type,
+                    "data": base64.b64encode(data).decode(),
+                },
+            })
+
+    content_blocks.append({"type": "text", "text": prompt})
+
+    try:
+        client = anthropic.Anthropic(api_key=api_key)
+        response = client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=4096,
+            messages=[{"role": "user", "content": content_blocks}],
+        )
+        raw = response.content[0].text
+
+        # JSON部分を抽出
+        if "```json" in raw:
+            raw = raw.split("```json")[1].split("```")[0]
+        elif "```" in raw:
+            raw = raw.split("```")[1].split("```")[0]
+
+        parsed = json.loads(raw.strip())
+    except json.JSONDecodeError as e:
+        return {"success": False, "message": f"AIの応答をJSONとして解析できませんでした: {e}",
+                "details": {"raw_response": raw}}
+    except Exception as e:
+        return {"success": False, "message": f"AI読み取りに失敗しました: {e}"}
+
+    # DBに保存
+    employee = parsed.get("employee", "")
+    if not employee:
+        return {"success": False, "message": "被評価者を特定できませんでした。", "details": parsed}
+
+    role = parsed.get("role") or core.get_employee_role(employee) or "事務"
+
+    # 回答データを core.save_evaluation 互換の形式に変換
+    answers_by_item: dict[int, list] = {}
+    comments_by_item: dict[str, str] = {}
+
+    for a in parsed.get("answers", []):
+        item_id = a.get("item_id")
+        if item_id is not None:
+            answers_by_item.setdefault(item_id, []).append(a)
+
+    for c in parsed.get("comments", []):
+        if c.get("text"):
+            comments_by_item[c["item_name"]] = c["text"]
+
+    # results を組み立て
+    results = []
+    all_items = core.load_common_items() + core.load_role_items(role)
+    for item in all_items:
+        item_answers = answers_by_item.get(item["id"], [])
+        answer_rows = []
+        for a in item_answers:
+            answer_rows.append({
+                "item_id": item["id"],
+                "item_name": item["name"],
+                "qnum": a.get("qnum", ""),
+                "question_text": "",
+                "answer": a.get("answer"),
+            })
+        comment = comments_by_item.get(item["name"], "")
+        results.append({
+            "item": item,
+            "score": None,
+            "comment": comment,
+            "answers": answer_rows,
+        })
+
+    overall_answers = []
+    for o in parsed.get("overall", []):
+        if o.get("text"):
+            overall_answers.append({
+                "qnum": o.get("qnum", ""),
+                "question_text": "",
+                "answer_text": o.get("text", ""),
+            })
+
+    try:
+        core.save_evaluation(employee, role, period, evaluator, {}, results, overall_answers)
+    except Exception as e:
+        return {"success": False, "message": f"DB保存に失敗しました: {e}", "details": parsed}
+
+    n_answers = sum(1 for a in parsed.get("answers", []) if a.get("answer") is not None)
+    return {
+        "success": True,
+        "message": f"✅ {employee} さんの評価を取り込みました（{n_answers}問の回答を読み取り）",
+        "details": parsed,
+    }
+
+
+# =====================================================================
+# ステップ3: アンケート入力（対象者が選ばれた状態）
+# =====================================================================
+employee = selected_target
+
+if st.button("← 対象者一覧に戻る"):
+    st.session_state.pop("selected_target", None)
+    st.rerun()
+
+is_self = employee.strip() == evaluator.strip()
+label = f"{employee}（本人評価）" if is_self else employee
+st.subheader(f"👤 {label} の評価")
+
+# 対象者の職種区分を自動検出
+emp_role = core.get_employee_role(employee)
+default_role_idx = 0
+if emp_role and emp_role in ALL_ROLES:
+    default_role_idx = ALL_ROLES.index(emp_role)
+role = st.selectbox("役割", ALL_ROLES, index=default_role_idx)
 
 # 勤怠データ
 st.subheader("📋 勤怠データ（作業日報から自動取得）")
@@ -124,7 +412,6 @@ st.info(
 
 # ------------------------------------------------------------------
 # 評価項目1つ分のアンケートを描画し、回答・コメントを返す
-# （得点の算出・表示はこの画面では行わない。保存時に core 側で換算する）
 # ------------------------------------------------------------------
 def render_item(item: dict, key_prefix: str, hint: str = "", fallback_default: int = 0) -> dict:
     questions = core.load_questions(item["id"])
@@ -149,8 +436,6 @@ def render_item(item: dict, key_prefix: str, hint: str = "", fallback_default: i
         if questions:
             for q in questions:
                 label = f"{q['qnum']}　{q['text']}" if q["qnum"] else q["text"]
-                # 設問側を広くとる（文章は複数行に折り返してよい）。
-                # スコア列は 1〜5 が横一列に収まる幅を確保し、右端に寄せる。
                 col_q, col_a = st.columns([4, 1.2], vertical_alignment="center")
                 with col_q:
                     st.markdown(label)
@@ -170,7 +455,7 @@ def render_item(item: dict, key_prefix: str, hint: str = "", fallback_default: i
                     "qnum": q["qnum"], "question_text": q["text"], "answer": value,
                 })
 
-            score = None    # 得点は保存時に算出する（入力画面では扱わない）
+            score = None
             if all(a is None for a in answers):
                 st.warning("この項目はすべて未選択です。")
         else:

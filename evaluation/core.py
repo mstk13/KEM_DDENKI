@@ -250,7 +250,26 @@ def get_overall_questions() -> list[dict]:
     return _load_survey_json().get("overall", [])
 
 
+def _ensure_evaluator_targets_table():
+    """evaluator_targets テーブルがなければ作成する。"""
+    try:
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS eval.evaluator_targets (
+                        id             SERIAL PRIMARY KEY,
+                        evaluator_name TEXT NOT NULL,
+                        target_name    TEXT NOT NULL,
+                        created_at     TIMESTAMP NOT NULL DEFAULT NOW(),
+                        UNIQUE (evaluator_name, target_name)
+                    )
+                """)
+    except Exception:
+        pass
+
+
 init_eval_db()
+_ensure_evaluator_targets_table()
 
 
 # ---------------------------------------------------------------------------
@@ -574,50 +593,134 @@ def get_employee_role(name: str) -> str | None:
         return None
 
 
+def _get_ceo_names() -> list[str]:
+    """代表取締役の名前リストを返す。"""
+    try:
+        with get_conn() as conn:
+            with _cur(conn) as cur:
+                cur.execute(
+                    "SELECT name FROM master.employees "
+                    "WHERE is_active = TRUE AND role = '役員' AND position = '代表取締役' "
+                    "ORDER BY code"
+                )
+                return [r["name"] for r in cur.fetchall()]
+    except Exception:
+        return []
+
+
+def _get_evaluator_position(name: str) -> str | None:
+    """社員名からpositionを返す。"""
+    try:
+        with get_conn() as conn:
+            with _cur(conn) as cur:
+                cur.execute(
+                    "SELECT position FROM master.employees "
+                    "WHERE is_active = TRUE AND name = %s LIMIT 1",
+                    (name,),
+                )
+                r = cur.fetchone()
+                return r["position"] if r else None
+    except Exception:
+        return None
+
+
 def get_evaluation_targets(evaluator_name: str) -> list[str]:
-    """評価者の職種区分に応じて評価対象者リストを返す。
+    """評価者の評価対象者リストを返す。
 
-    - developer: 自分 + 他のdeveloper + 社長(役員のうち代表取締役)
-    - 社長/役員(代表取締役): 全developer
-    - その他: 全社員（従来通り制限なし）
+    ルール:
+    - 代表取締役  → 自分含め全員
+    - 役員        → 自分 + 代表取締役 + 全電工
+    - 事務        → 自分 + 全役員
+    - 電工        → 自分 + 全役員
+    - developer   → 自分 + 他developer + 代表取締役
+
+    eval.evaluator_targets テーブルに明示的な割り当てがあればそちらを優先。
     """
-    evaluator_role = get_employee_role(evaluator_name)
+    # --- テーブルに明示的な割り当てがあればそれを優先 ---
+    assigned = get_assigned_targets(evaluator_name)
+    if assigned:
+        return assigned
 
-    if evaluator_role == "developer":
-        # 全developer（自分含む）+ 社長
-        targets = get_employees_by_role("developer")
-        # 社長 = 役員のうち代表取締役
-        try:
-            with get_conn() as conn:
-                with _cur(conn) as cur:
-                    cur.execute(
-                        "SELECT name FROM master.employees "
-                        "WHERE is_active = TRUE AND role = '役員' AND position = '代表取締役' "
-                        "ORDER BY code"
-                    )
-                    targets += [r["name"] for r in cur.fetchall()]
-        except Exception:
-            pass
+    # --- 職種区分ベース ---
+    evaluator_role = get_employee_role(evaluator_name)
+    evaluator_position = _get_evaluator_position(evaluator_name)
+
+    # 代表取締役 → 全員
+    if evaluator_role == "役員" and evaluator_position == "代表取締役":
+        return get_nippou_workers()
+
+    # 役員（代表取締役以外）→ 自分 + 代表取締役 + 全電工
+    if evaluator_role == "役員":
+        targets = [evaluator_name] + _get_ceo_names() + get_employees_by_role("電工")
         return sorted(set(targets))
 
-    # 社長（代表取締役）→ 全developer
-    if evaluator_role == "役員":
-        try:
-            with get_conn() as conn:
-                with _cur(conn) as cur:
-                    cur.execute(
-                        "SELECT position FROM master.employees "
-                        "WHERE is_active = TRUE AND name = %s LIMIT 1",
-                        (evaluator_name,),
-                    )
-                    r = cur.fetchone()
-                    if r and r["position"] == "代表取締役":
-                        return get_employees_by_role("developer")
-        except Exception:
-            pass
+    # 事務 → 自分 + 全役員
+    if evaluator_role == "事務":
+        targets = [evaluator_name] + get_employees_by_role("役員")
+        return sorted(set(targets))
 
-    # その他: 制限なし（None を返して呼び出し側で全員表示）
+    # 電工 → 自分 + 全役員
+    if evaluator_role == "電工":
+        targets = [evaluator_name] + get_employees_by_role("役員")
+        return sorted(set(targets))
+
+    # developer → 自分 + 他developer + 代表取締役
+    if evaluator_role == "developer":
+        targets = get_employees_by_role("developer") + _get_ceo_names()
+        return sorted(set(targets))
+
     return []
+
+
+# ---------------------------------------------------------------------------
+# 評価対象の割り当て管理 (eval.evaluator_targets)
+# ---------------------------------------------------------------------------
+def get_assigned_targets(evaluator_name: str) -> list[str]:
+    """evaluator_targets テーブルから割り当て済みの対象者を返す。"""
+    try:
+        with get_conn() as conn:
+            with _cur(conn) as cur:
+                cur.execute(
+                    "SELECT target_name FROM eval.evaluator_targets "
+                    "WHERE evaluator_name = %s ORDER BY target_name",
+                    (evaluator_name,),
+                )
+                return [r["target_name"] for r in cur.fetchall()]
+    except Exception:
+        return []
+
+
+def get_all_evaluator_assignments() -> dict[str, list[str]]:
+    """全評価者の割り当てを {評価者: [対象者, ...]} で返す。"""
+    try:
+        with get_conn() as conn:
+            with _cur(conn) as cur:
+                cur.execute(
+                    "SELECT evaluator_name, target_name FROM eval.evaluator_targets "
+                    "ORDER BY evaluator_name, target_name"
+                )
+                result: dict[str, list[str]] = {}
+                for r in cur.fetchall():
+                    result.setdefault(r["evaluator_name"], []).append(r["target_name"])
+                return result
+    except Exception:
+        return {}
+
+
+def save_evaluator_targets(evaluator_name: str, target_names: list[str]):
+    """評価者の対象者リストを上書き保存する。"""
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "DELETE FROM eval.evaluator_targets WHERE evaluator_name = %s",
+                (evaluator_name,),
+            )
+            for name in target_names:
+                cur.execute(
+                    "INSERT INTO eval.evaluator_targets (evaluator_name, target_name) "
+                    "VALUES (%s, %s) ON CONFLICT DO NOTHING",
+                    (evaluator_name, name),
+                )
 
 
 def get_evaluator_options() -> list[str]:

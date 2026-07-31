@@ -172,3 +172,329 @@ def build_employee_report(employee: str, meta: dict, matrix: pd.DataFrame,
 
     doc.build(story)
     return buf.getvalue()
+
+
+def build_blank_questionnaire(
+    evaluator: str,
+    employee: str,
+    role: str,
+    period: str,
+    common_items: list[dict],
+    role_items: list[dict],
+    questions_by_item: dict[int, list[dict]],
+    overall_questions: list[dict],
+) -> bytes:
+    """手書き記入用の空白評価アンケートPDFをバイト列で返す。
+
+    common_items / role_items: 評価項目 dict (id, name, description, max_score,
+                               anchor_5, anchor_3, anchor_1 は任意)
+    questions_by_item: {item_id: [{id, number, text}, ...]}
+    overall_questions: [{id, text}, ...]
+    """
+    _ensure_font()
+    st = _styles()
+    # アンケート専用の追加スタイル
+    st_body = ParagraphStyle("body", fontName=FONT, fontSize=9, leading=13)
+    st_item_title = ParagraphStyle(
+        "item_title", fontName=FONT, fontSize=10, leading=14, spaceBefore=8, spaceAfter=2,
+    )
+    st_anchor = ParagraphStyle(
+        "anchor", fontName=FONT, fontSize=7.5, leading=10,
+        textColor=colors.HexColor("#444444"),
+    )
+    st_q = ParagraphStyle("q", fontName=FONT, fontSize=8.5, leading=12)
+    st_circle = ParagraphStyle("circle", fontName=FONT, fontSize=10, leading=13, alignment=1)
+    st_legend = ParagraphStyle(
+        "legend", fontName=FONT, fontSize=8, leading=12,
+        textColor=colors.HexColor("#333333"), spaceAfter=6,
+    )
+
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buf, pagesize=A4,
+        leftMargin=15 * mm, rightMargin=15 * mm, topMargin=15 * mm, bottomMargin=15 * mm,
+        title="人事評価アンケート", author="KEM電気 人事評価管理",
+    )
+    story: list = []
+
+    # --- ヘッダー ---
+    story.append(Paragraph("人事評価アンケート", st["title"]))
+    story.append(Paragraph(
+        f"評価者: {evaluator}　／　被評価者: {employee}　／　役割: {role}　／　評価期間: {period}",
+        st["sub"],
+    ))
+
+    # --- 評価スケール凡例 ---
+    story.append(Paragraph(
+        "【評価スケール】　5＝期待を大きく上回る　　4＝期待を上回る　　3＝期待通り"
+        "　　2＝やや不足　　1＝大きく不足",
+        st_legend,
+    ))
+    story.append(Spacer(1, 4))
+
+    # --- 評価項目セクションを構築するヘルパー ---
+    def _add_items_section(section_label: str, items: list[dict]):
+        if not items:
+            return
+        story.append(Paragraph(f"■ {section_label}", st["h2"]))
+        story.append(Spacer(1, 2))
+
+        for item in items:
+            item_id = item["id"]
+            name = item.get("name", "")
+            desc = item.get("description", "")
+            max_score = item.get("max_score", "")
+
+            # 項目タイトル行
+            story.append(Paragraph(
+                f"【{name}】　（配点: {max_score}）", st_item_title,
+            ))
+            if desc:
+                story.append(Paragraph(desc, st_body))
+
+            # アンカー (5/3/1)
+            anchor_5 = item.get("anchor_5")
+            anchor_3 = item.get("anchor_3")
+            anchor_1 = item.get("anchor_1")
+            if anchor_5 or anchor_3 or anchor_1:
+                anchors_parts = []
+                if anchor_5:
+                    anchors_parts.append(f"5点: {anchor_5}")
+                if anchor_3:
+                    anchors_parts.append(f"3点: {anchor_3}")
+                if anchor_1:
+                    anchors_parts.append(f"1点: {anchor_1}")
+                story.append(Paragraph("　".join(anchors_parts), st_anchor))
+
+            story.append(Spacer(1, 3))
+
+            # 設問テーブル
+            questions = questions_by_item.get(item_id, [])
+            if questions:
+                head_row = [
+                    Paragraph("#", st["cell_b"]),
+                    Paragraph("設問", st["cell_b"]),
+                    Paragraph("評価（○をつけてください）", st["cell_b"]),
+                ]
+                rows = [head_row]
+                for q in questions:
+                    q_num = q.get("qnum", q.get("number", ""))
+                    q_text = q.get("text", "")
+                    rows.append([
+                        Paragraph(str(q_num), st["cell"]),
+                        Paragraph(q_text, st_q),
+                        Paragraph("①　　②　　③　　④　　⑤", st_circle),
+                    ])
+
+                page_w = A4[0] - 30 * mm  # usable width
+                t = Table(
+                    rows,
+                    colWidths=[10 * mm, page_w - 10 * mm - 55 * mm, 55 * mm],
+                    repeatRows=1,
+                )
+                t.setStyle(TableStyle([
+                    ("FONTNAME", (0, 0), (-1, -1), FONT),
+                    ("FONTSIZE", (0, 0), (-1, -1), 8),
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#4a5568")),
+                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                    ("GRID", (0, 0), (-1, -1), 0.35, colors.HexColor("#b8bfc7")),
+                    ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                    ("ALIGN", (0, 0), (0, -1), "CENTER"),
+                    ("ALIGN", (2, 1), (2, -1), "CENTER"),
+                    ("TOPPADDING", (0, 0), (-1, -1), 3),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 3),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 3),
+                    ("ROWBACKGROUNDS", (0, 1), (-1, -1),
+                     [colors.white, colors.HexColor("#f4f6f8")]),
+                ]))
+                story.append(t)
+
+            # 自由記述欄
+            story.append(Spacer(1, 3))
+            story.append(Paragraph("自由記述（コメント）:", st_q))
+            comment_box = Table(
+                [[""]],
+                colWidths=[A4[0] - 30 * mm],
+                rowHeights=[28 * mm],
+            )
+            comment_box.setStyle(TableStyle([
+                ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#999999")),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ]))
+            story.append(comment_box)
+            story.append(Spacer(1, 6))
+
+    # --- 共通項目 / 役割別項目 ---
+    _add_items_section("共通評価項目", common_items)
+    _add_items_section("役割別評価項目", role_items)
+
+    # --- 総合質問 ---
+    if overall_questions:
+        story.append(Paragraph("■ 総合質問", st["h2"]))
+        story.append(Spacer(1, 2))
+        page_w = A4[0] - 30 * mm
+
+        for i, oq in enumerate(overall_questions, 1):
+            story.append(Paragraph(f"Q{i}. {oq.get('text', '')}", st_q))
+            # 空の回答欄（3行分程度の枠線）
+            answer_box = Table(
+                [[""]],
+                colWidths=[page_w],
+                rowHeights=[24 * mm],
+            )
+            answer_box.setStyle(TableStyle([
+                ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#999999")),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ]))
+            story.append(answer_box)
+            story.append(Spacer(1, 5))
+
+    doc.build(story)
+    return buf.getvalue()
+
+
+def build_bulk_questionnaire(
+    evaluator: str,
+    period: str,
+    targets: list[dict],
+) -> bytes:
+    """全対象者分のアンケートを1つのPDFにまとめて返す。
+
+    targets: [{"employee": str, "role": str, "common_items": list,
+               "role_items": list, "questions_by_item": dict, "overall_questions": list}, ...]
+    """
+    _ensure_font()
+    st = _styles()
+    st_body = ParagraphStyle("bulk_body", fontName=FONT, fontSize=9, leading=13)
+    st_item_title = ParagraphStyle(
+        "bulk_item_title", fontName=FONT, fontSize=10, leading=14, spaceBefore=8, spaceAfter=2,
+    )
+    st_anchor = ParagraphStyle(
+        "bulk_anchor", fontName=FONT, fontSize=7.5, leading=10,
+        textColor=colors.HexColor("#444444"),
+    )
+    st_q = ParagraphStyle("bulk_q", fontName=FONT, fontSize=8.5, leading=12)
+    st_circle = ParagraphStyle("bulk_circle", fontName=FONT, fontSize=10, leading=13, alignment=1)
+    st_legend = ParagraphStyle(
+        "bulk_legend", fontName=FONT, fontSize=8, leading=12,
+        textColor=colors.HexColor("#333333"), spaceAfter=6,
+    )
+
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buf, pagesize=A4,
+        leftMargin=15 * mm, rightMargin=15 * mm, topMargin=15 * mm, bottomMargin=15 * mm,
+        title=f"人事評価アンケート（{evaluator}）", author="KEM電気 人事評価管理",
+    )
+    story: list = []
+
+    for ti, tgt in enumerate(targets):
+        if ti > 0:
+            story.append(PageBreak())
+
+        employee = tgt["employee"]
+        role = tgt["role"]
+        common_items = tgt["common_items"]
+        role_items = tgt["role_items"]
+        questions_by_item = tgt["questions_by_item"]
+        overall_questions = tgt["overall_questions"]
+
+        story.append(Paragraph("人事評価アンケート", st["title"]))
+        story.append(Paragraph(
+            f"評価者: {evaluator}　／　被評価者: {employee}　／　役割: {role}　／　評価期間: {period}",
+            st["sub"],
+        ))
+        story.append(Paragraph(
+            "【評価スケール】　5＝期待を大きく上回る　　4＝期待を上回る　　3＝期待通り"
+            "　　2＝やや不足　　1＝大きく不足",
+            st_legend,
+        ))
+        story.append(Spacer(1, 4))
+
+        def _add_section(section_label: str, items: list[dict], _story=story,
+                         _qbi=questions_by_item):
+            if not items:
+                return
+            _story.append(Paragraph(f"■ {section_label}", st["h2"]))
+            _story.append(Spacer(1, 2))
+            for item in items:
+                item_id = item["id"]
+                _story.append(Paragraph(
+                    f"【{item.get('name', '')}】　（配点: {item.get('max_score', '')}）",
+                    st_item_title,
+                ))
+                if item.get("description"):
+                    _story.append(Paragraph(item["description"], st_body))
+                a5, a3, a1 = item.get("anchor_5"), item.get("anchor_3"), item.get("anchor_1")
+                if a5 or a3 or a1:
+                    parts = []
+                    if a5: parts.append(f"5点: {a5}")
+                    if a3: parts.append(f"3点: {a3}")
+                    if a1: parts.append(f"1点: {a1}")
+                    _story.append(Paragraph("　".join(parts), st_anchor))
+                _story.append(Spacer(1, 3))
+                questions = _qbi.get(item_id, [])
+                if questions:
+                    head_row = [
+                        Paragraph("#", st["cell_b"]),
+                        Paragraph("設問", st["cell_b"]),
+                        Paragraph("評価（○をつけてください）", st["cell_b"]),
+                    ]
+                    rows = [head_row]
+                    for q in questions:
+                        rows.append([
+                            Paragraph(str(q.get("qnum", q.get("number", ""))), st["cell"]),
+                            Paragraph(q.get("text", ""), st_q),
+                            Paragraph("①　　②　　③　　④　　⑤", st_circle),
+                        ])
+                    page_w = A4[0] - 30 * mm
+                    t = Table(rows, colWidths=[10 * mm, page_w - 65 * mm, 55 * mm], repeatRows=1)
+                    t.setStyle(TableStyle([
+                        ("FONTNAME", (0, 0), (-1, -1), FONT),
+                        ("FONTSIZE", (0, 0), (-1, -1), 8),
+                        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#4a5568")),
+                        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                        ("GRID", (0, 0), (-1, -1), 0.35, colors.HexColor("#b8bfc7")),
+                        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                        ("ALIGN", (0, 0), (0, -1), "CENTER"),
+                        ("ALIGN", (2, 1), (2, -1), "CENTER"),
+                        ("TOPPADDING", (0, 0), (-1, -1), 3),
+                        ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+                        ("LEFTPADDING", (0, 0), (-1, -1), 3),
+                        ("RIGHTPADDING", (0, 0), (-1, -1), 3),
+                        ("ROWBACKGROUNDS", (0, 1), (-1, -1),
+                         [colors.white, colors.HexColor("#f4f6f8")]),
+                    ]))
+                    _story.append(t)
+                _story.append(Spacer(1, 3))
+                _story.append(Paragraph("自由記述（コメント）:", st_q))
+                cb = Table([[""]],
+                           colWidths=[A4[0] - 30 * mm], rowHeights=[28 * mm])
+                cb.setStyle(TableStyle([
+                    ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#999999")),
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ]))
+                _story.append(cb)
+                _story.append(Spacer(1, 6))
+
+        _add_section("共通評価項目", common_items)
+        _add_section("役割別評価項目", role_items)
+
+        if overall_questions:
+            story.append(Paragraph("■ 総合質問", st["h2"]))
+            story.append(Spacer(1, 2))
+            page_w = A4[0] - 30 * mm
+            for i, oq in enumerate(overall_questions, 1):
+                story.append(Paragraph(f"Q{i}. {oq.get('text', '')}", st_q))
+                ab = Table([[""]],
+                           colWidths=[page_w], rowHeights=[24 * mm])
+                ab.setStyle(TableStyle([
+                    ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#999999")),
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ]))
+                story.append(ab)
+                story.append(Spacer(1, 5))
+
+    doc.build(story)
+    return buf.getvalue()
