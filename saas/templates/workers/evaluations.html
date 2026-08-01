@@ -5,34 +5,54 @@
 {% block content %}
 <div class="page-header">
   <h1>人材評価</h1>
-  <a href="{% url 'workers:eval_create' %}" class="btn btn-primary">+ 評価を登録</a>
+  <a href="{% url 'workers:eval_create' %}" class="btn btn-primary">+ 新しい評価を作成</a>
 </div>
 
+{% if evaluations %}
+<div class="stats">
+  <div class="stat-card blue">
+    <div class="stat-label">評価件数</div>
+    <div class="stat-value blue">{{ evaluations|length }}</div>
+  </div>
+</div>
+{% endif %}
+
 <div class="card">
+  <div class="card-header">
+    <h2>評価一覧</h2>
+  </div>
   <div class="table-wrap">
     <table>
-      <thead><tr><th>評価期間</th><th>作業員</th><th>職種</th><th>役職</th><th>評点</th><th>評価者</th><th></th></tr></thead>
+      <thead><tr><th>評価期間</th><th>作業員</th><th>職種</th><th>役職</th><th>総合評点</th><th>評価者</th><th></th></tr></thead>
       <tbody>
         {% for ev in evaluations %}
         <tr>
-          <td>{{ ev.period }}</td>
-          <td><a href="{% url 'workers:detail' ev.worker.pk %}">{{ ev.worker.name }}</a></td>
-          <td>{{ ev.worker.job_title|default:"-" }}</td>
-          <td>{{ ev.worker.position|default:"-" }}</td>
+          <td><span style="font-weight:600;">{{ ev.period }}</span></td>
           <td>
-            {% if ev.score == 5 %}<span class="badge badge-green">5</span>
-            {% elif ev.score == 4 %}<span class="badge badge-blue">4</span>
-            {% elif ev.score == 3 %}<span class="badge badge-gray">3</span>
-            {% elif ev.score == 2 %}<span class="badge badge-orange">2</span>
-            {% elif ev.score == 1 %}<span class="badge badge-red">1</span>
-            {% else %}<span class="badge badge-gray">-</span>
+            <a href="{% url 'workers:detail' ev.worker.pk %}" style="font-weight:500;">{{ ev.worker.name }}</a>
+          </td>
+          <td style="color:var(--text-secondary);">{{ ev.worker.job_title|default:"-" }}</td>
+          <td style="color:var(--text-secondary);">{{ ev.worker.position|default:"-" }}</td>
+          <td>
+            {% if ev.score == 5 %}<span class="badge badge-green">5 期待を大きく上回る</span>
+            {% elif ev.score == 4 %}<span class="badge badge-blue">4 期待を上回る</span>
+            {% elif ev.score == 3 %}<span class="badge badge-gray">3 期待通り</span>
+            {% elif ev.score == 2 %}<span class="badge badge-orange">2 やや不足</span>
+            {% elif ev.score == 1 %}<span class="badge badge-red">1 要改善</span>
+            {% else %}<span class="badge badge-gray">未評価</span>
             {% endif %}
           </td>
-          <td>{{ ev.evaluated_by|default:"-" }}</td>
+          <td style="color:var(--text-secondary);">{{ ev.evaluated_by|default:"-" }}</td>
           <td><a href="{% url 'workers:eval_detail' ev.pk %}" class="btn btn-outline btn-sm">詳細</a></td>
         </tr>
         {% empty %}
-        <tr><td colspan="7"><div class="empty"><div class="empty-icon">&#x1f4cb;</div><p>評価データがありません</p></div></td></tr>
+        <tr><td colspan="7">
+          <div class="empty">
+            <div class="empty-icon">&#x1f4cb;</div>
+            <p>まだ評価データがありません</p>
+            <a href="{% url 'workers:eval_create' %}" class="btn btn-primary" style="margin-top:16px;">最初の評価を作成する</a>
+          </div>
+        </td></tr>
         {% endfor %}
       </tbody>
     </table>
