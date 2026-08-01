@@ -26,7 +26,8 @@
       <a href="{% url 'materials:list' %}" class="{% if 'materials:' in request.resolver_match.view_name %}active{% endif %}">&#x1f4e6; 材料・発注</a>
 
       <div class="nav-section">人材</div>
-      <a href="{% url 'workers:list' %}" class="{% if 'workers:' in request.resolver_match.view_name %}active{% endif %}">&#x1f465; 作業員</a>
+      <a href="{% url 'workers:list' %}" class="{% if request.resolver_match.url_name == 'list' and 'workers:' in request.resolver_match.view_name %}active{% endif %}">&#x1f465; 作業員</a>
+      <a href="{% url 'workers:evaluations' %}" class="{% if 'eval' in request.resolver_match.url_name %}active{% endif %}">&#x1f4cb; 人材評価</a>
 
       <div class="nav-section">設定</div>
       <a href="{% url 'masters:worktypes' %}" class="{% if 'masters:' in request.resolver_match.view_name %}active{% endif %}">&#x2699;&#xfe0f; マスタ管理</a>

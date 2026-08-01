@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}人材評価 — 建設SaaS{% endblock %}
+{% block topbar_title %}人材評価{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>人材評価</h1>
+  <a href="{% url 'workers:eval_create' %}" class="btn btn-primary">+ 評価を登録</a>
+</div>
+
+<div class="card">
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>評価期間</th><th>作業員</th><th>職種</th><th>役職</th><th>評点</th><th>評価者</th><th></th></tr></thead>
+      <tbody>
+        {% for ev in evaluations %}
+        <tr>
+          <td>{{ ev.period }}</td>
+          <td><a href="{% url 'workers:detail' ev.worker.pk %}">{{ ev.worker.name }}</a></td>
+          <td>{{ ev.worker.job_title|default:"-" }}</td>
+          <td>{{ ev.worker.position|default:"-" }}</td>
+          <td>
+            {% if ev.score == 5 %}<span class="badge badge-green">5</span>
+            {% elif ev.score == 4 %}<span class="badge badge-blue">4</span>
+            {% elif ev.score == 3 %}<span class="badge badge-gray">3</span>
+            {% elif ev.score == 2 %}<span class="badge badge-orange">2</span>
+            {% elif ev.score == 1 %}<span class="badge badge-red">1</span>
+            {% else %}<span class="badge badge-gray">-</span>
+            {% endif %}
+          </td>
+          <td>{{ ev.evaluated_by|default:"-" }}</td>
+          <td><a href="{% url 'workers:eval_detail' ev.pk %}" class="btn btn-outline btn-sm">詳細</a></td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="7"><div class="empty"><div class="empty-icon">&#x1f4cb;</div><p>評価データがありません</p></div></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

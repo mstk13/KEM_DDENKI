@@ -1,8 +1,8 @@
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404, redirect, render
 
-from apps.workers.forms import WorkerForm
-from apps.workers.models import Worker
+from apps.workers.forms import EvaluationForm, WorkerForm
+from apps.workers.models import Worker, WorkerEvaluation
 
 
 @login_required
@@ -45,3 +45,38 @@ def worker_edit(request, pk):
     else:
         form = WorkerForm(instance=worker, company=request.user.company)
     return render(request, "workers/form.html", {"form": form})
+
+
+@login_required
+def evaluation_list(request):
+    evaluations = WorkerEvaluation.objects.select_related(
+        "worker", "worker__job_title", "worker__position", "evaluated_by",
+    ).order_by("-period", "worker__name")
+    return render(request, "workers/evaluations.html", {"evaluations": evaluations})
+
+
+@login_required
+def evaluation_detail(request, pk):
+    evaluation = get_object_or_404(
+        WorkerEvaluation.objects.select_related(
+            "worker", "worker__job_title", "worker__position", "evaluated_by",
+        ),
+        pk=pk,
+    )
+    return render(request, "workers/eval_detail.html", {"evaluation": evaluation})
+
+
+@login_required
+def evaluation_create(request):
+    if request.method == "POST":
+        form = EvaluationForm(request.POST, company=request.user.company)
+        if form.is_valid():
+            ev = form.save(commit=False)
+            ev.company = request.user.company
+            ev.evaluated_by = request.user
+            ev.created_by = request.user
+            ev.save()
+            return redirect("workers:eval_detail", pk=ev.pk)
+    else:
+        form = EvaluationForm(company=request.user.company)
+    return render(request, "workers/eval_form.html", {"form": form})

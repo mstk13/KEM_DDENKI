@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}評価詳細 — {{ evaluation.worker.name }} — 建設SaaS{% endblock %}
+{% block topbar_title %}評価詳細{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>{{ evaluation.worker.name }} — {{ evaluation.period }}</h1>
+  <a href="{% url 'workers:evaluations' %}" class="btn btn-outline btn-sm">一覧に戻る</a>
+</div>
+
+<div class="card">
+  <dl class="detail-grid">
+    <dt>作業員</dt><dd><a href="{% url 'workers:detail' evaluation.worker.pk %}">{{ evaluation.worker.name }}</a></dd>
+    <dt>職種</dt><dd>{{ evaluation.worker.job_title|default:"-" }}</dd>
+    <dt>役職</dt><dd>{{ evaluation.worker.position|default:"-" }}</dd>
+    <dt>評価期間</dt><dd>{{ evaluation.period }}</dd>
+    <dt>評点</dt><dd>
+      {% if evaluation.score == 5 %}<span class="badge badge-green">5</span>
+      {% elif evaluation.score == 4 %}<span class="badge badge-blue">4</span>
+      {% elif evaluation.score == 3 %}<span class="badge badge-gray">3</span>
+      {% elif evaluation.score == 2 %}<span class="badge badge-orange">2</span>
+      {% elif evaluation.score == 1 %}<span class="badge badge-red">1</span>
+      {% else %}-{% endif %}
+    </dd>
+    <dt>評価者</dt><dd>{{ evaluation.evaluated_by|default:"-" }}</dd>
+    <dt>コメント</dt><dd>{{ evaluation.comment|default:"-"|linebreaksbr }}</dd>
+  </dl>
+</div>
+{% endblock %}
