@@ -23,9 +23,24 @@ saas/
 │   ├── core/        … 共通基盤 (TenantModel, CompanyScopedManager, middleware)
 │   ├── tenants/     … Company, CompanyApp
 │   ├── accounts/    … User (カスタム), Department
-│   └── masters/     … WorkType, CostCategory, Customer, Supplier, WorkStandard
-├── tests/           … テスト (越境テスト必須)
+│   ├── masters/     … WorkType, CostCategory, Customer, Supplier, WorkStandard
+│   ├── workers/     … JobTitle, Position, Worker, WorkerEvaluation     [M5]
+│   ├── sites/       … Site, Process                                    [M2]
+│   ├── materials/   … Material, PurchaseOrder, PurchaseOrderItem       [M4]
+│   ├── reports/     … DailyReport, DailyReportMaterial                 [M2]
+│   └── costs/       … BudgetItem, CostTransaction, services.py        [M3]
+├── tests/           … テスト (越境テスト必須, 32件)
+├── Dockerfile
+├── docker-compose.yml
 └── manage.py
+```
+
+## Docker で起動
+
+```bash
+cd saas
+cp .env.example .env   # 値を編集
+docker compose up -d   # PostgreSQL + Django
 ```
 
 ## テスト

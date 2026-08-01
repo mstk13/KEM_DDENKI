@@ -25,11 +25,16 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     # Third-party
     "simple_history",
-    # Local apps — order matters (core first, then tenants, accounts, masters)
+    # Local apps — order matters
     "apps.core",
     "apps.tenants",
     "apps.accounts",
     "apps.masters",
+    "apps.workers",
+    "apps.sites",
+    "apps.materials",
+    "apps.reports",
+    "apps.costs",
 ]
 
 MIDDLEWARE = [
