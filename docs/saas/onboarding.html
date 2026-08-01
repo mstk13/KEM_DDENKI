@@ -1,0 +1,921 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>建設SaaS — チーム開発ガイド</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface2: #232733;
+    --border: #2e3341;
+    --text: #e4e6ed;
+    --text-dim: #8b8fa3;
+    --accent: #6c8cff;
+    --accent-dim: #4a62b3;
+    --green: #4caf7d;
+    --orange: #e8a44a;
+    --red: #e05555;
+    --purple: #a87cdb;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Segoe UI", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.75;
+    font-size: 15px;
+  }
+
+  /* ---------- Hero ---------- */
+  .hero {
+    background: linear-gradient(135deg, #1a2744 0%, #0f1117 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 56px 24px 48px;
+    text-align: center;
+  }
+  .hero h1 {
+    font-size: 2rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    margin-bottom: 12px;
+  }
+  .hero .subtitle {
+    color: var(--text-dim);
+    font-size: 1.05rem;
+    max-width: 600px;
+    margin: 0 auto;
+  }
+  .hero .badge {
+    display: inline-block;
+    margin-top: 20px;
+    padding: 6px 18px;
+    border-radius: 20px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    background: rgba(108,140,255,0.15);
+    color: var(--accent);
+    border: 1px solid rgba(108,140,255,0.25);
+  }
+
+  /* ---------- Layout ---------- */
+  .container {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 0 24px;
+  }
+
+  /* ---------- Nav ---------- */
+  .toc {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 12px 0;
+    overflow-x: auto;
+    white-space: nowrap;
+    -webkit-overflow-scrolling: touch;
+  }
+  .toc-inner {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 0 24px;
+    display: flex;
+    gap: 8px;
+  }
+  .toc a {
+    color: var(--text-dim);
+    text-decoration: none;
+    font-size: 0.82rem;
+    font-weight: 500;
+    padding: 6px 14px;
+    border-radius: 6px;
+    transition: all 0.15s;
+    flex-shrink: 0;
+  }
+  .toc a:hover { background: var(--surface2); color: var(--text); }
+
+  /* ---------- Sections ---------- */
+  section {
+    padding: 48px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  section:last-child { border-bottom: none; }
+
+  h2 {
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  h2 .num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    font-weight: 700;
+    background: var(--accent);
+    color: #fff;
+    flex-shrink: 0;
+  }
+  .section-lead {
+    color: var(--text-dim);
+    margin-bottom: 28px;
+    font-size: 0.95rem;
+  }
+
+  h3 {
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin: 28px 0 12px;
+    color: var(--accent);
+  }
+
+  p { margin-bottom: 14px; }
+
+  /* ---------- Cards ---------- */
+  .card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 16px;
+    margin: 16px 0;
+  }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+  }
+  .card-title {
+    font-weight: 600;
+    font-size: 1rem;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .card p { color: var(--text-dim); font-size: 0.92rem; margin-bottom: 0; }
+
+  /* ---------- Tables ---------- */
+  .table-wrap {
+    overflow-x: auto;
+    margin: 16px 0;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+  }
+  thead { background: var(--surface2); }
+  th {
+    text-align: left;
+    padding: 12px 16px;
+    font-weight: 600;
+    color: var(--text-dim);
+    font-size: 0.82rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    border-bottom: 1px solid var(--border);
+  }
+  td {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  tr:last-child td { border-bottom: none; }
+  tbody tr:hover { background: rgba(108,140,255,0.04); }
+
+  /* ---------- Code ---------- */
+  code {
+    font-family: "JetBrains Mono", "Fira Code", "Consolas", monospace;
+    font-size: 0.88em;
+    background: var(--surface2);
+    padding: 2px 7px;
+    border-radius: 4px;
+    color: var(--orange);
+  }
+  pre {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px 24px;
+    overflow-x: auto;
+    margin: 16px 0;
+    font-size: 0.88rem;
+    line-height: 1.6;
+  }
+  pre code {
+    background: none;
+    padding: 0;
+    color: var(--text);
+  }
+
+  /* ---------- Rules ---------- */
+  .rule {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--red);
+    border-radius: 0 10px 10px 0;
+    padding: 20px 24px;
+    margin: 12px 0;
+  }
+  .rule.warn { border-left-color: var(--orange); }
+  .rule.info { border-left-color: var(--accent); }
+  .rule.ok { border-left-color: var(--green); }
+  .rule-title {
+    font-weight: 700;
+    font-size: 0.95rem;
+    margin-bottom: 4px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .rule p { color: var(--text-dim); font-size: 0.9rem; margin-bottom: 0; }
+
+  /* ---------- Flow ---------- */
+  .flow {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    margin: 20px 0;
+  }
+  .flow-step {
+    display: flex;
+    gap: 16px;
+    position: relative;
+  }
+  .flow-marker {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    flex-shrink: 0;
+    width: 40px;
+  }
+  .flow-dot {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--accent);
+    border: 3px solid var(--bg);
+    box-shadow: 0 0 0 2px var(--accent-dim);
+    flex-shrink: 0;
+    z-index: 1;
+  }
+  .flow-line {
+    width: 2px;
+    flex-grow: 1;
+    background: var(--border);
+  }
+  .flow-step:last-child .flow-line { display: none; }
+  .flow-content {
+    padding-bottom: 28px;
+  }
+  .flow-content h4 {
+    font-size: 0.95rem;
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+  .flow-content p {
+    color: var(--text-dim);
+    font-size: 0.88rem;
+    margin-bottom: 0;
+  }
+
+  /* ---------- Milestone ---------- */
+  .milestone {
+    display: flex;
+    gap: 16px;
+    align-items: flex-start;
+    margin: 12px 0;
+    padding: 16px 20px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+  }
+  .milestone.current {
+    border-color: var(--green);
+    background: rgba(76,175,125,0.06);
+  }
+  .milestone.done {
+    opacity: 0.5;
+  }
+  .milestone-tag {
+    font-size: 0.78rem;
+    font-weight: 700;
+    padding: 4px 10px;
+    border-radius: 6px;
+    background: var(--surface2);
+    color: var(--text-dim);
+    flex-shrink: 0;
+    min-width: 36px;
+    text-align: center;
+  }
+  .milestone.current .milestone-tag { background: var(--green); color: #fff; }
+  .milestone.done .milestone-tag { background: var(--accent-dim); color: #fff; }
+  .milestone-body h4 { font-size: 0.95rem; font-weight: 600; margin-bottom: 2px; }
+  .milestone-body p { color: var(--text-dim); font-size: 0.85rem; margin-bottom: 0; }
+
+  /* ---------- Tag ---------- */
+  .tag {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 4px;
+    font-size: 0.78rem;
+    font-weight: 600;
+  }
+  .tag-green { background: rgba(76,175,125,0.15); color: var(--green); }
+  .tag-orange { background: rgba(232,164,74,0.15); color: var(--orange); }
+  .tag-red { background: rgba(224,85,85,0.15); color: var(--red); }
+  .tag-purple { background: rgba(168,124,219,0.15); color: var(--purple); }
+
+  /* ---------- Checklist ---------- */
+  .checklist {
+    list-style: none;
+    margin: 16px 0;
+  }
+  .checklist li {
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    font-size: 0.92rem;
+  }
+  .checklist li:last-child { border-bottom: none; }
+  .check {
+    flex-shrink: 0;
+    width: 20px;
+    height: 20px;
+    border-radius: 5px;
+    border: 2px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: 2px;
+  }
+
+  /* ---------- Columns ---------- */
+  .cols {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin: 16px 0;
+  }
+  @media (max-width: 640px) {
+    .cols { grid-template-columns: 1fr; }
+    .card-grid { grid-template-columns: 1fr; }
+    .hero h1 { font-size: 1.5rem; }
+  }
+
+  /* ---------- Footer ---------- */
+  footer {
+    text-align: center;
+    padding: 40px 24px;
+    color: var(--text-dim);
+    font-size: 0.82rem;
+  }
+
+  /* smooth scroll */
+  html { scroll-behavior: smooth; }
+</style>
+</head>
+<body>
+
+<!-- ==================== HERO ==================== -->
+<div class="hero">
+  <h1>建設業SaaS — チーム開発ガイド</h1>
+  <p class="subtitle">
+    3人チームで「日報から粗利が見えるシステム」を100社に届けるための、開発の進め方と約束事
+  </p>
+  <span class="badge">KEM_DDENKI &rarr; マルチテナントSaaS</span>
+</div>
+
+<!-- ==================== TOC ==================== -->
+<nav class="toc">
+  <div class="toc-inner">
+    <a href="#purpose">目的</a>
+    <a href="#architecture">全体像</a>
+    <a href="#setup">環境構築</a>
+    <a href="#workflow">開発フロー</a>
+    <a href="#rules">絶対ルール</a>
+    <a href="#tenant">テナント分離</a>
+    <a href="#models">データモデル</a>
+    <a href="#roadmap">ロードマップ</a>
+    <a href="#learning">学習リソース</a>
+  </div>
+</nav>
+
+<div class="container">
+
+<!-- ==================== 1. 目的 ==================== -->
+<section id="purpose">
+  <h2><span class="num">1</span>このプロジェクトの目的</h2>
+  <p class="section-lead">何を、なぜ、誰のために作るのかを全員が同じ言葉で説明できることがスタートライン。</p>
+
+  <div class="card-grid">
+    <div class="card">
+      <div class="card-title">&#x1f3d7;&#xfe0f; 解決する課題</div>
+      <p>建設業の中小企業では日報は紙、原価はExcel、材料は発注台帳とバラバラ。事務員が月30時間以上かけて転記・集計し、現場ごとの粗利は工事完了まで見えない。</p>
+    </div>
+    <div class="card">
+      <div class="card-title">&#x1f4a1; 作るもの</div>
+      <p><strong>日報を入力するだけで、現場ごとの粗利がリアルタイムに見えるシステム</strong>。これを月額SaaSとして100社に提供する。</p>
+    </div>
+    <div class="card">
+      <div class="card-title">&#x1f504; KEM_DDENKIとの関係</div>
+      <p>KEM_DDENKI（Streamlit版）は「課題が本物であることの検証」。SaaS版は「100社に売れる製品」として Django で再設計する。</p>
+    </div>
+  </div>
+
+  <h3>KEM_DDENKI がそのまま売れない理由</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>問題</th><th>具体的に何が起きるか</th></tr></thead>
+      <tbody>
+        <tr><td>データが分離できない</td><td>1社専用のDB。他社に売るなら会社ごとにシステムをコピーする必要がある</td></tr>
+        <tr><td>Streamlit の限界</td><td>ログイン・権限管理・スマホ対応が弱い。職人がスマホで使えない</td></tr>
+        <tr><td>固有名詞がハードコード</td><td>「電工」「事務」「シニア」等がコードに埋まっている。別の会社では使えない</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ==================== 2. 全体像 ==================== -->
+<section id="architecture">
+  <h2><span class="num">2</span>システム全体像</h2>
+  <p class="section-lead">技術スタックとアプリケーション構成。</p>
+
+  <h3>技術スタック</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>項目</th><th>採用技術</th><th>理由</th></tr></thead>
+      <tbody>
+        <tr><td>言語</td><td><code>Python 3.12</code></td><td>チーム全員が使える。10年保守の人材確保</td></tr>
+        <tr><td>フレームワーク</td><td><code>Django 5.2 LTS</code></td><td>認証・権限・admin 標準装備。LTS で長期保守</td></tr>
+        <tr><td>DB</td><td><code>PostgreSQL 16</code></td><td>信頼性。マネージド移行の容易さ</td></tr>
+        <tr><td>監査ログ</td><td><code>django-simple-history</code></td><td>全変更履歴を自動記録。自作禁止</td></tr>
+        <tr><td>テスト</td><td><code>pytest + pytest-django</code></td><td>越境テストを CI で常時実行</td></tr>
+        <tr><td>静的解析</td><td><code>ruff</code></td><td>高速 linter。コードスタイルの統一</td></tr>
+        <tr><td>CI</td><td><code>GitHub Actions</code></td><td>PR 必須、main 直接コミット禁止</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Django アプリ構成</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>アプリ</th><th>Django アプリ</th><th>概要</th><th>状態</th></tr></thead>
+      <tbody>
+        <tr><td>共通基盤</td><td><code>core, tenants, accounts, masters</code></td><td>テナント・認証・マスタ（常時有効）</td><td><span class="tag tag-green">M1完了</span></td></tr>
+        <tr><td>人材管理</td><td><code>workers</code></td><td>作業員・資格・スキルタグ・時間単価</td><td><span class="tag tag-orange">M5</span></td></tr>
+        <tr><td>人材評価</td><td><code>evaluations</code></td><td>日報実績と連動した評価</td><td><span class="tag tag-orange">M5</span></td></tr>
+        <tr><td>工期・工程管理</td><td><code>schedule</code></td><td>現場ごとの計画工程と実績</td><td><span class="tag tag-orange">M2</span></td></tr>
+        <tr><td>材料管理</td><td><code>materials</code></td><td>資材マスタ・発注先・受発注</td><td><span class="tag tag-orange">M4</span></td></tr>
+        <tr><td>日報管理</td><td><code>reports</code></td><td>稼働・使用材料の日次記録</td><td><span class="tag tag-orange">M2</span></td></tr>
+        <tr><td>原価・予実管理</td><td><code>costs</code></td><td>実行予算・CostTransaction・予実対比</td><td><span class="tag tag-orange">M3</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>プロジェクトのディレクトリ構造</h3>
+  <pre><code>KEM_DDENKI/
+├── saas/                          &larr; SaaS版（Djangoプロジェクト）
+│   ├── config/                    &larr; Django設定
+│   │   ├── settings.py
+│   │   ├── urls.py
+│   │   └── wsgi.py
+│   ├── apps/
+│   │   ├── core/                  &larr; 共通基盤（TenantModel, Manager, Middleware）
+│   │   ├── tenants/               &larr; Company, CompanyApp
+│   │   ├── accounts/              &larr; User（カスタム）, Department
+│   │   └── masters/               &larr; WorkType, CostCategory, Customer, Supplier
+│   ├── tests/                     &larr; テスト（越境テスト必須）
+│   ├── CLAUDE.md                  &larr; Claude Code 向け開発規律
+│   └── pyproject.toml
+├── docs/saas/                     &larr; SaaS仕様書・解説
+│   ├── SPEC.md                    &larr; 基本仕様書 v0.2（最重要）
+│   ├── GUIDE.md                   &larr; 仕様書のわかりやすい解説
+│   ├── BUSINESS_PLAN.md           &larr; 事業計画
+│   └── adr/                       &larr; 設計判断記録
+├── bid_manager/                   &larr; 既存（Streamlit版）
+├── sagyo-nippou/                  &larr; 既存（Streamlit版）
+└── ...                            &larr; 他の既存アプリ</code></pre>
+</section>
+
+<!-- ==================== 3. 環境構築 ==================== -->
+<section id="setup">
+  <h2><span class="num">3</span>開発環境のセットアップ</h2>
+  <p class="section-lead">初回のみ。15分で完了する。</p>
+
+  <h3>前提条件</h3>
+  <ul class="checklist">
+    <li><span class="check"></span>Python 3.12 以上がインストール済み</li>
+    <li><span class="check"></span>Git がインストール済み</li>
+    <li><span class="check"></span>GitHub アカウントで KEM_DDENKI リポジトリにアクセスできる</li>
+  </ul>
+
+  <h3>手順</h3>
+  <pre><code># 1. リポジトリをクローン
+git clone https://github.com/mstk13/KEM_DDENKI.git
+cd KEM_DDENKI
+
+# 2. developer ブランチに移動
+git checkout developer
+
+# 3. SaaS ディレクトリに移動して仮想環境を作成
+cd saas
+python -m venv .venv
+
+# 4. 仮想環境を有効化
+# (Linux / Mac)
+source .venv/bin/activate
+# (Windows)
+.venv\Scripts\activate
+
+# 5. 依存パッケージをインストール
+pip install -e ".[dev]"
+
+# 6. マイグレーション実行（SQLite でローカル開発）
+USE_SQLITE=true python manage.py migrate
+
+# 7. 初期データ投入（原価区分4つ + グループ3つ）
+USE_SQLITE=true python manage.py seed
+
+# 8. テスト実行 — 15件全部通れば OK
+USE_SQLITE=true python -m pytest tests/ -v</code></pre>
+
+  <div class="rule info">
+    <div class="rule-title">&#x1f4a1; ヒント</div>
+    <p>ローカル開発は <code>USE_SQLITE=true</code> で SQLite を使う。PostgreSQL のセットアップは不要。本番・ステージングのみ PostgreSQL を使う。</p>
+  </div>
+</section>
+
+<!-- ==================== 4. 開発フロー ==================== -->
+<section id="workflow">
+  <h2><span class="num">4</span>開発フロー</h2>
+  <p class="section-lead">全員が同じやり方で進めることで、事故を防ぎ、レビューしやすくなる。</p>
+
+  <h3>Git ブランチ戦略</h3>
+  <pre><code>main          &larr; 本番リリース用。直接コミット禁止
+ ↑ PR + レビュー
+developer     &larr; 開発統合ブランチ
+ ↑ PR + CI green
+feature/*     &larr; 個人の作業ブランチ（ここで作業する）</code></pre>
+
+  <h3>日々の作業フロー</h3>
+  <div class="flow">
+    <div class="flow-step">
+      <div class="flow-marker"><div class="flow-dot"></div><div class="flow-line"></div></div>
+      <div class="flow-content">
+        <h4>1. feature ブランチを切る</h4>
+        <p><code>git checkout developer && git pull && git checkout -b feature/add-site-model</code><br>
+        ブランチ名は <code>feature/やること</code> の形式。英語で短く。</p>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-marker"><div class="flow-dot"></div><div class="flow-line"></div></div>
+      <div class="flow-content">
+        <h4>2. コードを書く</h4>
+        <p>モデル変更時は必ず <code>makemigrations</code> を実行。<br>テストも同じPRに含める（特に越境テスト）。</p>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-marker"><div class="flow-dot"></div><div class="flow-line"></div></div>
+      <div class="flow-content">
+        <h4>3. ローカルで確認</h4>
+        <p><code>ruff check .</code> で lint 通過を確認。<br>
+        <code>USE_SQLITE=true python -m pytest tests/ -v</code> で全テスト合格を確認。</p>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-marker"><div class="flow-dot"></div><div class="flow-line"></div></div>
+      <div class="flow-content">
+        <h4>4. Push して PR を作成</h4>
+        <p><code>git push -u origin feature/add-site-model</code><br>
+        GitHub で developer 向けの Pull Request を作成。変更内容を簡潔に書く。</p>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-marker"><div class="flow-dot"></div><div class="flow-line"></div></div>
+      <div class="flow-content">
+        <h4>5. CI 通過 + レビュー</h4>
+        <p>GitHub Actions が自動で lint・テストを実行。<br>最低1人のレビューが通ったらマージ。</p>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-marker"><div class="flow-dot"></div><div class="flow-line"></div></div>
+      <div class="flow-content">
+        <h4>6. feature ブランチを削除</h4>
+        <p>マージ後は feature ブランチを削除して完了。</p>
+      </div>
+    </div>
+  </div>
+
+  <h3>コミットメッセージの書き方</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>接頭辞</th><th>意味</th><th>例</th></tr></thead>
+      <tbody>
+        <tr><td><code>feat:</code></td><td>新機能の追加</td><td><code>feat: Site モデルと工程管理を追加</code></td></tr>
+        <tr><td><code>fix:</code></td><td>バグ修正</td><td><code>fix: WorkType の表示順が効かない問題を修正</code></td></tr>
+        <tr><td><code>refactor:</code></td><td>動作を変えないコード改善</td><td><code>refactor: CompanyScopedManager のフィルタロジックを整理</code></td></tr>
+        <tr><td><code>test:</code></td><td>テストの追加・修正</td><td><code>test: Site の越境テストを追加</code></td></tr>
+        <tr><td><code>docs:</code></td><td>ドキュメントの変更</td><td><code>docs: ADR-0004 を追加</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ==================== 5. 絶対ルール ==================== -->
+<section id="rules">
+  <h2><span class="num">5</span>絶対ルール（9つの約束）</h2>
+  <p class="section-lead">全員が守る。破ると他のメンバーの作業が壊れるか、将来100社のデータ移行が発生する。</p>
+
+  <div class="rule">
+    <div class="rule-title">&#x26d4; 1. 業種名をコードに書かない</div>
+    <p>「電気」「内装」「解体」等の業種名が <code>if</code> 文やクラス名に現れたら設計ミス。業種の違いは <code>WorkType</code> マスタの行で表現する。コードを変えずに業種を追加できることがSaaSの生命線。</p>
+  </div>
+
+  <div class="rule">
+    <div class="rule-title">&#x26d4; 2. テナント帰属モデルは TenantModel を継承する</div>
+    <p>会社に紐づくデータを持つモデルは全て <code>TenantModel</code> を継承すること。<code>company_id</code> が無いテーブル = テナントデータが混ざる = 情報漏洩。</p>
+  </div>
+
+  <div class="rule">
+    <div class="rule-title">&#x26d4; 3. 金額計算は Decimal のみ。float 禁止</div>
+    <p><code>float</code> は丸め誤差が出る。<code>0.1 + 0.2 = 0.30000000000000004</code> になる世界で原価計算はできない。</p>
+  </div>
+
+  <div class="rule">
+    <div class="rule-title">&#x26d4; 4. 工種 × 原価区分の粒度を崩さない</div>
+    <p>予算も実績も必ず「どの工種の、どの原価区分か」を記録する。この粒度が揃わないと予実対比もAI分析も成立しない。粒度を落とす変更は禁止。</p>
+  </div>
+
+  <div class="rule warn">
+    <div class="rule-title">&#x26a0;&#xfe0f; 5. main へ直接コミットしない</div>
+    <p>必ず feature ブランチ &rarr; PR &rarr; CI green &rarr; レビュー1名 の手順を踏む。</p>
+  </div>
+
+  <div class="rule warn">
+    <div class="rule-title">&#x26a0;&#xfe0f; 6. 新規モデルの PR には4点セットを含める</div>
+    <p>
+      &#10102; simple-history の設定 &nbsp;
+      &#10103; admin 登録 &nbsp;
+      &#10104; テナント越境テスト &nbsp;
+      &#10105; マイグレーション
+    </p>
+  </div>
+
+  <div class="rule warn">
+    <div class="rule-title">&#x26a0;&#xfe0f; 7. マイグレーションは expand / contract</div>
+    <p>カラム追加 &rarr; 両対応デプロイ &rarr; データ移行 &rarr; 次リリースで削除。破壊的変更（カラム改名・NOT NULL 追加）を1回のリリースでやらない。</p>
+  </div>
+
+  <div class="rule info">
+    <div class="rule-title">&#x1f4dd; 8. USE_TZ=True — 日時は aware datetime のみ</div>
+    <p>タイムゾーンなしの <code>datetime</code> を使わない。<code>timezone.now()</code> を使う。</p>
+  </div>
+
+  <div class="rule info">
+    <div class="rule-title">&#x1f4dd; 9. 設計判断をしたら ADR を書く</div>
+    <p><code>docs/saas/adr/</code> に <code>ADR-NNNN-タイトル.md</code> を追加。なぜその選択をしたかを未来の自分たちに残す。</p>
+  </div>
+</section>
+
+<!-- ==================== 6. テナント分離 ==================== -->
+<section id="tenant">
+  <h2><span class="num">6</span>テナント分離の仕組み</h2>
+  <p class="section-lead">SaaS開発で最も重要な概念。ここを理解しないとコードを書けない。</p>
+
+  <h3>マンションの例え</h3>
+  <div class="cols">
+    <div class="card">
+      <div class="card-title">&#x1f3e0; 一戸建て（今のKEM_DDENKI）</div>
+      <p>1社ごとにシステムを丸ごとコピーする。100社なら100個管理。無理。</p>
+    </div>
+    <div class="card">
+      <div class="card-title">&#x1f3e2; マンション（SaaS版）</div>
+      <p>建物（アプリ）は1つ。部屋（データ）は鍵で完全に分離。100社でも管理は1つ。</p>
+    </div>
+  </div>
+
+  <h3>行レベル分離の仕組み</h3>
+  <p>全テーブルの全行に「どの会社のデータか」を示す <code>company_id</code> を持たせる。</p>
+
+  <pre><code># モデルの定義 — TenantModel を継承するだけ
+from apps.core.models import TenantModel
+
+class Site(TenantModel):
+    name = models.CharField("現場名", max_length=200)
+    # company は TenantModel が自動的に持つ。書かなくてOK
+
+
+# データの取得 — 自動フィルタされる
+Site.objects.all()
+# → ログイン中のユーザーが属する会社のデータのみ返る
+# → 裏で自動的に .filter(company=現在のテナント) がかかる
+
+
+# 全社のデータを見たい場合（管理者用途のみ。理由をコメントで明記）
+# unscoped: 全テナントのデータ集計に使用
+Site.unscoped.all()</code></pre>
+
+  <div class="rule">
+    <div class="rule-title">&#x26d4; フィルタ漏れ = 情報漏洩</div>
+    <p><code>TenantModel</code> を継承せずに会社データを持つテーブルを作ると、他社のデータが見える致命的なセキュリティ事故になる。だから「越境テスト」を CI で毎回自動実行する。</p>
+  </div>
+
+  <h3>越境テストの考え方</h3>
+  <pre><code># テスト: A社ユーザーがB社データに到達できないことを検証
+
+def test_site_isolation(company_a, company_b):
+    # A社とB社にそれぞれ現場を作成
+    Site.unscoped.create(company=company_a, name="A社の現場")
+    Site.unscoped.create(company=company_b, name="B社の現場")
+
+    # A社のコンテキストで取得 → A社のデータのみ見える
+    set_current_company(company_a)
+    assert Site.objects.count() == 1
+    assert Site.objects.first().name == "A社の現場"
+
+    # B社のコンテキストで取得 → B社のデータのみ見える
+    set_current_company(company_b)
+    assert Site.objects.count() == 1
+    assert Site.objects.first().name == "B社の現場"</code></pre>
+</section>
+
+<!-- ==================== 7. データモデル ==================== -->
+<section id="models">
+  <h2><span class="num">7</span>核心のデータモデル</h2>
+  <p class="section-lead">出口（データモデル）から設計する。入口（UI）は後で変えられるが、テーブル構造の変更は100社のデータ移行を伴う。</p>
+
+  <h3>CostTransaction — 原価データの統一テーブル</h3>
+  <p>建設業の原価を4区分に分け、<strong>全原価を1つのテーブルに同じ粒度で</strong>格納する。これが本プロダクトの核心。</p>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>原価区分</th><th>何か</th><th>自動生成のタイミング</th></tr></thead>
+      <tbody>
+        <tr><td><span class="tag tag-green">労務費</span></td><td>人件費</td><td>日報が承認されたとき（work_hours &times; hourly_cost）</td></tr>
+        <tr><td><span class="tag tag-purple">材料費</span></td><td>資材購入費</td><td>発注が検収されたとき（quantity &times; unit_price）</td></tr>
+        <tr><td><span class="tag tag-orange">外注費</span></td><td>下請け支払い</td><td>手入力</td></tr>
+        <tr><td><span class="tag tag-red">経費</span></td><td>交通費等</td><td>手入力</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <pre><code>粗利 = 受注金額 &minus; &Sigma; CostTransaction.amount
+
+例: 受注額 500万 &minus; 原価合計 320万 = 粗利 180万（36%）</code></pre>
+
+  <h3>CostTransaction は書き換えない（追記のみ）</h3>
+  <p>間違えた場合:</p>
+  <pre><code>1. 元の金額を打ち消す行を追加（逆仕訳: &minus;24,000円）
+2. 正しい金額の行を追加（再仕訳: +27,000円）
+
+→ 「いつ・誰が・何を修正したか」が全部追跡できる（監査可能性）</code></pre>
+
+  <h3>WorkType — 業種の違いをマスタデータで吸収</h3>
+  <pre><code>電気工事会社の WorkType:      内装工事会社の WorkType:
+  電気 &gt; 幹線・動力              内装仕上 &gt; 軽鉄・ボード
+  電気 &gt; 弱電                    内装仕上 &gt; クロス
+  電気 &gt; 受変電                  内装仕上 &gt; 床仕上
+
+→ コードは一切変更不要。マスタデータの行が違うだけ。</code></pre>
+</section>
+
+<!-- ==================== 8. ロードマップ ==================== -->
+<section id="roadmap">
+  <h2><span class="num">8</span>開発ロードマップ</h2>
+  <p class="section-lead">M3 まで作って初めて「売り物」になる。M1・M2 はそのための土台。</p>
+
+  <div class="milestone done">
+    <span class="milestone-tag">M1</span>
+    <div class="milestone-body">
+      <h4>基盤 <span class="tag tag-green">完了</span></h4>
+      <p>テナント分離・認証（カスタムUser）・マスタ（WorkType, CostCategory等）・CI・越境テスト15件</p>
+    </div>
+  </div>
+  <div class="milestone current">
+    <span class="milestone-tag">M2</span>
+    <div class="milestone-body">
+      <h4>日報 + 現場</h4>
+      <p>Site / Process / DailyReport モデル。日報UX（スマホ3タップ入力）。承認フロー（draft &rarr; submitted &rarr; approved）</p>
+    </div>
+  </div>
+  <div class="milestone">
+    <span class="milestone-tag">M3</span>
+    <div class="milestone-body">
+      <h4>原価・予実管理 &#x2190; ここで「売り物」になる</h4>
+      <p>CostTransaction・労務費自動仕訳・実行予算（BudgetItem）・予実対比画面・粗利率の案件一覧表示</p>
+    </div>
+  </div>
+  <div class="milestone">
+    <span class="milestone-tag">M4</span>
+    <div class="milestone-body">
+      <h4>材料（受発注）</h4>
+      <p>PurchaseOrder / PurchaseOrderItem。検収 &rarr; 材料費 CostTransaction の自動生成</p>
+    </div>
+  </div>
+  <div class="milestone">
+    <span class="milestone-tag">M5</span>
+    <div class="milestone-body">
+      <h4>人材管理 + 評価</h4>
+      <p>Worker / JobTitle / Position / WorkerEvaluation。日報実績との連動</p>
+    </div>
+  </div>
+  <div class="milestone">
+    <span class="milestone-tag">M6</span>
+    <div class="milestone-body">
+      <h4>分析ダッシュボード</h4>
+      <p>工種別粗利・歩掛実績反映。ここまでは統計処理のみで実現</p>
+    </div>
+  </div>
+  <div class="milestone">
+    <span class="milestone-tag">M7</span>
+    <div class="milestone-body">
+      <h4>AI 連携</h4>
+      <p>類似案件検索・見積ドラフト・施工計画ドラフト。M6 までのデータ品質に完全に依存</p>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== 9. 学習リソース ==================== -->
+<section id="learning">
+  <h2><span class="num">9</span>学習リソース</h2>
+  <p class="section-lead">開発開始前に最低限やっておくべきことと、段階的に深めるべきこと。</p>
+
+  <h3>&#x1f534; 最優先（開発開始前）</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>項目</th><th>なぜ必要か</th><th>学び方</th></tr></thead>
+      <tbody>
+        <tr><td>Python 基礎</td><td>全コードが Python</td><td>実践で補強</td></tr>
+        <tr><td>Django 公式チュートリアル</td><td>フレームワークの基本動作</td><td>Part 1〜7 を実際にやる</td></tr>
+        <tr><td>Django ORM</td><td>SQL を書かずに DB を操作</td><td>チュートリアル内で学べる</td></tr>
+        <tr><td>Git / GitHub Flow</td><td>PR ベース開発</td><td>実際の PR で慣れる</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>&#x1f7e1; 重要（M1〜M2 の開発中に深める）</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>項目</th><th>なぜ必要か</th></tr></thead>
+      <tbody>
+        <tr><td>PostgreSQL 基礎</td><td>インデックス・外部キー・トランザクションの概念</td></tr>
+        <tr><td>テスト（pytest）</td><td>越境テストが CI で必須</td></tr>
+        <tr><td>Docker 基礎</td><td>開発環境と本番環境の統一</td></tr>
+        <tr><td>HTML / CSS 基礎</td><td>Django テンプレートで画面を作るため</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>&#x1f7e2; 後でよい（M3 以降）</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>項目</th><th>時期</th></tr></thead>
+      <tbody>
+        <tr><td>JavaScript 基礎</td><td>スマホ UX 改善時</td></tr>
+        <tr><td>セキュリティ（OWASP Top 10）</td><td>本番リリース前</td></tr>
+        <tr><td>インフラ（AWS / VPS 運用）</td><td>初期ローンチ時</td></tr>
+        <tr><td>AI 連携（Claude API）</td><td>M7</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>プロジェクト内のドキュメント</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>ファイル</th><th>内容</th><th>いつ読むか</th></tr></thead>
+      <tbody>
+        <tr><td><code>docs/saas/SPEC.md</code></td><td>基本仕様書 v0.2（全体設計の拠り所）</td><td>最初に通読。迷ったら戻る</td></tr>
+        <tr><td><code>docs/saas/GUIDE.md</code></td><td>仕様書のわかりやすい解説</td><td>SPEC.md が難しいとき</td></tr>
+        <tr><td><code>docs/saas/PRESENTATION.md</code></td><td>プロジェクト全体像のプレゼン</td><td>最初に読む（概要把握用）</td></tr>
+        <tr><td><code>docs/saas/BUSINESS_PLAN.md</code></td><td>事業計画（価格・損益分岐）</td><td>なぜ作るかを理解したいとき</td></tr>
+        <tr><td><code>saas/CLAUDE.md</code></td><td>開発規律（Claude Code 向け）</td><td>コードを書く前に</td></tr>
+        <tr><td><code>docs/saas/adr/</code></td><td>設計判断記録</td><td>「なぜこうなっている？」と思ったとき</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+</div><!-- /.container -->
+
+<footer>
+  建設業向けマルチテナントSaaS &mdash; チーム開発ガイド &mdash; 最終更新: 2026-08-01
+</footer>
+
+</body>
+</html>
