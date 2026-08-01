@@ -1,0 +1,289 @@
+{% extends "base.html" %}
+{% block title %}評価テンプレート編集 — 建設SaaS{% endblock %}
+{% block topbar_title %}評価テンプレート編集{% endblock %}
+
+{% block content %}
+<style>
+  .tmpl-hero {
+    background: var(--brand-gradient);
+    border-radius: var(--radius);
+    padding: 24px 32px;
+    color: var(--white);
+    margin-bottom: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .tmpl-hero h1 { font-size: 1.2rem; font-weight: 700; color: var(--white); margin-bottom: 2px; }
+  .tmpl-hero .meta { font-size: .82rem; opacity: .8; }
+
+  .section-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    margin-bottom: 16px;
+    box-shadow: var(--shadow-xs);
+  }
+  .section-header {
+    padding: 16px 24px;
+    border-bottom: 1px solid var(--border-light);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--surface-hover);
+    border-radius: var(--radius) var(--radius) 0 0;
+  }
+  .section-header h3 {
+    font-size: .92rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .section-body { padding: 20px 24px; }
+
+  .q-row {
+    display: grid;
+    grid-template-columns: 60px 1fr 80px;
+    gap: 12px;
+    align-items: start;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border-light);
+  }
+  .q-row:last-child { border-bottom: none; }
+  .q-num-input {
+    width: 100%;
+    padding: 6px 8px;
+    border: 1.5px solid var(--border);
+    border-radius: 6px;
+    font-size: .82rem;
+    text-align: center;
+    font-family: inherit;
+  }
+  .q-text-input {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1.5px solid var(--border);
+    border-radius: 6px;
+    font-size: .85rem;
+    font-family: inherit;
+    resize: vertical;
+    min-height: 36px;
+    transition: var(--transition);
+  }
+  .q-text-input:focus, .q-num-input:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px rgba(66,153,225,.12);
+  }
+
+  .add-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 14px;
+    border: 1.5px dashed var(--border);
+    border-radius: 6px;
+    background: none;
+    color: var(--text-muted);
+    font-size: .82rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: var(--transition);
+    font-family: inherit;
+  }
+  .add-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--info-light); }
+
+  .remove-btn {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: .88rem;
+    padding: 4px 8px;
+    border-radius: 4px;
+    transition: var(--transition);
+  }
+  .remove-btn:hover { color: var(--danger); background: var(--danger-light); }
+
+  .scale-row {
+    display: grid;
+    grid-template-columns: 60px 1fr 40px;
+    gap: 12px;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border-light);
+  }
+  .scale-row:last-child { border-bottom: none; }
+</style>
+
+<div class="tmpl-hero">
+  <div>
+    <h1>{{ template.name }}</h1>
+    <div class="meta">{{ template.company }} ｜ テンプレートを編集して保存</div>
+  </div>
+  <a href="{% url 'workers:evaluations' %}" class="btn btn-outline btn-sm" style="color:var(--white);border-color:rgba(255,255,255,.3);">戻る</a>
+</div>
+
+<form method="post" id="template-form">
+{% csrf_token %}
+
+<!-- スケール -->
+<div class="section-card">
+  <div class="section-header">
+    <h3><span class="badge badge-blue">設定</span> 評価スケール</h3>
+  </div>
+  <div class="section-body" id="scale-container">
+    {% for s in template.scale %}
+    <div class="scale-row" data-scale-idx="{{ forloop.counter0 }}">
+      <input type="number" name="scale_value_{{ forloop.counter0 }}" value="{{ s.value }}" class="q-num-input" placeholder="値">
+      <input type="text" name="scale_label_{{ forloop.counter0 }}" value="{{ s.label }}" class="q-text-input" placeholder="ラベル">
+      <button type="button" class="remove-btn" onclick="this.closest('.scale-row').remove()">&#x2715;</button>
+    </div>
+    {% endfor %}
+    <button type="button" class="add-btn" style="margin-top:8px;" onclick="addScale()">+ スケール追加</button>
+  </div>
+</div>
+
+<!-- 評価項目セクション -->
+{% for item in template.survey_items %}
+<div class="section-card" data-item-idx="{{ forloop.counter0 }}">
+  <div class="section-header">
+    <h3>
+      <span class="badge badge-{% if item.section == '共通' %}gray{% elif item.section == '電工' %}blue{% elif item.section == '事務' %}green{% else %}orange{% endif %}">{{ item.section }}</span>
+      <input type="text" name="item_name_{{ forloop.counter0 }}" value="{{ item.name }}" class="q-text-input" style="max-width:300px;font-weight:600;">
+    </h3>
+    <div style="display:flex;align-items:center;gap:8px;">
+      <select name="item_section_{{ forloop.counter0 }}" class="q-num-input" style="width:auto;padding:4px 8px;">
+        <option value="共通" {% if item.section == "共通" %}selected{% endif %}>共通</option>
+        <option value="電工" {% if item.section == "電工" %}selected{% endif %}>電工</option>
+        <option value="事務" {% if item.section == "事務" %}selected{% endif %}>事務</option>
+        <option value="社長" {% if item.section == "社長" %}selected{% endif %}>社長</option>
+        <option value="役員" {% if item.section == "役員" %}selected{% endif %}>役員</option>
+        <option value="管理" {% if item.section == "管理" %}selected{% endif %}>管理</option>
+        <option value="ITインフラ" {% if item.section == "ITインフラ" %}selected{% endif %}>ITインフラ</option>
+        <option value="developer" {% if item.section == "developer" %}selected{% endif %}>Developer</option>
+      </select>
+      <input type="number" name="item_num_{{ forloop.counter0 }}" value="{{ item.num }}" class="q-num-input" style="width:50px;" placeholder="No">
+    </div>
+  </div>
+  <div class="section-body">
+    <input type="hidden" name="item_max_score_{{ forloop.counter0 }}" value="{{ item.max_score|default:'' }}">
+
+    <!-- アンカー -->
+    <div style="margin-bottom:16px;">
+      <label style="font-size:.78rem;font-weight:600;color:var(--text-muted);margin-bottom:4px;display:block;">5 (最高) の基準</label>
+      <input type="text" name="item_anchor5_{{ forloop.counter0 }}" value="{{ item.anchor_5|default:'' }}" class="q-text-input" placeholder="5の具体的な行動基準">
+    </div>
+    <div style="margin-bottom:16px;">
+      <label style="font-size:.78rem;font-weight:600;color:var(--text-muted);margin-bottom:4px;display:block;">3 (標準) の基準</label>
+      <input type="text" name="item_anchor3_{{ forloop.counter0 }}" value="{{ item.anchor_3|default:'' }}" class="q-text-input" placeholder="3の具体的な行動基準">
+    </div>
+    <div style="margin-bottom:16px;">
+      <label style="font-size:.78rem;font-weight:600;color:var(--text-muted);margin-bottom:4px;display:block;">1 (要改善) の基準</label>
+      <input type="text" name="item_anchor1_{{ forloop.counter0 }}" value="{{ item.anchor_1|default:'' }}" class="q-text-input" placeholder="1の具体的な行動基準">
+    </div>
+    <div style="margin-bottom:16px;">
+      <label style="font-size:.78rem;font-weight:600;color:var(--text-muted);margin-bottom:4px;display:block;">自由記述の指示文</label>
+      <input type="text" name="item_freetext_{{ forloop.counter0 }}" value="{{ item.free_text|default:'' }}" class="q-text-input" placeholder="自由記述の入力を促す文">
+    </div>
+
+    <!-- 質問一覧 -->
+    <label style="font-size:.78rem;font-weight:600;color:var(--text-muted);margin-bottom:8px;display:block;">個別質問</label>
+    <div id="questions-{{ forloop.counter0 }}">
+      {% for q in item.questions %}
+      <div class="q-row">
+        <input type="text" name="q_num_{{ forloop.parentloop.counter0 }}_{{ forloop.counter0 }}" value="{{ q.qnum }}" class="q-num-input" placeholder="番号">
+        <textarea name="q_text_{{ forloop.parentloop.counter0 }}_{{ forloop.counter0 }}" class="q-text-input" rows="1">{{ q.text }}</textarea>
+        <button type="button" class="remove-btn" onclick="this.closest('.q-row').remove()">&#x2715;</button>
+      </div>
+      {% endfor %}
+    </div>
+    <button type="button" class="add-btn" style="margin-top:8px;" onclick="addQuestion({{ forloop.counter0 }})">+ 質問追加</button>
+  </div>
+</div>
+{% endfor %}
+
+<!-- 総合所見 -->
+<div class="section-card">
+  <div class="section-header">
+    <h3><span class="badge badge-green">総合</span> 総合所見</h3>
+  </div>
+  <div class="section-body" id="overall-container">
+    {% for o in template.overall %}
+    <div class="q-row">
+      <input type="text" name="overall_qnum_{{ forloop.counter0 }}" value="{{ o.qnum }}" class="q-num-input" placeholder="番号">
+      <div>
+        <textarea name="overall_text_{{ forloop.counter0 }}" class="q-text-input" rows="1">{{ o.text }}</textarea>
+        <label style="font-size:.75rem;color:var(--text-muted);margin-top:4px;display:flex;align-items:center;gap:4px;">
+          <input type="checkbox" name="overall_byself_{{ forloop.counter0 }}" {% if o.by_self %}checked{% endif %}> 本人記入
+        </label>
+      </div>
+      <button type="button" class="remove-btn" onclick="this.closest('.q-row').remove()">&#x2715;</button>
+    </div>
+    {% endfor %}
+    <button type="button" class="add-btn" style="margin-top:8px;" onclick="addOverall()">+ 所見項目追加</button>
+  </div>
+</div>
+
+<div style="display:flex;gap:12px;margin:28px 0 48px;justify-content:center;">
+  <button type="submit" class="btn btn-primary" style="padding:12px 40px;font-size:.92rem;">テンプレートを保存</button>
+  <a href="{% url 'workers:evaluations' %}" class="btn btn-outline" style="padding:12px 32px;">キャンセル</a>
+</div>
+
+</form>
+
+<script>
+let scaleIdx = {{ template.scale|length }};
+let overallIdx = {{ template.overall|length }};
+const qCounters = {};
+{% for item in template.survey_items %}
+qCounters[{{ forloop.counter0 }}] = {{ item.questions|length }};
+{% endfor %}
+
+function addScale() {
+  const c = document.getElementById('scale-container');
+  const div = document.createElement('div');
+  div.className = 'scale-row';
+  div.innerHTML = `
+    <input type="number" name="scale_value_${scaleIdx}" class="q-num-input" placeholder="値">
+    <input type="text" name="scale_label_${scaleIdx}" class="q-text-input" placeholder="ラベル">
+    <button type="button" class="remove-btn" onclick="this.closest('.scale-row').remove()">&#x2715;</button>
+  `;
+  c.insertBefore(div, c.querySelector('.add-btn'));
+  scaleIdx++;
+}
+
+function addQuestion(itemIdx) {
+  const c = document.getElementById('questions-' + itemIdx);
+  const qi = qCounters[itemIdx] || 0;
+  const div = document.createElement('div');
+  div.className = 'q-row';
+  div.innerHTML = `
+    <input type="text" name="q_num_${itemIdx}_${qi}" class="q-num-input" placeholder="番号">
+    <textarea name="q_text_${itemIdx}_${qi}" class="q-text-input" rows="1" placeholder="質問文"></textarea>
+    <button type="button" class="remove-btn" onclick="this.closest('.q-row').remove()">&#x2715;</button>
+  `;
+  c.appendChild(div);
+  qCounters[itemIdx] = qi + 1;
+}
+
+function addOverall() {
+  const c = document.getElementById('overall-container');
+  const div = document.createElement('div');
+  div.className = 'q-row';
+  div.innerHTML = `
+    <input type="text" name="overall_qnum_${overallIdx}" class="q-num-input" placeholder="番号">
+    <div>
+      <textarea name="overall_text_${overallIdx}" class="q-text-input" rows="1" placeholder="質問文"></textarea>
+      <label style="font-size:.75rem;color:var(--text-muted);margin-top:4px;display:flex;align-items:center;gap:4px;">
+        <input type="checkbox" name="overall_byself_${overallIdx}"> 本人記入
+      </label>
+    </div>
+    <button type="button" class="remove-btn" onclick="this.closest('.q-row').remove()">&#x2715;</button>
+  `;
+  c.insertBefore(div, c.querySelector('.add-btn'));
+  overallIdx++;
+}
+</script>
+{% endblock %}
