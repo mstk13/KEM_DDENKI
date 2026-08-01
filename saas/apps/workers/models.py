@@ -100,6 +100,11 @@ class Worker(TenantModel):
         verbose_name = "作業員"
         verbose_name_plural = "作業員"
 
+    @property
+    def monthly_salary(self):
+        """月収目安（8h × 21日）。"""
+        return self.hourly_cost * 168
+
     def __str__(self):
         return self.name
 

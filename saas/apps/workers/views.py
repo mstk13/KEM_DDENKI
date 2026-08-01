@@ -29,6 +29,7 @@ def worker_detail(request, pk):
     return render(request, "workers/detail.html", {
         "worker": worker,
         "qualifications": qualifications,
+        "monthly_salary": worker.monthly_salary,
     })
 
 
