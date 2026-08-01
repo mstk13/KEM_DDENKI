@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}日報一覧 — 建設SaaS{% endblock %}
+{% block topbar_title %}日報管理{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>日報一覧</h1>
+  <a href="{% url 'reports:create' %}" class="btn btn-primary">+ 日報を書く</a>
+</div>
+
+<div class="card">
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>日付</th><th>作業員</th><th>現場</th><th>工種</th><th>時間</th><th>状態</th><th></th></tr></thead>
+      <tbody>
+        {% for r in reports %}
+        <tr>
+          <td>{{ r.report_date }}</td>
+          <td>{{ r.worker }}</td>
+          <td>{{ r.site }}</td>
+          <td>{{ r.work_type }}</td>
+          <td>{{ r.work_hours }}h</td>
+          <td>
+            {% if r.status == 'draft' %}<span class="badge badge-gray">下書き</span>
+            {% elif r.status == 'submitted' %}<span class="badge badge-orange">提出済</span>
+            {% elif r.status == 'approved' %}<span class="badge badge-green">承認済</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if r.status == 'submitted' %}
+            <a href="{% url 'reports:approve' r.pk %}" class="btn btn-success btn-sm">承認</a>
+            {% endif %}
+            <a href="{% url 'reports:edit' r.pk %}" class="btn btn-outline btn-sm">編集</a>
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="7"><div class="empty"><div class="empty-icon">&#x1f4dd;</div><p>日報がありません</p></div></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

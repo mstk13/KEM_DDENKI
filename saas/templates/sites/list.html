@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}現場一覧 — 建設SaaS{% endblock %}
+{% block topbar_title %}現場管理{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>現場一覧</h1>
+  <a href="{% url 'sites:create' %}" class="btn btn-primary">+ 現場を登録</a>
+</div>
+
+<div class="card">
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>コード</th><th>現場名</th><th>得意先</th><th>状態</th><th>受注金額</th><th>工期</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for site in sites %}
+        <tr>
+          <td>{{ site.code }}</td>
+          <td><a href="{% url 'sites:detail' site.pk %}">{{ site.name }}</a></td>
+          <td>{{ site.customer|default:"-" }}</td>
+          <td>
+            {% if site.status == 'in_progress' %}<span class="badge badge-blue">施工中</span>
+            {% elif site.status == 'completed' %}<span class="badge badge-green">完工</span>
+            {% elif site.status == 'estimating' %}<span class="badge badge-gray">見積中</span>
+            {% elif site.status == 'ordered' %}<span class="badge badge-orange">受注済</span>
+            {% elif site.status == 'billed' %}<span class="badge badge-green">請求済</span>
+            {% elif site.status == 'cancelled' %}<span class="badge badge-red">中止</span>
+            {% endif %}
+          </td>
+          <td>{{ site.contract_amount|floatformat:0 }} 円</td>
+          <td>{{ site.start_date|default:"-" }} 〜 {{ site.end_date|default:"" }}</td>
+          <td><a href="{% url 'sites:edit' site.pk %}" class="btn btn-outline btn-sm">編集</a></td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="7"><div class="empty"><div class="empty-icon">&#x1f3d7;&#xfe0f;</div><p>現場が登録されていません</p></div></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

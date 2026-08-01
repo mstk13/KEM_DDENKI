@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}{{ site.name }} — 建設SaaS{% endblock %}
+{% block topbar_title %}現場詳細{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>{{ site.name }}</h1>
+  <div>
+    <a href="{% url 'sites:edit' site.pk %}" class="btn btn-outline btn-sm">編集</a>
+    <a href="{% url 'sites:list' %}" class="btn btn-outline btn-sm">一覧に戻る</a>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+  <div class="card">
+    <div class="card-header"><h2>基本情報</h2></div>
+    <dl class="detail-grid">
+      <dt>現場コード</dt><dd>{{ site.code }}</dd>
+      <dt>得意先</dt><dd>{{ site.customer|default:"-" }}</dd>
+      <dt>状態</dt><dd>{{ site.get_status_display }}</dd>
+      <dt>受注金額</dt><dd>{{ site.contract_amount|floatformat:0 }} 円</dd>
+      <dt>工期</dt><dd>{{ site.start_date|default:"-" }} 〜 {{ site.end_date|default:"" }}</dd>
+      <dt>担当者</dt><dd>{{ site.manager|default:"-" }}</dd>
+      <dt>住所</dt><dd>{{ site.address|default:"-" }}</dd>
+    </dl>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><h2>原価サマリ</h2></div>
+    <div class="card-body">
+      <div class="stats" style="margin-bottom:0;">
+        <div class="stat-card" style="box-shadow:none;border:1px solid var(--gray-200);">
+          <div class="stat-label">受注金額</div>
+          <div class="stat-value">{{ site.contract_amount|floatformat:0 }}</div>
+        </div>
+        <div class="stat-card" style="box-shadow:none;border:1px solid var(--gray-200);">
+          <div class="stat-label">原価合計</div>
+          <div class="stat-value orange">{{ total_cost|floatformat:0|default:"0" }}</div>
+        </div>
+        <div class="stat-card" style="box-shadow:none;border:1px solid var(--gray-200);">
+          <div class="stat-label">粗利</div>
+          <div class="stat-value green">{{ gross_profit|floatformat:0|default:"0" }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card" style="margin-top:20px;">
+  <div class="card-header"><h2>工程</h2></div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>工程名</th><th>工種</th><th>計画開始</th><th>計画終了</th><th>状態</th></tr></thead>
+      <tbody>
+        {% for p in processes %}
+        <tr>
+          <td>{{ p.name }}</td>
+          <td>{{ p.work_type }}</td>
+          <td>{{ p.planned_start|default:"-" }}</td>
+          <td>{{ p.planned_end|default:"-" }}</td>
+          <td>{{ p.get_status_display }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="5" style="text-align:center;color:var(--gray-400);padding:20px;">工程が登録されていません</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

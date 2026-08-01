@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}材料・発注 — 建設SaaS{% endblock %}
+{% block topbar_title %}材料管理{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>材料・発注</h1>
+  <div>
+    <a href="{% url 'materials:create_material' %}" class="btn btn-primary">+ 材料を登録</a>
+    <a href="{% url 'materials:create_po' %}" class="btn btn-outline">+ 発注書</a>
+  </div>
+</div>
+
+<div class="card" style="margin-bottom:24px;">
+  <div class="card-header"><h2>材料マスタ</h2></div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>コード</th><th>材料名</th><th>単位</th><th>分類</th><th>状態</th></tr></thead>
+      <tbody>
+        {% for m in materials %}
+        <tr>
+          <td>{{ m.code }}</td>
+          <td>{{ m.name }}</td>
+          <td>{{ m.unit }}</td>
+          <td>{{ m.category|default:"-" }}</td>
+          <td>{% if m.is_active %}<span class="badge badge-green">有効</span>{% else %}<span class="badge badge-gray">無効</span>{% endif %}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="5"><div class="empty"><p>材料が登録されていません</p></div></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header"><h2>発注書</h2></div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>ID</th><th>現場</th><th>仕入先</th><th>発注日</th><th>状態</th></tr></thead>
+      <tbody>
+        {% for po in purchase_orders %}
+        <tr>
+          <td>PO-{{ po.pk }}</td>
+          <td>{{ po.site }}</td>
+          <td>{{ po.supplier }}</td>
+          <td>{{ po.order_date }}</td>
+          <td>
+            {% if po.status == 'draft' %}<span class="badge badge-gray">下書き</span>
+            {% elif po.status == 'ordered' %}<span class="badge badge-blue">発注済</span>
+            {% elif po.status == 'received' %}<span class="badge badge-green">検収済</span>
+            {% elif po.status == 'partially_received' %}<span class="badge badge-orange">一部検収</span>
+            {% elif po.status == 'cancelled' %}<span class="badge badge-red">取消</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="5"><div class="empty"><p>発注書がありません</p></div></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

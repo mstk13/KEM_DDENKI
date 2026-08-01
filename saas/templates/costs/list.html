@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}原価・予実 — 建設SaaS{% endblock %}
+{% block topbar_title %}原価・予実管理{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>原価・予実管理</h1>
+</div>
+
+<div class="card" style="margin-bottom:24px;">
+  <div class="card-header"><h2>現場別原価サマリ</h2></div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>現場</th><th>受注金額</th><th>原価合計</th><th>粗利</th><th>粗利率</th></tr></thead>
+      <tbody>
+        {% for s in site_costs %}
+        <tr>
+          <td><a href="{% url 'sites:detail' s.site.pk %}">{{ s.site.name }}</a></td>
+          <td>{{ s.site.contract_amount|floatformat:0 }} 円</td>
+          <td>{{ s.total_cost|floatformat:0 }} 円</td>
+          <td style="{% if s.gross_profit < 0 %}color:var(--red-500){% else %}color:var(--green-500){% endif %}">{{ s.gross_profit|floatformat:0 }} 円</td>
+          <td>
+            {% if s.margin_rate != None %}
+              <span class="badge {% if s.margin_rate >= 20 %}badge-green{% elif s.margin_rate >= 0 %}badge-orange{% else %}badge-red{% endif %}">{{ s.margin_rate|floatformat:1 }}%</span>
+            {% else %}-{% endif %}
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="5"><div class="empty"><p>原価データがありません</p></div></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header"><h2>最近の原価データ</h2></div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>日付</th><th>現場</th><th>工種</th><th>区分</th><th>種別</th><th>金額</th></tr></thead>
+      <tbody>
+        {% for tx in transactions %}
+        <tr>
+          <td>{{ tx.transaction_date }}</td>
+          <td>{{ tx.site }}</td>
+          <td>{{ tx.work_type }}</td>
+          <td>{{ tx.cost_category }}</td>
+          <td>{{ tx.get_source_type_display }}</td>
+          <td style="{% if tx.amount < 0 %}color:var(--red-500){% endif %}">{{ tx.amount|floatformat:0 }} 円</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="6"><div class="empty"><p>原価データがありません</p></div></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

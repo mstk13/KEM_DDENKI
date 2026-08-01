@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block title %}マスタ管理 — 建設SaaS{% endblock %}
+{% block topbar_title %}マスタ管理{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>マスタ管理</h1>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+
+  <div class="card">
+    <div class="card-header"><h2>工種マスタ</h2></div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>コード</th><th>工種名</th><th>親工種</th><th>状態</th></tr></thead>
+        <tbody>
+          {% for wt in worktypes %}
+          <tr>
+            <td>{{ wt.code }}</td>
+            <td>{{ wt.name }}</td>
+            <td>{{ wt.parent|default:"-" }}</td>
+            <td>{% if wt.is_active %}<span class="badge badge-green">有効</span>{% else %}<span class="badge badge-gray">無効</span>{% endif %}</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="4" style="text-align:center;color:var(--gray-400);padding:20px;">工種が登録されていません</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><h2>原価区分</h2></div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>コード</th><th>区分名</th></tr></thead>
+        <tbody>
+          {% for cc in cost_categories %}
+          <tr><td>{{ cc.code }}</td><td>{{ cc.name }}</td></tr>
+          {% empty %}
+          <tr><td colspan="2" style="text-align:center;color:var(--gray-400);padding:20px;">seedコマンドを実行してください</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><h2>得意先</h2></div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>コード</th><th>得意先名</th></tr></thead>
+        <tbody>
+          {% for c in customers %}
+          <tr><td>{{ c.code }}</td><td>{{ c.name }}</td></tr>
+          {% empty %}
+          <tr><td colspan="2" style="text-align:center;color:var(--gray-400);padding:20px;">得意先が登録されていません</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><h2>仕入先</h2></div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>コード</th><th>仕入先名</th></tr></thead>
+        <tbody>
+          {% for s in suppliers %}
+          <tr><td>{{ s.code }}</td><td>{{ s.name }}</td></tr>
+          {% empty %}
+          <tr><td colspan="2" style="text-align:center;color:var(--gray-400);padding:20px;">仕入先が登録されていません</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

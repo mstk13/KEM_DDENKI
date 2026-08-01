@@ -1,6 +1,9 @@
 from django.contrib import admin
+from django.contrib.auth import views as auth_views
 from django.http import JsonResponse
-from django.urls import path
+from django.urls import include, path
+
+from apps.core.views import dashboard
 
 
 def health_check(request):
@@ -18,4 +21,16 @@ def health_check(request):
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("health/", health_check),
+    # Auth
+    path("login/", auth_views.LoginView.as_view(), name="login"),
+    path("logout/", auth_views.LogoutView.as_view(), name="logout"),
+    # Dashboard
+    path("", dashboard, name="dashboard"),
+    # Apps
+    path("sites/", include("apps.sites.urls")),
+    path("reports/", include("apps.reports.urls")),
+    path("costs/", include("apps.costs.urls")),
+    path("materials/", include("apps.materials.urls")),
+    path("workers/", include("apps.workers.urls")),
+    path("masters/", include("apps.masters.urls")),
 ]

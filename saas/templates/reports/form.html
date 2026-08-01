@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}{% if form.instance.pk %}日報を編集{% else %}日報を書く{% endif %} — 建設SaaS{% endblock %}
+{% block topbar_title %}{% if form.instance.pk %}日報を編集{% else %}日報を書く{% endif %}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>{% if form.instance.pk %}日報を編集{% else %}日報を書く{% endif %}</h1>
+</div>
+
+<div class="card">
+  <div class="card-body">
+    <form method="post">
+      {% csrf_token %}
+      {% for field in form %}
+      <div class="form-group">
+        <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+        {{ field }}
+        {{ field.errors }}
+      </div>
+      {% endfor %}
+      <div class="form-actions">
+        <button type="submit" name="action" value="draft" class="btn btn-outline">下書き保存</button>
+        <button type="submit" name="action" value="submit" class="btn btn-primary">提出する</button>
+        <a href="{% url 'reports:list' %}" class="btn btn-outline">キャンセル</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

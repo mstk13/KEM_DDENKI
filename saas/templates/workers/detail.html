@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}{{ worker.name }} — 建設SaaS{% endblock %}
+{% block topbar_title %}作業員詳細{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>{{ worker.name }}</h1>
+  <div>
+    <a href="{% url 'workers:edit' worker.pk %}" class="btn btn-outline btn-sm">編集</a>
+    <a href="{% url 'workers:list' %}" class="btn btn-outline btn-sm">一覧に戻る</a>
+  </div>
+</div>
+
+<div class="card">
+  <dl class="detail-grid">
+    <dt>氏名</dt><dd>{{ worker.name }}</dd>
+    <dt>職種</dt><dd>{{ worker.job_title|default:"-" }}</dd>
+    <dt>役職</dt><dd>{{ worker.position|default:"-" }}</dd>
+    <dt>時間単価</dt><dd>{{ worker.hourly_cost|floatformat:0 }} 円/h</dd>
+    <dt>入社日</dt><dd>{{ worker.hire_date|default:"-" }}</dd>
+    <dt>スキルタグ</dt><dd>{{ worker.skill_tags|join:", "|default:"-" }}</dd>
+    <dt>状態</dt><dd>{% if worker.is_active %}有効{% else %}無効{% endif %}</dd>
+  </dl>
+</div>
+{% endblock %}

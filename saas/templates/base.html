@@ -1,0 +1,69 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{% block title %}建設SaaS{% endblock %}</title>
+<link rel="stylesheet" href="{% static 'css/style.css' %}">
+</head>
+<body>
+<div class="layout">
+
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <span>&#9653;</span> 建設SaaS
+    </div>
+    <nav class="sidebar-nav">
+      <a href="{% url 'dashboard' %}" class="{% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">&#x1f4ca; ダッシュボード</a>
+
+      <div class="nav-section">現場・日報</div>
+      <a href="{% url 'sites:list' %}" class="{% if 'sites:' in request.resolver_match.view_name %}active{% endif %}">&#x1f3d7;&#xfe0f; 現場管理</a>
+      <a href="{% url 'reports:list' %}" class="{% if 'reports:' in request.resolver_match.view_name %}active{% endif %}">&#x1f4dd; 日報管理</a>
+
+      <div class="nav-section">原価・材料</div>
+      <a href="{% url 'costs:list' %}" class="{% if 'costs:' in request.resolver_match.view_name %}active{% endif %}">&#x1f4b0; 原価・予実</a>
+      <a href="{% url 'materials:list' %}" class="{% if 'materials:' in request.resolver_match.view_name %}active{% endif %}">&#x1f4e6; 材料・発注</a>
+
+      <div class="nav-section">人材</div>
+      <a href="{% url 'workers:list' %}" class="{% if 'workers:' in request.resolver_match.view_name %}active{% endif %}">&#x1f465; 作業員</a>
+
+      <div class="nav-section">設定</div>
+      <a href="{% url 'masters:worktypes' %}" class="{% if 'masters:' in request.resolver_match.view_name %}active{% endif %}">&#x2699;&#xfe0f; マスタ管理</a>
+    </nav>
+    <div class="sidebar-footer">
+      {% if user.is_authenticated %}
+        {{ user.get_full_name|default:user.username }}<br>
+        <a href="{% url 'logout' %}">ログアウト</a>
+      {% endif %}
+    </div>
+  </aside>
+
+  <div class="main">
+    <header class="topbar">
+      <div style="display:flex;align-items:center;">
+        <button class="hamburger" aria-label="メニュー">&#9776;</button>
+        <span class="topbar-title">{% block topbar_title %}{% endblock %}</span>
+      </div>
+      <div class="topbar-right">
+        {% if user.company %}{{ user.company.name }}{% endif %}
+      </div>
+    </header>
+
+    {% if messages %}
+    <div class="messages">
+      {% for message in messages %}
+      <div class="message message-{{ message.tags }}">{{ message }}</div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    <div class="content">
+      {% block content %}{% endblock %}
+    </div>
+  </div>
+
+</div>
+<script src="{% static 'js/app.js' %}"></script>
+</body>
+</html>

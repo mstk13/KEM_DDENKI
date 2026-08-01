@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}ダッシュボード — 建設SaaS{% endblock %}
+{% block topbar_title %}ダッシュボード{% endblock %}
+
+{% block content %}
+<div class="stats">
+  <div class="stat-card">
+    <div class="stat-label">施工中の現場</div>
+    <div class="stat-value blue">{{ active_sites }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">本日の日報</div>
+    <div class="stat-value">{{ today_reports }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">承認待ち日報</div>
+    <div class="stat-value orange">{{ pending_reports }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">作業員数</div>
+    <div class="stat-value">{{ active_workers }}</div>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+
+  <div class="card">
+    <div class="card-header">
+      <h2>施工中の現場</h2>
+      <a href="{% url 'sites:list' %}" class="btn btn-outline btn-sm">全て見る</a>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>現場名</th><th>得意先</th><th>受注金額</th></tr></thead>
+        <tbody>
+          {% for site in recent_sites %}
+          <tr>
+            <td><a href="{% url 'sites:detail' site.pk %}">{{ site.name }}</a></td>
+            <td>{{ site.customer|default:"-" }}</td>
+            <td>{{ site.contract_amount|floatformat:0 }} 円</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="3" style="text-align:center;color:var(--gray-400);padding:24px;">現場がありません</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <h2>最近の日報</h2>
+      <a href="{% url 'reports:create' %}" class="btn btn-primary btn-sm">+ 日報を書く</a>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>日付</th><th>作業員</th><th>現場</th><th>状態</th></tr></thead>
+        <tbody>
+          {% for report in recent_reports %}
+          <tr>
+            <td>{{ report.report_date }}</td>
+            <td>{{ report.worker }}</td>
+            <td>{{ report.site }}</td>
+            <td>
+              {% if report.status == 'draft' %}<span class="badge badge-gray">下書き</span>
+              {% elif report.status == 'submitted' %}<span class="badge badge-orange">提出済</span>
+              {% elif report.status == 'approved' %}<span class="badge badge-green">承認済</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="4" style="text-align:center;color:var(--gray-400);padding:24px;">日報がありません</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
