@@ -125,11 +125,15 @@ def evaluation_create(request):
 
         total_score = request.POST.get("total_score")
 
+        # テンプレートを紐付け（使用したテンプレートの記録）
+        data = get_sections_for_worker(worker, company=request.user.company)
+
         ev = WorkerEvaluation.unscoped.create(
             company=request.user.company,
             worker=worker,
             evaluated_by=request.user,
             created_by=request.user,
+            template=data.get("template"),
             period=request.POST["period"],
             score=int(total_score) if total_score else None,
             comment=request.POST.get("total_comment", ""),

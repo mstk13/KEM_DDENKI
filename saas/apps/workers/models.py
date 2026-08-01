@@ -109,6 +109,46 @@ class Worker(TenantModel):
         return self.name
 
 
+class EvaluationTemplate(TenantModel):
+    """テナント別の評価テンプレート。
+
+    評価項目・質問・配点・スケールをJSONBで保持し、
+    テナントごとにカスタマイズ可能にする。
+    """
+
+    name = models.CharField("テンプレート名", max_length=200)
+    sections = models.JSONField(
+        "評価項目",
+        default=list,
+        help_text="[{section, num, name, description, max_score, ...}, ...]",
+    )
+    survey_items = models.JSONField(
+        "質問詳細",
+        default=list,
+        help_text="[{section, num, name, anchor_5/3/1, free_text, questions: [...]}, ...]",
+    )
+    scale = models.JSONField(
+        "評価スケール",
+        default=list,
+        help_text="[{value, label}, ...]",
+    )
+    overall = models.JSONField(
+        "総合所見項目",
+        default=list,
+        help_text="[{qnum, text, by_self}, ...]",
+    )
+    is_active = models.BooleanField("有効", default=True)
+
+    history = HistoricalRecords()
+
+    class Meta:
+        verbose_name = "評価テンプレート"
+        verbose_name_plural = "評価テンプレート"
+
+    def __str__(self):
+        return f"{self.company} - {self.name}"
+
+
 class WorkerEvaluation(TenantModel):
     """人材評価。アンケート回答を responses (JSONB) に格納。"""
 
@@ -124,6 +164,14 @@ class WorkerEvaluation(TenantModel):
         null=True,
         related_name="evaluations_given",
         verbose_name="評価者",
+    )
+    template = models.ForeignKey(
+        EvaluationTemplate,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="evaluations",
+        verbose_name="使用テンプレート",
     )
     period = models.CharField("評価期間", max_length=50, help_text="例: 2026-Q1")
     score = models.IntegerField("総合評点", null=True, blank=True)

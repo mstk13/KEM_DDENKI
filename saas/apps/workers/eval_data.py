@@ -1,7 +1,10 @@
-"""評価アンケートデータの読み込み。
+"""評価テンプレートデータの取得。
 
-static/data/ の JSON から評価項目・質問を読み込み、
-対象者の職種に応じたセクションを返す。
+1. テナントの EvaluationTemplate があればそれを使う
+2. なければ static/data/ の JSON をフォールバックとして使う
+
+テンプレートがテナントごとにカスタマイズ可能なため、
+フォールバックは初期セットアップ or テンプレート未作成時のみ使われる。
 """
 
 import json
@@ -15,23 +18,44 @@ def _load_json(filename):
         return json.load(f)
 
 
-def get_eval_items():
-    """eval_items.json を返す。"""
+def _fallback_eval_items():
     return _load_json("eval_items.json")
 
 
-def get_survey_data():
-    """survey_questions.json を返す。"""
+def _fallback_survey():
     return _load_json("survey_questions.json")
 
 
-def get_sections_for_worker(worker):
-    """対象者の職種に基づき、該当する評価セクションを返す。
+def get_template_for_company(company):
+    """テナントの有効な EvaluationTemplate を返す。なければ None。"""
+    from apps.workers.models import EvaluationTemplate
 
-    Returns: (items_for_worker, survey_items_for_worker, scale, overall)
+    return (
+        EvaluationTemplate.unscoped.filter(company=company, is_active=True)
+        .order_by("-created_at")
+        .first()
+    )
+
+
+def get_sections_for_worker(worker, company=None):
+    """対象者の職種に基づき、該当する評価データを返す。
+
+    テナントにテンプレートがあればそれを使い、なければ JSON フォールバック。
     """
-    eval_items = get_eval_items()
-    survey = get_survey_data()
+    company = company or worker.company
+    template = get_template_for_company(company)
+
+    if template:
+        eval_items = template.sections
+        survey_data_items = template.survey_items
+        scale = template.scale
+        overall = template.overall
+    else:
+        eval_items = _fallback_eval_items()
+        survey = _fallback_survey()
+        survey_data_items = survey["items"]
+        scale = survey["scale"]
+        overall = survey["overall"]
 
     job_name = str(worker.job_title) if worker.job_title else ""
 
@@ -41,17 +65,21 @@ def get_sections_for_worker(worker):
         applicable_sections.append("電工")
     elif job_name in ("事務", "developer"):
         applicable_sections.append("事務")
+    # テンプレートに存在するセクション名から自動判定（将来の業種拡張対応）
+    if template:
+        all_sections = {i.get("section") for i in eval_items}
+        # 共通以外で job_name と一致するセクションがあれば追加
+        if job_name in all_sections and job_name not in applicable_sections:
+            applicable_sections.append(job_name)
 
-    # eval_items からフィルタ
-    items = [i for i in eval_items if i["section"] in applicable_sections]
-
-    # survey_questions からフィルタ
-    survey_items = [i for i in survey["items"] if i["section"] in applicable_sections]
+    items = [i for i in eval_items if i.get("section") in applicable_sections]
+    survey_items = [i for i in survey_data_items if i.get("section") in applicable_sections]
 
     return {
         "items": items,
         "survey_items": survey_items,
-        "scale": survey["scale"],
-        "overall": survey["overall"],
+        "scale": scale,
+        "overall": overall,
         "sections": applicable_sections,
+        "template": template,
     }
