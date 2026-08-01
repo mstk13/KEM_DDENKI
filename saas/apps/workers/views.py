@@ -1,7 +1,7 @@
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404, redirect, render
 
-from apps.workers.forms import EvaluationForm, WorkerForm
+from apps.workers.forms import WorkerForm
 from apps.workers.models import Worker, WorkerEvaluation
 
 
@@ -83,15 +83,76 @@ def evaluation_detail(request, pk):
 
 @login_required
 def evaluation_create(request):
-    if request.method == "POST":
-        form = EvaluationForm(request.POST, company=request.user.company)
-        if form.is_valid():
-            ev = form.save(commit=False)
-            ev.company = request.user.company
-            ev.evaluated_by = request.user
-            ev.created_by = request.user
-            ev.save()
-            return redirect("workers:eval_detail", pk=ev.pk)
-    else:
-        form = EvaluationForm(company=request.user.company)
-    return render(request, "workers/eval_form.html", {"form": form})
+    """2段階: まず対象者・期間を選択 → アンケートフォームを表示。"""
+    from apps.workers.eval_data import get_sections_for_worker
+
+    if request.method == "POST" and "worker_id" in request.POST and "period" in request.POST:
+        worker = get_object_or_404(Worker, pk=request.POST["worker_id"])
+
+        if "total_score" not in request.POST:
+            # ステップ1: 対象者選択 → アンケートフォーム表示
+            data = get_sections_for_worker(worker)
+            eval_items = get_eval_items_with_max_score(data)
+            return render(request, "workers/eval_form.html", {
+                "worker": worker,
+                "period": request.POST["period"],
+                "survey_items": eval_items,
+                "scale": data["scale"],
+                "overall": data["overall"],
+                "sections": data["sections"],
+            })
+
+        # ステップ2: アンケート回答を保存
+        responses = {}
+        overall_responses = {}
+
+        for key, val in request.POST.items():
+            if key.startswith("score_") and val:
+                parts = key.replace("score_", "").rsplit("_", 1)
+                section, num = "_".join(parts[:-1]), parts[-1]
+                responses.setdefault(f"{section}_{num}", {})["score"] = int(val)
+            elif key.startswith("q_") and val:
+                parts = key.replace("q_", "").rsplit("_", 1)
+                section_part, qnum = "_".join(parts[:-1]), parts[-1]
+                responses.setdefault(section_part, {}).setdefault("questions", {})[qnum] = int(val)
+            elif key.startswith("freetext_") and val:
+                parts = key.replace("freetext_", "").rsplit("_", 1)
+                section, num = "_".join(parts[:-1]), parts[-1]
+                responses.setdefault(f"{section}_{num}", {})["free_text"] = val
+            elif key.startswith("overall_") and val:
+                qnum = key.replace("overall_", "")
+                overall_responses[qnum] = val
+
+        total_score = request.POST.get("total_score")
+
+        ev = WorkerEvaluation.unscoped.create(
+            company=request.user.company,
+            worker=worker,
+            evaluated_by=request.user,
+            created_by=request.user,
+            period=request.POST["period"],
+            score=int(total_score) if total_score else None,
+            comment=request.POST.get("total_comment", ""),
+            responses=responses,
+            overall_responses=overall_responses,
+        )
+        return redirect("workers:eval_detail", pk=ev.pk)
+
+    # GET: 対象者選択画面
+    workers = Worker.objects.filter(is_active=True).order_by("name")
+    return render(request, "workers/eval_start.html", {"workers": workers})
+
+
+def get_eval_items_with_max_score(data):
+    """survey_items に eval_items の max_score と description を付与。"""
+    items_map = {}
+    for item in data["items"]:
+        items_map[(item["section"], item["num"])] = item
+
+    result = []
+    for si in data["survey_items"]:
+        ei = items_map.get((si["section"], si["num"]), {})
+        si["max_score"] = ei.get("max_score", "")
+        si["description"] = si.get("anchor_5", "") or ei.get("description", "")
+        result.append(si)
+    return result

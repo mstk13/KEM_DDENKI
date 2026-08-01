@@ -1,29 +1,120 @@
 {% extends "base.html" %}
-{% block title %}{% if form.instance.pk %}評価を編集{% else %}評価を登録{% endif %} — 建設SaaS{% endblock %}
-{% block topbar_title %}{% if form.instance.pk %}評価を編集{% else %}評価を登録{% endif %}{% endblock %}
+{% block title %}人材評価アンケート — {{ worker.name }} — 建設SaaS{% endblock %}
+{% block topbar_title %}人材評価アンケート{% endblock %}
 
 {% block content %}
 <div class="page-header">
-  <h1>{% if form.instance.pk %}評価を編集{% else %}評価を登録{% endif %}</h1>
-</div>
-
-<div class="card">
-  <div class="card-body">
-    <form method="post">
-      {% csrf_token %}
-      {% for field in form %}
-      <div class="form-group">
-        <label for="{{ field.id_for_label }}">{{ field.label }}</label>
-        {{ field }}
-        {{ field.errors }}
-        {% if field.help_text %}<p style="font-size:.82rem;color:var(--gray-400);margin-top:4px;">{{ field.help_text }}</p>{% endif %}
-      </div>
-      {% endfor %}
-      <div class="form-actions">
-        <button type="submit" class="btn btn-primary">保存</button>
-        <a href="{% url 'workers:evaluations' %}" class="btn btn-outline">キャンセル</a>
-      </div>
-    </form>
+  <h1>{{ worker.name }} — {{ period }} 評価</h1>
+  <div>
+    <span class="badge badge-blue">{{ worker.job_title|default:"未設定" }}</span>
+    <span style="color:var(--gray-400);margin-left:8px;">対象セクション: {{ sections|join:", " }}</span>
   </div>
 </div>
+
+<form method="post">
+{% csrf_token %}
+<input type="hidden" name="worker_id" value="{{ worker.pk }}">
+<input type="hidden" name="period" value="{{ period }}">
+
+{% for item in survey_items %}
+<div class="card" style="margin-bottom:20px;">
+  <div class="card-header">
+    <h2>
+      <span class="badge badge-{% if item.section == '共通' %}gray{% elif item.section == '電工' %}blue{% elif item.section == '事務' %}green{% else %}orange{% endif %}" style="margin-right:8px;">{{ item.section }}</span>
+      {{ item.name }}
+    </h2>
+    <span style="font-size:.82rem;color:var(--gray-400);">配点: {{ item.max_score }}点</span>
+  </div>
+  <div class="card-body">
+
+    {% if item.description %}
+    <p style="color:var(--gray-500);font-size:.88rem;margin-bottom:16px;">{{ item.description }}</p>
+    {% endif %}
+
+    {% if item.anchor_5 or item.anchor_3 or item.anchor_1 %}
+    <div style="background:var(--blue-50);border-radius:8px;padding:14px 18px;margin-bottom:16px;font-size:.85rem;">
+      <div style="margin-bottom:6px;"><strong style="color:var(--green-500);">5 (最高):</strong> {{ item.anchor_5 }}</div>
+      <div style="margin-bottom:6px;"><strong style="color:var(--gray-500);">3 (標準):</strong> {{ item.anchor_3 }}</div>
+      <div><strong style="color:var(--red-500);">1 (要改善):</strong> {{ item.anchor_1 }}</div>
+    </div>
+    {% endif %}
+
+    <div style="margin-bottom:16px;">
+      <label style="font-size:.85rem;font-weight:600;color:var(--gray-700);display:block;margin-bottom:8px;">この項目の評価</label>
+      <div style="display:flex;gap:8px;">
+        {% for s in scale %}
+        <label style="display:flex;align-items:center;gap:4px;cursor:pointer;padding:6px 14px;border:1px solid var(--gray-200);border-radius:6px;font-size:.88rem;transition:all .15s;">
+          <input type="radio" name="score_{{ item.section }}_{{ item.num }}" value="{{ s.value }}" style="margin:0;">
+          <span><strong>{{ s.value }}</strong> {{ s.label }}</span>
+        </label>
+        {% endfor %}
+      </div>
+    </div>
+
+    {% for q in item.questions %}
+    <div style="padding:8px 0;border-top:1px solid var(--gray-100);">
+      <label style="font-size:.88rem;color:var(--gray-700);display:flex;align-items:flex-start;gap:8px;">
+        <span style="color:var(--gray-400);font-size:.78rem;flex-shrink:0;margin-top:2px;">{{ q.qnum }}</span>
+        {{ q.text }}
+      </label>
+      <div style="display:flex;gap:6px;margin-top:6px;margin-left:36px;">
+        {% for s in scale %}
+        <label style="display:flex;align-items:center;gap:3px;cursor:pointer;font-size:.82rem;color:var(--gray-500);">
+          <input type="radio" name="q_{{ item.section }}_{{ q.qnum }}" value="{{ s.value }}" style="margin:0;">
+          {{ s.value }}
+        </label>
+        {% endfor %}
+      </div>
+    </div>
+    {% endfor %}
+
+    {% if item.free_text %}
+    <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--gray-200);">
+      <label style="font-size:.85rem;font-weight:600;color:var(--gray-700);display:block;margin-bottom:6px;">自由記述</label>
+      <p style="font-size:.82rem;color:var(--gray-400);margin-bottom:6px;">{{ item.free_text }}</p>
+      <textarea name="freetext_{{ item.section }}_{{ item.num }}" class="form-control" rows="3"></textarea>
+    </div>
+    {% endif %}
+
+  </div>
+</div>
+{% endfor %}
+
+<div class="card" style="margin-bottom:20px;">
+  <div class="card-header"><h2>総合所見</h2></div>
+  <div class="card-body">
+    {% for o in overall %}
+    <div class="form-group">
+      <label>{{ o.qnum }}. {{ o.text }}{% if o.by_self %} <span class="badge badge-gray">本人記入</span>{% endif %}</label>
+      <textarea name="overall_{{ o.qnum }}" class="form-control" rows="3"></textarea>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<div class="card" style="margin-bottom:20px;">
+  <div class="card-header"><h2>総合評点・コメント</h2></div>
+  <div class="card-body">
+    <div class="form-group">
+      <label>総合評点（1〜5）</label>
+      <select name="total_score" class="form-control" style="width:200px;">
+        <option value="">-</option>
+        {% for s in scale %}
+        <option value="{{ s.value }}">{{ s.value }} — {{ s.label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-group">
+      <label>総合コメント</label>
+      <textarea name="total_comment" class="form-control" rows="4"></textarea>
+    </div>
+  </div>
+</div>
+
+<div class="form-actions" style="margin-bottom:40px;">
+  <button type="submit" class="btn btn-primary">評価を保存</button>
+  <a href="{% url 'workers:evaluations' %}" class="btn btn-outline">キャンセル</a>
+</div>
+
+</form>
 {% endblock %}

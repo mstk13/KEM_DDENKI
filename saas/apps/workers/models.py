@@ -110,7 +110,7 @@ class Worker(TenantModel):
 
 
 class WorkerEvaluation(TenantModel):
-    """人材評価。日報実績と連動。"""
+    """人材評価。アンケート回答を responses (JSONB) に格納。"""
 
     worker = models.ForeignKey(
         Worker,
@@ -126,8 +126,20 @@ class WorkerEvaluation(TenantModel):
         verbose_name="評価者",
     )
     period = models.CharField("評価期間", max_length=50, help_text="例: 2026-Q1")
-    score = models.IntegerField("評点", null=True, blank=True)
-    comment = models.TextField("コメント", blank=True)
+    score = models.IntegerField("総合評点", null=True, blank=True)
+    comment = models.TextField("総合コメント", blank=True)
+    responses = models.JSONField(
+        "アンケート回答",
+        default=dict,
+        blank=True,
+        help_text="各評価項目の回答 {section_num: {score, free_text, questions: {qnum: score}}}",
+    )
+    overall_responses = models.JSONField(
+        "総合所見回答",
+        default=dict,
+        blank=True,
+        help_text="総合所見 {qnum: text}",
+    )
 
     history = HistoricalRecords()
 

@@ -8,22 +8,71 @@
   <a href="{% url 'workers:evaluations' %}" class="btn btn-outline btn-sm">一覧に戻る</a>
 </div>
 
-<div class="card">
-  <dl class="detail-grid">
-    <dt>作業員</dt><dd><a href="{% url 'workers:detail' evaluation.worker.pk %}">{{ evaluation.worker.name }}</a></dd>
-    <dt>職種</dt><dd>{{ evaluation.worker.job_title|default:"-" }}</dd>
-    <dt>役職</dt><dd>{{ evaluation.worker.position|default:"-" }}</dd>
-    <dt>評価期間</dt><dd>{{ evaluation.period }}</dd>
-    <dt>評点</dt><dd>
-      {% if evaluation.score == 5 %}<span class="badge badge-green">5</span>
-      {% elif evaluation.score == 4 %}<span class="badge badge-blue">4</span>
-      {% elif evaluation.score == 3 %}<span class="badge badge-gray">3</span>
-      {% elif evaluation.score == 2 %}<span class="badge badge-orange">2</span>
-      {% elif evaluation.score == 1 %}<span class="badge badge-red">1</span>
-      {% else %}-{% endif %}
-    </dd>
-    <dt>評価者</dt><dd>{{ evaluation.evaluated_by|default:"-" }}</dd>
-    <dt>コメント</dt><dd>{{ evaluation.comment|default:"-"|linebreaksbr }}</dd>
-  </dl>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px;">
+  <div class="card">
+    <div class="card-header"><h2>基本情報</h2></div>
+    <dl class="detail-grid">
+      <dt>作業員</dt><dd><a href="{% url 'workers:detail' evaluation.worker.pk %}">{{ evaluation.worker.name }}</a></dd>
+      <dt>職種</dt><dd>{{ evaluation.worker.job_title|default:"-" }}</dd>
+      <dt>評価期間</dt><dd>{{ evaluation.period }}</dd>
+      <dt>評価者</dt><dd>{{ evaluation.evaluated_by|default:"-" }}</dd>
+      <dt>総合評点</dt><dd>
+        {% if evaluation.score %}
+          {% if evaluation.score >= 4 %}<span class="badge badge-green" style="font-size:1rem;padding:4px 14px;">{{ evaluation.score }}</span>
+          {% elif evaluation.score == 3 %}<span class="badge badge-blue" style="font-size:1rem;padding:4px 14px;">{{ evaluation.score }}</span>
+          {% else %}<span class="badge badge-orange" style="font-size:1rem;padding:4px 14px;">{{ evaluation.score }}</span>
+          {% endif %}
+        {% else %}-{% endif %}
+      </dd>
+    </dl>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><h2>総合コメント</h2></div>
+    <div class="card-body">
+      <p>{{ evaluation.comment|default:"（コメントなし）"|linebreaksbr }}</p>
+    </div>
+  </div>
 </div>
+
+{% if evaluation.responses %}
+<div class="card" style="margin-bottom:20px;">
+  <div class="card-header"><h2>評価項目別スコア</h2></div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>セクション・項目</th><th>スコア</th><th>自由記述</th></tr></thead>
+      <tbody>
+        {% for key, val in evaluation.responses.items %}
+        <tr>
+          <td>{{ key }}</td>
+          <td>
+            {% if val.score %}
+              {% if val.score >= 4 %}<span class="badge badge-green">{{ val.score }}</span>
+              {% elif val.score == 3 %}<span class="badge badge-blue">{{ val.score }}</span>
+              {% else %}<span class="badge badge-orange">{{ val.score }}</span>{% endif %}
+            {% else %}-{% endif %}
+          </td>
+          <td style="font-size:.85rem;color:var(--gray-600);">{{ val.free_text|default:"-" }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{% if evaluation.overall_responses %}
+<div class="card" style="margin-bottom:20px;">
+  <div class="card-header"><h2>総合所見</h2></div>
+  <div class="card-body">
+    {% for qnum, text in evaluation.overall_responses.items %}
+    <div style="margin-bottom:16px;">
+      <div style="font-size:.82rem;font-weight:600;color:var(--blue-700);margin-bottom:4px;">{{ qnum }}</div>
+      <p style="font-size:.9rem;">{{ text|linebreaksbr }}</p>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
 {% endblock %}
