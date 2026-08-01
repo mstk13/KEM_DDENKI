@@ -7,10 +7,11 @@ from apps.workers.models import Worker, WorkerEvaluation
 
 @login_required
 def worker_list(request):
-    workers = Worker.objects.select_related(
-        "job_title", "position"
-    ).order_by("name")
-    return render(request, "workers/list.html", {"workers": workers})
+    qs = Worker.objects.select_related("job_title", "position").order_by("name")
+    return render(request, "workers/list.html", {
+        "active_workers": qs.filter(is_active=True),
+        "inactive_workers": qs.filter(is_active=False),
+    })
 
 
 @login_required

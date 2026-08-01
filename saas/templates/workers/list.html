@@ -9,11 +9,12 @@
 </div>
 
 <div class="card">
+  <div class="card-header"><h2>有効な作業員（{{ active_workers|length }}名）</h2></div>
   <div class="table-wrap">
     <table>
-      <thead><tr><th>氏名</th><th>職種</th><th>役職</th><th>保有資格</th><th>時間単価 / 月収</th><th>状態</th><th></th></tr></thead>
+      <thead><tr><th>氏名</th><th>職種</th><th>役職</th><th>保有資格</th><th>時間単価 / 月収</th><th></th></tr></thead>
       <tbody>
-        {% for w in workers %}
+        {% for w in active_workers %}
         <tr>
           <td><a href="{% url 'workers:detail' w.pk %}">{{ w.name }}</a></td>
           <td>{{ w.job_title|default:"-" }}</td>
@@ -32,14 +33,43 @@
             {% endwith %}
           </td>
           <td>{{ w.hourly_cost|floatformat:0 }} 円/h<span style="color:var(--gray-400);margin-left:6px;">/</span> <span style="color:var(--gray-500);">{{ w.monthly_salary|floatformat:0 }} 円</span></td>
-          <td>{% if w.is_active %}<span class="badge badge-green">有効</span>{% else %}<span class="badge badge-gray">無効</span>{% endif %}</td>
           <td><a href="{% url 'workers:edit' w.pk %}" class="btn btn-outline btn-sm">編集</a></td>
         </tr>
         {% empty %}
-        <tr><td colspan="7"><div class="empty"><div class="empty-icon">&#x1f465;</div><p>作業員が登録されていません</p></div></td></tr>
+        <tr><td colspan="6"><div class="empty"><div class="empty-icon">&#x1f465;</div><p>有効な作業員がいません</p></div></td></tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
 </div>
+
+{% if inactive_workers %}
+<div class="card" style="margin-top:24px;opacity:.7;">
+  <div class="card-header"><h2 style="color:var(--gray-500);">無効な作業員（{{ inactive_workers|length }}名）</h2></div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>氏名</th><th>職種</th><th>役職</th><th>保有資格</th><th>時間単価 / 月収</th><th></th></tr></thead>
+      <tbody>
+        {% for w in inactive_workers %}
+        <tr style="color:var(--gray-400);">
+          <td><a href="{% url 'workers:detail' w.pk %}" style="color:var(--gray-500);">{{ w.name }}</a></td>
+          <td>{{ w.job_title|default:"-" }}</td>
+          <td>{{ w.position|default:"-" }}</td>
+          <td>
+            {% with tags=w.skill_tags %}
+              {% if tags.licenses %}
+                {% for q in tags.licenses %}<span class="badge badge-gray" style="margin:1px 2px;">{{ q }}</span>{% endfor %}
+              {% endif %}
+            {% endwith %}
+          </td>
+          <td>{{ w.hourly_cost|floatformat:0 }} 円/h<span style="margin-left:6px;">/</span> {{ w.monthly_salary|floatformat:0 }} 円</td>
+          <td><a href="{% url 'workers:edit' w.pk %}" class="btn btn-outline btn-sm">編集</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
 {% endblock %}
