@@ -1,0 +1,40 @@
+name: CI (SaaS)
+
+on:
+  push:
+    branches: [main, developer]
+    paths: ['saas/**']
+  pull_request:
+    branches: [main]
+    paths: ['saas/**']
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: saas
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Lint (ruff)
+        run: ruff check .
+
+      - name: Check migrations
+        run: |
+          USE_SQLITE=true python manage.py makemigrations --check --dry-run
+
+      - name: Run tests
+        run: |
+          USE_SQLITE=true python -m pytest tests/ -v
