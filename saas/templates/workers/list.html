@@ -11,19 +11,32 @@
 <div class="card">
   <div class="table-wrap">
     <table>
-      <thead><tr><th>氏名</th><th>職種</th><th>役職</th><th>時間単価</th><th>状態</th><th></th></tr></thead>
+      <thead><tr><th>氏名</th><th>職種</th><th>役職</th><th>保有資格</th><th>時間単価</th><th>状態</th><th></th></tr></thead>
       <tbody>
         {% for w in workers %}
         <tr>
           <td><a href="{% url 'workers:detail' w.pk %}">{{ w.name }}</a></td>
           <td>{{ w.job_title|default:"-" }}</td>
           <td>{{ w.position|default:"-" }}</td>
+          <td>
+            {% with tags=w.skill_tags %}
+              {% if tags.licenses %}
+                {% for q in tags.licenses %}<span class="badge badge-blue" style="margin:1px 2px;">{{ q }}</span>{% endfor %}
+              {% endif %}
+              {% if tags.skill_courses or tags.education %}
+                <span style="font-size:.75rem;color:var(--gray-400);margin-left:4px;">他{{ tags.skill_courses|length|add:tags.education|length }}件</span>
+              {% endif %}
+              {% if not tags.licenses and not tags.skill_courses and not tags.education %}
+                <span style="color:var(--gray-400);">-</span>
+              {% endif %}
+            {% endwith %}
+          </td>
           <td>{{ w.hourly_cost|floatformat:0 }} 円/h</td>
           <td>{% if w.is_active %}<span class="badge badge-green">有効</span>{% else %}<span class="badge badge-gray">無効</span>{% endif %}</td>
           <td><a href="{% url 'workers:edit' w.pk %}" class="btn btn-outline btn-sm">編集</a></td>
         </tr>
         {% empty %}
-        <tr><td colspan="6"><div class="empty"><div class="empty-icon">&#x1f465;</div><p>作業員が登録されていません</p></div></td></tr>
+        <tr><td colspan="7"><div class="empty"><div class="empty-icon">&#x1f465;</div><p>作業員が登録されていません</p></div></td></tr>
         {% endfor %}
       </tbody>
     </table>

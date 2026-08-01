@@ -11,15 +11,57 @@
   </div>
 </div>
 
-<div class="card">
-  <dl class="detail-grid">
-    <dt>氏名</dt><dd>{{ worker.name }}</dd>
-    <dt>職種</dt><dd>{{ worker.job_title|default:"-" }}</dd>
-    <dt>役職</dt><dd>{{ worker.position|default:"-" }}</dd>
-    <dt>時間単価</dt><dd>{{ worker.hourly_cost|floatformat:0 }} 円/h</dd>
-    <dt>入社日</dt><dd>{{ worker.hire_date|default:"-" }}</dd>
-    <dt>スキルタグ</dt><dd>{{ worker.skill_tags|join:", "|default:"-" }}</dd>
-    <dt>状態</dt><dd>{% if worker.is_active %}有効{% else %}無効{% endif %}</dd>
-  </dl>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+
+  <div class="card">
+    <div class="card-header"><h2>基本情報</h2></div>
+    <dl class="detail-grid">
+      <dt>氏名</dt><dd>{{ worker.name }}</dd>
+      <dt>職種</dt><dd>{{ worker.job_title|default:"-" }}</dd>
+      <dt>役職</dt><dd>{{ worker.position|default:"-" }}</dd>
+      <dt>時間単価</dt><dd>{{ worker.hourly_cost|floatformat:0 }} 円/h</dd>
+      <dt>入社日</dt><dd>{{ worker.hire_date|default:"-" }}</dd>
+      <dt>状態</dt><dd>{% if worker.is_active %}<span class="badge badge-green">有効</span>{% else %}<span class="badge badge-gray">無効</span>{% endif %}</dd>
+    </dl>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><h2>保有資格・教育</h2></div>
+    <div class="card-body">
+
+      {% if qualifications.licenses %}
+      <div style="margin-bottom:16px;">
+        <div style="font-size:.82rem;font-weight:600;color:var(--blue-700);margin-bottom:8px;">免許</div>
+        {% for q in qualifications.licenses %}
+          <span class="badge badge-blue" style="margin:2px 4px 2px 0;">{{ q }}</span>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      {% if qualifications.skill_courses %}
+      <div style="margin-bottom:16px;">
+        <div style="font-size:.82rem;font-weight:600;color:#15803d;margin-bottom:8px;">技能講習</div>
+        {% for q in qualifications.skill_courses %}
+          <span class="badge badge-green" style="margin:2px 4px 2px 0;">{{ q }}</span>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      {% if qualifications.education %}
+      <div style="margin-bottom:16px;">
+        <div style="font-size:.82rem;font-weight:600;color:var(--gray-600);margin-bottom:8px;">教育・特別教育</div>
+        {% for q in qualifications.education %}
+          <span class="badge badge-gray" style="margin:2px 4px 2px 0;">{{ q }}</span>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      {% if not qualifications.licenses and not qualifications.skill_courses and not qualifications.education %}
+      <p style="color:var(--gray-400);">資格情報が登録されていません</p>
+      {% endif %}
+
+    </div>
+  </div>
+
 </div>
 {% endblock %}

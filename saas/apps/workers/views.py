@@ -16,7 +16,20 @@ def worker_list(request):
 @login_required
 def worker_detail(request, pk):
     worker = get_object_or_404(Worker, pk=pk)
-    return render(request, "workers/detail.html", {"worker": worker})
+    tags = worker.skill_tags or {}
+    if isinstance(tags, list):
+        # 旧形式（フラットリスト）→ 全て教育に入れる
+        qualifications = {"education": tags, "skill_courses": [], "licenses": []}
+    else:
+        qualifications = {
+            "education": tags.get("education", []),
+            "skill_courses": tags.get("skill_courses", []),
+            "licenses": tags.get("licenses", []),
+        }
+    return render(request, "workers/detail.html", {
+        "worker": worker,
+        "qualifications": qualifications,
+    })
 
 
 @login_required
