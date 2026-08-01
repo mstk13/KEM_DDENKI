@@ -6,7 +6,10 @@ from apps.workers.models import JobTitle, Position, Worker, WorkerEvaluation
 class WorkerForm(forms.ModelForm):
     class Meta:
         model = Worker
-        fields = ["name", "job_title", "position", "hourly_cost", "hire_date", "is_active"]
+        fields = [
+            "name", "name_kana", "job_title", "position",
+            "hourly_cost", "hire_date", "is_active",
+        ]
         widgets = {
             "hire_date": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
         }

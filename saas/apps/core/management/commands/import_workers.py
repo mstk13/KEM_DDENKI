@@ -1,6 +1,6 @@
-"""作業員名簿（Excel）からWorkerデータをインポートするコマンド。
+"""作業員名簿（JSON）からWorkerデータをインポートするコマンド。
 
-Usage: docker compose exec web python manage.py import_workers /path/to/file.xlsx
+Usage: python manage.py import_workers /path/to/workers.json
 """
 
 import json
@@ -34,19 +34,20 @@ class Command(BaseCommand):
 
         for w in workers_data:
             job_title = None
-            if w["job_type"]:
+            if w.get("job_type"):
                 job_title, _ = JobTitle.unscoped.get_or_create(
                     company=company, name=w["job_type"],
                 )
 
-            hire_date = w["hire_date"] if w["hire_date"] else None
-
+            hire_date = w.get("hire_date") or None
+            furigana = w.get("furigana", "")
             skill_tags = w.get("qualifications", [])
 
             worker, is_new = Worker.unscoped.update_or_create(
                 company=company,
                 name=w["name"],
                 defaults={
+                    "name_kana": furigana,
                     "job_title": job_title,
                     "hire_date": hire_date,
                     "skill_tags": skill_tags,
@@ -57,10 +58,10 @@ class Command(BaseCommand):
 
             if is_new:
                 created += 1
-                self.stdout.write(f"  + {worker.name}")
+                self.stdout.write(f"  + {worker.name} ({furigana})")
             else:
                 updated += 1
-                self.stdout.write(f"  ~ {worker.name} (updated)")
+                self.stdout.write(f"  ~ {worker.name} ({furigana})")
 
         self.stdout.write(
             self.style.SUCCESS(

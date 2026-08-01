@@ -63,6 +63,7 @@ class Worker(TenantModel):
         verbose_name="ユーザーアカウント",
     )
     name = models.CharField("氏名", max_length=100)
+    name_kana = models.CharField("フリガナ", max_length=100, blank=True)
     job_title = models.ForeignKey(
         JobTitle,
         on_delete=models.SET_NULL,

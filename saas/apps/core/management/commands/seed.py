@@ -4,12 +4,20 @@ from django.contrib.auth.models import Group
 from django.core.management.base import BaseCommand
 
 from apps.masters.models import CostCategory
+from apps.tenants.models import Company
+from apps.workers.models import JobTitle, Position
 
 
 class Command(BaseCommand):
-    help = "原価区分・初期グループ等のシードデータを投入"
+    help = "原価区分・初期グループ・職種・役職のシードデータを投入"
+
+    def add_arguments(self, parser):
+        parser.add_argument(
+            "--company", default="", help="職種・役職を投入する会社名（省略時はスキップ）",
+        )
 
     def handle(self, *args, **options):
+        # 原価区分（全テナント共通）
         cost_categories = [
             ("material", "材料費", 1),
             ("labor", "労務費", 2),
@@ -22,7 +30,42 @@ class Command(BaseCommand):
                 defaults={"name": name, "display_order": order},
             )
 
+        # Django グループ
         for group_name in ("admin", "manager", "worker"):
             Group.objects.get_or_create(name=group_name)
 
-        self.stdout.write(self.style.SUCCESS("Seed data created successfully."))
+        self.stdout.write(self.style.SUCCESS("原価区分・グループを投入しました。"))
+
+        # テナント別 職種・役職
+        company_name = options.get("company")
+        if not company_name:
+            return
+
+        company = Company.objects.filter(name=company_name).first()
+        if not company:
+            self.stdout.write(f"会社「{company_name}」が見つかりません。")
+            return
+
+        job_titles = ["電工", "事務", "管理", "社長", "ITインフラ"]
+        for name in job_titles:
+            JobTitle.unscoped.get_or_create(company=company, name=name)
+
+        positions = [
+            ("社長", 1),
+            ("役員", 2),
+            ("正社員", 3),
+            ("シニア", 4),
+            ("ジュニア", 5),
+            ("試用期間", 6),
+            ("パート", 7),
+            ("Developer", 8),
+        ]
+        for name, rank in positions:
+            Position.unscoped.update_or_create(
+                company=company, name=name,
+                defaults={"rank": rank},
+            )
+
+        self.stdout.write(self.style.SUCCESS(
+            f"「{company.name}」に職種{len(job_titles)}件・役職{len(positions)}件を投入しました。"
+        ))

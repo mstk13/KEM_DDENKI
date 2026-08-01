@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% block title %}被評価者を選択 — 建設SaaS{% endblock %}
+{% block topbar_title %}人材評価{% endblock %}
+
+{% block content %}
+<style>
+  .eval-info-bar {
+    background: var(--brand-light);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px 24px;
+    margin-bottom: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .eval-info-bar .info {
+    font-size: .88rem;
+    color: var(--text-secondary);
+  }
+  .eval-info-bar .info strong {
+    color: var(--brand);
+  }
+  .target-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+    transition: var(--transition);
+    box-shadow: var(--shadow-xs);
+  }
+  .target-card:hover {
+    box-shadow: var(--shadow);
+    transform: translateY(-1px);
+  }
+  .target-info {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .target-avatar {
+    width: 44px; height: 44px;
+    border-radius: var(--radius-full);
+    background: var(--bg);
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 600;
+    font-size: .95rem;
+    color: var(--text-secondary);
+    flex-shrink: 0;
+  }
+  .target-name {
+    font-size: .95rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 2px;
+  }
+  .target-meta {
+    font-size: .78rem;
+    color: var(--text-muted);
+    display: flex;
+    gap: 12px;
+  }
+  .target-status { display: flex; align-items: center; gap: 10px; }
+</style>
+
+<div class="page-header">
+  <h1>被評価者を選択</h1>
+</div>
+
+<div class="eval-info-bar">
+  <div class="info">
+    評価者: <strong>{{ evaluator.name }}</strong> ｜ 期間: <strong>{{ period }}</strong>
+  </div>
+  <a href="{% url 'workers:eval_create' %}" class="btn btn-outline btn-sm">変更</a>
+</div>
+
+{% for w in targets %}
+<div class="target-card">
+  <div class="target-info">
+    <div class="target-avatar">{{ w.name|truncatechars:1 }}</div>
+    <div>
+      <div class="target-name">{{ w.name }}</div>
+      <div class="target-meta">
+        {% if w.name_kana %}<span>{{ w.name_kana }}</span>{% endif %}
+        <span>{{ w.job_title|default:"-" }}</span>
+        <span>{{ w.position|default:"-" }}</span>
+      </div>
+    </div>
+  </div>
+  <div class="target-status">
+    {% if w.pk in completed_ids %}
+      <span class="badge badge-green">評価済み</span>
+      <a href="{% url 'workers:eval_detail' w.eval_pk %}" class="btn btn-outline btn-sm">結果を見る</a>
+    {% else %}
+      <form method="post" action="{% url 'workers:eval_create' %}" style="margin:0;">
+        {% csrf_token %}
+        <input type="hidden" name="evaluator_id" value="{{ evaluator.pk }}">
+        <input type="hidden" name="worker_id" value="{{ w.pk }}">
+        <input type="hidden" name="period" value="{{ period }}">
+        <button type="submit" class="btn btn-primary btn-sm">評価する</button>
+      </form>
+    {% endif %}
+  </div>
+</div>
+{% endfor %}
+
+{% endblock %}

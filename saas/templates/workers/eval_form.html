@@ -189,6 +189,7 @@
 <form method="post">
 {% csrf_token %}
 <input type="hidden" name="worker_id" value="{{ worker.pk }}">
+<input type="hidden" name="evaluator_id" value="{{ evaluator.pk }}">
 <input type="hidden" name="period" value="{{ period }}">
 
 {% for item in survey_items %}

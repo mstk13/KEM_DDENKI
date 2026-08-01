@@ -19,7 +19,6 @@ def worker_detail(request, pk):
     worker = get_object_or_404(Worker, pk=pk)
     tags = worker.skill_tags or {}
     if isinstance(tags, list):
-        # 旧形式（フラットリスト）→ 全て教育に入れる
         qualifications = {"education": tags, "skill_courses": [], "licenses": []}
     else:
         qualifications = {
@@ -83,71 +82,110 @@ def evaluation_detail(request, pk):
 
 @login_required
 def evaluation_create(request):
-    """2段階: まず対象者・期間を選択 → アンケートフォームを表示。"""
+    """3段階フロー:
+    1. 評価者・期間を選択
+    2. 被評価者一覧を表示（評価者自身を除く）
+    3. 個別のアンケートフォーム → 保存
+    """
     from apps.workers.eval_data import get_sections_for_worker
 
-    if request.method == "POST" and "worker_id" in request.POST and "period" in request.POST:
-        worker = get_object_or_404(Worker, pk=request.POST["worker_id"])
+    if request.method == "POST":
+        evaluator_id = request.POST.get("evaluator_id")
+        worker_id = request.POST.get("worker_id")
+        period = request.POST.get("period", "")
 
-        if "total_score" not in request.POST:
-            # ステップ1: 対象者選択 → アンケートフォーム表示
+        # ステップ3: アンケート回答を保存
+        if worker_id and "total_score" in request.POST:
+            worker = get_object_or_404(Worker, pk=worker_id)
+            responses = {}
+            overall_responses = {}
+
+            for key, val in request.POST.items():
+                if key.startswith("score_") and val:
+                    parts = key.replace("score_", "").rsplit("_", 1)
+                    section, num = "_".join(parts[:-1]), parts[-1]
+                    responses.setdefault(f"{section}_{num}", {})["score"] = int(val)
+                elif key.startswith("q_") and val:
+                    parts = key.replace("q_", "").rsplit("_", 1)
+                    section_part, qnum = "_".join(parts[:-1]), parts[-1]
+                    responses.setdefault(
+                        section_part, {},
+                    ).setdefault("questions", {})[qnum] = int(val)
+                elif key.startswith("freetext_") and val:
+                    parts = key.replace("freetext_", "").rsplit("_", 1)
+                    section, num = "_".join(parts[:-1]), parts[-1]
+                    responses.setdefault(f"{section}_{num}", {})["free_text"] = val
+                elif key.startswith("overall_") and val:
+                    qnum = key.replace("overall_", "")
+                    overall_responses[qnum] = val
+
+            total_score = request.POST.get("total_score")
+            data = get_sections_for_worker(worker, company=request.user.company)
+
+            ev = WorkerEvaluation.unscoped.create(
+                company=request.user.company,
+                worker=worker,
+                evaluated_by=request.user,
+                created_by=request.user,
+                template=data.get("template"),
+                period=period,
+                score=int(total_score) if total_score else None,
+                comment=request.POST.get("total_comment", ""),
+                responses=responses,
+                overall_responses=overall_responses,
+            )
+            return redirect("workers:eval_detail", pk=ev.pk)
+
+        # ステップ2b: アンケートフォーム表示
+        if worker_id and evaluator_id and period:
+            worker = get_object_or_404(Worker, pk=worker_id)
+            evaluator = get_object_or_404(Worker, pk=evaluator_id)
             data = get_sections_for_worker(worker)
-            eval_items = get_eval_items_with_max_score(data)
+            eval_items = _get_eval_items_with_max_score(data)
             return render(request, "workers/eval_form.html", {
                 "worker": worker,
-                "period": request.POST["period"],
+                "evaluator": evaluator,
+                "period": period,
                 "survey_items": eval_items,
                 "scale": data["scale"],
                 "overall": data["overall"],
                 "sections": data["sections"],
             })
 
-        # ステップ2: アンケート回答を保存
-        responses = {}
-        overall_responses = {}
+        # ステップ2a: 被評価者一覧
+        if evaluator_id and period:
+            evaluator = get_object_or_404(Worker, pk=evaluator_id)
+            targets = list(
+                Worker.objects.filter(is_active=True)
+                .exclude(pk=evaluator.pk)
+                .select_related("job_title", "position")
+                .order_by("name")
+            )
+            # 既に評価済みかチェック
+            existing = WorkerEvaluation.objects.filter(
+                period=period,
+                evaluated_by=request.user,
+            ).values_list("worker_id", "pk")
+            completed_map = {wid: epk for wid, epk in existing}
+            completed_ids = set(completed_map.keys())
+            for t in targets:
+                t.eval_pk = completed_map.get(t.pk)
 
-        for key, val in request.POST.items():
-            if key.startswith("score_") and val:
-                parts = key.replace("score_", "").rsplit("_", 1)
-                section, num = "_".join(parts[:-1]), parts[-1]
-                responses.setdefault(f"{section}_{num}", {})["score"] = int(val)
-            elif key.startswith("q_") and val:
-                parts = key.replace("q_", "").rsplit("_", 1)
-                section_part, qnum = "_".join(parts[:-1]), parts[-1]
-                responses.setdefault(section_part, {}).setdefault("questions", {})[qnum] = int(val)
-            elif key.startswith("freetext_") and val:
-                parts = key.replace("freetext_", "").rsplit("_", 1)
-                section, num = "_".join(parts[:-1]), parts[-1]
-                responses.setdefault(f"{section}_{num}", {})["free_text"] = val
-            elif key.startswith("overall_") and val:
-                qnum = key.replace("overall_", "")
-                overall_responses[qnum] = val
+            return render(request, "workers/eval_targets.html", {
+                "evaluator": evaluator,
+                "period": period,
+                "targets": targets,
+                "completed_ids": completed_ids,
+            })
 
-        total_score = request.POST.get("total_score")
-
-        # テンプレートを紐付け（使用したテンプレートの記録）
-        data = get_sections_for_worker(worker, company=request.user.company)
-
-        ev = WorkerEvaluation.unscoped.create(
-            company=request.user.company,
-            worker=worker,
-            evaluated_by=request.user,
-            created_by=request.user,
-            template=data.get("template"),
-            period=request.POST["period"],
-            score=int(total_score) if total_score else None,
-            comment=request.POST.get("total_comment", ""),
-            responses=responses,
-            overall_responses=overall_responses,
-        )
-        return redirect("workers:eval_detail", pk=ev.pk)
-
-    # GET: 対象者選択画面
-    workers = Worker.objects.filter(is_active=True).order_by("name")
+    # ステップ1: 評価者・期間選択
+    workers = Worker.objects.filter(is_active=True).select_related(
+        "job_title",
+    ).order_by("name")
     return render(request, "workers/eval_start.html", {"workers": workers})
 
 
-def get_eval_items_with_max_score(data):
+def _get_eval_items_with_max_score(data):
     """survey_items に eval_items の max_score と description を付与。"""
     items_map = {}
     for item in data["items"]:

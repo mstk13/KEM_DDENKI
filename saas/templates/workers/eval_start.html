@@ -7,30 +7,29 @@
   <h1>評価アンケートを作成</h1>
 </div>
 
-<div style="max-width:560px;">
+<div style="max-width:600px;">
   <div class="card">
-    <div class="card-header"><h2>対象者と期間を選択</h2></div>
+    <div class="card-header"><h2>評価者と期間を選択</h2></div>
     <div class="card-body">
       <form method="post">
         {% csrf_token %}
         <div class="form-group">
-          <label for="worker">評価対象者</label>
-          <select name="worker_id" id="worker" class="form-control" required>
-            <option value="">作業員を選択してください</option>
+          <label for="evaluator">評価者（あなた）</label>
+          <select name="evaluator_id" id="evaluator" class="form-control" required>
+            <option value="">評価者を選択してください</option>
             {% for w in workers %}
-            <option value="{{ w.pk }}">{{ w.name }}（{{ w.job_title|default:"未設定" }}）</option>
+            <option value="{{ w.pk }}" {% if w.user == request.user %}selected{% endif %}>
+              {{ w.name }}（{{ w.job_title|default:"未設定" }}）
+            </option>
             {% endfor %}
           </select>
-          <p style="font-size:.78rem;color:var(--text-muted);margin-top:6px;">
-            職種に応じた評価項目が自動的に表示されます
-          </p>
         </div>
         <div class="form-group">
           <label for="period">評価期間</label>
           <input type="text" name="period" id="period" class="form-control" placeholder="例: 2026年上期、2026-Q2" required>
         </div>
         <div class="form-actions">
-          <button type="submit" class="btn btn-primary">アンケートを開始</button>
+          <button type="submit" class="btn btn-primary">被評価者を選択する</button>
           <a href="{% url 'workers:evaluations' %}" class="btn btn-outline">キャンセル</a>
         </div>
       </form>
