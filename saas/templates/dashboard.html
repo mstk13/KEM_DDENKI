@@ -3,22 +3,27 @@
 {% block topbar_title %}ダッシュボード{% endblock %}
 
 {% block content %}
+<div class="page-header">
+  <h1>ダッシュボード</h1>
+  <a href="{% url 'reports:create' %}" class="btn btn-primary">+ 日報を書く</a>
+</div>
+
 <div class="stats">
-  <div class="stat-card">
+  <div class="stat-card blue">
     <div class="stat-label">施工中の現場</div>
     <div class="stat-value blue">{{ active_sites }}</div>
   </div>
-  <div class="stat-card">
+  <div class="stat-card default">
     <div class="stat-label">本日の日報</div>
     <div class="stat-value">{{ today_reports }}</div>
   </div>
-  <div class="stat-card">
+  <div class="stat-card orange">
     <div class="stat-label">承認待ち日報</div>
     <div class="stat-value orange">{{ pending_reports }}</div>
   </div>
-  <div class="stat-card">
+  <div class="stat-card green">
     <div class="stat-label">作業員数</div>
-    <div class="stat-value">{{ active_workers }}</div>
+    <div class="stat-value green">{{ active_workers }}</div>
   </div>
 </div>
 
@@ -36,11 +41,11 @@
           {% for site in recent_sites %}
           <tr>
             <td><a href="{% url 'sites:detail' site.pk %}">{{ site.name }}</a></td>
-            <td>{{ site.customer|default:"-" }}</td>
-            <td>{{ site.contract_amount|floatformat:0 }} 円</td>
+            <td style="color:var(--text-secondary);">{{ site.customer|default:"-" }}</td>
+            <td style="font-weight:600;">{{ site.contract_amount|floatformat:0 }} 円</td>
           </tr>
           {% empty %}
-          <tr><td colspan="3" style="text-align:center;color:var(--gray-400);padding:24px;">現場がありません</td></tr>
+          <tr><td colspan="3"><div class="empty"><div class="empty-icon">&#x1f3d7;&#xfe0f;</div><p>現場がありません</p></div></td></tr>
           {% endfor %}
         </tbody>
       </table>
@@ -50,7 +55,7 @@
   <div class="card">
     <div class="card-header">
       <h2>最近の日報</h2>
-      <a href="{% url 'reports:create' %}" class="btn btn-primary btn-sm">+ 日報を書く</a>
+      <a href="{% url 'reports:list' %}" class="btn btn-outline btn-sm">全て見る</a>
     </div>
     <div class="table-wrap">
       <table>
@@ -58,9 +63,9 @@
         <tbody>
           {% for report in recent_reports %}
           <tr>
-            <td>{{ report.report_date }}</td>
+            <td style="white-space:nowrap;">{{ report.report_date }}</td>
             <td>{{ report.worker }}</td>
-            <td>{{ report.site }}</td>
+            <td style="color:var(--text-secondary);">{{ report.site }}</td>
             <td>
               {% if report.status == 'draft' %}<span class="badge badge-gray">下書き</span>
               {% elif report.status == 'submitted' %}<span class="badge badge-orange">提出済</span>
@@ -69,7 +74,7 @@
             </td>
           </tr>
           {% empty %}
-          <tr><td colspan="4" style="text-align:center;color:var(--gray-400);padding:24px;">日報がありません</td></tr>
+          <tr><td colspan="4"><div class="empty"><div class="empty-icon">&#x1f4dd;</div><p>日報がありません</p></div></td></tr>
           {% endfor %}
         </tbody>
       </table>
