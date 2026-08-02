@@ -159,12 +159,12 @@ def evaluation_create(request):
         # ステップ2a: 被評価者一覧
         if evaluator_id and period:
             evaluator = get_object_or_404(Worker, pk=evaluator_id)
-            targets = list(
-                Worker.objects.filter(is_active=True)
-                .exclude(pk=evaluator.pk)
-                .select_related("job_title", "position")
-                .order_by("name")
-            )
+            is_executive = _is_executive(evaluator)
+            qs = Worker.objects.filter(is_active=True).select_related("job_title", "position")
+            # 役員は自分を含む全員を評価する
+            if not is_executive:
+                qs = qs.exclude(pk=evaluator.pk)
+            targets = list(qs.order_by("name"))
             # 既に評価済みかチェック
             existing = WorkerEvaluation.objects.filter(
                 period=period,
@@ -190,6 +190,12 @@ def evaluation_create(request):
         "workers": workers,
         "period_choices": _get_period_choices(),
     })
+
+
+def _is_executive(worker):
+    """役員・社長かどうかを判定する。"""
+    job_name = str(worker.job_title) if worker.job_title else ""
+    return job_name in ("役員", "社長")
 
 
 def _get_period_choices():
@@ -355,4 +361,35 @@ def eval_template_pdf(request):
     pdf_bytes = generate_template_pdf(template)
     response = HttpResponse(pdf_bytes, content_type="application/pdf")
     response["Content-Disposition"] = 'attachment; filename="eval_template.pdf"'
+    return response
+
+
+@login_required
+def eval_comparison_pdf(request):
+    """役員用: 被評価者を横に並べた比較評価シートPDF。
+
+    職種ごとにグループ化し、各質問に対して全員分の記入欄を横に並べる。
+    """
+    from apps.workers.pdf_template import generate_comparison_pdf
+
+    company = request.user.company
+    template = EvaluationTemplate.unscoped.filter(
+        company=company, is_active=True,
+    ).order_by("-created_at").first()
+
+    if not template:
+        messages.error(request, "評価テンプレートが未作成です。")
+        return redirect("workers:evaluations")
+
+    workers = list(
+        Worker.objects.filter(is_active=True)
+        .select_related("job_title", "position")
+        .order_by("name")
+    )
+
+    period = request.GET.get("period", "")
+
+    pdf_bytes = generate_comparison_pdf(template, workers, period)
+    response = HttpResponse(pdf_bytes, content_type="application/pdf")
+    response["Content-Disposition"] = 'attachment; filename="eval_comparison.pdf"'
     return response

@@ -75,7 +75,10 @@
   <div class="info">
     評価者: <strong>{{ evaluator.name }}</strong> ｜ 期間: <strong>{{ period }}</strong>
   </div>
-  <a href="{% url 'workers:eval_create' %}" class="btn btn-outline btn-sm">変更</a>
+  <div style="display:flex;gap:8px;">
+    <a href="{% url 'workers:eval_comparison_pdf' %}?period={{ period|urlencode }}" class="btn btn-primary btn-sm">比較評価シートPDF</a>
+    <a href="{% url 'workers:eval_create' %}" class="btn btn-outline btn-sm">変更</a>
+  </div>
 </div>
 
 {% for w in targets %}
