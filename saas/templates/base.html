@@ -62,8 +62,14 @@
       <div class="nav-group {% if 'bids:' in request.resolver_match.view_name %}open{% endif %}">
         <button class="nav-section" type="button">入札<span class="nav-chevron"></span></button>
         <div class="nav-group-items">
-          <a href="{% url 'bids:project_list' %}" class="{% if 'bids:' in request.resolver_match.view_name %}active{% endif %}">
-            <span class="nav-icon">&#x1f4cb;</span> 入札管理
+          <a href="{% url 'bids:project_list' %}" class="{% if request.resolver_match.url_name == 'project_list' and 'bids:' in request.resolver_match.view_name %}active{% endif %}">
+            <span class="nav-icon">&#x1f4cb;</span> 入札案件
+          </a>
+          <a href="{% url 'bids:qualification_list' %}" class="{% if 'qualification' in request.resolver_match.url_name and 'bids:' in request.resolver_match.view_name %}active{% endif %}">
+            <span class="nav-icon">&#x1f3c5;</span> 入札参加資格
+          </a>
+          <a href="{% url 'bids:unit_price_list' %}" class="{% if 'unit_price' in request.resolver_match.url_name and 'bids:' in request.resolver_match.view_name %}active{% endif %}">
+            <span class="nav-icon">&#x1f4b4;</span> 単価マスタ
           </a>
         </div>
       </div>
