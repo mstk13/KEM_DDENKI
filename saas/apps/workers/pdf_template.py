@@ -253,6 +253,47 @@ def _cp(text, style=STYLE_COMP_BODY):
     return Paragraph(str(text), style)
 
 
+def _make_page_header(template, period=""):
+    """比較PDFの全ページに表示するヘッダー描画関数を返す。"""
+    company_name = template.company.name if template.company else ""
+    title = f"{company_name}　人材評価 比較シート"
+    if period:
+        title += f"　【{period}】"
+
+    scale_text = ""
+    if template.scale:
+        scale_text = "　".join(
+            f"{s.get('value')}={s.get('label', '')}" for s in template.scale
+        )
+
+    def _draw_header(canvas, doc):
+        canvas.saveState()
+        page_w = doc.pagesize[0]
+        top_y = doc.pagesize[1] - 8 * mm
+
+        # タイトル
+        canvas.setFont(_FONT, 9)
+        canvas.setFillColor(colors.HexColor("#1a202c"))
+        canvas.drawString(12 * mm, top_y, title)
+
+        # スケール凡例
+        if scale_text:
+            canvas.setFont(_FONT, 7)
+            canvas.setFillColor(colors.HexColor("#2b6cb0"))
+            canvas.drawString(12 * mm, top_y - 12, f"評価スケール: {scale_text}")
+            canvas.setFillColor(colors.HexColor("#4a5568"))
+            canvas.drawString(12 * mm, top_y - 22, "※ 該当する数字を記入してください")
+
+        # ページ番号
+        canvas.setFont(_FONT, 7)
+        canvas.setFillColor(colors.HexColor("#a0aec0"))
+        canvas.drawRightString(page_w - 12 * mm, 8 * mm, f"- {canvas.getPageNumber()} -")
+
+        canvas.restoreState()
+
+    return _draw_header
+
+
 def generate_comparison_pdf(template, workers, period=""):
     """役員用: 被評価者を横に並べた比較評価シートPDFを生成する。
 
@@ -260,33 +301,15 @@ def generate_comparison_pdf(template, workers, period=""):
     該当する質問項目を行、被評価者名を列に並べる。
     """
     buf = BytesIO()
-    # A4横長
+    # A4横長 — topMarginを広めにしてヘッダー領域を確保
     doc = SimpleDocTemplate(
         buf, pagesize=landscape(A4),
         leftMargin=12 * mm, rightMargin=12 * mm,
-        topMargin=12 * mm, bottomMargin=12 * mm,
+        topMargin=30 * mm, bottomMargin=14 * mm,
     )
 
+    page_header = _make_page_header(template, period)
     elements = []
-
-    # タイトル
-    title = f"{template.company.name}　人材評価 比較シート"
-    if period:
-        title += f"　【{period}】"
-    elements.append(_cp(title, STYLE_COMP_TITLE))
-    elements.append(Spacer(1, 4))
-
-    # スケール凡例（コンパクト）
-    if template.scale:
-        scale_text = "　".join(
-            f"{s.get('value')}={s.get('label', '')}" for s in template.scale
-        )
-        elements.append(_cp(f"評価スケール: {scale_text}", STYLE_COMP_SMALL))
-        elements.append(_cp(
-            "※ 各質問の数字（1〜5）に○をつけてください。",
-            STYLE_COMP_SMALL,
-        ))
-        elements.append(Spacer(1, 6))
 
     # ワーカーを職種ごとにグループ化
     job_groups = OrderedDict()
@@ -477,7 +500,7 @@ def generate_comparison_pdf(template, workers, period=""):
             elements.append(t)
             elements.append(Spacer(1, 10))
 
-    doc.build(elements)
+    doc.build(elements, onFirstPage=page_header, onLaterPages=page_header)
     return buf.getvalue()
 
 
