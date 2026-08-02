@@ -10,7 +10,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 COPY pyproject.toml ./
-RUN pip install --no-cache-dir .
+RUN pip install --no-cache-dir $(python -c "
+import tomllib
+with open('pyproject.toml','rb') as f:
+    deps = tomllib.load(f)['project']['dependencies']
+for d in deps: print(d)
+")
 
 COPY . .
 
