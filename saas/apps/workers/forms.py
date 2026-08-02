@@ -10,11 +10,52 @@ from apps.workers.models import (
 )
 
 
+def _get_employee_code_prefix(job_title_name, position_name):
+    """職種・役職から社員番号のプレフィックスを決定。"""
+    pos = position_name or ""
+    job = job_title_name or ""
+
+    if pos == "社長":
+        return "Y"
+    if pos == "役員":
+        return "S"
+    if pos == "Developer":
+        return "G"
+    if pos == "アルバイト":
+        return "A"
+    if pos == "パート":
+        return "P"
+    if job == "電工" and pos in ("シニア", "ジュニア"):
+        return "E"
+    # デフォルト: 電工系はE、それ以外はW
+    if job == "電工":
+        return "E"
+    return "W"
+
+
+def _next_employee_code(prefix, company):
+    """指定プレフィックスの次の連番を生成（例: E007）。"""
+    existing = Worker.unscoped.filter(
+        company=company,
+        employee_code__startswith=prefix,
+    ).values_list("employee_code", flat=True)
+
+    max_num = 0
+    for code in existing:
+        try:
+            num = int(code[len(prefix):])
+            if num > max_num:
+                max_num = num
+        except (ValueError, IndexError):
+            pass
+    return f"{prefix}{max_num + 1:03d}"
+
+
 class WorkerForm(forms.ModelForm):
     class Meta:
         model = Worker
         fields = [
-            "employee_code", "name", "name_kana", "job_title", "position",
+            "name", "name_kana", "job_title", "position",
             "phone", "hourly_cost", "hire_date", "is_active", "note", "discord_user_id",
         ]
         widgets = {
@@ -22,7 +63,10 @@ class WorkerForm(forms.ModelForm):
         }
 
     def __init__(self, *args, company=None, **kwargs):
+        self._company = company
         super().__init__(*args, **kwargs)
+        self.fields["job_title"].required = True
+        self.fields["position"].required = True
         for _name, field in self.fields.items():
             field.widget.attrs.setdefault("class", "form-control")
         if company:
@@ -32,6 +76,24 @@ class WorkerForm(forms.ModelForm):
             self.fields["position"].queryset = Position.unscoped.filter(
                 company=company, is_active=True,
             )
+
+    def save(self, commit=True):
+        worker = super().save(commit=False)
+        # 新規作成時 or 職種/役職が変わった場合に社員番号を自動割当
+        job_name = worker.job_title.name if worker.job_title else ""
+        pos_name = worker.position.name if worker.position else ""
+        prefix = _get_employee_code_prefix(job_name, pos_name)
+
+        should_assign = (
+            not worker.employee_code
+            or not worker.employee_code.startswith(prefix)
+        )
+        if should_assign and self._company:
+            worker.employee_code = _next_employee_code(prefix, self._company)
+
+        if commit:
+            worker.save()
+        return worker
 
 
 class WorkerQualificationForm(forms.ModelForm):
