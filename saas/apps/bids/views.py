@@ -136,16 +136,16 @@ def qualification_import(request):
                 Qualification.objects.create(
                     company=request.user.company,
                     created_by=request.user,
-                    issuer=rec.get("issuer", "不明"),
-                    category=rec.get("category", ""),
-                    grade=rec.get("grade", ""),
+                    issuer=rec.get("issuer") or "不明",
+                    category=rec.get("category") or "",
+                    grade=rec.get("grade") or "",
                     keisin_score=rec.get("keisin_score"),
                     total_score=rec.get("total_score"),
-                    vendor_number=rec.get("vendor_number", ""),
+                    vendor_number=rec.get("vendor_number") or "",
                     valid_from=rec.get("valid_from") or None,
                     valid_until=rec.get("valid_until") or None,
-                    application_type=rec.get("application_type", ""),
-                    application_method=rec.get("application_method", ""),
+                    application_type=rec.get("application_type") or "",
+                    application_method=rec.get("application_method") or "",
                 )
                 count += 1
 
