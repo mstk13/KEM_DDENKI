@@ -6,6 +6,7 @@ app_name = "workers"
 
 urlpatterns = [
     path("", views.worker_list, name="list"),
+    path("excel/", views.worker_excel, name="excel"),
     path("new/", views.worker_create, name="create"),
     path("<int:pk>/", views.worker_detail, name="detail"),
     path("<int:pk>/edit/", views.worker_edit, name="edit"),

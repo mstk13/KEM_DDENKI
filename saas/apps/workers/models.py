@@ -62,6 +62,10 @@ class Worker(TenantModel):
         related_name="worker_profile",
         verbose_name="ユーザーアカウント",
     )
+    employee_code = models.CharField(
+        "社員番号", max_length=20, blank=True,
+        help_text="例: E001",
+    )
     name = models.CharField("氏名", max_length=100)
     name_kana = models.CharField("フリガナ", max_length=100, blank=True)
     job_title = models.ForeignKey(
@@ -92,8 +96,10 @@ class Worker(TenantModel):
         default=0,
         help_text="労務費CostTransactionの算出単価",
     )
+    phone = models.CharField("電話番号", max_length=20, blank=True)
     hire_date = models.DateField("入社日", null=True, blank=True)
     is_active = models.BooleanField("有効", default=True)
+    note = models.TextField("備考", blank=True)
 
     history = HistoricalRecords()
 

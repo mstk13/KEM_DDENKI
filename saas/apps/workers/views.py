@@ -5,16 +5,43 @@ from django.contrib.auth.decorators import login_required
 from django.http import HttpResponse, HttpResponseForbidden, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 
+from django.db import models
+
 from apps.workers.forms import WorkerForm
-from apps.workers.models import EvaluationTemplate, Worker, WorkerEvaluation
+from apps.workers.models import EvaluationTemplate, JobTitle, Worker, WorkerEvaluation
 
 
 @login_required
 def worker_list(request):
-    qs = Worker.objects.select_related("job_title", "position").order_by("name")
+    qs = Worker.objects.select_related("job_title", "position")
+
+    # 検索フィルタ
+    q = request.GET.get("q", "").strip()
+    if q:
+        qs = qs.filter(
+            models.Q(name__icontains=q)
+            | models.Q(name_kana__icontains=q)
+            | models.Q(employee_code__icontains=q)
+        )
+
+    job_filter = request.GET.get("job", "")
+    if job_filter:
+        qs = qs.filter(job_title__name=job_filter)
+
+    show_inactive = request.GET.get("inactive") == "1"
+
+    # ソート: フリガナ優先
+    qs = qs.order_by(models.functions.Coalesce("name_kana", "name"), "name")
+
+    job_titles = JobTitle.objects.filter(is_active=True).order_by("name")
+
     return render(request, "workers/list.html", {
         "active_workers": qs.filter(is_active=True),
-        "inactive_workers": qs.filter(is_active=False),
+        "inactive_workers": qs.filter(is_active=False) if show_inactive else [],
+        "show_inactive": show_inactive,
+        "q": q,
+        "job_filter": job_filter,
+        "job_titles": job_titles,
     })
 
 
@@ -35,6 +62,85 @@ def worker_detail(request, pk):
         "qualifications": qualifications,
         "monthly_salary": worker.monthly_salary,
     })
+
+
+@login_required
+def worker_excel(request):
+    """社員名簿をExcelでダウンロード。"""
+    from io import BytesIO
+
+    from openpyxl import Workbook
+    from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+
+    qs = Worker.objects.select_related("job_title", "position").order_by(
+        models.functions.Coalesce("name_kana", "name"), "name",
+    )
+    if request.GET.get("active_only") != "0":
+        qs = qs.filter(is_active=True)
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "社員名簿"
+
+    headers = ["社員番号", "氏名", "よみがな", "部署", "役職", "職種区分", "電話番号", "在籍", "備考"]
+    widths = [12, 18, 22, 16, 16, 14, 18, 10, 40]
+    header_font = Font(bold=True, size=11, color="FFFFFF")
+    header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
+    alt_fill = PatternFill(start_color="D9E2F3", end_color="D9E2F3", fill_type="solid")
+    thin_border = Border(
+        left=Side(style="thin"), right=Side(style="thin"),
+        top=Side(style="thin"), bottom=Side(style="thin"),
+    )
+
+    for col_idx, (header, width) in enumerate(zip(headers, widths), 1):
+        cell = ws.cell(row=1, column=col_idx, value=header)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = Alignment(horizontal="center")
+        cell.border = thin_border
+        ws.column_dimensions[cell.column_letter].width = width
+
+    for row_idx, w in enumerate(qs, 2):
+        vals = [
+            w.employee_code,
+            w.name,
+            w.name_kana,
+            str(w.position) if w.position else "",
+            str(w.position) if w.position else "",
+            str(w.job_title) if w.job_title else "",
+            w.phone,
+            "在籍" if w.is_active else "退職",
+            w.note,
+        ]
+        # Fix: department is position's parent concept - use job_title for 部署 mapping
+        # Actually jinzai-kanri has department as free text. In Django we don't have dept on Worker.
+        # Map: 部署 = position, 役職 = position, 職種 = job_title
+        vals[3] = ""  # department - not available in current model
+        vals[4] = str(w.position) if w.position else ""
+        for col_idx, val in enumerate(vals, 1):
+            cell = ws.cell(row=row_idx, column=col_idx, value=val)
+            cell.border = thin_border
+            if row_idx % 2 == 0:
+                cell.fill = alt_fill
+
+    ws.freeze_panes = "A2"
+
+    buf = BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+
+    response = HttpResponse(
+        buf.getvalue(),
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+    from urllib.parse import quote
+    today = date.today().strftime("%Y%m%d")
+    filename = f"社員名簿_{today}.xlsx"
+    response["Content-Disposition"] = (
+        f'attachment; filename="workers_{today}.xlsx"; '
+        f"filename*=UTF-8''{quote(filename)}"
+    )
+    return response
 
 
 @login_required
