@@ -7,8 +7,15 @@ from django.shortcuts import get_object_or_404, redirect, render
 
 from django.db import models
 
-from apps.workers.forms import WorkerForm
-from apps.workers.models import EvaluationTemplate, JobTitle, Worker, WorkerEvaluation
+from apps.workers.forms import HealthCheckupForm, WorkerForm, WorkerQualificationForm
+from apps.workers.models import (
+    EvaluationTemplate,
+    HealthCheckup,
+    JobTitle,
+    Worker,
+    WorkerEvaluation,
+    WorkerQualification,
+)
 
 
 @login_required
@@ -57,10 +64,14 @@ def worker_detail(request, pk):
             "skill_courses": tags.get("skill_courses", []),
             "licenses": tags.get("licenses", []),
         }
+    cert_qualifications = worker.qualifications.all()
+    health_checkups = worker.health_checkups.all()
     return render(request, "workers/detail.html", {
         "worker": worker,
         "qualifications": qualifications,
         "monthly_salary": worker.monthly_salary,
+        "cert_qualifications": cert_qualifications,
+        "health_checkups": health_checkups,
     })
 
 
@@ -684,4 +695,106 @@ def evaluation_edit(request, pk):
         "scale": data["scale"],
         "overall": overall_with_saved,
         "sections": data["sections"],
+    })
+
+
+# ---- Worker Qualifications (資格) ----
+
+@login_required
+def qualification_create(request, worker_pk):
+    worker = get_object_or_404(Worker, pk=worker_pk)
+    if request.method == "POST":
+        form = WorkerQualificationForm(request.POST, request.FILES)
+        if form.is_valid():
+            qual = form.save(commit=False)
+            qual.worker = worker
+            qual.company = request.user.company
+            qual.created_by = request.user
+            qual.save()
+            messages.success(request, "資格を登録しました。")
+            return redirect("workers:detail", pk=worker.pk)
+    else:
+        form = WorkerQualificationForm()
+    return render(request, "workers/qualification_form.html", {
+        "form": form, "worker": worker,
+    })
+
+
+@login_required
+def qualification_edit(request, pk):
+    qual = get_object_or_404(WorkerQualification.objects.select_related("worker"), pk=pk)
+    if request.method == "POST":
+        form = WorkerQualificationForm(request.POST, request.FILES, instance=qual)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "資格を更新しました。")
+            return redirect("workers:detail", pk=qual.worker.pk)
+    else:
+        form = WorkerQualificationForm(instance=qual)
+    return render(request, "workers/qualification_form.html", {
+        "form": form, "worker": qual.worker,
+    })
+
+
+@login_required
+def qualification_delete(request, pk):
+    qual = get_object_or_404(WorkerQualification.objects.select_related("worker"), pk=pk)
+    worker_pk = qual.worker.pk
+    if request.method == "POST":
+        qual.delete()
+        messages.success(request, "資格を削除しました。")
+        return redirect("workers:detail", pk=worker_pk)
+    return render(request, "workers/qualification_confirm_delete.html", {
+        "qual": qual, "worker": qual.worker,
+    })
+
+
+# ---- Health Checkups (健康診断) ----
+
+@login_required
+def health_checkup_create(request, worker_pk):
+    worker = get_object_or_404(Worker, pk=worker_pk)
+    if request.method == "POST":
+        form = HealthCheckupForm(request.POST, request.FILES)
+        if form.is_valid():
+            checkup = form.save(commit=False)
+            checkup.worker = worker
+            checkup.company = request.user.company
+            checkup.created_by = request.user
+            checkup.save()
+            messages.success(request, "健康診断記録を登録しました。")
+            return redirect("workers:detail", pk=worker.pk)
+    else:
+        form = HealthCheckupForm()
+    return render(request, "workers/health_checkup_form.html", {
+        "form": form, "worker": worker,
+    })
+
+
+@login_required
+def health_checkup_edit(request, pk):
+    checkup = get_object_or_404(HealthCheckup.objects.select_related("worker"), pk=pk)
+    if request.method == "POST":
+        form = HealthCheckupForm(request.POST, request.FILES, instance=checkup)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "健康診断記録を更新しました。")
+            return redirect("workers:detail", pk=checkup.worker.pk)
+    else:
+        form = HealthCheckupForm(instance=checkup)
+    return render(request, "workers/health_checkup_form.html", {
+        "form": form, "worker": checkup.worker,
+    })
+
+
+@login_required
+def health_checkup_delete(request, pk):
+    checkup = get_object_or_404(HealthCheckup.objects.select_related("worker"), pk=pk)
+    worker_pk = checkup.worker.pk
+    if request.method == "POST":
+        checkup.delete()
+        messages.success(request, "健康診断記録を削除しました。")
+        return redirect("workers:detail", pk=worker_pk)
+    return render(request, "workers/health_checkup_confirm_delete.html", {
+        "checkup": checkup, "worker": checkup.worker,
     })

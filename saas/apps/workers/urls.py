@@ -19,4 +19,12 @@ urlpatterns = [
     path("evaluations/survey-pdf/", views.eval_survey_pdf, name="eval_survey_pdf"),
     path("evaluations/<int:pk>/edit/", views.evaluation_edit, name="eval_edit"),
     path("evaluations/targets-api/", views.eval_targets_api, name="eval_targets_api"),
+    # Qualifications
+    path("<int:worker_pk>/qualifications/new/", views.qualification_create, name="qual_create"),
+    path("qualifications/<int:pk>/edit/", views.qualification_edit, name="qual_edit"),
+    path("qualifications/<int:pk>/delete/", views.qualification_delete, name="qual_delete"),
+    # Health checkups
+    path("<int:worker_pk>/health/new/", views.health_checkup_create, name="health_create"),
+    path("health/<int:pk>/edit/", views.health_checkup_edit, name="health_edit"),
+    path("health/<int:pk>/delete/", views.health_checkup_delete, name="health_delete"),
 ]

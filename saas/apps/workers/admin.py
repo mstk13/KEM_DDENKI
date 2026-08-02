@@ -3,10 +3,12 @@ from simple_history.admin import SimpleHistoryAdmin
 
 from apps.workers.models import (
     EvaluationTemplate,
+    HealthCheckup,
     JobTitle,
     Position,
     Worker,
     WorkerEvaluation,
+    WorkerQualification,
 )
 
 
@@ -35,6 +37,20 @@ class WorkerAdmin(SimpleHistoryAdmin):
 class EvaluationTemplateAdmin(SimpleHistoryAdmin):
     list_display = ("name", "company", "is_active")
     list_filter = ("is_active", "company")
+
+
+@admin.register(WorkerQualification)
+class WorkerQualificationAdmin(SimpleHistoryAdmin):
+    list_display = ("worker", "name", "category", "acquired_date", "expiry_date", "company")
+    list_filter = ("category", "company")
+    search_fields = ("name", "worker__name")
+
+
+@admin.register(HealthCheckup)
+class HealthCheckupAdmin(SimpleHistoryAdmin):
+    list_display = ("worker", "checkup_date", "result", "institution", "company")
+    list_filter = ("result", "company")
+    search_fields = ("worker__name",)
 
 
 @admin.register(WorkerEvaluation)

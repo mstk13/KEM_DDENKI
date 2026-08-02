@@ -1,6 +1,13 @@
 from django import forms
 
-from apps.workers.models import JobTitle, Position, Worker, WorkerEvaluation
+from apps.workers.models import (
+    HealthCheckup,
+    JobTitle,
+    Position,
+    Worker,
+    WorkerEvaluation,
+    WorkerQualification,
+)
 
 
 class WorkerForm(forms.ModelForm):
@@ -25,6 +32,35 @@ class WorkerForm(forms.ModelForm):
             self.fields["position"].queryset = Position.unscoped.filter(
                 company=company, is_active=True,
             )
+
+
+class WorkerQualificationForm(forms.ModelForm):
+    class Meta:
+        model = WorkerQualification
+        fields = ["name", "category", "acquired_date", "expiry_date", "certificate_image", "note"]
+        widgets = {
+            "acquired_date": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
+            "expiry_date": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for _name, field in self.fields.items():
+            field.widget.attrs.setdefault("class", "form-control")
+
+
+class HealthCheckupForm(forms.ModelForm):
+    class Meta:
+        model = HealthCheckup
+        fields = ["checkup_date", "result", "institution", "memo", "report_file"]
+        widgets = {
+            "checkup_date": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for _name, field in self.fields.items():
+            field.widget.attrs.setdefault("class", "form-control")
 
 
 class EvaluationForm(forms.ModelForm):

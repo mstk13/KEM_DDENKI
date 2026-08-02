@@ -35,7 +35,9 @@ services:
       - "8000:8000"
     volumes:
       - .:/app
+      - media_data:/app/media
     command: ["python", "manage.py", "runserver", "0.0.0.0:8000"]
 
 volumes:
   pgdata:
+  media_data:
