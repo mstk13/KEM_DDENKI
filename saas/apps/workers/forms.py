@@ -25,6 +25,8 @@ def _get_employee_code_prefix(job_title_name, position_name):
         return "A"
     if pos == "パート":
         return "P"
+    if pos == "試用期間":
+        return "T"
     if job == "電工" and pos in ("シニア", "ジュニア"):
         return "E"
     # デフォルト: 電工系はE、それ以外はW
