@@ -1,0 +1,173 @@
+from django.contrib import messages
+from django.contrib.auth.decorators import login_required
+from django.db.models import Avg, Count
+from django.shortcuts import get_object_or_404, redirect, render
+
+from apps.schedules.forms import AssignmentForm, MilestoneForm, PhaseForm
+from apps.schedules.models import Assignment, Milestone, Phase
+from apps.sites.models import Site
+
+
+@login_required
+def schedule_list(request):
+    sites = Site.objects.annotate(
+        phase_count=Count("phases"),
+        avg_progress=Avg("phases__progress"),
+    ).order_by("-created_at")
+    return render(request, "schedules/list.html", {"sites": sites})
+
+
+@login_required
+def schedule_detail(request, pk):
+    site = get_object_or_404(Site, pk=pk)
+    phases = site.phases.all()
+    milestones = site.milestones.all()
+    assignments = site.assignments.select_related("worker").all()
+    return render(request, "schedules/detail.html", {
+        "site": site,
+        "phases": phases,
+        "milestones": milestones,
+        "assignments": assignments,
+    })
+
+
+# ─── Phase CRUD ───
+
+
+@login_required
+def phase_create(request, site_pk):
+    site = get_object_or_404(Site, pk=site_pk)
+    if request.method == "POST":
+        form = PhaseForm(request.POST, company=request.user.company)
+        if form.is_valid():
+            phase = form.save(commit=False)
+            phase.site = site
+            phase.company = request.user.company
+            phase.created_by = request.user
+            phase.save()
+            messages.success(request, "工程フェーズを作成しました。")
+            return redirect("schedules:detail", pk=site.pk)
+    else:
+        form = PhaseForm(company=request.user.company)
+    return render(request, "schedules/phase_form.html", {"form": form, "site": site})
+
+
+@login_required
+def phase_edit(request, pk):
+    phase = get_object_or_404(Phase.objects.select_related("site"), pk=pk)
+    if request.method == "POST":
+        form = PhaseForm(request.POST, instance=phase, company=request.user.company)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "工程フェーズを更新しました。")
+            return redirect("schedules:detail", pk=phase.site.pk)
+    else:
+        form = PhaseForm(instance=phase, company=request.user.company)
+    return render(request, "schedules/phase_form.html", {"form": form, "site": phase.site})
+
+
+@login_required
+def phase_delete(request, pk):
+    phase = get_object_or_404(Phase.objects.select_related("site"), pk=pk)
+    site_pk = phase.site.pk
+    if request.method == "POST":
+        phase.delete()
+        messages.success(request, "工程フェーズを削除しました。")
+        return redirect("schedules:detail", pk=site_pk)
+    return render(request, "schedules/detail.html", {
+        "site": phase.site,
+        "phases": phase.site.phases.all(),
+        "milestones": phase.site.milestones.all(),
+        "assignments": phase.site.assignments.select_related("worker").all(),
+        "confirm_delete_phase": phase,
+    })
+
+
+# ─── Milestone CRUD ───
+
+
+@login_required
+def milestone_create(request, site_pk):
+    site = get_object_or_404(Site, pk=site_pk)
+    if request.method == "POST":
+        form = MilestoneForm(request.POST, company=request.user.company)
+        if form.is_valid():
+            milestone = form.save(commit=False)
+            milestone.site = site
+            milestone.company = request.user.company
+            milestone.created_by = request.user
+            milestone.save()
+            messages.success(request, "マイルストーンを作成しました。")
+            return redirect("schedules:detail", pk=site.pk)
+    else:
+        form = MilestoneForm(company=request.user.company)
+    return render(request, "schedules/milestone_form.html", {"form": form, "site": site})
+
+
+@login_required
+def milestone_edit(request, pk):
+    milestone = get_object_or_404(Milestone.objects.select_related("site"), pk=pk)
+    if request.method == "POST":
+        form = MilestoneForm(request.POST, instance=milestone, company=request.user.company)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "マイルストーンを更新しました。")
+            return redirect("schedules:detail", pk=milestone.site.pk)
+    else:
+        form = MilestoneForm(instance=milestone, company=request.user.company)
+    return render(request, "schedules/milestone_form.html", {"form": form, "site": milestone.site})
+
+
+@login_required
+def milestone_delete(request, pk):
+    milestone = get_object_or_404(Milestone.objects.select_related("site"), pk=pk)
+    site_pk = milestone.site.pk
+    if request.method == "POST":
+        milestone.delete()
+        messages.success(request, "マイルストーンを削除しました。")
+        return redirect("schedules:detail", pk=site_pk)
+    return render(request, "schedules/detail.html", {
+        "site": milestone.site,
+        "phases": milestone.site.phases.all(),
+        "milestones": milestone.site.milestones.all(),
+        "assignments": milestone.site.assignments.select_related("worker").all(),
+        "confirm_delete_milestone": milestone,
+    })
+
+
+# ─── Assignment CRUD ───
+
+
+@login_required
+def assignment_create(request, site_pk):
+    site = get_object_or_404(Site, pk=site_pk)
+    if request.method == "POST":
+        form = AssignmentForm(request.POST, company=request.user.company)
+        if form.is_valid():
+            assignment = form.save(commit=False)
+            assignment.site = site
+            assignment.company = request.user.company
+            assignment.created_by = request.user
+            assignment.save()
+            messages.success(request, "配置を作成しました。")
+            return redirect("schedules:detail", pk=site.pk)
+    else:
+        form = AssignmentForm(company=request.user.company)
+    return render(request, "schedules/assignment_form.html", {"form": form, "site": site})
+
+
+@login_required
+def assignment_delete(request, pk):
+    assignment = get_object_or_404(Assignment.objects.select_related("site"), pk=pk)
+    site_pk = assignment.site.pk
+    if request.method == "POST":
+        assignment.delete()
+        messages.success(request, "配置を削除しました。")
+        return redirect("schedules:detail", pk=site_pk)
+    return render(request, "schedules/detail.html", {
+        "site": assignment.site,
+        "phases": assignment.site.phases.all(),
+        "milestones": assignment.site.milestones.all(),
+        "assignments": assignment.site.assignments.select_related("worker").all(),
+        "confirm_delete_assignment": assignment,
+    })

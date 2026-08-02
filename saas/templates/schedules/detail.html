@@ -1,0 +1,148 @@
+{% extends "base.html" %}
+{% block title %}{{ site.name }} — 工期管理{% endblock %}
+{% block topbar_title %}工期管理{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>{{ site.name }}</h1>
+  <a href="{% url 'schedules:list' %}" class="btn btn-outline">一覧に戻る</a>
+</div>
+
+<div class="card" style="margin-bottom:16px;">
+  <div class="card-body">
+    <p><strong>状態:</strong> {{ site.get_status_display }}</p>
+    <p><strong>工期:</strong> {{ site.start_date|default:"-" }} ~ {{ site.end_date|default:"-" }}</p>
+  </div>
+</div>
+
+<!-- Tabs -->
+<div class="tabs" style="display:flex;gap:0;margin-bottom:16px;">
+  <button class="btn tab-btn active" data-tab="phases" onclick="showTab('phases', this)">工程フェーズ</button>
+  <button class="btn tab-btn" data-tab="milestones" onclick="showTab('milestones', this)">マイルストーン</button>
+  <button class="btn tab-btn" data-tab="assignments" onclick="showTab('assignments', this)">配置</button>
+</div>
+
+<!-- Phases Tab -->
+<div class="tab-content" id="tab-phases">
+  <div class="card">
+    <div class="page-header" style="padding:12px 16px;">
+      <h2 style="font-size:1.1rem;">工程フェーズ</h2>
+      <a href="{% url 'schedules:phase_create' site.pk %}" class="btn btn-primary btn-sm">+ 追加</a>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>工程名</th><th>開始日</th><th>終了日</th><th>進捗</th><th>色</th><th></th></tr>
+        </thead>
+        <tbody>
+          {% for p in phases %}
+          <tr>
+            <td>{{ p.name }}</td>
+            <td>{{ p.start_date|default:"-" }}</td>
+            <td>{{ p.end_date|default:"-" }}</td>
+            <td>
+              <div style="display:flex;align-items:center;gap:8px;">
+                <div style="flex:1;background:#e5e7eb;border-radius:4px;height:8px;min-width:60px;">
+                  <div style="width:{{ p.progress }}%;background:{{ p.color }};height:100%;border-radius:4px;"></div>
+                </div>
+                <span>{{ p.progress }}%</span>
+              </div>
+            </td>
+            <td><span style="display:inline-block;width:20px;height:20px;background:{{ p.color }};border-radius:4px;"></span></td>
+            <td>
+              <a href="{% url 'schedules:phase_edit' p.pk %}" class="btn btn-outline btn-sm">編集</a>
+              <form method="post" action="{% url 'schedules:phase_delete' p.pk %}" style="display:inline;">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-outline btn-sm" onclick="return confirm('削除しますか？')">削除</button>
+              </form>
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="6"><div class="empty"><p>工程フェーズがありません</p></div></td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Milestones Tab -->
+<div class="tab-content" id="tab-milestones" style="display:none;">
+  <div class="card">
+    <div class="page-header" style="padding:12px 16px;">
+      <h2 style="font-size:1.1rem;">マイルストーン</h2>
+      <a href="{% url 'schedules:milestone_create' site.pk %}" class="btn btn-primary btn-sm">+ 追加</a>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>名称</th><th>目標日</th><th>完了</th><th>メモ</th><th></th></tr>
+        </thead>
+        <tbody>
+          {% for m in milestones %}
+          <tr>
+            <td>{{ m.name }}</td>
+            <td>{{ m.target_date|default:"-" }}</td>
+            <td>{% if m.completed %}<span class="badge badge-green">完了</span>{% else %}<span class="badge badge-gray">未完了</span>{% endif %}</td>
+            <td>{{ m.memo|truncatewords:10 }}</td>
+            <td>
+              <a href="{% url 'schedules:milestone_edit' m.pk %}" class="btn btn-outline btn-sm">編集</a>
+              <form method="post" action="{% url 'schedules:milestone_delete' m.pk %}" style="display:inline;">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-outline btn-sm" onclick="return confirm('削除しますか？')">削除</button>
+              </form>
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="5"><div class="empty"><p>マイルストーンがありません</p></div></td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Assignments Tab -->
+<div class="tab-content" id="tab-assignments" style="display:none;">
+  <div class="card">
+    <div class="page-header" style="padding:12px 16px;">
+      <h2 style="font-size:1.1rem;">配置</h2>
+      <a href="{% url 'schedules:assignment_create' site.pk %}" class="btn btn-primary btn-sm">+ 追加</a>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>作業員</th><th>開始日</th><th>終了日</th><th>メモ</th><th></th></tr>
+        </thead>
+        <tbody>
+          {% for a in assignments %}
+          <tr>
+            <td>{{ a.worker }}</td>
+            <td>{{ a.start_date }}</td>
+            <td>{{ a.end_date|default:"無期限" }}</td>
+            <td>{{ a.memo|truncatewords:10 }}</td>
+            <td>
+              <form method="post" action="{% url 'schedules:assignment_delete' a.pk %}" style="display:inline;">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-outline btn-sm" onclick="return confirm('削除しますか？')">削除</button>
+              </form>
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="5"><div class="empty"><p>配置がありません</p></div></td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+function showTab(name, btn) {
+  document.querySelectorAll('.tab-content').forEach(el => el.style.display = 'none');
+  document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+  document.getElementById('tab-' + name).style.display = 'block';
+  btn.classList.add('active');
+}
+</script>
+{% endblock %}
