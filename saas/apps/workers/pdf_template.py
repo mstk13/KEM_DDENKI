@@ -282,7 +282,7 @@ def _make_page_header(template, period=""):
             canvas.setFillColor(colors.HexColor("#2b6cb0"))
             canvas.drawString(12 * mm, top_y - 12, f"評価スケール: {scale_text}")
             canvas.setFillColor(colors.HexColor("#4a5568"))
-            canvas.drawString(12 * mm, top_y - 22, "※ 該当する数字を記入してください")
+            canvas.drawString(12 * mm, top_y - 22, "※ 各欄に該当する数字（1〜5）を記入してください")
 
         # ページ番号
         canvas.setFont(_FONT, 7)
@@ -379,21 +379,14 @@ def generate_comparison_pdf(template, workers, period=""):
 
             table_data = [header_row]
 
-            # スケールの最大値を取得
-            max_sv = max(
-                (int(s.get("value", 5)) for s in (template.scale or [{"value": 5}])),
-                default=5,
-            )
-            score_hint = " ".join(str(i) for i in range(1, max_sv + 1))
-
             for item in items:
                 name = item.get("name", "")
                 num = item.get("num", "")
 
-                # 評価項目名行（グレー背景） — スコア記入欄に「1 2 3 4 5」ヒント
+                # 評価項目名行（グレー背景） — 空欄（数字を直接記入）
                 item_row = [_cp(f"{num}. {name}", STYLE_COMP_BODY)]
                 for _ in group_workers:
-                    item_row.append(_cp(score_hint, STYLE_COMP_SCORE))
+                    item_row.append(_cp("", STYLE_COMP_BODY))
                 table_data.append(item_row)
 
                 # 個別質問行
@@ -403,7 +396,7 @@ def generate_comparison_pdf(template, workers, period=""):
                         _cp(f"  {q.get('qnum', '')}  {q.get('text', '')}", STYLE_COMP_SMALL),
                     ]
                     for _ in group_workers:
-                        q_row.append(_cp(score_hint, STYLE_COMP_SCORE))
+                        q_row.append(_cp("", STYLE_COMP_BODY))
                     table_data.append(q_row)
 
                 # 自由記述行
