@@ -44,6 +44,11 @@
         <span class="nav-icon">&#x1f4cb;</span> 人材評価
       </a>
 
+      <div class="nav-section">開発</div>
+      <a href="{% url 'devkanri:project_list' %}" class="{% if 'devkanri:' in request.resolver_match.view_name %}active{% endif %}">
+        <span class="nav-icon">&#x1f4bb;</span> 開発管理
+      </a>
+
       <div class="nav-section">設定</div>
       <a href="{% url 'masters:worktypes' %}" class="{% if 'masters:' in request.resolver_match.view_name %}active{% endif %}">
         <span class="nav-icon">&#x2699;&#xfe0f;</span> マスタ管理

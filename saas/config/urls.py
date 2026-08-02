@@ -33,4 +33,5 @@ urlpatterns = [
     path("materials/", include("apps.materials.urls")),
     path("workers/", include("apps.workers.urls")),
     path("masters/", include("apps.masters.urls")),
+    path("dev/", include("apps.devkanri.urls")),
 ]

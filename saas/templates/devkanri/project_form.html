@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}{% if form.instance.pk %}プロジェクト編集{% else %}プロジェクト作成{% endif %} — 建設SaaS{% endblock %}
+{% block topbar_title %}{% if form.instance.pk %}プロジェクト編集{% else %}プロジェクト作成{% endif %}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>{% if form.instance.pk %}{{ form.instance.name }} を編集{% else %}プロジェクトを作成{% endif %}</h1>
+</div>
+
+<div class="card">
+  <div class="card-body">
+    <form method="post">
+      {% csrf_token %}
+      <div class="form-group">
+        <label for="id_name">プロジェクト名</label>
+        <input type="text" name="name" id="id_name" class="form-control" value="{{ form.name.value|default:'' }}" required>
+        {{ form.name.errors }}
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="id_status">ステータス</label>
+          {{ form.status }}
+          {{ form.status.errors }}
+        </div>
+        <div class="form-group">
+          <label for="id_assignee">責任者</label>
+          {{ form.assignee }}
+          {{ form.assignee.errors }}
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="id_start_date">開始日</label>
+          <input type="date" name="start_date" id="id_start_date" class="form-control" value="{{ form.start_date.value|default:'' }}">
+        </div>
+        <div class="form-group">
+          <label for="id_due_date">期限</label>
+          <input type="date" name="due_date" id="id_due_date" class="form-control" value="{{ form.due_date.value|default:'' }}">
+        </div>
+      </div>
+      <div class="form-group">
+        <label for="id_description">説明</label>
+        <textarea name="description" id="id_description" class="form-control" rows="3">{{ form.description.value|default:'' }}</textarea>
+      </div>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">保存</button>
+        <a href="{% url 'devkanri:project_list' %}" class="btn btn-outline">キャンセル</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

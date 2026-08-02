@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block title %}#{{ task.pk }} {{ task.title }} — 開発管理{% endblock %}
+{% block topbar_title %}タスク詳細{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>#{{ task.pk }} {{ task.title }}</h1>
+  <div>
+    <a href="{% url 'devkanri:task_edit' task.pk %}" class="btn btn-outline btn-sm">編集</a>
+    <a href="{% url 'devkanri:task_delete' task.pk %}" class="btn btn-outline btn-sm" style="color:var(--danger);">削除</a>
+    <a href="{% url 'devkanri:project_detail' project.pk %}" class="btn btn-outline btn-sm">プロジェクトに戻る</a>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:2fr 1fr;gap:20px;">
+  <!-- Left: details + comments -->
+  <div>
+    <div class="card" style="margin-bottom: 20px;">
+      <div class="card-header"><h2>詳細</h2></div>
+      <div class="card-body">
+        {% if task.description %}
+          <p>{{ task.description|linebreaksbr }}</p>
+        {% else %}
+          <p style="color: var(--text-muted);">説明なし</p>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Comments -->
+    <div class="card">
+      <div class="card-header"><h2>コメント ({{ comments|length }})</h2></div>
+      <div class="card-body">
+        {% for c in comments %}
+        <div style="border-bottom: 1px solid var(--border-light); padding: 12px 0;">
+          <div style="font-size: .82rem; color: var(--text-muted);">
+            <strong style="color: var(--text-primary);">{{ c.author|default:"匿名" }}</strong>
+            &mdash; {{ c.created_at|date:"Y-m-d H:i" }}
+          </div>
+          <div style="margin-top: 4px;">{{ c.body|linebreaksbr }}</div>
+        </div>
+        {% empty %}
+        <p style="color: var(--text-muted);">コメントなし</p>
+        {% endfor %}
+
+        <form method="post" style="margin-top: 16px;">
+          {% csrf_token %}
+          {{ comment_form.body }}
+          {{ comment_form.body.errors }}
+          <div style="margin-top: 8px;">
+            <button type="submit" class="btn btn-primary btn-sm">投稿</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right: metadata -->
+  <div>
+    <div class="card">
+      <div class="card-header"><h2>情報</h2></div>
+      <dl class="detail-grid">
+        <dt>プロジェクト</dt><dd><a href="{% url 'devkanri:project_detail' project.pk %}">{{ project.name }}</a></dd>
+        <dt>ステータス</dt>
+        <dd>
+          {% if task.status == 'open' %}<span class="badge badge-gray">未着手</span>
+          {% elif task.status == 'in_progress' %}<span class="badge badge-blue">作業中</span>
+          {% elif task.status == 'review' %}<span class="badge badge-orange">レビュー</span>
+          {% elif task.status == 'done' %}<span class="badge badge-green">完了</span>
+          {% elif task.status == 'closed' %}<span class="badge badge-gray">クローズ</span>
+          {% endif %}
+        </dd>
+        <dt>優先度</dt>
+        <dd>
+          {% if task.priority == 'critical' %}<span class="badge badge-red">緊急</span>
+          {% elif task.priority == 'high' %}<span class="badge badge-orange">高</span>
+          {% elif task.priority == 'medium' %}<span class="badge badge-blue">中</span>
+          {% elif task.priority == 'low' %}<span class="badge badge-gray">低</span>
+          {% endif %}
+        </dd>
+        <dt>カテゴリ</dt><dd>{{ task.get_category_display }}</dd>
+        <dt>担当者</dt><dd>{{ task.assignee|default:"-" }}</dd>
+        <dt>期限</dt><dd>{{ task.due_date|default:"-" }}</dd>
+        <dt>見積</dt><dd>{{ task.estimate_hours|default:"-" }}h</dd>
+        <dt>実績</dt><dd>{{ task.actual_hours|default:"-" }}h</dd>
+        <dt>作成者</dt><dd>{{ task.created_by|default:"-" }}</dd>
+        <dt>作成日</dt><dd>{{ task.created_at|date:"Y-m-d H:i" }}</dd>
+        <dt>更新日</dt><dd>{{ task.updated_at|date:"Y-m-d H:i" }}</dd>
+      </dl>
+    </div>
+  </div>
+</div>
+{% endblock %}

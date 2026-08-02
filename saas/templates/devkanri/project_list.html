@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}開発プロジェクト一覧 — 建設SaaS{% endblock %}
+{% block topbar_title %}開発管理{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>プロジェクト一覧</h1>
+  <a href="{% url 'devkanri:project_create' %}" class="btn btn-primary">+ プロジェクト作成</a>
+</div>
+
+<div class="card">
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>プロジェクト名</th><th>ステータス</th><th>責任者</th><th>進捗</th><th>未解決バグ</th><th>期限</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for p in projects %}
+        <tr>
+          <td><a href="{% url 'devkanri:project_detail' p.pk %}">{{ p.name }}</a></td>
+          <td>
+            {% if p.status == 'in_progress' %}<span class="badge badge-blue">進行中</span>
+            {% elif p.status == 'completed' %}<span class="badge badge-green">完了</span>
+            {% elif p.status == 'planning' %}<span class="badge badge-gray">計画中</span>
+            {% elif p.status == 'suspended' %}<span class="badge badge-orange">中断</span>
+            {% endif %}
+          </td>
+          <td>{{ p.assignee|default:"-" }}</td>
+          <td>
+            {% if p.task_count > 0 %}
+              {{ p.done_count }}/{{ p.task_count }}
+            {% else %}
+              -
+            {% endif %}
+          </td>
+          <td>
+            {% if p.bug_count > 0 %}<span class="badge badge-red">{{ p.bug_count }}</span>{% else %}-{% endif %}
+          </td>
+          <td>{{ p.due_date|default:"-" }}</td>
+          <td><a href="{% url 'devkanri:project_edit' p.pk %}" class="btn btn-outline btn-sm">編集</a></td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="7"><div class="empty"><div class="empty-icon">&#x1f4bb;</div><p>プロジェクトがありません</p></div></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

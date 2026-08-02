@@ -35,6 +35,7 @@ INSTALLED_APPS = [
     "apps.materials",
     "apps.reports",
     "apps.costs",
+    "apps.devkanri",
 ]
 
 MIDDLEWARE = [

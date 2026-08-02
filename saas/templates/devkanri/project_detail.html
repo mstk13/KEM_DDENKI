@@ -1,0 +1,155 @@
+{% extends "base.html" %}
+{% block title %}{{ project.name }} — 開発管理{% endblock %}
+{% block topbar_title %}開発管理{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>{{ project.name }}</h1>
+  <div>
+    <a href="{% url 'devkanri:task_create' project.pk %}" class="btn btn-primary btn-sm">+ タスク追加</a>
+    <a href="{% url 'devkanri:project_edit' project.pk %}" class="btn btn-outline btn-sm">編集</a>
+    <a href="{% url 'devkanri:project_delete' project.pk %}" class="btn btn-outline btn-sm" style="color:var(--danger);">削除</a>
+    <a href="{% url 'devkanri:project_list' %}" class="btn btn-outline btn-sm">一覧に戻る</a>
+  </div>
+</div>
+
+<!-- Stats -->
+<div class="stats">
+  <div class="stat-card blue">
+    <div class="stat-label">進捗</div>
+    <div class="stat-value blue">{{ done }}/{{ total }} ({{ progress_pct }}%)</div>
+  </div>
+  <div class="stat-card default">
+    <div class="stat-label">未着手</div>
+    <div class="stat-value">{{ open_count }}</div>
+  </div>
+  <div class="stat-card default">
+    <div class="stat-label">作業中</div>
+    <div class="stat-value">{{ in_progress }}</div>
+  </div>
+  <div class="stat-card default">
+    <div class="stat-label">レビュー</div>
+    <div class="stat-value">{{ review_count }}</div>
+  </div>
+  <div class="stat-card orange">
+    <div class="stat-label">未解決バグ</div>
+    <div class="stat-value orange">{{ open_bugs }}</div>
+  </div>
+</div>
+
+{% if total > 0 %}
+<div class="card" style="margin-bottom: 24px; padding: 4px 16px;">
+  <div style="background: var(--border-light); border-radius: 6px; height: 8px; overflow: hidden;">
+    <div style="background: var(--success); height: 100%; width: {{ progress_pct }}%; transition: width 0.3s;"></div>
+  </div>
+</div>
+{% endif %}
+
+<!-- Project info -->
+<div class="card" style="margin-bottom: 24px;">
+  <div class="card-header"><h2>プロジェクト情報</h2></div>
+  <dl class="detail-grid">
+    <dt>ステータス</dt><dd>{{ project.get_status_display }}</dd>
+    <dt>責任者</dt><dd>{{ project.assignee|default:"-" }}</dd>
+    <dt>開始日</dt><dd>{{ project.start_date|default:"-" }}</dd>
+    <dt>期限</dt><dd>{{ project.due_date|default:"-" }}</dd>
+    <dt>説明</dt><dd>{{ project.description|default:"-"|linebreaksbr }}</dd>
+    <dt>見積合計</dt><dd>{{ estimate_total }}h</dd>
+    <dt>実績合計</dt><dd>{{ actual_total }}h</dd>
+  </dl>
+</div>
+
+<!-- Kanban board -->
+<div class="card" style="margin-bottom: 24px;">
+  <div class="card-header"><h2>カンバンボード</h2></div>
+  <div class="card-body">
+    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px;">
+      {% for status_key, status_tasks in kanban.items %}
+      <div>
+        <div style="text-align: center; padding: 8px; border-radius: 8px; margin-bottom: 8px; font-weight: 700; font-size: .88rem;
+          {% if status_key == 'open' %}background: #f1f5f9; color: #64748b;
+          {% elif status_key == 'in_progress' %}background: #dbeafe; color: #2563eb;
+          {% elif status_key == 'review' %}background: #fef3c7; color: #d97706;
+          {% elif status_key == 'done' %}background: #d1fae5; color: #16a34a;
+          {% endif %}">
+          {% if status_key == 'open' %}未着手{% elif status_key == 'in_progress' %}作業中{% elif status_key == 'review' %}レビュー{% elif status_key == 'done' %}完了{% endif %}
+          ({{ status_tasks|length }})
+        </div>
+        {% for t in status_tasks %}
+        <div style="background: #fff; border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; margin-bottom: 6px;
+          border-left: 4px solid {% if t.priority == 'critical' %}#dc2626{% elif t.priority == 'high' %}#f59e0b{% elif t.priority == 'medium' %}#3b82f6{% else %}#94a3b8{% endif %};">
+          <div style="font-size: .88rem; font-weight: 600;">
+            <a href="{% url 'devkanri:task_detail' t.pk %}" style="color: var(--text-primary);">#{{ t.pk }} {{ t.title }}</a>
+          </div>
+          <div style="font-size: .75rem; color: var(--text-muted); margin-top: 4px;">
+            <span class="badge {% if t.category == 'bug' %}badge-red{% elif t.category == 'feature' %}badge-blue{% elif t.category == 'refactor' %}badge-orange{% else %}badge-gray{% endif %}">{{ t.get_category_display }}</span>
+            {% if t.assignee %} {{ t.assignee }}{% endif %}
+          </div>
+          <form method="post" action="{% url 'devkanri:task_move' t.pk %}" style="margin-top: 6px;">
+            {% csrf_token %}
+            <select name="status" style="font-size: .72rem; padding: 2px 4px; border: 1px solid var(--border); border-radius: 4px;">
+              {% for val, label in status_choices %}
+              <option value="{{ val }}" {% if val == t.status %}selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+            <button type="submit" class="btn btn-outline btn-sm" style="padding: 2px 8px; font-size: .7rem;">移動</button>
+          </form>
+        </div>
+        {% empty %}
+        <div style="text-align: center; color: var(--text-muted); font-size: .8rem; padding: 16px;">なし</div>
+        {% endfor %}
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+<!-- Task list -->
+<div class="card">
+  <div class="card-header">
+    <h2>タスク一覧</h2>
+    <div style="display: flex; gap: 6px; align-items: center;">
+      <a href="{% url 'devkanri:project_detail' project.pk %}" class="btn btn-outline btn-sm {% if not request.GET.status %}btn-primary{% endif %}">全て</a>
+      {% for val, label in status_choices %}
+      <a href="{% url 'devkanri:project_detail' project.pk %}?status={{ val }}" class="btn btn-outline btn-sm {% if request.GET.status == val %}btn-primary{% endif %}">{{ label }}</a>
+      {% endfor %}
+    </div>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>ID</th><th>タイトル</th><th>ステータス</th><th>優先度</th><th>カテゴリ</th><th>担当者</th><th>期限</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for t in tasks %}
+        <tr>
+          <td>#{{ t.pk }}</td>
+          <td><a href="{% url 'devkanri:task_detail' t.pk %}">{{ t.title }}</a></td>
+          <td>
+            {% if t.status == 'open' %}<span class="badge badge-gray">未着手</span>
+            {% elif t.status == 'in_progress' %}<span class="badge badge-blue">作業中</span>
+            {% elif t.status == 'review' %}<span class="badge badge-orange">レビュー</span>
+            {% elif t.status == 'done' %}<span class="badge badge-green">完了</span>
+            {% elif t.status == 'closed' %}<span class="badge badge-gray">クローズ</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if t.priority == 'critical' %}<span class="badge badge-red">緊急</span>
+            {% elif t.priority == 'high' %}<span class="badge badge-orange">高</span>
+            {% elif t.priority == 'medium' %}<span class="badge badge-blue">中</span>
+            {% elif t.priority == 'low' %}<span class="badge badge-gray">低</span>
+            {% endif %}
+          </td>
+          <td>{{ t.get_category_display }}</td>
+          <td>{{ t.assignee|default:"-" }}</td>
+          <td>{{ t.due_date|default:"-" }}</td>
+          <td><a href="{% url 'devkanri:task_edit' t.pk %}" class="btn btn-outline btn-sm">編集</a></td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="8"><div class="empty"><p>タスクがありません</p></div></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

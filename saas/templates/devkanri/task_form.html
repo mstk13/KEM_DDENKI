@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}{% if form.instance.pk %}タスク編集{% else %}タスク作成{% endif %} — 建設SaaS{% endblock %}
+{% block topbar_title %}{% if form.instance.pk %}タスク編集{% else %}タスク作成{% endif %}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>{% if form.instance.pk %}#{{ form.instance.pk }} {{ form.instance.title }} を編集{% else %}タスクを作成{% endif %}</h1>
+  <span style="color: var(--text-muted);">{{ project.name }}</span>
+</div>
+
+<div class="card">
+  <div class="card-body">
+    <form method="post">
+      {% csrf_token %}
+      <div class="form-group">
+        <label for="id_title">タイトル</label>
+        <input type="text" name="title" id="id_title" class="form-control" value="{{ form.title.value|default:'' }}" required>
+        {{ form.title.errors }}
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="id_status">ステータス</label>
+          {{ form.status }}
+          {{ form.status.errors }}
+        </div>
+        <div class="form-group">
+          <label for="id_priority">優先度</label>
+          {{ form.priority }}
+          {{ form.priority.errors }}
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="id_category">カテゴリ</label>
+          {{ form.category }}
+          {{ form.category.errors }}
+        </div>
+        <div class="form-group">
+          <label for="id_assignee">担当者</label>
+          {{ form.assignee }}
+          {{ form.assignee.errors }}
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="id_due_date">期限</label>
+          <input type="date" name="due_date" id="id_due_date" class="form-control" value="{{ form.due_date.value|default:'' }}">
+        </div>
+        <div class="form-group">
+          <label for="id_estimate_hours">見積(h)</label>
+          <input type="number" name="estimate_hours" id="id_estimate_hours" class="form-control" step="0.5" min="0" value="{{ form.estimate_hours.value|default:'' }}">
+        </div>
+      </div>
+      {% if form.instance.pk %}
+      <div class="form-group">
+        <label for="id_actual_hours">実績(h)</label>
+        <input type="number" name="actual_hours" id="id_actual_hours" class="form-control" step="0.5" min="0" value="{{ form.actual_hours.value|default:'' }}">
+      </div>
+      {% endif %}
+      <div class="form-group">
+        <label for="id_description">詳細</label>
+        <textarea name="description" id="id_description" class="form-control" rows="3">{{ form.description.value|default:'' }}</textarea>
+      </div>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">保存</button>
+        <a href="{% url 'devkanri:project_detail' project.pk %}" class="btn btn-outline">キャンセル</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
