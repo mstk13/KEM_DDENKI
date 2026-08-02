@@ -59,6 +59,7 @@ class Command(BaseCommand):
             ("試用期間", 6),
             ("パート", 7),
             ("Developer", 8),
+            ("アルバイト", 9),
         ]
         for name, rank in positions:
             Position.unscoped.update_or_create(
