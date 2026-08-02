@@ -121,3 +121,6 @@ SIMPLE_HISTORY_REVERT_DISABLED = True
 LOGIN_URL = "login"
 LOGIN_REDIRECT_URL = "dashboard"
 LOGOUT_REDIRECT_URL = "login"
+
+# 社長用ログインPIN（環境変数で上書き可能）
+PRESIDENT_PIN = os.environ.get("PRESIDENT_PIN", "1234")

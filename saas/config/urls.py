@@ -24,7 +24,7 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     path("health/", health_check),
     # Auth
-    path("login/", auth_views.LoginView.as_view(), name="login"),
+    path("login/", include("apps.accounts.urls")),
     path("logout/", auth_views.LogoutView.as_view(), name="logout"),
     # Dashboard
     path("", dashboard, name="dashboard"),
