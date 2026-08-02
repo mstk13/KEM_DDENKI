@@ -16,4 +16,6 @@ urlpatterns = [
     path("suppliers/new/", views.supplier_create, name="supplier_create"),
     path("suppliers/<int:pk>/edit/", views.supplier_edit, name="supplier_edit"),
     path("suppliers/<int:pk>/delete/", views.supplier_delete, name="supplier_delete"),
+    # AI抽出
+    path("extract/", views.extract_partner, name="extract_partner"),
 ]

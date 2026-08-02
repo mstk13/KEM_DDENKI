@@ -11,13 +11,15 @@
 <div class="card">
   <div class="table-wrap">
     <table>
-      <thead><tr><th>コード</th><th>顧客名</th><th>住所</th><th>状態</th><th></th></tr></thead>
+      <thead><tr><th>コード</th><th>顧客名</th><th>担当者</th><th>電話番号</th><th>住所</th><th>状態</th><th></th></tr></thead>
       <tbody>
         {% for c in customers %}
         <tr>
           <td>{{ c.code }}</td>
           <td>{{ c.name }}</td>
-          <td style="font-size:.82rem;color:var(--text-muted);">{{ c.address|truncatewords:10|default:"-" }}</td>
+          <td style="font-size:.82rem;">{{ c.contact_person|default:"-" }}</td>
+          <td style="font-size:.82rem;">{{ c.phone|default:"-" }}</td>
+          <td style="font-size:.82rem;color:var(--text-muted);">{{ c.address|truncatewords:8|default:"-" }}</td>
           <td>{% if c.is_active %}<span class="badge badge-green">有効</span>{% else %}<span class="badge badge-gray">無効</span>{% endif %}</td>
           <td>
             <a href="{% url 'masters:customer_edit' c.pk %}" class="btn btn-outline btn-sm">編集</a>
@@ -25,7 +27,7 @@
           </td>
         </tr>
         {% empty %}
-        <tr><td colspan="5"><div class="empty"><p>顧客が登録されていません</p></div></td></tr>
+        <tr><td colspan="7"><div class="empty"><p>顧客が登録されていません</p></div></td></tr>
         {% endfor %}
       </tbody>
     </table>

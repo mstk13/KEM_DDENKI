@@ -6,9 +6,13 @@ from apps.masters.models import Customer, Supplier
 class CustomerForm(forms.ModelForm):
     class Meta:
         model = Customer
-        fields = ["code", "name", "address", "is_active"]
+        fields = [
+            "code", "name", "representative", "contact_person",
+            "phone", "fax", "email", "address", "note", "is_active",
+        ]
         widgets = {
             "address": forms.Textarea(attrs={"class": "form-control", "rows": 2}),
+            "note": forms.Textarea(attrs={"class": "form-control", "rows": 2}),
         }
 
     def __init__(self, *args, **kwargs):
@@ -20,9 +24,13 @@ class CustomerForm(forms.ModelForm):
 class SupplierForm(forms.ModelForm):
     class Meta:
         model = Supplier
-        fields = ["code", "name", "contact_info", "is_active"]
+        fields = [
+            "code", "name", "representative", "contact_person",
+            "phone", "fax", "email", "address", "note", "is_active",
+        ]
         widgets = {
-            "contact_info": forms.Textarea(attrs={"class": "form-control", "rows": 2}),
+            "address": forms.Textarea(attrs={"class": "form-control", "rows": 2}),
+            "note": forms.Textarea(attrs={"class": "form-control", "rows": 2}),
         }
 
     def __init__(self, *args, **kwargs):

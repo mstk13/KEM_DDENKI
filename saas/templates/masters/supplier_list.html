@@ -11,13 +11,15 @@
 <div class="card">
   <div class="table-wrap">
     <table>
-      <thead><tr><th>コード</th><th>発注先名</th><th>連絡先</th><th>状態</th><th></th></tr></thead>
+      <thead><tr><th>コード</th><th>発注先名</th><th>担当者</th><th>電話番号</th><th>住所</th><th>状態</th><th></th></tr></thead>
       <tbody>
         {% for s in suppliers %}
         <tr>
           <td>{{ s.code }}</td>
           <td>{{ s.name }}</td>
-          <td style="font-size:.82rem;color:var(--text-muted);">{{ s.contact_info|truncatewords:10|default:"-" }}</td>
+          <td style="font-size:.82rem;">{{ s.contact_person|default:"-" }}</td>
+          <td style="font-size:.82rem;">{{ s.phone|default:"-" }}</td>
+          <td style="font-size:.82rem;color:var(--text-muted);">{{ s.address|truncatewords:8|default:"-" }}</td>
           <td>{% if s.is_active %}<span class="badge badge-green">有効</span>{% else %}<span class="badge badge-gray">無効</span>{% endif %}</td>
           <td>
             <a href="{% url 'masters:supplier_edit' s.pk %}" class="btn btn-outline btn-sm">編集</a>
@@ -25,7 +27,7 @@
           </td>
         </tr>
         {% empty %}
-        <tr><td colspan="5"><div class="empty"><p>発注先が登録されていません</p></div></td></tr>
+        <tr><td colspan="7"><div class="empty"><p>発注先が登録されていません</p></div></td></tr>
         {% endfor %}
       </tbody>
     </table>

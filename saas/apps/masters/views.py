@@ -1,5 +1,9 @@
+import tempfile
+from pathlib import Path
+
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 
 from apps.masters.forms import CustomerForm, SupplierForm
@@ -114,3 +118,40 @@ def supplier_delete(request, pk):
         messages.success(request, "発注先を削除しました。")
         return redirect("masters:supplier_list")
     return render(request, "masters/confirm_delete.html", {"obj": obj, "type_label": "発注先", "back_url": "masters:supplier_list"})
+
+
+# =====================================================================
+# AI抽出（写真/PDFから取引先情報を読み取り）
+# =====================================================================
+
+@login_required
+def extract_partner(request):
+    """写真/PDFをアップロードしてAIで取引先情報を抽出するAPI。"""
+    if request.method != "POST":
+        return JsonResponse({"error": "POST only"}, status=405)
+
+    uploaded = request.FILES.get("file")
+    if not uploaded:
+        return JsonResponse({"error": "ファイルが選択されていません"}, status=400)
+
+    suffix = Path(uploaded.name).suffix.lower()
+    if suffix not in (".jpg", ".jpeg", ".png", ".gif", ".webp", ".pdf"):
+        return JsonResponse({"error": "jpg/png/pdf のみ対応しています"}, status=400)
+
+    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+        for chunk in uploaded.chunks():
+            tmp.write(chunk)
+        tmp_path = tmp.name
+
+    try:
+        from apps.masters.extractor import extract_from_file
+        results = extract_from_file(tmp_path)
+        return JsonResponse({"results": results})
+    except ImportError as e:
+        return JsonResponse({"error": str(e)}, status=500)
+    except ValueError as e:
+        return JsonResponse({"error": str(e)}, status=500)
+    except Exception as e:
+        return JsonResponse({"error": f"抽出エラー: {e}"}, status=500)
+    finally:
+        Path(tmp_path).unlink(missing_ok=True)

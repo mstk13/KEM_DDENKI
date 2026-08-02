@@ -62,7 +62,13 @@ class Customer(TenantModel):
 
     code = models.CharField("コード", max_length=50)
     name = models.CharField("得意先名", max_length=200)
+    representative = models.CharField("代表者名", max_length=100, blank=True)
+    contact_person = models.CharField("担当者名", max_length=100, blank=True)
+    phone = models.CharField("電話番号", max_length=30, blank=True)
+    fax = models.CharField("FAX", max_length=30, blank=True)
+    email = models.EmailField("メール", blank=True)
     address = models.TextField("住所", blank=True)
+    note = models.TextField("備考", blank=True)
     is_active = models.BooleanField("有効", default=True)
 
     history = HistoricalRecords()
@@ -81,7 +87,13 @@ class Supplier(TenantModel):
 
     code = models.CharField("コード", max_length=50)
     name = models.CharField("仕入先名", max_length=200)
-    contact_info = models.TextField("連絡先", blank=True)
+    representative = models.CharField("代表者名", max_length=100, blank=True)
+    contact_person = models.CharField("担当者名", max_length=100, blank=True)
+    phone = models.CharField("電話番号", max_length=30, blank=True)
+    fax = models.CharField("FAX", max_length=30, blank=True)
+    email = models.EmailField("メール", blank=True)
+    address = models.TextField("住所", blank=True)
+    note = models.TextField("備考", blank=True)
     is_active = models.BooleanField("有効", default=True)
 
     history = HistoricalRecords()

@@ -7,17 +7,81 @@
   <h1>{% if form.instance.pk %}{{ form.instance.name }} を編集{% else %}{{ type_label }}を登録{% endif %}</h1>
 </div>
 
-<div class="card">
+{% if not form.instance.pk %}
+<!-- AI読み取り（新規登録時のみ） -->
+<div class="card" style="margin-bottom:24px;">
+  <div class="card-header"><h2>写真・PDFから読み取り</h2></div>
   <div class="card-body">
-    <form method="post">
-      {% csrf_token %}
-      {% for field in form %}
-      <div class="form-group">
-        <label for="{{ field.id_for_label }}">{{ field.label }}</label>
-        {{ field }}
-        {{ field.errors }}
+    <p style="font-size:.82rem;color:var(--text-muted);margin-bottom:12px;">
+      名刺・書類・PDFをアップロードすると、AIが会社名・住所・電話番号等を自動で読み取ります。
+    </p>
+    <div style="display:flex;gap:12px;align-items:end;">
+      <div class="form-group" style="margin-bottom:0;flex:1;">
+        <input type="file" id="ai-file" accept=".jpg,.jpeg,.png,.gif,.webp,.pdf" class="form-control">
       </div>
-      {% endfor %}
+      <button type="button" id="ai-extract-btn" class="btn btn-success" style="height:38px;" onclick="extractFromFile()">
+        読み取り
+      </button>
+    </div>
+    <div id="ai-status" style="margin-top:8px;font-size:.82rem;display:none;"></div>
+  </div>
+</div>
+{% endif %}
+
+<div class="card">
+  <div class="card-header"><h2>{{ type_label }}情報</h2></div>
+  <div class="card-body">
+    <form method="post" id="partner-form">
+      {% csrf_token %}
+      <div class="form-row">
+        <div class="form-group">
+          <label for="id_code">コード</label>
+          {{ form.code }}
+          {{ form.code.errors }}
+        </div>
+        <div class="form-group">
+          <label for="id_name">{% if type_label == "顧客" %}顧客名{% else %}発注先名{% endif %}</label>
+          {{ form.name }}
+          {{ form.name.errors }}
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="id_representative">代表者名</label>
+          {{ form.representative }}
+        </div>
+        <div class="form-group">
+          <label for="id_contact_person">担当者名</label>
+          {{ form.contact_person }}
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="id_phone">電話番号</label>
+          {{ form.phone }}
+        </div>
+        <div class="form-group">
+          <label for="id_fax">FAX</label>
+          {{ form.fax }}
+        </div>
+      </div>
+      <div class="form-group">
+        <label for="id_email">メール</label>
+        {{ form.email }}
+      </div>
+      <div class="form-group">
+        <label for="id_address">住所</label>
+        {{ form.address }}
+      </div>
+      <div class="form-group">
+        <label for="id_note">備考</label>
+        {{ form.note }}
+      </div>
+      <div class="form-group">
+        <label style="display:flex;align-items:center;gap:6px;">
+          {{ form.is_active }} 有効
+        </label>
+      </div>
       <div class="form-actions">
         <button type="submit" class="btn btn-primary">保存</button>
         {% if type_label == "顧客" %}
@@ -29,4 +93,75 @@
     </form>
   </div>
 </div>
+
+{% if not form.instance.pk %}
+<script>
+function extractFromFile() {
+  const fileInput = document.getElementById('ai-file');
+  const statusEl = document.getElementById('ai-status');
+  const btn = document.getElementById('ai-extract-btn');
+
+  if (!fileInput.files.length) {
+    statusEl.style.display = 'block';
+    statusEl.style.color = 'var(--danger)';
+    statusEl.textContent = 'ファイルを選択してください';
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = '読み取り中...';
+  statusEl.style.display = 'block';
+  statusEl.style.color = 'var(--text-muted)';
+  statusEl.textContent = 'AIが読み取り中です。少々お待ちください...';
+
+  const formData = new FormData();
+  formData.append('file', fileInput.files[0]);
+  formData.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+
+  fetch('{% url "masters:extract_partner" %}', {
+    method: 'POST',
+    body: formData,
+  })
+  .then(r => r.json())
+  .then(data => {
+    btn.disabled = false;
+    btn.textContent = '読み取り';
+
+    if (data.error) {
+      statusEl.style.color = 'var(--danger)';
+      statusEl.textContent = data.error;
+      return;
+    }
+
+    if (data.results && data.results.length > 0) {
+      const r = data.results[0];
+      // フォームに自動入力
+      if (r.name) document.getElementById('id_name').value = r.name;
+      if (r.representative) document.getElementById('id_representative').value = r.representative;
+      if (r.contact_person) document.getElementById('id_contact_person').value = r.contact_person;
+      if (r.phone) document.getElementById('id_phone').value = r.phone;
+      if (r.fax) document.getElementById('id_fax').value = r.fax;
+      if (r.email) document.getElementById('id_email').value = r.email;
+      if (r.address) document.getElementById('id_address').value = r.address;
+
+      statusEl.style.color = 'var(--success)';
+      statusEl.textContent = '読み取り完了。内容を確認して保存してください。';
+
+      if (data.results.length > 1) {
+        statusEl.textContent += '（' + data.results.length + '件検出。1件目を入力しました）';
+      }
+    } else {
+      statusEl.style.color = 'var(--warning)';
+      statusEl.textContent = '情報を読み取れませんでした。手動で入力してください。';
+    }
+  })
+  .catch(err => {
+    btn.disabled = false;
+    btn.textContent = '読み取り';
+    statusEl.style.color = 'var(--danger)';
+    statusEl.textContent = 'エラー: ' + err.message;
+  });
+}
+</script>
+{% endif %}
 {% endblock %}
