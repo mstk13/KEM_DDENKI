@@ -7,7 +7,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 
 from django.db import models
 
-from apps.workers.forms import HealthCheckupForm, WorkerForm, WorkerQualificationForm
+from apps.workers.forms import AppPermissionForm, HealthCheckupForm, WorkerForm, WorkerQualificationForm
 from apps.workers.models import (
     EvaluationTemplate,
     HealthCheckup,
@@ -24,6 +24,14 @@ def _is_president(user):
         return True
     profile = getattr(user, "worker_profile", None)
     return profile and profile.position and profile.position.name == "社長"
+
+
+def _is_admin(user):
+    """社員番号がYで始まる管理者かどうかを判定。"""
+    if user.is_superuser:
+        return True
+    profile = getattr(user, "worker_profile", None)
+    return profile and profile.employee_code and profile.employee_code.startswith("Y")
 
 
 @login_required
@@ -182,19 +190,30 @@ def worker_create(request):
 @login_required
 def worker_edit(request, pk):
     worker = get_object_or_404(Worker, pk=pk)
+    is_admin = _is_admin(request.user)
+
     if request.method == "POST":
         form = WorkerForm(request.POST, instance=worker, company=request.user.company)
+        perm_form = AppPermissionForm(request.POST) if is_admin else None
         if form.is_valid():
-            form.save()
+            worker = form.save()
+            if perm_form and perm_form.is_valid():
+                worker.allowed_apps = perm_form.cleaned_data["apps"]
+                worker.save(update_fields=["allowed_apps"])
+            messages.success(request, "作業員情報を更新しました。")
             return redirect("workers:detail", pk=worker.pk)
     else:
         form = WorkerForm(instance=worker, company=request.user.company)
+        perm_form = AppPermissionForm(initial={"apps": worker.allowed_apps or []}) if is_admin else None
+
     return render(request, "workers/form.html", {
         "form": form,
         "worker": worker,
         "cert_qualifications": worker.qualifications.all(),
         "health_checkups": worker.health_checkups.all(),
         "is_president": _is_president(request.user),
+        "is_admin": is_admin,
+        "perm_form": perm_form,
     })
 
 

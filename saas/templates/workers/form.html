@@ -21,6 +21,22 @@
       </div>
       {% endif %}
       {% endfor %}
+
+      {% if is_admin and perm_form and form.instance.pk %}
+      <div style="margin-top:28px;padding-top:20px;border-top:1px solid var(--border-light);">
+        <h3 style="font-size:.95rem;font-weight:600;color:var(--brand);margin-bottom:12px;">アプリ権限</h3>
+        <p style="font-size:.82rem;color:var(--text-muted);margin-bottom:12px;">この作業員がアクセスできるアプリを選択してください。</p>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 24px;">
+          {% for checkbox in perm_form.apps %}
+          <label style="display:flex;align-items:center;gap:8px;font-size:.88rem;font-weight:500;cursor:pointer;">
+            {{ checkbox.tag }}
+            {{ checkbox.choice_label }}
+          </label>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+
       <div class="form-actions">
         <button type="submit" class="btn btn-primary">保存</button>
         <a href="{% url 'workers:list' %}" class="btn btn-outline">キャンセル</a>

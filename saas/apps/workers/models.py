@@ -106,6 +106,12 @@ class Worker(TenantModel):
         blank=True,
         help_text="Discordの数字ID（開発者モードで右クリック→IDをコピー）",
     )
+    allowed_apps = models.JSONField(
+        "利用可能アプリ",
+        default=list,
+        blank=True,
+        help_text="アクセスを許可するアプリコードのリスト",
+    )
 
     history = HistoricalRecords()
 
