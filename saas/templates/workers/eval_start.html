@@ -3,41 +3,190 @@
 {% block topbar_title %}人材評価{% endblock %}
 
 {% block content %}
+<style>
+  .target-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 18px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+    transition: var(--transition);
+    box-shadow: var(--shadow-xs);
+  }
+  .target-card:hover { box-shadow: var(--shadow); transform: translateY(-1px); }
+  .target-info { display: flex; align-items: center; gap: 14px; }
+  .target-avatar {
+    width: 40px; height: 40px;
+    border-radius: var(--radius-full);
+    background: var(--bg);
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 600; font-size: .9rem; color: var(--text-secondary);
+    flex-shrink: 0;
+  }
+  .target-name { font-size: .92rem; font-weight: 600; color: var(--text-primary); margin-bottom: 1px; }
+  .target-meta { font-size: .76rem; color: var(--text-muted); display: flex; gap: 10px; }
+  .target-status { display: flex; align-items: center; gap: 8px; }
+  .job-group-header {
+    font-size: .82rem; font-weight: 600; color: var(--brand);
+    padding: 12px 0 6px; margin-top: 8px;
+    border-bottom: 2px solid var(--brand-light);
+  }
+  #targets-area { margin-top: 24px; }
+  .targets-loading { text-align: center; padding: 32px; color: var(--text-muted); }
+  .targets-summary {
+    background: var(--brand-light);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px 24px;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: .88rem;
+    color: var(--text-secondary);
+  }
+  .targets-summary strong { color: var(--brand); }
+</style>
+
 <div class="page-header">
   <h1>評価アンケートを作成</h1>
 </div>
 
-<div style="max-width:600px;">
-  <div class="card">
-    <div class="card-header"><h2>評価者と期間を選択</h2></div>
-    <div class="card-body">
-      <form method="post">
-        {% csrf_token %}
-        <div class="form-group">
-          <label for="evaluator">評価者（あなた）</label>
-          <select name="evaluator_id" id="evaluator" class="form-control" required>
-            <option value="">評価者を選択してください</option>
-            {% for w in workers %}
-            <option value="{{ w.pk }}" {% if w.user == request.user %}selected{% endif %}>
-              {{ w.name }}（{{ w.job_title|default:"未設定" }}）
-            </option>
-            {% endfor %}
-          </select>
-        </div>
-        <div class="form-group">
-          <label for="period">評価期間</label>
-          <select name="period" id="period" class="form-control" required>
-            {% for val, label in period_choices %}
-            <option value="{{ val }}">{{ label }}</option>
-            {% endfor %}
-          </select>
-        </div>
-        <div class="form-actions">
-          <button type="submit" class="btn btn-primary">被評価者を選択する</button>
-          <a href="{% url 'workers:evaluations' %}" class="btn btn-outline">キャンセル</a>
-        </div>
-      </form>
+<div class="card" style="margin-bottom: 24px;">
+  <div class="card-header"><h2>評価者と期間を選択</h2></div>
+  <div class="card-body">
+    <div class="form-row">
+      <div class="form-group">
+        <label for="evaluator">評価者（あなた）</label>
+        <select id="evaluator" class="form-control">
+          <option value="">評価者を選択してください</option>
+          {% for w in workers %}
+          <option value="{{ w.pk }}" {% if w.user == request.user %}selected{% endif %}>
+            {{ w.name }}（{{ w.job_title|default:"未設定" }}）
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="period">評価期間</label>
+        <select id="period" class="form-control">
+          {% for val, label in period_choices %}
+          <option value="{{ val }}">{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
     </div>
   </div>
 </div>
+
+<div id="targets-area" style="display: none;">
+  <div id="targets-summary" class="targets-summary"></div>
+  <div id="targets-list"></div>
+</div>
+
+<script>
+const evaluatorEl = document.getElementById('evaluator');
+const periodEl = document.getElementById('period');
+const targetsArea = document.getElementById('targets-area');
+const targetsSummary = document.getElementById('targets-summary');
+const targetsList = document.getElementById('targets-list');
+
+const apiUrl = '{% url "workers:eval_targets_api" %}';
+const evalCreateUrl = '{% url "workers:eval_create" %}';
+const evalDetailBase = '{% url "workers:evaluations" %}';
+const comparisonPdfBase = '{% url "workers:eval_comparison_pdf" %}';
+const csrfToken = '{{ csrf_token }}';
+
+function loadTargets() {
+  const evaluatorId = evaluatorEl.value;
+  const period = periodEl.value;
+
+  if (!evaluatorId) {
+    targetsArea.style.display = 'none';
+    return;
+  }
+
+  targetsList.innerHTML = '<div class="targets-loading">読み込み中...</div>';
+  targetsArea.style.display = 'block';
+
+  fetch(apiUrl + '?evaluator_id=' + evaluatorId + '&period=' + encodeURIComponent(period))
+    .then(r => r.json())
+    .then(data => {
+      const targets = data.targets;
+      const isExec = data.is_executive;
+      const totalCount = targets.length;
+      const doneCount = targets.filter(t => t.completed).length;
+
+      // サマリー
+      const evaluatorName = evaluatorEl.options[evaluatorEl.selectedIndex].text;
+      let summaryHtml = '<div><strong>' + evaluatorName.split('（')[0] + '</strong> ｜ ' + period + ' ｜ ';
+      summaryHtml += '<strong>' + doneCount + '</strong>/' + totalCount + ' 完了</div>';
+      summaryHtml += '<div style="display:flex;gap:8px;">';
+      if (isExec) {
+        summaryHtml += '<a href="' + comparisonPdfBase + '?period=' + encodeURIComponent(period) + '" class="btn btn-primary btn-sm">比較評価シートPDF</a>';
+      }
+      summaryHtml += '</div>';
+      targetsSummary.innerHTML = summaryHtml;
+
+      // 職種ごとにグループ化
+      const groups = {};
+      const groupOrder = [];
+      targets.forEach(t => {
+        const job = t.job_title || '-';
+        if (!groups[job]) {
+          groups[job] = [];
+          groupOrder.push(job);
+        }
+        groups[job].push(t);
+      });
+
+      let html = '';
+      groupOrder.forEach(job => {
+        html += '<div class="job-group-header">' + job + '（' + groups[job].length + '名）</div>';
+        groups[job].forEach(t => {
+          html += '<div class="target-card">';
+          html += '  <div class="target-info">';
+          html += '    <div class="target-avatar">' + t.name.charAt(0) + '</div>';
+          html += '    <div>';
+          html += '      <div class="target-name">' + t.name + '</div>';
+          html += '      <div class="target-meta">';
+          if (t.name_kana) html += '<span>' + t.name_kana + '</span>';
+          html += '        <span>' + t.job_title + '</span>';
+          html += '        <span>' + t.position + '</span>';
+          html += '      </div>';
+          html += '    </div>';
+          html += '  </div>';
+          html += '  <div class="target-status">';
+          if (t.completed) {
+            html += '    <span class="badge badge-green">評価済み</span>';
+            html += '    <a href="' + evalDetailBase + t.eval_pk + '/" class="btn btn-outline btn-sm">結果を見る</a>';
+          } else {
+            html += '    <form method="post" action="' + evalCreateUrl + '" style="margin:0;">';
+            html += '      <input type="hidden" name="csrfmiddlewaretoken" value="' + csrfToken + '">';
+            html += '      <input type="hidden" name="evaluator_id" value="' + evaluatorId + '">';
+            html += '      <input type="hidden" name="worker_id" value="' + t.pk + '">';
+            html += '      <input type="hidden" name="period" value="' + period + '">';
+            html += '      <button type="submit" class="btn btn-primary btn-sm">評価する</button>';
+            html += '    </form>';
+          }
+          html += '  </div>';
+          html += '</div>';
+        });
+      });
+
+      targetsList.innerHTML = html;
+    });
+}
+
+evaluatorEl.addEventListener('change', loadTargets);
+periodEl.addEventListener('change', loadTargets);
+
+// 初期状態で評価者が選択済みなら自動ロード
+if (evaluatorEl.value) {
+  loadTargets();
+}
+</script>
 {% endblock %}

@@ -2,7 +2,7 @@ from datetime import date
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.http import HttpResponse, HttpResponseForbidden
+from django.http import HttpResponse, HttpResponseForbidden, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 
 from apps.workers.forms import WorkerForm
@@ -196,6 +196,46 @@ def _is_executive(worker):
     """役員・社長かどうかを判定する。"""
     job_name = str(worker.job_title) if worker.job_title else ""
     return job_name in ("役員", "社長")
+
+
+@login_required
+def eval_targets_api(request):
+    """評価者IDと期間を受け取り、被評価者一覧をJSONで返す。"""
+    evaluator_id = request.GET.get("evaluator_id")
+    period = request.GET.get("period", "")
+
+    if not evaluator_id:
+        return JsonResponse({"targets": []})
+
+    evaluator = get_object_or_404(Worker, pk=evaluator_id)
+    is_exec = _is_executive(evaluator)
+
+    qs = Worker.objects.filter(is_active=True).select_related("job_title", "position")
+    if not is_exec:
+        qs = qs.exclude(pk=evaluator.pk)
+
+    # 既に評価済みかチェック
+    completed_map = {}
+    if period:
+        existing = WorkerEvaluation.objects.filter(
+            period=period,
+            evaluated_by=request.user,
+        ).values_list("worker_id", "pk")
+        completed_map = {wid: epk for wid, epk in existing}
+
+    targets = []
+    for w in qs.order_by("name"):
+        targets.append({
+            "pk": w.pk,
+            "name": w.name,
+            "name_kana": w.name_kana or "",
+            "job_title": str(w.job_title) if w.job_title else "-",
+            "position": str(w.position) if w.position else "-",
+            "completed": w.pk in completed_map,
+            "eval_pk": completed_map.get(w.pk),
+        })
+
+    return JsonResponse({"targets": targets, "is_executive": is_exec})
 
 
 def _get_period_choices():
