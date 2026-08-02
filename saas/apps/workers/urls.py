@@ -13,4 +13,5 @@ urlpatterns = [
     path("evaluations/new/", views.evaluation_create, name="eval_create"),
     path("evaluations/<int:pk>/", views.evaluation_detail, name="eval_detail"),
     path("evaluations/template/", views.eval_template_edit, name="eval_template_edit"),
+    path("evaluations/template/pdf/", views.eval_template_pdf, name="eval_template_pdf"),
 ]

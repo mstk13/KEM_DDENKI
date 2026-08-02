@@ -122,7 +122,10 @@
     <h1>{{ template.name }}</h1>
     <div class="meta">{{ template.company }} ｜ テンプレートを編集して保存</div>
   </div>
-  <a href="{% url 'workers:evaluations' %}" class="btn btn-outline btn-sm" style="color:var(--white);border-color:rgba(255,255,255,.3);">戻る</a>
+  <div style="display:flex;gap:8px;">
+    <a href="{% url 'workers:eval_template_pdf' %}" class="btn btn-outline btn-sm" style="color:var(--white);border-color:rgba(255,255,255,.3);">PDF出力</a>
+    <a href="{% url 'workers:evaluations' %}" class="btn btn-outline btn-sm" style="color:var(--white);border-color:rgba(255,255,255,.3);">戻る</a>
+  </div>
 </div>
 
 <form method="post" id="template-form">

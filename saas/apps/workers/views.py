@@ -1,6 +1,8 @@
+from datetime import date
+
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.http import HttpResponseForbidden
+from django.http import HttpResponse, HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
 
 from apps.workers.forms import WorkerForm
@@ -184,7 +186,37 @@ def evaluation_create(request):
     workers = Worker.objects.filter(is_active=True).select_related(
         "job_title",
     ).order_by("name")
-    return render(request, "workers/eval_start.html", {"workers": workers})
+    return render(request, "workers/eval_start.html", {
+        "workers": workers,
+        "period_choices": _get_period_choices(),
+    })
+
+
+def _get_period_choices():
+    """評価期間の選択肢を生成する。年度ごとに上期・下期の2回。
+
+    日本の年度: 4月〜9月=上期、10月〜3月=下期
+    現在の年度と前後1年度の選択肢を返す。
+    """
+    today = date.today()
+    # 年度を計算（1〜3月は前年度に属する）
+    fiscal_year = today.year if today.month >= 4 else today.year - 1
+    # 現在が上期(4-9)か下期(10-3)か
+    if today.month >= 4 and today.month <= 9:
+        current_half = "上期"
+    else:
+        current_half = "下期"
+
+    choices = []
+    for fy in [fiscal_year + 1, fiscal_year, fiscal_year - 1]:
+        choices.append((f"{fy}年度 上期", f"{fy}年度 上期（{fy}年4月〜9月）"))
+        choices.append((f"{fy}年度 下期", f"{fy}年度 下期（{fy}年10月〜{fy + 1}年3月）"))
+
+    # 現在の期間をデフォルトにするため先頭に持ってくる
+    current_val = f"{fiscal_year}年度 {current_half}"
+    choices.sort(key=lambda c: (0 if c[0] == current_val else 1, c[0]), reverse=False)
+
+    return choices
 
 
 def _get_eval_items_with_max_score(data):
@@ -304,3 +336,23 @@ def eval_template_edit(request):
     return render(request, "workers/eval_template_edit.html", {
         "template": template,
     })
+
+
+@login_required
+def eval_template_pdf(request):
+    """評価テンプレートの質問項目をPDFでダウンロード。"""
+    from apps.workers.pdf_template import generate_template_pdf
+
+    company = request.user.company
+    template = EvaluationTemplate.unscoped.filter(
+        company=company, is_active=True,
+    ).order_by("-created_at").first()
+
+    if not template:
+        messages.error(request, "評価テンプレートが未作成です。")
+        return redirect("workers:evaluations")
+
+    pdf_bytes = generate_template_pdf(template)
+    response = HttpResponse(pdf_bytes, content_type="application/pdf")
+    response["Content-Disposition"] = 'attachment; filename="eval_template.pdf"'
+    return response
