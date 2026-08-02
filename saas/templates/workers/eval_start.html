@@ -98,6 +98,7 @@ const apiUrl = '{% url "workers:eval_targets_api" %}';
 const evalCreateUrl = '{% url "workers:eval_create" %}';
 const evalDetailBase = '{% url "workers:evaluations" %}';
 const comparisonPdfBase = '{% url "workers:eval_comparison_pdf" %}';
+const surveyPdfBase = '{% url "workers:eval_survey_pdf" %}';
 const csrfToken = '{{ csrf_token }}';
 
 function loadTargets() {
@@ -125,6 +126,7 @@ function loadTargets() {
       let summaryHtml = '<div><strong>' + evaluatorName.split('（')[0] + '</strong> ｜ ' + period + ' ｜ ';
       summaryHtml += '<strong>' + doneCount + '</strong>/' + totalCount + ' 完了</div>';
       summaryHtml += '<div style="display:flex;gap:8px;">';
+      summaryHtml += '<a href="' + surveyPdfBase + '?evaluator_id=' + evaluatorId + '&period=' + encodeURIComponent(period) + '" class="btn btn-outline btn-sm">アンケートPDF</a>';
       if (isExec) {
         summaryHtml += '<a href="' + comparisonPdfBase + '?period=' + encodeURIComponent(period) + '" class="btn btn-primary btn-sm">比較評価シートPDF</a>';
       }

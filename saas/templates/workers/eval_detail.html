@@ -78,7 +78,10 @@
   {% endif %}
 </div>
 
-<a href="{% url 'workers:evaluations' %}" class="btn btn-outline btn-sm" style="margin-bottom:20px;">← 一覧に戻る</a>
+<div style="display:flex;gap:8px;margin-bottom:20px;">
+  <a href="{% url 'workers:eval_edit' evaluation.pk %}" class="btn btn-primary btn-sm">編集</a>
+  <a href="{% url 'workers:evaluations' %}" class="btn btn-outline btn-sm">← 一覧に戻る</a>
+</div>
 
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;">
   <div class="card">

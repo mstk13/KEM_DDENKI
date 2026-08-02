@@ -15,5 +15,7 @@ urlpatterns = [
     path("evaluations/template/", views.eval_template_edit, name="eval_template_edit"),
     path("evaluations/template/pdf/", views.eval_template_pdf, name="eval_template_pdf"),
     path("evaluations/comparison-pdf/", views.eval_comparison_pdf, name="eval_comparison_pdf"),
+    path("evaluations/survey-pdf/", views.eval_survey_pdf, name="eval_survey_pdf"),
+    path("evaluations/<int:pk>/edit/", views.evaluation_edit, name="eval_edit"),
     path("evaluations/targets-api/", views.eval_targets_api, name="eval_targets_api"),
 ]

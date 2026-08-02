@@ -1,0 +1,188 @@
+{% extends "base.html" %}
+{% block title %}評価を編集 — {{ worker.name }} — 建設SaaS{% endblock %}
+{% block topbar_title %}評価を編集{% endblock %}
+
+{% block content %}
+<style>
+  .eval-hero {
+    background: var(--brand-gradient);
+    border-radius: var(--radius);
+    padding: 28px 32px;
+    color: var(--white);
+    margin-bottom: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .eval-hero h1 { font-size: 1.3rem; font-weight: 700; color: var(--white); margin-bottom: 4px; }
+  .eval-hero .meta { font-size: .85rem; opacity: .85; }
+  .eval-hero .sections { display: flex; gap: 6px; }
+  .eval-hero .sections span {
+    background: rgba(255,255,255,.2);
+    padding: 3px 12px;
+    border-radius: var(--radius-full);
+    font-size: .75rem;
+    font-weight: 600;
+  }
+  .eval-section {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    margin-bottom: 20px;
+    overflow: hidden;
+    box-shadow: var(--shadow-xs);
+  }
+  .eval-section-header {
+    padding: 18px 24px;
+    border-bottom: 1px solid var(--border-light);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .eval-section-header h2 { font-size: .95rem; font-weight: 600; display: flex; align-items: center; gap: 10px; }
+  .eval-section-header .points { font-size: .78rem; font-weight: 500; color: var(--text-muted); background: var(--bg); padding: 3px 12px; border-radius: var(--radius-full); }
+  .eval-section-body { padding: 24px; }
+  .anchor-box { background: var(--bg); border-radius: var(--radius-sm); padding: 16px 20px; margin-bottom: 20px; font-size: .82rem; line-height: 1.7; display: grid; gap: 8px; }
+  .anchor-row { display: flex; gap: 10px; align-items: flex-start; }
+  .anchor-label { flex-shrink: 0; width: 20px; height: 20px; border-radius: var(--radius-full); display: flex; align-items: center; justify-content: center; font-size: .7rem; font-weight: 700; color: var(--white); }
+  .anchor-label.a5 { background: var(--success); }
+  .anchor-label.a3 { background: var(--accent); }
+  .anchor-label.a1 { background: var(--danger); }
+  .anchor-text { color: var(--text-secondary); }
+  .score-selector { display: flex; gap: 6px; margin: 12px 0 4px; flex-wrap: wrap; }
+  .score-option { display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 8px 16px; border: 1.5px solid var(--border); border-radius: var(--radius-sm); font-size: .82rem; font-weight: 500; color: var(--text-secondary); transition: var(--transition); background: var(--white); }
+  .score-option:hover { border-color: var(--accent); background: var(--info-light); }
+  .score-option input[type=radio] { display: none; }
+  .score-option:has(input:checked) { border-color: var(--brand); background: var(--brand-light); color: var(--brand); font-weight: 600; box-shadow: 0 0 0 2px rgba(43,108,176,.12); }
+  .score-num { font-weight: 700; font-size: .95rem; }
+  .question-item { padding: 14px 0; border-top: 1px solid var(--border-light); }
+  .question-text { font-size: .85rem; color: var(--text-primary); display: flex; gap: 10px; align-items: flex-start; margin-bottom: 8px; }
+  .question-num { flex-shrink: 0; width: 36px; height: 24px; background: var(--bg); border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: .7rem; font-weight: 600; color: var(--text-muted); }
+  .question-scores { display: flex; gap: 4px; margin-left: 46px; }
+  .q-score-option { cursor: pointer; width: 36px; height: 30px; border: 1.5px solid var(--border); border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: .78rem; font-weight: 600; color: var(--text-muted); transition: var(--transition); background: var(--white); }
+  .q-score-option:hover { border-color: var(--accent); color: var(--accent); }
+  .q-score-option input[type=radio] { display: none; }
+  .q-score-option:has(input:checked) { border-color: var(--brand); background: var(--brand); color: var(--white); }
+  .freetext-section { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border); }
+  .freetext-label { font-size: .82rem; font-weight: 600; color: var(--text-primary); margin-bottom: 4px; }
+  .freetext-hint { font-size: .78rem; color: var(--text-muted); margin-bottom: 8px; }
+</style>
+
+<div class="eval-hero">
+  <div>
+    <h1>{{ worker.name }} の評価を編集</h1>
+    <div class="meta">{{ evaluation.period }} ｜ {{ worker.job_title|default:"未設定" }} ｜ 評価者: {{ evaluation.evaluated_by|default:"-" }}</div>
+  </div>
+  <div class="sections">
+    {% for s in sections %}<span>{{ s }}</span>{% endfor %}
+  </div>
+</div>
+
+<form method="post">
+{% csrf_token %}
+
+{% for item in survey_items %}
+<div class="eval-section">
+  <div class="eval-section-header">
+    <h2>
+      <span class="badge badge-{% if item.section == '共通' %}gray{% elif item.section == '電工' %}blue{% elif item.section == '事務' %}green{% else %}orange{% endif %}">{{ item.section }}</span>
+      {{ item.name }}
+    </h2>
+    <span class="points">{{ item.max_score }}点</span>
+  </div>
+  <div class="eval-section-body">
+
+    {% if item.anchor_5 or item.anchor_3 or item.anchor_1 %}
+    <div class="anchor-box">
+      {% if item.anchor_5 %}<div class="anchor-row"><span class="anchor-label a5">5</span><span class="anchor-text">{{ item.anchor_5 }}</span></div>{% endif %}
+      {% if item.anchor_3 %}<div class="anchor-row"><span class="anchor-label a3">3</span><span class="anchor-text">{{ item.anchor_3 }}</span></div>{% endif %}
+      {% if item.anchor_1 %}<div class="anchor-row"><span class="anchor-label a1">1</span><span class="anchor-text">{{ item.anchor_1 }}</span></div>{% endif %}
+    </div>
+    {% endif %}
+
+    <div style="margin-bottom:8px;">
+      <label style="font-size:.82rem;font-weight:600;color:var(--text-primary);display:block;margin-bottom:6px;">この項目の評価</label>
+      <div class="score-selector">
+        {% for s in scale %}
+        <label class="score-option">
+          <input type="radio" name="score_{{ item.section }}_{{ item.num }}" value="{{ s.value }}" {% if item.saved_score == s.value %}checked{% endif %}>
+          <span class="score-num">{{ s.value }}</span> {{ s.label }}
+        </label>
+        {% endfor %}
+      </div>
+    </div>
+
+    {% for q in item.questions %}
+    <div class="question-item">
+      <div class="question-text">
+        <span class="question-num">{{ q.qnum }}</span>
+        <span>{{ q.text }}</span>
+      </div>
+      <div class="question-scores">
+        {% for s in scale %}
+        <label class="q-score-option">
+          <input type="radio" name="q_{{ item.section }}_{{ q.qnum }}" value="{{ s.value }}" {% if q.saved_score == s.value %}checked{% endif %}>
+          {{ s.value }}
+        </label>
+        {% endfor %}
+      </div>
+    </div>
+    {% endfor %}
+
+    {% if item.free_text %}
+    <div class="freetext-section">
+      <div class="freetext-label">自由記述</div>
+      <div class="freetext-hint">{{ item.free_text }}</div>
+      <textarea name="freetext_{{ item.section }}_{{ item.num }}" class="form-control" rows="3">{{ item.saved_free_text }}</textarea>
+    </div>
+    {% endif %}
+
+  </div>
+</div>
+{% endfor %}
+
+<div class="eval-section">
+  <div class="eval-section-header">
+    <h2><span class="badge badge-blue">総合</span> 総合所見</h2>
+  </div>
+  <div class="eval-section-body">
+    {% for o in overall %}
+    <div class="form-group">
+      <label style="display:flex;align-items:center;gap:8px;">
+        {{ o.qnum }}. {{ o.text }}
+        {% if o.by_self %}<span class="badge badge-orange" style="font-size:.68rem;">本人記入</span>{% endif %}
+      </label>
+      <textarea name="overall_{{ o.qnum }}" class="form-control" rows="3">{{ o.saved_text }}</textarea>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<div class="eval-section">
+  <div class="eval-section-header">
+    <h2><span class="badge badge-green">最終</span> 総合評点</h2>
+  </div>
+  <div class="eval-section-body">
+    <div style="margin-bottom:20px;">
+      <label style="font-size:.82rem;font-weight:600;color:var(--text-primary);display:block;margin-bottom:8px;">総合評点</label>
+      <div class="score-selector">
+        {% for s in scale %}
+        <label class="score-option">
+          <input type="radio" name="total_score" value="{{ s.value }}" {% if evaluation.score == s.value %}checked{% endif %}>
+          <span class="score-num">{{ s.value }}</span> {{ s.label }}
+        </label>
+        {% endfor %}
+      </div>
+    </div>
+    <div class="form-group">
+      <label>総合コメント</label>
+      <textarea name="total_comment" class="form-control" rows="4">{{ evaluation.comment|default:"" }}</textarea>
+    </div>
+  </div>
+</div>
+
+<div style="display:flex;gap:12px;margin:28px 0 48px;justify-content:center;">
+  <button type="submit" class="btn btn-primary" style="padding:12px 40px;font-size:.92rem;">評価を更新する</button>
+  <a href="{% url 'workers:eval_detail' evaluation.pk %}" class="btn btn-outline" style="padding:12px 32px;">キャンセル</a>
+</div>
+
+</form>
+{% endblock %}

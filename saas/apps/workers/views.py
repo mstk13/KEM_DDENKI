@@ -433,3 +433,131 @@ def eval_comparison_pdf(request):
     response = HttpResponse(pdf_bytes, content_type="application/pdf")
     response["Content-Disposition"] = 'attachment; filename="eval_comparison.pdf"'
     return response
+
+
+@login_required
+def eval_survey_pdf(request):
+    """評価者別アンケートPDF: 選択した評価者が回答すべき全対象者分のアンケート用紙。"""
+    from apps.workers.eval_data import get_sections_for_worker
+    from apps.workers.pdf_template import generate_evaluator_pdf
+
+    evaluator_id = request.GET.get("evaluator_id")
+    period = request.GET.get("period", "")
+
+    if not evaluator_id:
+        messages.error(request, "評価者が指定されていません。")
+        return redirect("workers:eval_create")
+
+    evaluator = get_object_or_404(Worker, pk=evaluator_id)
+    company = request.user.company
+    template = EvaluationTemplate.unscoped.filter(
+        company=company, is_active=True,
+    ).order_by("-created_at").first()
+
+    if not template:
+        messages.error(request, "評価テンプレートが未作成です。")
+        return redirect("workers:evaluations")
+
+    is_exec = _is_executive(evaluator)
+    qs = Worker.objects.filter(is_active=True).select_related("job_title", "position")
+    if not is_exec:
+        qs = qs.exclude(pk=evaluator.pk)
+
+    targets_with_data = []
+    for w in qs.order_by("name"):
+        data = get_sections_for_worker(w, company=company)
+        eval_items = _get_eval_items_with_max_score(data)
+        targets_with_data.append({
+            "worker_name": w.name,
+            "job_title": str(w.job_title) if w.job_title else "-",
+            "survey_items": eval_items,
+            "scale": data["scale"],
+            "overall": data["overall"],
+        })
+
+    pdf_bytes = generate_evaluator_pdf(
+        template, evaluator.name, targets_with_data, period,
+    )
+    response = HttpResponse(pdf_bytes, content_type="application/pdf")
+    filename = f"eval_survey_{evaluator.name}.pdf"
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    return response
+
+
+@login_required
+def evaluation_edit(request, pk):
+    """既存の評価を編集する。"""
+    from apps.workers.eval_data import get_sections_for_worker
+
+    evaluation = get_object_or_404(
+        WorkerEvaluation.objects.select_related(
+            "worker", "worker__job_title", "worker__position", "evaluated_by",
+        ),
+        pk=pk,
+    )
+    worker = evaluation.worker
+    data = get_sections_for_worker(worker, company=request.user.company)
+    eval_items = _get_eval_items_with_max_score(data)
+
+    if request.method == "POST":
+        responses = {}
+        overall_responses = {}
+
+        for key, val in request.POST.items():
+            if key.startswith("score_") and val:
+                parts = key.replace("score_", "").rsplit("_", 1)
+                section, num = "_".join(parts[:-1]), parts[-1]
+                responses.setdefault(f"{section}_{num}", {})["score"] = int(val)
+            elif key.startswith("q_") and val:
+                parts = key.replace("q_", "").rsplit("_", 1)
+                section_part, qnum = "_".join(parts[:-1]), parts[-1]
+                responses.setdefault(
+                    section_part, {},
+                ).setdefault("questions", {})[qnum] = int(val)
+            elif key.startswith("freetext_") and val:
+                parts = key.replace("freetext_", "").rsplit("_", 1)
+                section, num = "_".join(parts[:-1]), parts[-1]
+                responses.setdefault(f"{section}_{num}", {})["free_text"] = val
+            elif key.startswith("overall_") and val:
+                qnum = key.replace("overall_", "")
+                overall_responses[qnum] = val
+
+        total_score = request.POST.get("total_score")
+        evaluation.score = int(total_score) if total_score else None
+        evaluation.comment = request.POST.get("total_comment", "")
+        evaluation.responses = responses
+        evaluation.overall_responses = overall_responses
+        evaluation.save()
+
+        messages.success(request, "評価を更新しました。")
+        return redirect("workers:eval_detail", pk=evaluation.pk)
+
+    # 既存の回答値を survey_items に埋め込む
+    responses = evaluation.responses or {}
+    for item in eval_items:
+        rkey = f"{item['section']}_{item['num']}"
+        rval = responses.get(rkey, {})
+        item["saved_score"] = rval.get("score")
+        item["saved_free_text"] = rval.get("free_text", "")
+        saved_questions = rval.get("questions", {})
+        for q in item.get("questions", []):
+            # questions のキーは qnum の最後の部分（例: "1-1" → "1"）
+            q_key = str(q["qnum"]).rsplit("-", 1)[-1] if "-" in str(q["qnum"]) else str(q["qnum"])
+            q["saved_score"] = saved_questions.get(q_key)
+
+    # overall の既存回答
+    overall_responses = evaluation.overall_responses or {}
+    overall_with_saved = []
+    for o in data["overall"]:
+        o_copy = dict(o)
+        o_copy["saved_text"] = overall_responses.get(str(o["qnum"]), "")
+        overall_with_saved.append(o_copy)
+
+    return render(request, "workers/eval_edit.html", {
+        "evaluation": evaluation,
+        "worker": worker,
+        "survey_items": eval_items,
+        "scale": data["scale"],
+        "overall": overall_with_saved,
+        "sections": data["sections"],
+    })
