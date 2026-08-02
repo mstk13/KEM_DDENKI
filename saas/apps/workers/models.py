@@ -100,6 +100,12 @@ class Worker(TenantModel):
     hire_date = models.DateField("入社日", null=True, blank=True)
     is_active = models.BooleanField("有効", default=True)
     note = models.TextField("備考", blank=True)
+    discord_user_id = models.CharField(
+        "Discord ユーザーID",
+        max_length=30,
+        blank=True,
+        help_text="Discordの数字ID（開発者モードで右クリック→IDをコピー）",
+    )
 
     history = HistoricalRecords()
 

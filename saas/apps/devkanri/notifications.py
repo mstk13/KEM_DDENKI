@@ -26,11 +26,25 @@ def _send_webhook(webhook_url, payload):
     threading.Thread(target=_post, daemon=True).start()
 
 
+def _get_discord_mention(user):
+    """ユーザーに紐づくWorkerのdiscord_user_idからメンション文字列を返す。"""
+    try:
+        worker = user.worker_profile
+        if worker and worker.discord_user_id:
+            return f"<@{worker.discord_user_id}>"
+    except Exception:
+        pass
+    return None
+
+
 def notify_task_assigned(task, assigned_by):
     """タスクが担当者に割り当てられた際にDiscord通知を送信。"""
     webhook_url = task.project.discord_webhook_url
     if not webhook_url or not task.assignee:
         return
+
+    mention = _get_discord_mention(task.assignee)
+    assignee_name = task.assignee.get_full_name() or task.assignee.username
 
     priority_emoji = {
         "low": "",
@@ -48,7 +62,7 @@ def notify_task_assigned(task, assigned_by):
         "title": f"#{task.pk} {task.title}",
         "color": 0x1A2744,
         "fields": [
-            {"name": "担当者", "value": task.assignee.get_full_name() or task.assignee.username, "inline": True},
+            {"name": "担当者", "value": assignee_name, "inline": True},
             {"name": "優先度", "value": f"{priority_label} {p_mark}", "inline": True},
             {"name": "カテゴリ", "value": category_label, "inline": True},
             {"name": "ステータス", "value": status_label, "inline": True},
@@ -61,8 +75,10 @@ def notify_task_assigned(task, assigned_by):
     if task.description:
         embed["description"] = task.description[:200]
 
+    content = f"**タスクが割り当てられました** {mention}" if mention else "**タスクが割り当てられました**"
+
     payload = {
-        "content": f"**タスクが割り当てられました**",
+        "content": content,
         "embeds": [embed],
     }
     _send_webhook(webhook_url, payload)

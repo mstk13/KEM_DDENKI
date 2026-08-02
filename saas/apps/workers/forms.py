@@ -15,7 +15,7 @@ class WorkerForm(forms.ModelForm):
         model = Worker
         fields = [
             "employee_code", "name", "name_kana", "job_title", "position",
-            "phone", "hourly_cost", "hire_date", "is_active", "note",
+            "phone", "hourly_cost", "hire_date", "is_active", "note", "discord_user_id",
         ]
         widgets = {
             "hire_date": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
