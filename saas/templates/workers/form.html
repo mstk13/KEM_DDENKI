@@ -13,11 +13,13 @@
     <form method="post">
       {% csrf_token %}
       {% for field in form %}
+      {% if field.name == "hourly_cost" and not is_president %}{% else %}
       <div class="form-group">
         <label for="{{ field.id_for_label }}">{{ field.label }}</label>
         {{ field }}
         {{ field.errors }}
       </div>
+      {% endif %}
       {% endfor %}
       <div class="form-actions">
         <button type="submit" class="btn btn-primary">保存</button>

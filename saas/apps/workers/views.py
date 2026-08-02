@@ -18,6 +18,14 @@ from apps.workers.models import (
 )
 
 
+def _is_president(user):
+    """ログインユーザーが社長かどうかを判定。"""
+    if user.is_superuser:
+        return True
+    profile = getattr(user, "worker_profile", None)
+    return profile and profile.position and profile.position.name == "社長"
+
+
 @login_required
 def worker_list(request):
     qs = Worker.objects.select_related("job_title", "position")
@@ -49,6 +57,7 @@ def worker_list(request):
         "q": q,
         "job_filter": job_filter,
         "job_titles": job_titles,
+        "is_president": _is_president(request.user),
     })
 
 
@@ -72,6 +81,7 @@ def worker_detail(request, pk):
         "monthly_salary": worker.monthly_salary,
         "cert_qualifications": cert_qualifications,
         "health_checkups": health_checkups,
+        "is_president": _is_president(request.user),
     })
 
 
@@ -184,6 +194,7 @@ def worker_edit(request, pk):
         "worker": worker,
         "cert_qualifications": worker.qualifications.all(),
         "health_checkups": worker.health_checkups.all(),
+        "is_president": _is_president(request.user),
     })
 
 
