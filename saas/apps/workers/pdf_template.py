@@ -242,6 +242,12 @@ _GROUP_BG = colors.HexColor("#ebf4ff")
 _GRID_COLOR = colors.HexColor("#e2e8f0")
 _LIGHT_YELLOW = colors.HexColor("#fffff0")
 
+STYLE_COMP_SCORE = ParagraphStyle(
+    "CompScore", parent=_styles["Normal"],
+    fontName=_FONT, fontSize=6, leading=8, alignment=1,
+    textColor=colors.HexColor("#a0aec0"),
+)
+
 
 def _cp(text, style=STYLE_COMP_BODY):
     return Paragraph(str(text), style)
@@ -276,6 +282,10 @@ def generate_comparison_pdf(template, workers, period=""):
             f"{s.get('value')}={s.get('label', '')}" for s in template.scale
         )
         elements.append(_cp(f"評価スケール: {scale_text}", STYLE_COMP_SMALL))
+        elements.append(_cp(
+            "※ 各質問の数字（1〜5）に○をつけてください。",
+            STYLE_COMP_SMALL,
+        ))
         elements.append(Spacer(1, 6))
 
     # ワーカーを職種ごとにグループ化
@@ -346,15 +356,21 @@ def generate_comparison_pdf(template, workers, period=""):
 
             table_data = [header_row]
 
+            # スケールの最大値を取得
+            max_sv = max(
+                (int(s.get("value", 5)) for s in (template.scale or [{"value": 5}])),
+                default=5,
+            )
+            score_hint = " ".join(str(i) for i in range(1, max_sv + 1))
+
             for item in items:
                 name = item.get("name", "")
                 num = item.get("num", "")
 
-                # 評価項目名行（グレー背景）
+                # 評価項目名行（グレー背景） — スコア記入欄に「1 2 3 4 5」ヒント
                 item_row = [_cp(f"{num}. {name}", STYLE_COMP_BODY)]
-                # 各被評価者のスコア記入欄（空白）
                 for _ in group_workers:
-                    item_row.append(_cp("", STYLE_COMP_BODY))
+                    item_row.append(_cp(score_hint, STYLE_COMP_SCORE))
                 table_data.append(item_row)
 
                 # 個別質問行
@@ -364,7 +380,7 @@ def generate_comparison_pdf(template, workers, period=""):
                         _cp(f"  {q.get('qnum', '')}  {q.get('text', '')}", STYLE_COMP_SMALL),
                     ]
                     for _ in group_workers:
-                        q_row.append(_cp("", STYLE_COMP_BODY))
+                        q_row.append(_cp(score_hint, STYLE_COMP_SCORE))
                     table_data.append(q_row)
 
                 # 自由記述行

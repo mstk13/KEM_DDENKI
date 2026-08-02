@@ -543,9 +543,13 @@ def eval_comparison_pdf(request):
 
 @login_required
 def eval_survey_pdf(request):
-    """評価者別アンケートPDF: 選択した評価者が回答すべき全対象者分のアンケート用紙。"""
+    """評価者別アンケートPDF。
+
+    役員: 比較形式（被評価者を横並び、職種ごとにグループ化）
+    一般: 個別形式（対象者ごとに1ページ）
+    """
     from apps.workers.eval_data import get_sections_for_worker
-    from apps.workers.pdf_template import generate_evaluator_pdf
+    from apps.workers.pdf_template import generate_comparison_pdf, generate_evaluator_pdf
 
     evaluator_id = request.GET.get("evaluator_id")
     period = request.GET.get("period", "")
@@ -568,27 +572,35 @@ def eval_survey_pdf(request):
     qs = Worker.objects.filter(is_active=True).select_related("job_title", "position")
     if not is_exec:
         qs = qs.exclude(pk=evaluator.pk)
+    workers = list(qs.order_by("name"))
 
-    targets_with_data = []
-    for w in qs.order_by("name"):
-        data = get_sections_for_worker(w, company=company)
-        eval_items = _get_eval_items_with_max_score(data)
-        targets_with_data.append({
-            "worker_name": w.name,
-            "job_title": str(w.job_title) if w.job_title else "-",
-            "survey_items": eval_items,
-            "scale": data["scale"],
-            "overall": data["overall"],
-        })
-
-    pdf_bytes = generate_evaluator_pdf(
-        template, evaluator.name, targets_with_data, period,
-    )
-    response = HttpResponse(pdf_bytes, content_type="application/pdf")
-    # 日本語ファイル名はRFC 5987形式で指定
-    safe_name = f"eval_survey_{evaluator.pk}.pdf"
-    display_name = f"評価アンケート_{evaluator.name}.pdf"
     from urllib.parse import quote
+
+    if is_exec:
+        # 役員: 比較形式PDF（質問が行、被評価者が列で横並び）
+        pdf_bytes = generate_comparison_pdf(template, workers, period)
+        safe_name = f"eval_comparison_{evaluator.pk}.pdf"
+        display_name = f"比較評価シート_{evaluator.name}.pdf"
+    else:
+        # 一般: 個別形式PDF（対象者ごとに1ページ）
+        targets_with_data = []
+        for w in workers:
+            data = get_sections_for_worker(w, company=company)
+            eval_items = _get_eval_items_with_max_score(data)
+            targets_with_data.append({
+                "worker_name": w.name,
+                "job_title": str(w.job_title) if w.job_title else "-",
+                "survey_items": eval_items,
+                "scale": data["scale"],
+                "overall": data["overall"],
+            })
+        pdf_bytes = generate_evaluator_pdf(
+            template, evaluator.name, targets_with_data, period,
+        )
+        safe_name = f"eval_survey_{evaluator.pk}.pdf"
+        display_name = f"評価アンケート_{evaluator.name}.pdf"
+
+    response = HttpResponse(pdf_bytes, content_type="application/pdf")
     response["Content-Disposition"] = (
         f"attachment; filename=\"{safe_name}\"; "
         f"filename*=UTF-8''{quote(display_name)}"
