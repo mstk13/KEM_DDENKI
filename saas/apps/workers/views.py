@@ -479,8 +479,14 @@ def eval_survey_pdf(request):
         template, evaluator.name, targets_with_data, period,
     )
     response = HttpResponse(pdf_bytes, content_type="application/pdf")
-    filename = f"eval_survey_{evaluator.name}.pdf"
-    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    # 日本語ファイル名はRFC 5987形式で指定
+    safe_name = f"eval_survey_{evaluator.pk}.pdf"
+    display_name = f"評価アンケート_{evaluator.name}.pdf"
+    from urllib.parse import quote
+    response["Content-Disposition"] = (
+        f"attachment; filename=\"{safe_name}\"; "
+        f"filename*=UTF-8''{quote(display_name)}"
+    )
     return response
 
 
