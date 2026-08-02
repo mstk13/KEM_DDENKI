@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% block title %}{% if form.instance.pk %}案件を編集{% else %}案件を登録{% endif %} — 建設SaaS{% endblock %}
+{% block topbar_title %}{% if form.instance.pk %}案件を編集{% else %}案件を登録{% endif %}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>{% if form.instance.pk %}{{ form.instance.title }} を編集{% else %}入札案件を登録{% endif %}</h1>
+</div>
+
+<div class="card">
+  <div class="card-body">
+    <form method="post">
+      {% csrf_token %}
+      <h3>案件情報</h3>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="id_title">案件名</label>
+          {{ form.title }}
+          {{ form.title.errors }}
+        </div>
+        <div class="form-group">
+          <label for="id_status">状態</label>
+          {{ form.status }}
+          {{ form.status.errors }}
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="id_client">発注者</label>
+          {{ form.client }}
+          {{ form.client.errors }}
+        </div>
+        <div class="form-group">
+          <label for="id_region">地域</label>
+          {{ form.region }}
+          {{ form.region.errors }}
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="id_category">工事種別</label>
+          {{ form.category }}
+          {{ form.category.errors }}
+        </div>
+        <div class="form-group">
+          <label for="id_budget">予算額</label>
+          {{ form.budget }}
+          {{ form.budget.errors }}
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="id_deadline">入札期限</label>
+          {{ form.deadline }}
+          {{ form.deadline.errors }}
+        </div>
+        <div class="form-group">
+          <label for="id_source_url">情報源URL</label>
+          {{ form.source_url }}
+          {{ form.source_url.errors }}
+        </div>
+      </div>
+
+      <h3 style="margin-top:20px;">原価情報</h3>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="id_cost-estimate_amount">見積額</label>
+          {{ cost_form.estimate_amount }}
+          {{ cost_form.estimate_amount.errors }}
+        </div>
+        <div class="form-group">
+          <label for="id_cost-actual_cost">実際原価</label>
+          {{ cost_form.actual_cost }}
+          {{ cost_form.actual_cost.errors }}
+        </div>
+      </div>
+      <div class="form-group">
+        <label for="id_cost-memo">原価メモ</label>
+        {{ cost_form.memo }}
+        {{ cost_form.memo.errors }}
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">保存</button>
+        <a href="{% url 'bids:project_list' %}" class="btn btn-outline">キャンセル</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

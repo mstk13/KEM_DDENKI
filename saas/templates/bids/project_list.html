@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}入札案件一覧 — 建設SaaS{% endblock %}
+{% block topbar_title %}入札管理{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>入札案件一覧</h1>
+  <a href="{% url 'bids:project_create' %}" class="btn btn-primary">+ 案件を登録</a>
+</div>
+
+<div class="card" style="margin-bottom:20px;">
+  <div class="card-body">
+    <form method="get" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;">
+      <div class="form-group" style="margin-bottom:0;">
+        <label>キーワード</label>
+        <input type="text" name="q" value="{{ q }}" class="form-control" placeholder="案件名・発注者">
+      </div>
+      <div class="form-group" style="margin-bottom:0;">
+        <label>状態</label>
+        <select name="status" class="form-control">
+          <option value="">すべて</option>
+          {% for val, label in status_choices %}
+          <option value="{{ val }}" {% if status == val %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group" style="margin-bottom:0;">
+        <label>地域</label>
+        <input type="text" name="region" value="{{ region }}" class="form-control" placeholder="地域">
+      </div>
+      <button type="submit" class="btn btn-primary">検索</button>
+      <a href="{% url 'bids:project_list' %}" class="btn btn-outline">リセット</a>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>案件名</th><th>発注者</th><th>地域</th><th>工事種別</th><th>状態</th><th>予算額</th><th>入札期限</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for p in projects %}
+        <tr>
+          <td><a href="{% url 'bids:project_detail' p.pk %}">{{ p.title }}</a></td>
+          <td>{{ p.client|default:"-" }}</td>
+          <td>{{ p.region|default:"-" }}</td>
+          <td>{{ p.category|default:"-" }}</td>
+          <td>
+            {% if p.status == 'new' %}<span class="badge badge-blue">新着</span>
+            {% elif p.status == 'considering' %}<span class="badge badge-orange">検討中</span>
+            {% elif p.status == 'bid' %}<span class="badge badge-gray">入札済</span>
+            {% elif p.status == 'won' %}<span class="badge badge-green">落札</span>
+            {% elif p.status == 'lost' %}<span class="badge badge-red">失注</span>
+            {% elif p.status == 'skipped' %}<span class="badge badge-gray">見送り</span>
+            {% endif %}
+          </td>
+          <td>{{ p.budget|floatformat:0 }} 円</td>
+          <td>{{ p.deadline|default:"-" }}</td>
+          <td><a href="{% url 'bids:project_edit' p.pk %}" class="btn btn-outline btn-sm">編集</a></td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="8"><div class="empty"><div class="empty-icon">&#x1f4cb;</div><p>入札案件が登録されていません</p></div></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

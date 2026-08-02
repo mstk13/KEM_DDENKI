@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}{{ project.title }} — 建設SaaS{% endblock %}
+{% block topbar_title %}入札案件詳細{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>{{ project.title }}</h1>
+  <div>
+    <a href="{% url 'bids:project_edit' project.pk %}" class="btn btn-outline btn-sm">編集</a>
+    <a href="{% url 'bids:project_list' %}" class="btn btn-outline btn-sm">一覧に戻る</a>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+  <div class="card">
+    <div class="card-header"><h2>基本情報</h2></div>
+    <dl class="detail-grid">
+      <dt>発注者</dt><dd>{{ project.client|default:"-" }}</dd>
+      <dt>地域</dt><dd>{{ project.region|default:"-" }}</dd>
+      <dt>工事種別</dt><dd>{{ project.category|default:"-" }}</dd>
+      <dt>状態</dt><dd>{{ project.get_status_display }}</dd>
+      <dt>予算額</dt><dd>{{ project.budget|floatformat:0 }} 円</dd>
+      <dt>入札期限</dt><dd>{{ project.deadline|default:"-" }}</dd>
+      <dt>情報源URL</dt><dd>{% if project.source_url %}<a href="{{ project.source_url }}" target="_blank">{{ project.source_url }}</a>{% else %}-{% endif %}</dd>
+    </dl>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><h2>原価情報</h2></div>
+    {% if cost %}
+    <dl class="detail-grid">
+      <dt>見積額</dt><dd>{{ cost.estimate_amount|floatformat:0 }} 円</dd>
+      <dt>実際原価</dt><dd>{{ cost.actual_cost|floatformat:0 }} 円</dd>
+      <dt>メモ</dt><dd>{{ cost.memo|default:"-" }}</dd>
+    </dl>
+    {% else %}
+    <div class="card-body" style="color:var(--gray-400);text-align:center;padding:20px;">原価情報が未登録です</div>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card" style="margin-top:20px;">
+  <div class="card-header"><h2>競合情報</h2></div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>競合名</th><th>金額</th><th>情報源</th><th>メモ</th></tr></thead>
+      <tbody>
+        {% for c in competitors %}
+        <tr>
+          <td>{{ c.competitor_name }}</td>
+          <td>{{ c.competitor_amount|floatformat:0 }} 円</td>
+          <td>{{ c.source|default:"-" }}</td>
+          <td>{{ c.memo|default:"-" }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="4" style="text-align:center;color:var(--gray-400);padding:20px;">競合情報が登録されていません</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

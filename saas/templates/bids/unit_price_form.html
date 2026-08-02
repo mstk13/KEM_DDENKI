@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}{% if form.instance.pk %}単価を編集{% else %}単価を登録{% endif %} — 建設SaaS{% endblock %}
+{% block topbar_title %}{% if form.instance.pk %}単価を編集{% else %}単価を登録{% endif %}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>{% if form.instance.pk %}{{ form.instance.item_name }} を編集{% else %}単価を登録{% endif %}</h1>
+</div>
+
+<div class="card">
+  <div class="card-body">
+    <form method="post">
+      {% csrf_token %}
+      <div class="form-row">
+        <div class="form-group">
+          <label for="id_category">カテゴリ</label>
+          {{ form.category }}
+          {{ form.category.errors }}
+        </div>
+        <div class="form-group">
+          <label for="id_item_name">品目名</label>
+          {{ form.item_name }}
+          {{ form.item_name.errors }}
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="id_unit">単位</label>
+          {{ form.unit }}
+          {{ form.unit.errors }}
+        </div>
+        <div class="form-group">
+          <label for="id_unit_price">単価</label>
+          {{ form.unit_price }}
+          {{ form.unit_price.errors }}
+        </div>
+      </div>
+      <div class="form-group">
+        <label for="id_memo">メモ</label>
+        {{ form.memo }}
+        {{ form.memo.errors }}
+      </div>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">保存</button>
+        <a href="{% url 'bids:unit_price_list' %}" class="btn btn-outline">キャンセル</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

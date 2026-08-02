@@ -27,6 +27,9 @@
       <a href="{% url 'reports:list' %}" class="{% if 'reports:' in request.resolver_match.view_name %}active{% endif %}">
         <span class="nav-icon">&#x1f4dd;</span> 日報管理
       </a>
+      <a href="{% url 'schedules:list' %}" class="{% if 'schedules:' in request.resolver_match.view_name %}active{% endif %}">
+        <span class="nav-icon">&#x1f4c5;</span> 工期管理
+      </a>
 
       <div class="nav-section">原価・材料</div>
       <a href="{% url 'costs:list' %}" class="{% if 'costs:' in request.resolver_match.view_name %}active{% endif %}">
@@ -42,6 +45,11 @@
       </a>
       <a href="{% url 'workers:evaluations' %}" class="{% if 'eval' in request.resolver_match.url_name %}active{% endif %}">
         <span class="nav-icon">&#x1f4cb;</span> 人材評価
+      </a>
+
+      <div class="nav-section">入札</div>
+      <a href="{% url 'bids:project_list' %}" class="{% if 'bids:' in request.resolver_match.view_name %}active{% endif %}">
+        <span class="nav-icon">&#x1f4cb;</span> 入札管理
       </a>
 
       <div class="nav-section">開発</div>

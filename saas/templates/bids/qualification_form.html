@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block title %}{% if form.instance.pk %}資格を編集{% else %}資格を登録{% endif %} — 建設SaaS{% endblock %}
+{% block topbar_title %}{% if form.instance.pk %}資格を編集{% else %}資格を登録{% endif %}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>{% if form.instance.pk %}{{ form.instance.issuer }} を編集{% else %}入札参加資格を登録{% endif %}</h1>
+</div>
+
+<div class="card">
+  <div class="card-body">
+    <form method="post">
+      {% csrf_token %}
+      <div class="form-row">
+        <div class="form-group">
+          <label for="id_issuer">発注機関</label>
+          {{ form.issuer }}
+          {{ form.issuer.errors }}
+        </div>
+        <div class="form-group">
+          <label for="id_category">業種区分</label>
+          {{ form.category }}
+          {{ form.category.errors }}
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="id_grade">等級</label>
+          {{ form.grade }}
+          {{ form.grade.errors }}
+        </div>
+        <div class="form-group">
+          <label for="id_keisin_score">経審点</label>
+          {{ form.keisin_score }}
+          {{ form.keisin_score.errors }}
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="id_total_score">総合点</label>
+          {{ form.total_score }}
+          {{ form.total_score.errors }}
+        </div>
+        <div class="form-group">
+          <label for="id_vendor_number">業者番号</label>
+          {{ form.vendor_number }}
+          {{ form.vendor_number.errors }}
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="id_valid_from">有効開始日</label>
+          {{ form.valid_from }}
+          {{ form.valid_from.errors }}
+        </div>
+        <div class="form-group">
+          <label for="id_valid_until">有効期限</label>
+          {{ form.valid_until }}
+          {{ form.valid_until.errors }}
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="id_application_type">申請種別</label>
+          {{ form.application_type }}
+          {{ form.application_type.errors }}
+        </div>
+        <div class="form-group">
+          <label for="id_application_method">申請方法</label>
+          {{ form.application_method }}
+          {{ form.application_method.errors }}
+        </div>
+      </div>
+      <div class="form-group">
+        <label>
+          {{ form.renewed }} 更新済
+        </label>
+      </div>
+      <div class="form-group">
+        <label for="id_memo">メモ</label>
+        {{ form.memo }}
+        {{ form.memo.errors }}
+      </div>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">保存</button>
+        <a href="{% url 'bids:qualification_list' %}" class="btn btn-outline">キャンセル</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
