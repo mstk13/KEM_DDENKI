@@ -29,8 +29,10 @@ saas/
 │   ├── materials/   … Material, PurchaseOrder, PurchaseOrderItem       [M4]
 │   ├── reports/     … DailyReport, DailyReportMaterial                 [M2]
 │   ├── costs/       … BudgetItem, CostTransaction, services.py        [M3]
-│   └── devkanri/    … DevProject, DevTask, DevComment                 [M6]
-├── tests/           … テスト (越境テスト必須, 36件)
+│   ├── devkanri/    … DevProject, DevTask, DevComment                 [M6]
+│   ├── schedules/   … Phase, Milestone, Assignment                    [M7]
+│   └── bids/        … BidProject, BidCost, Qualification, ...        [M8]
+├── tests/           … テスト (越境テスト必須, 50件)
 ├── Dockerfile
 ├── docker-compose.yml
 └── manage.py
