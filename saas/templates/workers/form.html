@@ -8,6 +8,7 @@
 </div>
 
 <div class="card">
+  <div class="card-header"><h2>基本情報</h2></div>
   <div class="card-body">
     <form method="post">
       {% csrf_token %}
@@ -25,4 +26,92 @@
     </form>
   </div>
 </div>
+
+{% if form.instance.pk %}
+{# ---- 保有資格 ---- #}
+<div class="card" style="margin-top:24px;">
+  <div class="card-header">
+    <h2>保有資格（証明書管理）</h2>
+    <a href="{% url 'workers:qual_create' worker.pk %}" class="btn btn-primary btn-sm">資格を追加</a>
+  </div>
+  <div class="card-body">
+    {% if cert_qualifications %}
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>資格名</th>
+            <th>区分</th>
+            <th>取得日</th>
+            <th>有効期限</th>
+            <th>証明書</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for q in cert_qualifications %}
+          <tr>
+            <td>{{ q.name }}</td>
+            <td><span class="badge {% if q.category == 'license' %}badge-blue{% elif q.category == 'skill_course' %}badge-green{% elif q.category == 'education' %}badge-gray{% else %}badge-orange{% endif %}">{{ q.get_category_display }}</span></td>
+            <td>{{ q.acquired_date|default:"-" }}</td>
+            <td>{{ q.expiry_date|default:"-" }}</td>
+            <td>{% if q.certificate_image %}<a href="{{ q.certificate_image.url }}" target="_blank" class="btn btn-outline btn-sm">表示</a>{% else %}-{% endif %}</td>
+            <td>
+              <a href="{% url 'workers:qual_edit' q.pk %}" class="btn btn-outline btn-sm">編集</a>
+              <a href="{% url 'workers:qual_delete' q.pk %}" class="btn btn-outline btn-sm" style="color:var(--danger);">削除</a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p style="color:var(--text-muted);">登録された資格はありません</p>
+    {% endif %}
+  </div>
+</div>
+
+{# ---- 健康診断 ---- #}
+<div class="card" style="margin-top:24px;">
+  <div class="card-header">
+    <h2>健康診断</h2>
+    <a href="{% url 'workers:health_create' worker.pk %}" class="btn btn-primary btn-sm">健診を追加</a>
+  </div>
+  <div class="card-body">
+    {% if health_checkups %}
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>受診日</th>
+            <th>判定</th>
+            <th>受診機関</th>
+            <th>メモ</th>
+            <th>結果ファイル</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for h in health_checkups %}
+          <tr>
+            <td>{{ h.checkup_date }}</td>
+            <td><span class="badge {% if h.result == 'normal' %}badge-green{% elif h.result == 'observation' %}badge-orange{% else %}badge-red{% endif %}">{{ h.get_result_display }}</span></td>
+            <td>{{ h.institution|default:"-" }}</td>
+            <td>{{ h.memo|truncatewords:10|default:"-" }}</td>
+            <td>{% if h.report_file %}<a href="{{ h.report_file.url }}" target="_blank" class="btn btn-outline btn-sm">表示</a>{% else %}-{% endif %}</td>
+            <td>
+              <a href="{% url 'workers:health_edit' h.pk %}" class="btn btn-outline btn-sm">編集</a>
+              <a href="{% url 'workers:health_delete' h.pk %}" class="btn btn-outline btn-sm" style="color:var(--danger);">削除</a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p style="color:var(--text-muted);">登録された健康診断記録はありません</p>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
 {% endblock %}

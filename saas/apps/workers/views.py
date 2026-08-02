@@ -179,7 +179,12 @@ def worker_edit(request, pk):
             return redirect("workers:detail", pk=worker.pk)
     else:
         form = WorkerForm(instance=worker, company=request.user.company)
-    return render(request, "workers/form.html", {"form": form})
+    return render(request, "workers/form.html", {
+        "form": form,
+        "worker": worker,
+        "cert_qualifications": worker.qualifications.all(),
+        "health_checkups": worker.health_checkups.all(),
+    })
 
 
 @login_required
