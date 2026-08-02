@@ -7,7 +7,7 @@ from apps.devkanri.models import DevComment, DevProject, DevTask
 class DevProjectForm(forms.ModelForm):
     class Meta:
         model = DevProject
-        fields = ["name", "description", "status", "assignee", "start_date", "due_date"]
+        fields = ["name", "description", "status", "assignee", "start_date", "due_date", "discord_webhook_url"]
         widgets = {
             "start_date": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
             "due_date": forms.DateInput(attrs={"type": "date", "class": "form-control"}),

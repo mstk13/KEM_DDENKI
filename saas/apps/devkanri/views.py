@@ -5,6 +5,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 
 from apps.devkanri.forms import DevCommentForm, DevProjectForm, DevTaskForm
 from apps.devkanri.models import DevProject, DevTask
+from apps.devkanri.notifications import notify_task_assigned, notify_task_status_changed
 
 
 @login_required
@@ -120,6 +121,8 @@ def task_create(request, project_pk):
             max_order = project.tasks.aggregate(m=Count("id"))["m"] or 0
             task.sort_order = max_order
             task.save()
+            if task.assignee:
+                notify_task_assigned(task, request.user)
             messages.success(request, "タスクを作成しました。")
             return redirect("devkanri:project_detail", pk=project.pk)
     else:
@@ -130,10 +133,16 @@ def task_create(request, project_pk):
 @login_required
 def task_edit(request, pk):
     task = get_object_or_404(DevTask.objects.select_related("project"), pk=pk)
+    old_assignee_id = task.assignee_id
+    old_status = task.status
     if request.method == "POST":
         form = DevTaskForm(request.POST, instance=task, company=request.user.company)
         if form.is_valid():
-            form.save()
+            task = form.save()
+            if task.assignee_id and task.assignee_id != old_assignee_id:
+                notify_task_assigned(task, request.user)
+            if task.status != old_status:
+                notify_task_status_changed(task, request.user, old_status)
             messages.success(request, "タスクを更新しました。")
             return redirect("devkanri:project_detail", pk=task.project.pk)
     else:
@@ -188,6 +197,8 @@ def task_move(request, pk):
     task = get_object_or_404(DevTask.objects.select_related("project"), pk=pk)
     new_status = request.POST.get("status")
     if new_status and new_status in dict(DevTask.Status.choices):
+        old_status = task.status
         task.status = new_status
         task.save(update_fields=["status", "updated_at"])
+        notify_task_status_changed(task, request.user, old_status)
     return redirect("devkanri:project_detail", pk=task.project.pk)

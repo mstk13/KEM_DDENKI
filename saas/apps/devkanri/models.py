@@ -32,6 +32,12 @@ class DevProject(TenantModel):
     )
     start_date = models.DateField("開始日", null=True, blank=True)
     due_date = models.DateField("期限", null=True, blank=True)
+    discord_webhook_url = models.URLField(
+        "Discord Webhook URL",
+        max_length=500,
+        blank=True,
+        help_text="設定するとタスク割当時にDiscordへ通知されます",
+    )
 
     history = HistoricalRecords()
 
