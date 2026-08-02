@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}{% if form.instance.pk %}{{ type_label }}を編集{% else %}{{ type_label }}を登録{% endif %} — 建設SaaS{% endblock %}
+{% block topbar_title %}{% if form.instance.pk %}{{ type_label }}を編集{% else %}{{ type_label }}を登録{% endif %}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>{% if form.instance.pk %}{{ form.instance.name }} を編集{% else %}{{ type_label }}を登録{% endif %}</h1>
+</div>
+
+<div class="card">
+  <div class="card-body">
+    <form method="post">
+      {% csrf_token %}
+      {% for field in form %}
+      <div class="form-group">
+        <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+        {{ field }}
+        {{ field.errors }}
+      </div>
+      {% endfor %}
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">保存</button>
+        {% if type_label == "顧客" %}
+        <a href="{% url 'masters:customer_list' %}" class="btn btn-outline">キャンセル</a>
+        {% else %}
+        <a href="{% url 'masters:supplier_list' %}" class="btn btn-outline">キャンセル</a>
+        {% endif %}
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

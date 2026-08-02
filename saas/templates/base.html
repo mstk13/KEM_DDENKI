@@ -59,6 +59,18 @@
         </div>
       </div>
 
+      <div class="nav-group {% if 'masters:' in request.resolver_match.view_name and 'customer' in request.resolver_match.url_name or 'supplier' in request.resolver_match.url_name %}open{% endif %}">
+        <button class="nav-section" type="button">取引先<span class="nav-chevron"></span></button>
+        <div class="nav-group-items">
+          <a href="{% url 'masters:customer_list' %}" class="{% if 'customer' in request.resolver_match.url_name %}active{% endif %}">
+            <span class="nav-icon">&#x1f465;</span> 顧客
+          </a>
+          <a href="{% url 'masters:supplier_list' %}" class="{% if 'supplier' in request.resolver_match.url_name %}active{% endif %}">
+            <span class="nav-icon">&#x1f3ed;</span> 発注先
+          </a>
+        </div>
+      </div>
+
       <div class="nav-group {% if 'bids:' in request.resolver_match.view_name %}open{% endif %}">
         <button class="nav-section" type="button">入札<span class="nav-chevron"></span></button>
         <div class="nav-group-items">
