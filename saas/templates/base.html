@@ -60,10 +60,16 @@
       </div>
 
       <div class="nav-group {% if 'bids:' in request.resolver_match.view_name %}open{% endif %}">
-        <button class="nav-section" type="button">入札<span class="nav-chevron"></span></button>
+        <button class="nav-section" type="button">入札・営業<span class="nav-chevron"></span></button>
         <div class="nav-group-items">
-          <a href="{% url 'bids:project_list' %}" class="{% if 'bids:' in request.resolver_match.view_name %}active{% endif %}">
-            <span class="nav-icon">&#x1f4cb;</span> 入札管理
+          <a href="{% url 'bids:project_list' %}" class="{% if 'bids:project' in request.resolver_match.view_name %}active{% endif %}">
+            <span class="nav-icon">&#x1f3d7;&#xfe0f;</span> 入札管理
+          </a>
+          <a href="{% url 'bids:dashboard' %}" class="{% if request.resolver_match.url_name == 'dashboard' and 'bids:' in request.resolver_match.view_name %}active{% endif %}">
+            <span class="nav-icon">&#x1f4ca;</span> 入札ダッシュボード
+          </a>
+          <a href="{% url 'sales:dashboard' %}" class="{% if 'sales:' in request.resolver_match.view_name %}active{% endif %}">
+            <span class="nav-icon">&#x1f4bc;</span> 営業管理
           </a>
         </div>
       </div>
@@ -77,11 +83,18 @@
         </div>
       </div>
 
-      <div class="nav-group {% if 'masters:' in request.resolver_match.view_name %}open{% endif %}">
+      <a href="{% url 'notification_list' %}" class="{% if 'notification' in request.resolver_match.url_name %}active{% endif %}">
+        <span class="nav-icon">&#x1f514;</span> 通知
+      </a>
+
+      <div class="nav-group {% if 'masters:' in request.resolver_match.view_name or 'permissions:' in request.resolver_match.view_name %}open{% endif %}">
         <button class="nav-section" type="button">設定<span class="nav-chevron"></span></button>
         <div class="nav-group-items">
           <a href="{% url 'masters:worktypes' %}" class="{% if 'masters:' in request.resolver_match.view_name %}active{% endif %}">
             <span class="nav-icon">&#x2699;&#xfe0f;</span> マスタ管理
+          </a>
+          <a href="{% url 'permissions:matrix' %}" class="{% if 'permissions:' in request.resolver_match.view_name %}active{% endif %}">
+            <span class="nav-icon">&#x1f512;</span> 権限管理
           </a>
         </div>
       </div>
@@ -104,8 +117,12 @@
         <button class="hamburger" aria-label="メニュー">&#9776;</button>
         <span class="topbar-title">{% block topbar_title %}{% endblock %}</span>
       </div>
-      <div class="topbar-right">
-        {% if user.company %}{{ user.company.name }}{% endif %}
+      <div class="topbar-right" style="display:flex;align-items:center;gap:16px;">
+        <a href="{% url 'notification_list' %}" style="position:relative;text-decoration:none;font-size:20px;" title="通知">
+          &#x1f514;
+          <span id="notification-badge" style="position:absolute;top:-4px;right:-8px;background:#ef4444;color:#fff;border-radius:50%;font-size:11px;min-width:18px;height:18px;display:flex;align-items:center;justify-content:center;"></span>
+        </a>
+        {% if user.company %}<span style="color:var(--text-secondary);">{{ user.company.name }}</span>{% endif %}
       </div>
     </header>
 

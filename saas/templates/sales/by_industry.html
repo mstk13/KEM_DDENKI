@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}業界から探す — 営業管理{% endblock %}
+{% block topbar_title %}営業管理{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>業界から探す</h1>
+</div>
+
+<div class="card" style="margin-bottom:16px;padding:16px;">
+  <form method="get" style="display:flex;gap:12px;align-items:end;">
+    <div>
+      <label class="form-label">業界を選択</label>
+      <select name="industry" class="form-control">
+        <option value="">-- 選択 --</option>
+        {% for val, label in industry_choices %}
+        <option value="{{ val }}" {% if selected_industry == val %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <button type="submit" class="btn btn-primary">表示</button>
+  </form>
+</div>
+
+{% if selected_industry %}
+<div class="card">
+  <div class="card-header">
+    <h2>{{ selected_industry }} の会社一覧</h2>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>会社名</th><th style="text-align:right;">来訪回数</th></tr></thead>
+      <tbody>
+        {% for c in companies %}
+        <tr>
+          <td><a href="{% url 'sales:list' %}?q={{ c.company_name }}&industry={{ selected_industry }}">{{ c.company_name }}</a></td>
+          <td style="text-align:right;font-weight:600;">{{ c.count }}回</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="2"><div class="empty"><p>この業界の記録はありません</p></div></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

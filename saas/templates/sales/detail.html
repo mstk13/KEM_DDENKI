@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}{{ visit.company_name }} — 営業管理{% endblock %}
+{% block topbar_title %}営業管理{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>{{ visit.company_name }}</h1>
+  <a href="{% url 'sales:edit' visit.pk %}" class="btn btn-outline">編集</a>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+
+  <div class="card">
+    <div class="card-header"><h2>基本情報</h2></div>
+    <div style="padding:16px;">
+      <table style="width:100%;">
+        <tr><th style="width:30%;text-align:left;">業界</th><td>{{ visit.get_industry_display }}</td></tr>
+        <tr><th style="text-align:left;">担当者</th><td>{{ visit.rep_name|default:"—" }}</td></tr>
+        <tr><th style="text-align:left;">営業日</th><td>{{ visit.visit_date|default:"—" }}</td></tr>
+        <tr><th style="text-align:left;">受領日</th><td>{{ visit.received_date|default:"—" }}</td></tr>
+        <tr><th style="text-align:left;">状態</th><td>{{ visit.get_status_display }}</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><h2>連絡先</h2></div>
+    <div style="padding:16px;">
+      <table style="width:100%;">
+        <tr><th style="width:30%;text-align:left;">電話</th><td>{{ visit.phone|default:"—" }}</td></tr>
+        <tr><th style="text-align:left;">メール</th><td>{{ visit.email|default:"—" }}</td></tr>
+        <tr><th style="text-align:left;">Web</th><td>{% if visit.website %}<a href="{{ visit.website }}" target="_blank">{{ visit.website }}</a>{% else %}—{% endif %}</td></tr>
+        <tr><th style="text-align:left;">住所</th><td>{{ visit.address|default:"—" }}</td></tr>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+{% if visit.business_overview %}
+<div class="card" style="margin-top:20px;">
+  <div class="card-header"><h2>事業概要</h2></div>
+  <div style="padding:16px;">{{ visit.business_overview }}</div>
+</div>
+{% endif %}
+
+{% if visit.sales_content %}
+<div class="card" style="margin-top:20px;">
+  <div class="card-header"><h2>営業内容</h2></div>
+  <div style="padding:16px;">{{ visit.sales_content }}</div>
+</div>
+{% endif %}
+
+{% if attachments %}
+<div class="card" style="margin-top:20px;">
+  <div class="card-header"><h2>添付資料</h2></div>
+  <div style="padding:16px;display:flex;gap:12px;flex-wrap:wrap;">
+    {% for att in attachments %}
+    <a href="{{ att.file.url }}" target="_blank" class="btn btn-outline btn-sm">
+      {% if att.file_type == 'pdf' %}&#x1f4c4;{% elif att.file_type == 'image' %}&#x1f5bc;{% else %}&#x1f4ce;{% endif %}
+      {{ att.original_name }}
+    </a>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+{% if visit.memo %}
+<div class="card" style="margin-top:20px;">
+  <div class="card-header"><h2>メモ</h2></div>
+  <div style="padding:16px;">{{ visit.memo }}</div>
+</div>
+{% endif %}
+{% endblock %}

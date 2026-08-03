@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block title %}{{ title }} — 営業管理{% endblock %}
+{% block topbar_title %}営業管理{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>{{ title }}</h1>
+</div>
+
+<div class="card">
+  <form method="post" enctype="multipart/form-data" style="padding:24px;">
+    {% csrf_token %}
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+      <div class="form-group">
+        <label class="form-label">業界</label>
+        {{ form.industry }}
+      </div>
+      <div class="form-group">
+        <label class="form-label">会社名</label>
+        {{ form.company_name }}
+      </div>
+      <div class="form-group">
+        <label class="form-label">担当者名</label>
+        {{ form.rep_name }}
+      </div>
+      <div class="form-group">
+        <label class="form-label">営業日</label>
+        {{ form.visit_date }}
+      </div>
+      <div class="form-group">
+        <label class="form-label">受領日</label>
+        {{ form.received_date }}
+      </div>
+      <div class="form-group">
+        <label class="form-label">ステータス</label>
+        {{ form.status }}
+      </div>
+    </div>
+
+    <div class="form-group" style="margin-top:16px;">
+      <label class="form-label">事業概要</label>
+      {{ form.business_overview }}
+    </div>
+    <div class="form-group">
+      <label class="form-label">営業内容</label>
+      {{ form.sales_content }}
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px;">
+      <div class="form-group">
+        <label class="form-label">電話番号</label>
+        {{ form.phone }}
+      </div>
+      <div class="form-group">
+        <label class="form-label">メール</label>
+        {{ form.email }}
+      </div>
+      <div class="form-group">
+        <label class="form-label">Webサイト</label>
+        {{ form.website }}
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">住所</label>
+      {{ form.address }}
+    </div>
+    <div class="form-group">
+      <label class="form-label">メモ</label>
+      {{ form.memo }}
+    </div>
+
+    <div class="form-group" style="margin-top:16px;">
+      <label class="form-label">資料を添付（複数可）</label>
+      <input type="file" name="attachments" multiple class="form-control">
+    </div>
+
+    <div style="margin-top:24px;display:flex;gap:12px;">
+      <button type="submit" class="btn btn-primary">保存</button>
+      <a href="{% url 'sales:list' %}" class="btn btn-outline">キャンセル</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

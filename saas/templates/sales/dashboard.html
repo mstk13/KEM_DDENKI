@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}営業ダッシュボード — 建設SaaS{% endblock %}
+{% block topbar_title %}営業管理{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>営業ダッシュボード</h1>
+  <div>
+    <a href="{% url 'sales:create' %}" class="btn btn-primary">+ 営業記録を作成</a>
+    <a href="{% url 'sales:list' %}" class="btn btn-outline">一覧 →</a>
+  </div>
+</div>
+
+<div class="stats">
+  <div class="stat-card blue">
+    <div class="stat-label">全件数</div>
+    <div class="stat-value blue">{{ stats.total }}</div>
+  </div>
+  <div class="stat-card default">
+    <div class="stat-label">今月</div>
+    <div class="stat-value">{{ stats.this_month }}</div>
+  </div>
+  <div class="stat-card orange">
+    <div class="stat-label">要対応</div>
+    <div class="stat-value orange">{{ stats.needs_action }}</div>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+  <div class="card">
+    <div class="card-header"><h2>業界別件数</h2></div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>業界</th><th style="text-align:right;">件数</th></tr></thead>
+        <tbody>
+          {% for item in stats.by_industry %}
+          <tr>
+            <td><a href="{% url 'sales:by_industry' %}?industry={{ item.industry }}">{{ item.industry }}</a></td>
+            <td style="text-align:right;font-weight:600;">{{ item.count }}</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="2"><div class="empty"><p>データなし</p></div></td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><h2>ステータス別</h2></div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>ステータス</th><th style="text-align:right;">件数</th></tr></thead>
+        <tbody>
+          {% for item in stats.by_status %}
+          <tr>
+            <td>{{ item.status }}</td>
+            <td style="text-align:right;font-weight:600;">{{ item.count }}</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="2"><div class="empty"><p>データなし</p></div></td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
