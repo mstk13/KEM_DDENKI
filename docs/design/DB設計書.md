@@ -1,99 +1,117 @@
 # 電機屋 業務管理アプリ — DB設計書
 
 **作成日**: 2026-08-03
-**前提**: PostgreSQL（リレーショナルDB）を想定。ファイルストレージはオブジェクトストレージ（S3互換）を併用。
+**最終更新**: 2026-08-03
+**前提**: PostgreSQL（リレーショナルDB）を想定。Django ORM + django-simple-history。マルチテナント（company_id による行レベル分離）。
 
 ---
 
 ## ER図（概要）
 
 ```
-┌──────────┐    ┌──────────┐    ┌──────────────┐
-│  users   │───<│user_roles│>───│    roles     │
-└────┬─────┘    └──────────┘    └──────────────┘
-     │
-     │  ┌───────────────────────────────────────────────────────────┐
-     │  │                      日報系                                │
-     │  │  ┌────────────┐   ┌──────────────────┐                    │
-     ├──┼─<│daily_reports│──<│daily_report_items │                   │
-     │  │  └─────┬──────┘   └────────┬─────────┘                    │
-     │  │        │                   │                               │
-     │  │        │           ┌───────┴──────────┐                    │
-     │  │        │           │report_material_use│                   │
-     │  │        │           └──────────────────┘                    │
-     │  │        │                                                   │
-     │  │  ┌─────┴──────────────┐                                    │
-     │  │  │daily_report_safety │  KY等の記入チェック                  │
-     │  │  └────────────────────┘                                    │
-     │  └───────────────────────────────────────────────────────────┘
-     │
-     │  ┌───────────────────────────────────────────────────────────┐
-     │  │                    現場・工期系                              │
-     │  │  ┌──────┐   ┌────────────┐   ┌────────────┐               │
-     │  ├─<│sites │──<│ phases     │──<│milestones  │               │
-     │  │  └──┬───┘   └────────────┘   └────────────┘               │
-     │  │     │                                                      │
-     │  │     │   ┌───────────────────┐                              │
-     │  │     └──<│site_assignments   │  配置管理                     │
-     │  │         └───────────────────┘                              │
-     │  └───────────────────────────────────────────────────────────┘
-     │
-     │  ┌───────────────────────────────────────────────────────────┐
-     │  │                    原価系                                   │
-     │  │  ┌──────────┐   ┌──────────────┐                           │
-     │  │  │ budgets  │   │ actual_costs │                           │
-     │  │  └──────────┘   └──────────────┘                           │
-     │  └───────────────────────────────────────────────────────────┘
-     │
-     │  ┌───────────────────────────────────────────────────────────┐
-     │  │                    材料系                                   │
-     │  │  ┌──────────────┐  ┌────────────┐  ┌─────────────────┐    │
-     │  │  │material_items│  │ quotations │─<│quotation_items  │    │
-     │  │  └──────────────┘  └────────────┘  └─────────────────┘    │
-     │  │                    ┌──────────────┐  ┌─────────────────┐   │
-     │  │                    │purchase_orders│─<│po_items         │  │
-     │  │                    └──────────────┘  └─────────────────┘   │
-     │  │                    ┌──────────┐  ┌───────────────┐         │
-     │  │                    │deliveries│─<│delivery_items │         │
-     │  │                    └──────────┘  └───────────────┘         │
-     │  │                    ┌──────────┐                            │
-     │  │                    │inventory │                            │
-     │  │                    └──────────┘                            │
-     │  └───────────────────────────────────────────────────────────┘
-     │
-     │  ┌───────────────────────────────────────────────────────────┐
-     │  │                    入札系                                   │
-     │  │  ┌─────────────┐  ┌──────────────┐                        │
-     │  │  │bid_projects │─<│bid_documents │                        │
-     │  │  └──────┬──────┘  └──────────────┘                        │
-     │  │         └──<┌──────────────┐                               │
-     │  │             │bid_competitors│                              │
-     │  │             └──────────────┘                               │
-     │  └───────────────────────────────────────────────────────────┘
-     │
-     │  ┌───────────────────────────────────────────────────────────┐
-     │  │                    人材系                                   │
-     │  │  ┌───────────────┐  ┌────────────┐  ┌───────────────┐     │
-     │  │  │qualifications │  │ trainings  │  │health_checks  │     │
-     │  │  └───────────────┘  └────────────┘  └───────────────┘     │
-     │  │  ┌───────────┐                                             │
-     │  │  │skill_maps │                                             │
-     │  │  └───────────┘                                             │
-     │  └───────────────────────────────────────────────────────────┘
-     │
-     │  ┌───────────────────────────────────────────────────────────┐
-     │  │                    取引先系                                  │
-     │  │  ┌──────────┐  ┌───────────────────┐  ┌──────────────┐    │
-     │  │  │ partners │─<│partner_evaluations│  │business_cards│    │
-     │  │  └──────────┘  └───────────────────┘  └──────────────┘    │
-     │  └───────────────────────────────────────────────────────────┘
-     │
-     │  ┌───────────────────────────────────────────────────────────┐
-     │  │                    共通系                                   │
-     │  │  ┌──────────────┐  ┌──────────┐  ┌──────────┐             │
-     │  │  │notifications │  │ files    │  │dev_tasks │             │
-     │  │  └──────────────┘  └──────────┘  └──────────┘             │
-     │  └───────────────────────────────────────────────────────────┘
+┌────────────┐
+│  Company   │─────────────── テナント（全テーブルの親）
+└─────┬──────┘
+      │
+      ├──< CompanyApp       利用アプリ設定
+      │
+      │  ┌───────────────────────────────────────────────────────────┐
+      │  │                 ユーザー・権限系                            │
+      │  │  ┌──────┐   ┌────────────┐   ┌──────┐                    │
+      │  ├─<│ User │──<│  UserRole  │>──│ Role │                    │
+      │  │  └──┬───┘   └────────────┘   └──┬───┘                    │
+      │  │     │                           │                         │
+      │  │     │ ┌────────────┐    ┌───────┴──────────────┐          │
+      │  │     └<│ Department │    │ ModulePermission     │          │
+      │  │       └────────────┘    └──────────────────────┘          │
+      │  └───────────────────────────────────────────────────────────┘
+      │
+      │  ┌───────────────────────────────────────────────────────────┐
+      │  │                 現場・工期系                                │
+      │  │  ┌──────┐   ┌─────────┐   ┌────────────┐                 │
+      │  ├─<│ Site │──<│ Process │   │   Phase    │                 │
+      │  │  └──┬───┘   └─────────┘   └────────────┘                 │
+      │  │     │   ┌────────────┐   ┌────────────┐                   │
+      │  │     ├──<│ Milestone  │   │ Assignment │                   │
+      │  │     │   └────────────┘   └────────────┘                   │
+      │  └───────────────────────────────────────────────────────────┘
+      │
+      │  ┌───────────────────────────────────────────────────────────┐
+      │  │                 日報系                                     │
+      │  │  ┌─────────────┐   ┌───────────────────────┐              │
+      │  ├─<│ DailyReport │──<│ DailyReportMaterial   │              │
+      │  │  └─────────────┘   └───────────────────────┘              │
+      │  │  ┌────────────────┐   ┌───────────────┐                   │
+      │  │  │ SafetyTemplate │──<│ SafetyRecord  │                   │
+      │  │  └────────────────┘   └───────────────┘                   │
+      │  └───────────────────────────────────────────────────────────┘
+      │
+      │  ┌───────────────────────────────────────────────────────────┐
+      │  │                 原価系                                     │
+      │  │  ┌────────────┐   ┌─────────────────┐                     │
+      │  ├─<│ BudgetItem │   │ CostTransaction │                     │
+      │  │  └────────────┘   └─────────────────┘                     │
+      │  └───────────────────────────────────────────────────────────┘
+      │
+      │  ┌───────────────────────────────────────────────────────────┐
+      │  │                 材料系                                     │
+      │  │  ┌──────────┐  ┌───────────────┐  ┌───────────────────┐   │
+      │  ├─<│ Material │  │ PurchaseOrder │─<│ PurchaseOrderItem │   │
+      │  │  └──────────┘  └───────────────┘  └───────────────────┘   │
+      │  └───────────────────────────────────────────────────────────┘
+      │
+      │  ┌───────────────────────────────────────────────────────────┐
+      │  │                 入札系                                     │
+      │  │  ┌────────────┐  ┌──────────┐  ┌───────────────┐          │
+      │  ├─<│ BidProject │─<│ BidCost  │  │ BidCompetitor │          │
+      │  │  └────────────┘  └──────────┘  └───────────────┘          │
+      │  │  ┌──────────────┐  ┌───────────┐  ┌───────────────┐       │
+      │  │  │ ScrapeTarget │  │ UnitPrice │  │ Qualification │       │
+      │  │  └──────────────┘  └───────────┘  └───────────────┘       │
+      │  └───────────────────────────────────────────────────────────┘
+      │
+      │  ┌───────────────────────────────────────────────────────────┐
+      │  │                 人材系                                     │
+      │  │  ┌────────┐  ┌──────────┐  ┌──────────┐                   │
+      │  ├─<│ Worker │  │ JobTitle │  │ Position │                   │
+      │  │  └──┬─────┘  └──────────┘  └──────────┘                   │
+      │  │     ├──<┌─────────────────────┐                            │
+      │  │     │   │ WorkerQualification │                            │
+      │  │     │   └─────────────────────┘                            │
+      │  │     ├──<┌───────────────┐                                  │
+      │  │     │   │ HealthCheckup │                                  │
+      │  │     │   └───────────────┘                                  │
+      │  │     ├──<┌──────────────────┐                               │
+      │  │         │ WorkerEvaluation │                               │
+      │  │         └──────────────────┘                               │
+      │  │  ┌──────────────────────┐                                  │
+      │  │  │ EvaluationTemplate   │                                  │
+      │  │  └──────────────────────┘                                  │
+      │  └───────────────────────────────────────────────────────────┘
+      │
+      │  ┌───────────────────────────────────────────────────────────┐
+      │  │                 取引先・マスタ系                             │
+      │  │  ┌──────────┐  ┌──────────────┐  ┌──────────┐             │
+      │  ├─<│ WorkType │  │ CostCategory │  │ Customer │             │
+      │  │  └──────────┘  └──────────────┘  └──────────┘             │
+      │  │  ┌──────────┐  ┌──────────────┐                            │
+      │  │  │ Supplier │  │ WorkStandard │                            │
+      │  │  └──────────┘  └──────────────┘                            │
+      │  └───────────────────────────────────────────────────────────┘
+      │
+      │  ┌───────────────────────────────────────────────────────────┐
+      │  │                 開発管理系                                  │
+      │  │  ┌────────────┐  ┌──────────┐  ┌────────────┐             │
+      │  ├─<│ DevProject │─<│ DevTask  │─<│ DevComment │             │
+      │  │  └────────────┘  └──────────┘  └────────────┘             │
+      │  └───────────────────────────────────────────────────────────┘
+      │
+      │  ┌───────────────────────────────────────────────────────────┐
+      │  │                 通知系                                     │
+      │  │  ┌──────────────┐  ┌───────────┐  ┌──────────┐            │
+      │  ├─<│ Notification │  │ AlertRule │─<│ AlertLog │            │
+      │  │  └──────────────┘  └───────────┘  └──────────┘            │
+      │  └───────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -101,534 +119,727 @@
 ## テーブル定義
 
 ### 共通カラム規約
-全テーブルに以下を含む（以降の定義では省略）:
-- `id` UUID PRIMARY KEY DEFAULT gen_random_uuid()
-- `created_at` TIMESTAMPTZ NOT NULL DEFAULT now()
-- `updated_at` TIMESTAMPTZ NOT NULL DEFAULT now()
+
+テナントスコープの全テーブル（Company 自身を除く）に以下の共通カラムを含む（以降の個別定義では省略）:
+
+| カラム | 型 | 制約 | 説明 |
+|--------|-----|------|------|
+| id | BigAutoField | PRIMARY KEY | Django 自動採番 |
+| created_at | DateTimeField | NOT NULL, auto_now_add | 作成日時 |
+| updated_at | DateTimeField | NOT NULL, auto_now | 更新日時 |
+| created_by_id | ForeignKey → User | NULL | 作成者 |
+| company_id | ForeignKey → Company | NOT NULL | テナント |
+
+> **注**: User テーブルは Django AbstractUser を継承しており、id / password / last_login / is_superuser / date_joined 等は Django 標準カラム。company_id は User にも存在する（テナント紐付け）。
 
 ---
 
-### A. ユーザー・権限
+### A. テナント
 
-#### A1. users — ユーザー
+#### A1. Company — 会社（テナント）
+
+Djangoアプリ: `tenants`
+
 | カラム | 型 | 制約 | 説明 |
 |--------|-----|------|------|
-| email | VARCHAR(255) | UNIQUE NOT NULL | ログインメール |
-| password_hash | VARCHAR(255) | NOT NULL | ハッシュ化パスワード |
-| name | VARCHAR(100) | NOT NULL | 氏名 |
-| phone | VARCHAR(20) | | 電話番号 |
-| company_type | VARCHAR(20) | NOT NULL | 'internal' / 'partner' |
-| partner_id | UUID | FK → partners | 協力会社の場合 |
-| is_active | BOOLEAN | DEFAULT true | 有効/無効 |
-| discord_id | VARCHAR(50) | | Discord連携用 |
+| id | BigAutoField | PK | — |
+| created_at | DateTimeField | NOT NULL | 作成日時 |
+| updated_at | DateTimeField | NOT NULL | 更新日時 |
+| created_by_id | ForeignKey → User | NULL | 作成者 |
+| name | CharField | NOT NULL | 会社名 |
+| industry_type | CharField | | 業種（参考情報） |
+| contract_plan | CharField | NOT NULL | 契約プラン |
+| is_active | BooleanField | DEFAULT true | 有効 |
 
-#### A2. roles — ロール定義
+#### A2. CompanyApp — 会社別アプリ設定
+
+Djangoアプリ: `tenants`
+
 | カラム | 型 | 制約 | 説明 |
 |--------|-----|------|------|
-| name | VARCHAR(50) | UNIQUE NOT NULL | 'president','executive','site_manager','office_staff','partner_worker','developer' |
-| description | TEXT | | ロール説明 |
-
-#### A3. user_roles — ユーザー×ロール
-| カラム | 型 | 制約 | 説明 |
-|--------|-----|------|------|
-| user_id | UUID | FK → users | — |
-| role_id | UUID | FK → roles | — |
-| granted_by | UUID | FK → users | 権限付与者（社長等） |
-
-**UNIQUE(user_id, role_id)**
-
-#### A4. module_permissions — モジュール別権限
-| カラム | 型 | 制約 | 説明 |
-|--------|-----|------|------|
-| role_id | UUID | FK → roles | — |
-| module | VARCHAR(50) | NOT NULL | 'reports','costs','bids' 等 |
-| can_read | BOOLEAN | DEFAULT false | 閲覧 |
-| can_write | BOOLEAN | DEFAULT false | 編集 |
-| can_admin | BOOLEAN | DEFAULT false | 管理 |
-
-**UNIQUE(role_id, module)**
+| company_id | ForeignKey → Company | NOT NULL | 会社 |
+| app_code | CharField | NOT NULL | アプリコード: jinzai, hyoka, koutei, zairyo, nippou, genka |
+| is_enabled | BooleanField | DEFAULT true | 有効 |
+| enabled_at | DateTimeField | NULL | 有効化日時 |
 
 ---
 
-### B. 現場・工期
+### B. ユーザー・権限
 
-#### B1. sites — 現場
+#### B1. User — ユーザー
+
+Djangoアプリ: `accounts`（AbstractUser 継承）
+
 | カラム | 型 | 制約 | 説明 |
 |--------|-----|------|------|
-| name | VARCHAR(200) | NOT NULL | 現場名 |
-| address | TEXT | | 住所 |
-| client_id | UUID | FK → partners | 発注者 |
-| status | VARCHAR(20) | NOT NULL DEFAULT 'active' | 'planning','active','completed','suspended' |
-| planned_start | DATE | | 予定開始日 |
-| planned_end | DATE | | 予定終了日 |
-| actual_start | DATE | | 実際開始日 |
-| actual_end | DATE | | 実際終了日 |
-| target_profit_rate | DECIMAL(5,2) | | 目標粗利率(%) |
-| bid_project_id | UUID | FK → bid_projects | 入札案件から連携 |
-| notes | TEXT | | 備考 |
+| id | BigAutoField | PK | — |
+| password | CharField | NOT NULL | ハッシュ化パスワード |
+| last_login | DateTimeField | NULL | 最終ログイン |
+| is_superuser | BooleanField | DEFAULT false | スーパーユーザー権限 |
+| username | CharField | UNIQUE, NOT NULL | ユーザー名 |
+| first_name | CharField | | 名 |
+| last_name | CharField | | 姓 |
+| email | EmailField | | メールアドレス |
+| is_staff | BooleanField | DEFAULT false | スタッフ権限 |
+| is_active | BooleanField | DEFAULT true | 有効 |
+| date_joined | DateTimeField | NOT NULL | 登録日 |
+| company_id | ForeignKey → Company | NULL | 会社 |
+| employee_no | CharField | | 社員番号 |
+| department_id | ForeignKey → Department | NULL | 部署 |
 
-#### B2. work_types — 工種マスタ
+#### B2. Department — 部署
+
+Djangoアプリ: `accounts`
+
 | カラム | 型 | 制約 | 説明 |
 |--------|-----|------|------|
-| name | VARCHAR(100) | UNIQUE NOT NULL | 工種名 |
-| description | TEXT | | 説明 |
-| sort_order | INT | DEFAULT 0 | 表示順 |
+| name | CharField | NOT NULL | 部署名 |
+| is_active | BooleanField | DEFAULT true | 有効 |
 
-#### B3. phases — 工程（ガントチャート用）
+#### B3. Role — ロール定義
+
+Djangoアプリ: `permissions`
+
 | カラム | 型 | 制約 | 説明 |
 |--------|-----|------|------|
-| site_id | UUID | FK → sites, NOT NULL | 現場 |
-| name | VARCHAR(200) | NOT NULL | 工程名 |
-| planned_start | DATE | NOT NULL | 予定開始日 |
-| planned_end | DATE | NOT NULL | 予定終了日 |
-| actual_start | DATE | | 実績開始日 |
-| actual_end | DATE | | 実績終了日 |
-| progress | INT | DEFAULT 0 | 進捗率(%) |
-| parent_phase_id | UUID | FK → phases | 親工程（階層化） |
-| sort_order | INT | DEFAULT 0 | 表示順 |
-| is_partner | BOOLEAN | DEFAULT false | 協力会社工程か |
+| code | CharField | NOT NULL | ロールコード |
+| name | CharField | NOT NULL | ロール名 |
+| description | TextField | | 説明 |
+| is_system | BooleanField | DEFAULT false | システムロール（削除不可） |
 
-#### B4. milestones — マイルストーン
+#### B4. ModulePermission — モジュール別権限
+
+Djangoアプリ: `permissions`
+
 | カラム | 型 | 制約 | 説明 |
 |--------|-----|------|------|
-| site_id | UUID | FK → sites, NOT NULL | 現場 |
-| name | VARCHAR(200) | NOT NULL | 検査日、引渡日、申請期限等 |
-| due_date | DATE | NOT NULL | 期限 |
-| completed | BOOLEAN | DEFAULT false | 完了フラグ |
-| milestone_type | VARCHAR(50) | | 'inspection','handover','deadline' 等 |
+| role_id | ForeignKey → Role | NOT NULL | ロール |
+| module | CharField | NOT NULL | モジュール: reports, costs, materials, bids, schedules, workers, devkanri, masters, notifications, settings |
+| can_read | BooleanField | DEFAULT false | 閲覧 |
+| can_write | BooleanField | DEFAULT false | 編集 |
+| can_admin | BooleanField | DEFAULT false | 管理 |
 
-#### B5. site_assignments — 配置管理
+#### B5. UserRole — ユーザー×ロール
+
+Djangoアプリ: `permissions`
+
 | カラム | 型 | 制約 | 説明 |
 |--------|-----|------|------|
-| site_id | UUID | FK → sites, NOT NULL | 現場 |
-| user_id | UUID | FK → users, NOT NULL | 作業員 |
-| assigned_date | DATE | NOT NULL | 配置日 |
-| role_on_site | VARCHAR(50) | | '職長','作業員' 等 |
-
-**UNIQUE(site_id, user_id, assigned_date)**
-
-#### B6. phase_templates — 工程テンプレート
-| カラム | 型 | 制約 | 説明 |
-|--------|-----|------|------|
-| name | VARCHAR(200) | NOT NULL | テンプレート名 |
-| description | TEXT | | 説明 |
-
-#### B7. phase_template_items — テンプレート明細
-| カラム | 型 | 制約 | 説明 |
-|--------|-----|------|------|
-| template_id | UUID | FK → phase_templates, NOT NULL | — |
-| name | VARCHAR(200) | NOT NULL | 工程名 |
-| offset_days_start | INT | NOT NULL | 開始日オフセット |
-| offset_days_end | INT | NOT NULL | 終了日オフセット |
-| parent_item_id | UUID | FK → phase_template_items | 親工程 |
-| sort_order | INT | DEFAULT 0 | 表示順 |
+| user_id | ForeignKey → User | NOT NULL | ユーザー |
+| role_id | ForeignKey → Role | NOT NULL | ロール |
+| granted_by_id | ForeignKey → User | NULL | 権限付与者 |
 
 ---
 
-### C. 日報
+### C. 現場・工期
 
-#### C1. daily_reports — 日報ヘッダー
+#### C1. Site — 現場
+
+Djangoアプリ: `sites`
+
 | カラム | 型 | 制約 | 説明 |
 |--------|-----|------|------|
-| site_id | UUID | FK → sites, NOT NULL | 現場 |
-| report_date | DATE | NOT NULL | 作業日 |
-| weather | VARCHAR(20) | | '晴','曇','雨','雪' 等 |
-| reported_by | UUID | FK → users, NOT NULL | 入力者 |
-| approved | BOOLEAN | DEFAULT false | 承認フラグ（任意） |
-| approved_by | UUID | FK → users | 承認者 |
-| approved_at | TIMESTAMPTZ | | 承認日時 |
-| notes | TEXT | | その他（メモ） |
+| code | CharField | NOT NULL | 現場コード |
+| name | CharField | NOT NULL | 現場名 |
+| customer_id | ForeignKey → Customer | NULL | 得意先 |
+| address | TextField | | 住所 |
+| status | CharField | NOT NULL | 状態: estimating, ordered, in_progress, completed, billed, cancelled |
+| contract_amount | DecimalField | | 受注金額 |
+| start_date | DateField | NULL | 工期開始 |
+| end_date | DateField | NULL | 工期終了 |
+| manager_id | ForeignKey → Worker | NULL | 現場担当者 |
 
-**UNIQUE(site_id, report_date)**
+#### C2. Process — 工程（現場×工種）
 
-#### C2. daily_report_items — 日報明細（作業員別）
+Djangoアプリ: `sites`
+
 | カラム | 型 | 制約 | 説明 |
 |--------|-----|------|------|
-| report_id | UUID | FK → daily_reports, NOT NULL | 日報 |
-| worker_id | UUID | FK → users, NOT NULL | 作業員 |
-| work_type_id | UUID | FK → work_types | 工種 |
-| work_description | TEXT | | 作業内容 |
-| start_time | TIME | NOT NULL | 開始時間 |
-| end_time | TIME | NOT NULL | 終了時間 |
-| regular_hours | DECIMAL(4,2) | | 通常時間（自動計算） |
-| overtime_hours | DECIMAL(4,2) | | 残業時間（自動計算） |
-| is_partner_worker | BOOLEAN | DEFAULT false | 協力会社の作業員か |
-| partner_id | UUID | FK → partners | 協力会社 |
+| site_id | ForeignKey → Site | NOT NULL | 現場 |
+| work_type_id | ForeignKey → WorkType | NOT NULL | 工種 |
+| name | CharField | NOT NULL | 工程名 |
+| planned_start | DateField | NULL | 計画開始日 |
+| planned_end | DateField | NULL | 計画終了日 |
+| actual_start | DateField | NULL | 実績開始日 |
+| actual_end | DateField | NULL | 実績終了日 |
+| status | CharField | NOT NULL | 状態: planned, in_progress, completed, delayed |
+| display_order | IntegerField | DEFAULT 0 | 表示順 |
 
-#### C3. report_material_usage — 日報の使用材料
+#### C3. Phase — 工程（ガントチャート用）
+
+Djangoアプリ: `schedules`
+
 | カラム | 型 | 制約 | 説明 |
 |--------|-----|------|------|
-| report_id | UUID | FK → daily_reports, NOT NULL | 日報 |
-| material_id | UUID | FK → material_items | 材料マスタ |
-| material_name | VARCHAR(200) | | マスタ外の場合の自由入力 |
-| quantity | DECIMAL(10,2) | | 使用量 |
-| unit | VARCHAR(20) | | 単位 |
+| site_id | ForeignKey → Site | NOT NULL | 現場 |
+| name | CharField | NOT NULL | 工程名 |
+| start_date | DateField | NULL | 開始日 |
+| end_date | DateField | NULL | 終了日 |
+| progress | IntegerField | DEFAULT 0 | 進捗(%) |
+| sort_order | IntegerField | DEFAULT 0 | 表示順 |
+| color | CharField | | 色（ガントバー色） |
+| memo | TextField | | メモ |
 
-#### C4. safety_templates — 安全書類ひな型
+#### C4. Milestone — マイルストーン
+
+Djangoアプリ: `schedules`
+
 | カラム | 型 | 制約 | 説明 |
 |--------|-----|------|------|
-| site_id | UUID | FK → sites, NOT NULL | 現場 |
-| name | VARCHAR(200) | NOT NULL | 'KY活動記録','TBM記録' 等 |
-| template_file_id | UUID | FK → files | ひな型ファイル |
-| is_daily_required | BOOLEAN | DEFAULT true | 毎日必須か |
+| site_id | ForeignKey → Site | NOT NULL | 現場 |
+| name | CharField | NOT NULL | マイルストーン名 |
+| target_date | DateField | NULL | 目標日 |
+| completed | BooleanField | DEFAULT false | 完了 |
+| memo | TextField | | メモ |
 
-#### C5. safety_records — 安全書類の記入チェック
+#### C5. Assignment — 配置管理
+
+Djangoアプリ: `schedules`
+
 | カラム | 型 | 制約 | 説明 |
 |--------|-----|------|------|
-| template_id | UUID | FK → safety_templates, NOT NULL | ひな型 |
-| worker_id | UUID | FK → users, NOT NULL | 作業員 |
-| record_date | DATE | NOT NULL | 記入日 |
-| completed | BOOLEAN | DEFAULT false | 記入済みか |
-| alerted | BOOLEAN | DEFAULT false | アラート送信済みか |
-
-**UNIQUE(template_id, worker_id, record_date)**
+| worker_id | ForeignKey → Worker | NOT NULL | 作業員 |
+| site_id | ForeignKey → Site | NOT NULL | 現場 |
+| start_date | DateField | NOT NULL | 開始日 |
+| end_date | DateField | NULL | 終了日 |
+| memo | TextField | | メモ |
 
 ---
 
-### D. 原価管理
+### D. 日報
 
-#### D1. budgets — 予算
+#### D1. DailyReport — 日報
+
+Djangoアプリ: `reports`
+
 | カラム | 型 | 制約 | 説明 |
 |--------|-----|------|------|
-| site_id | UUID | FK → sites, NOT NULL | 現場 |
-| work_type_id | UUID | FK → work_types | 工種（NULLなら現場全体） |
-| cost_category | VARCHAR(20) | NOT NULL | 'material','labor','outsource','expense' |
-| amount | DECIMAL(14,2) | NOT NULL | 予算額 |
+| site_id | ForeignKey → Site | NOT NULL | 現場 |
+| worker_id | ForeignKey → Worker | NOT NULL | 作業員 |
+| report_date | DateField | NOT NULL | 日付 |
+| weather | CharField | | 天候: sunny, cloudy, rainy, snowy, other |
+| process_id | ForeignKey → Process | NULL | 工程 |
+| work_type_id | ForeignKey → WorkType | NOT NULL | 工種 |
+| work_description | TextField | | 作業内容 |
+| start_time | TimeField | NULL | 開始時間 |
+| end_time | TimeField | NULL | 終了時間 |
+| work_hours | DecimalField | | 作業時間 |
+| regular_hours | DecimalField | NULL | 通常時間 |
+| overtime_hours | DecimalField | | 残業時間 |
+| is_partner_worker | BooleanField | DEFAULT false | 協力会社の作業員 |
+| partner_id | ForeignKey → Supplier | NULL | 協力会社 |
+| memo | TextField | | その他 |
+| status | CharField | NOT NULL | 状態: draft, submitted, approved |
+| approved_by_id | ForeignKey → User | NULL | 承認者 |
+| approved_at | DateTimeField | NULL | 承認日時 |
 
-**UNIQUE(site_id, work_type_id, cost_category)**
+#### D2. DailyReportMaterial — 日報の使用材料
 
-#### D2. actual_costs — 実績原価
+Djangoアプリ: `reports`
+
 | カラム | 型 | 制約 | 説明 |
 |--------|-----|------|------|
-| site_id | UUID | FK → sites, NOT NULL | 現場 |
-| cost_category | VARCHAR(20) | NOT NULL | 同上 |
-| work_type_id | UUID | FK → work_types | 工種 |
-| cost_date | DATE | NOT NULL | 発生日 |
-| amount | DECIMAL(14,2) | NOT NULL | 金額 |
-| description | TEXT | | 内容 |
-| source_type | VARCHAR(20) | | 'daily_report','purchase_order','manual' |
-| source_id | UUID | | 元データのID |
+| daily_report_id | ForeignKey → DailyReport | NOT NULL | 日報 |
+| material_id | ForeignKey → Material | NULL | 材料（マスタ） |
+| material_name | CharField | | 材料名（自由入力） |
+| quantity_used | DecimalField | | 使用数量 |
+| unit | CharField | | 単位 |
 
-#### D3. cost_alerts — 原価アラート履歴
+#### D3. SafetyTemplate — 安全書類ひな型
+
+Djangoアプリ: `reports`
+
 | カラム | 型 | 制約 | 説明 |
 |--------|-----|------|------|
-| site_id | UUID | FK → sites, NOT NULL | 現場 |
-| cost_category | VARCHAR(20) | NOT NULL | — |
-| threshold_pct | INT | NOT NULL | 75, 80, 90, 100 |
-| triggered_at | TIMESTAMPTZ | NOT NULL | 発火日時 |
-| notified_users | UUID[] | | 通知先ユーザー |
+| site_id | ForeignKey → Site | NOT NULL | 現場 |
+| name | CharField | NOT NULL | 書類名（KY活動記録、TBM記録 等） |
+| template_file | FileField | | ひな型ファイル |
+| is_daily_required | BooleanField | DEFAULT true | 毎日必須 |
+
+#### D4. SafetyRecord — 安全書類の記入チェック
+
+Djangoアプリ: `reports`
+
+| カラム | 型 | 制約 | 説明 |
+|--------|-----|------|------|
+| template_id | ForeignKey → SafetyTemplate | NOT NULL | ひな型 |
+| worker_id | ForeignKey → Worker | NOT NULL | 作業員 |
+| record_date | DateField | NOT NULL | 記入日 |
+| completed | BooleanField | DEFAULT false | 記入済み |
+| completed_at | DateTimeField | NULL | 記入完了日時 |
+| alerted | BooleanField | DEFAULT false | アラート送信済み |
 
 ---
 
-### E. 材料管理
+### E. 原価管理
 
-#### E1. material_items — 材料マスタ
+#### E1. BudgetItem — 予算項目
+
+Djangoアプリ: `costs`
+
 | カラム | 型 | 制約 | 説明 |
 |--------|-----|------|------|
-| name | VARCHAR(200) | NOT NULL | 材料名 |
-| category | VARCHAR(100) | | カテゴリ |
-| unit | VARCHAR(20) | | 標準単位 |
-| standard_price | DECIMAL(12,2) | | 参考単価 |
-| description | TEXT | | 説明 |
+| site_id | ForeignKey → Site | NOT NULL | 現場 |
+| work_type_id | ForeignKey → WorkType | NOT NULL | 工種 |
+| cost_category_id | ForeignKey → CostCategory | NOT NULL | 原価区分 |
+| name | CharField | NOT NULL | 項目名 |
+| unit | CharField | | 単位 |
+| quantity | DecimalField | | 数量 |
+| unit_price | DecimalField | | 単価 |
+| amount | DecimalField | | 金額 |
 
-#### E2. quotations — 見積
+#### E2. CostTransaction — 実績原価トランザクション
+
+Djangoアプリ: `costs`
+
 | カラム | 型 | 制約 | 説明 |
 |--------|-----|------|------|
-| site_id | UUID | FK → sites | 現場 |
-| supplier_id | UUID | FK → partners, NOT NULL | 仕入先 |
-| quotation_date | DATE | NOT NULL | 見積日 |
-| valid_until | DATE | | 有効期限 |
-| total_amount | DECIMAL(14,2) | | 合計金額 |
-| status | VARCHAR(20) | DEFAULT 'draft' | 'draft','received','accepted','rejected' |
-| file_id | UUID | FK → files | 添付ファイル（PDF/Excel） |
-| notes | TEXT | | 備考 |
-
-#### E3. quotation_items — 見積明細
-| カラム | 型 | 制約 | 説明 |
-|--------|-----|------|------|
-| quotation_id | UUID | FK → quotations, NOT NULL | — |
-| material_id | UUID | FK → material_items | 材料 |
-| material_name | VARCHAR(200) | | マスタ外の場合 |
-| quantity | DECIMAL(10,2) | NOT NULL | 数量 |
-| unit_price | DECIMAL(12,2) | NOT NULL | 単価 |
-| amount | DECIMAL(14,2) | NOT NULL | 金額 |
-
-#### E4. purchase_orders — 発注
-| カラム | 型 | 制約 | 説明 |
-|--------|-----|------|------|
-| site_id | UUID | FK → sites | 現場 |
-| supplier_id | UUID | FK → partners, NOT NULL | 仕入先 |
-| quotation_id | UUID | FK → quotations | 元見積 |
-| order_date | DATE | NOT NULL | 発注日 |
-| total_amount | DECIMAL(14,2) | | 合計金額 |
-| status | VARCHAR(20) | DEFAULT 'ordered' | 'ordered','partially_delivered','delivered','inspected' |
-| file_id | UUID | FK → files | 発注書ファイル |
-
-#### E5. po_items — 発注明細
-| カラム | 型 | 制約 | 説明 |
-|--------|-----|------|------|
-| po_id | UUID | FK → purchase_orders, NOT NULL | — |
-| material_id | UUID | FK → material_items | 材料 |
-| material_name | VARCHAR(200) | | — |
-| quantity | DECIMAL(10,2) | NOT NULL | 発注数量 |
-| unit_price | DECIMAL(12,2) | NOT NULL | 単価 |
-| amount | DECIMAL(14,2) | NOT NULL | 金額 |
-
-#### E6. deliveries — 納品
-| カラム | 型 | 制約 | 説明 |
-|--------|-----|------|------|
-| po_id | UUID | FK → purchase_orders, NOT NULL | 発注 |
-| delivery_date | DATE | NOT NULL | 納品日 |
-| inspected | BOOLEAN | DEFAULT false | 検収済み |
-| inspected_by | UUID | FK → users | 検収者 |
-| inspected_at | TIMESTAMPTZ | | 検収日時 |
-| notes | TEXT | | 備考 |
-
-#### E7. delivery_items — 納品明細
-| カラム | 型 | 制約 | 説明 |
-|--------|-----|------|------|
-| delivery_id | UUID | FK → deliveries, NOT NULL | — |
-| material_id | UUID | FK → material_items | 材料 |
-| ordered_qty | DECIMAL(10,2) | | 発注数量 |
-| delivered_qty | DECIMAL(10,2) | NOT NULL | 納品数量 |
-| is_ok | BOOLEAN | DEFAULT true | 数量OK |
-
-#### E8. inventory — 在庫
-| カラム | 型 | 制約 | 説明 |
-|--------|-----|------|------|
-| material_id | UUID | FK → material_items, NOT NULL | 材料 |
-| site_id | UUID | FK → sites | 現場（NULL=本社倉庫） |
-| quantity | DECIMAL(10,2) | NOT NULL DEFAULT 0 | 在庫数 |
-| last_updated | TIMESTAMPTZ | DEFAULT now() | 最終更新 |
-
-**UNIQUE(material_id, site_id)**
+| site_id | ForeignKey → Site | NOT NULL | 現場 |
+| work_type_id | ForeignKey → WorkType | NOT NULL | 工種 |
+| cost_category_id | ForeignKey → CostCategory | NOT NULL | 原価区分 |
+| amount | DecimalField | NOT NULL | 金額 |
+| transaction_date | DateField | NOT NULL | 発生日 |
+| source_type | CharField | NOT NULL | 発生元種別: daily_report, po_item, outsourcing, expense, reversal |
+| source_id | BigIntegerField | NULL | 発生元ID |
+| supplier_id | ForeignKey → Supplier | NULL | 仕入先 |
+| manhours | DecimalField | NULL | 工数 |
 
 ---
 
-### F. 入札管理
+### F. 材料管理
 
-#### F1. bid_projects — 入札案件
+#### F1. Material — 材料マスタ
+
+Djangoアプリ: `materials`
+
 | カラム | 型 | 制約 | 説明 |
 |--------|-----|------|------|
-| name | VARCHAR(300) | NOT NULL | 案件名 |
-| client_name | VARCHAR(200) | | 発注者名 |
-| client_id | UUID | FK → partners | 取引先 |
-| region | VARCHAR(100) | | 地域 |
-| category | VARCHAR(100) | | カテゴリ |
-| source | VARCHAR(20) | NOT NULL | 'manual','scraping','email' |
-| bid_deadline | TIMESTAMPTZ | | 入札期限 |
-| estimated_amount | DECIMAL(14,2) | | 見積金額 |
-| ai_estimated_amount | DECIMAL(14,2) | | AI見積金額 |
-| our_bid_amount | DECIMAL(14,2) | | 自社入札額 |
-| status | VARCHAR(20) | DEFAULT 'new' | 'new','preparing','submitted','won','lost','cancelled' |
-| result_notified_at | TIMESTAMPTZ | | 結果通知日 |
-| notes | TEXT | | 備考 |
+| code | CharField | NOT NULL | コード |
+| name | CharField | NOT NULL | 材料名 |
+| unit | CharField | | 単位 |
+| category | CharField | | 分類 |
+| work_type_id | ForeignKey → WorkType | NULL | 工種 |
+| is_active | BooleanField | DEFAULT true | 有効 |
 
-#### F2. bid_documents — 入札書類
+#### F2. PurchaseOrder — 発注書
+
+Djangoアプリ: `materials`
+
 | カラム | 型 | 制約 | 説明 |
 |--------|-----|------|------|
-| bid_project_id | UUID | FK → bid_projects, NOT NULL | 案件 |
-| name | VARCHAR(200) | NOT NULL | 書類名 |
-| file_id | UUID | FK → files, NOT NULL | ファイル |
-| doc_type | VARCHAR(50) | | '仕様書','図面','見積書' 等 |
+| site_id | ForeignKey → Site | NOT NULL | 現場 |
+| supplier_id | ForeignKey → Supplier | NOT NULL | 仕入先 |
+| order_date | DateField | NOT NULL | 発注日 |
+| status | CharField | NOT NULL | 状態: draft, ordered, partially_received, received, cancelled |
 
-#### F3. bid_competitors — 競合情報
+#### F3. PurchaseOrderItem — 発注明細
+
+Djangoアプリ: `materials`
+
 | カラム | 型 | 制約 | 説明 |
 |--------|-----|------|------|
-| bid_project_id | UUID | FK → bid_projects, NOT NULL | 案件 |
-| competitor_name | VARCHAR(200) | NOT NULL | 競合社名 |
-| bid_amount | DECIMAL(14,2) | | 競合入札額 |
-| analysis | TEXT | | 強み弱み分析（Phase 2） |
+| purchase_order_id | ForeignKey → PurchaseOrder | NOT NULL | 発注書 |
+| material_id | ForeignKey → Material | NOT NULL | 材料 |
+| quantity | DecimalField | NOT NULL | 数量 |
+| unit_price | DecimalField | NOT NULL | 単価 |
+| work_type_id | ForeignKey → WorkType | NOT NULL | 工種 |
 
 ---
 
-### G. 人材管理
+### G. 入札管理
 
-#### G1. qualifications — 資格
+#### G1. BidProject — 入札案件
+
+Djangoアプリ: `bids`
+
 | カラム | 型 | 制約 | 説明 |
 |--------|-----|------|------|
-| user_id | UUID | FK → users, NOT NULL | 作業員 |
-| name | VARCHAR(200) | NOT NULL | 資格名 |
-| acquired_date | DATE | | 取得日 |
-| expiry_date | DATE | | 有効期限 |
-| is_active | BOOLEAN | DEFAULT true | 有効（期限切れ更新なしでfalse） |
-| certificate_file_id | UUID | FK → files | 証明書ファイル |
+| title | CharField | NOT NULL | 案件名 |
+| client | CharField | | 発注者 |
+| region | CharField | | 地域 |
+| category | CharField | | 工事種別 |
+| deadline | DateField | NULL | 入札期限 |
+| budget | DecimalField | | 予算額 |
+| source_url | URLField | | 情報源URL |
+| status | CharField | NOT NULL | 状態: new, considering, bid, won, lost, skipped |
 
-#### G2. qualification_alerts — 資格アラート履歴
+#### G2. BidCost — 入札原価
+
+Djangoアプリ: `bids`
+
 | カラム | 型 | 制約 | 説明 |
 |--------|-----|------|------|
-| qualification_id | UUID | FK → qualifications, NOT NULL | 資格 |
-| alert_type | VARCHAR(20) | NOT NULL | '1year','6month','3month','1month','1week','expired' |
-| sent_at | TIMESTAMPTZ | NOT NULL | 送信日時 |
+| project_id | OneToOneField → BidProject | NOT NULL, UNIQUE | 入札案件 |
+| estimate_amount | DecimalField | | 見積額 |
+| actual_cost | DecimalField | | 実際原価 |
+| memo | TextField | | メモ |
 
-#### G3. trainings — 研修記録
+#### G3. BidCompetitor — 競合情報
+
+Djangoアプリ: `bids`
+
 | カラム | 型 | 制約 | 説明 |
 |--------|-----|------|------|
-| user_id | UUID | FK → users, NOT NULL | 受講者 |
-| name | VARCHAR(200) | NOT NULL | 研修名 |
-| training_date | DATE | NOT NULL | 受講日 |
-| provider | VARCHAR(200) | | 実施機関 |
-| certificate_file_id | UUID | FK → files | 修了証ファイル |
-| notes | TEXT | | 備考 |
+| project_id | ForeignKey → BidProject | NOT NULL | 入札案件 |
+| competitor_name | CharField | NOT NULL | 競合名 |
+| competitor_amount | DecimalField | | 競合金額 |
+| source | CharField | | 情報源 |
+| memo | TextField | | メモ |
 
-#### G4. health_checks — 健康診断
+#### G4. ScrapeTarget — スクレイピング対象
+
+Djangoアプリ: `bids`
+
 | カラム | 型 | 制約 | 説明 |
 |--------|-----|------|------|
-| user_id | UUID | FK → users, NOT NULL | 対象者 |
-| check_date | DATE | NOT NULL | 受診日 |
-| result_summary | TEXT | | 結果概要 |
-| result_file_id | UUID | FK → files | 結果PDF |
-| next_check_date | DATE | | 次回予定日 |
+| name | CharField | NOT NULL | 名称 |
+| url | URLField | NOT NULL | URL |
+| region | CharField | | 地域 |
+| is_active | BooleanField | DEFAULT true | 有効 |
+| last_scraped_at | DateTimeField | NULL | 最終取得日時 |
 
-#### G5. skill_maps — スキルマップ
+#### G5. UnitPrice — 単価マスタ
+
+Djangoアプリ: `bids`
+
 | カラム | 型 | 制約 | 説明 |
 |--------|-----|------|------|
-| user_id | UUID | FK → users, NOT NULL | 作業員 |
-| skill_name | VARCHAR(200) | NOT NULL | スキル名 |
-| level | INT | DEFAULT 1 | 1〜5のレベル |
-| notes | TEXT | | 補足 |
+| category | CharField | NOT NULL | カテゴリ |
+| item_name | CharField | NOT NULL | 品目名 |
+| unit | CharField | | 単位 |
+| unit_price | DecimalField | | 単価 |
+| memo | TextField | | メモ |
 
-**UNIQUE(user_id, skill_name)**
+#### G6. Qualification — 入札参加資格
 
-#### G6. attendance_summary — 勤怠集計（日報から自動生成）
+Djangoアプリ: `bids`
+
 | カラム | 型 | 制約 | 説明 |
 |--------|-----|------|------|
-| user_id | UUID | FK → users, NOT NULL | 作業員 |
-| year_month | VARCHAR(7) | NOT NULL | '2026-08' |
-| work_days | INT | DEFAULT 0 | 出勤日数 |
-| total_regular_hours | DECIMAL(6,2) | DEFAULT 0 | 通常時間合計 |
-| total_overtime_hours | DECIMAL(6,2) | DEFAULT 0 | 残業時間合計 |
-| paid_leave_used | INT | DEFAULT 0 | 有休消化日数 |
-
-**UNIQUE(user_id, year_month)**
+| issuer | CharField | NOT NULL | 発注機関 |
+| category | CharField | | 業種区分 |
+| grade | CharField | | 等級 |
+| keisin_score | IntegerField | NULL | 経審点 |
+| total_score | IntegerField | NULL | 総合点 |
+| vendor_number | CharField | | 業者番号 |
+| valid_from | DateField | NULL | 有効開始日 |
+| valid_until | DateField | NULL | 有効期限 |
+| application_type | CharField | | 申請種別 |
+| application_method | CharField | | 申請方法 |
+| renewed | BooleanField | DEFAULT false | 更新済 |
+| memo | TextField | | メモ |
 
 ---
 
-### H. 取引先管理
+### H. 人材管理
 
-#### H1. partners — 取引先
+#### H1. Worker — 作業員
+
+Djangoアプリ: `workers`
+
 | カラム | 型 | 制約 | 説明 |
 |--------|-----|------|------|
-| name | VARCHAR(200) | NOT NULL | 会社名 |
-| partner_type | VARCHAR(20) | NOT NULL | 'client','supplier','subcontractor','other' |
-| industry | VARCHAR(100) | | 業種 |
-| region | VARCHAR(100) | | 地域 |
-| scale | VARCHAR(50) | | 取引規模 |
-| address | TEXT | | 住所 |
-| phone | VARCHAR(20) | | 電話番号 |
-| email | VARCHAR(255) | | メールアドレス |
-| notes | TEXT | | 備考 |
+| user_id | OneToOneField → User | NULL, UNIQUE | ユーザーアカウント（ログイン不要の場合NULL） |
+| employee_code | CharField | NOT NULL | 社員番号 |
+| name | CharField | NOT NULL | 氏名 |
+| name_kana | CharField | | フリガナ |
+| job_title_id | ForeignKey → JobTitle | NULL | 職種 |
+| position_id | ForeignKey → Position | NULL | 役職 |
+| skill_tags | JSONField | | スキルタグ |
+| hourly_cost | DecimalField | | 時間単価 |
+| phone | CharField | | 電話番号 |
+| hire_date | DateField | NULL | 入社日 |
+| is_active | BooleanField | DEFAULT true | 有効 |
+| note | TextField | | 備考 |
+| discord_user_id | CharField | | Discord ユーザーID |
+| allowed_apps | JSONField | | 利用可能アプリ |
 
-#### H2. partner_contacts — 取引先担当者
+#### H2. JobTitle — 職種マスタ
+
+Djangoアプリ: `workers`
+
 | カラム | 型 | 制約 | 説明 |
 |--------|-----|------|------|
-| partner_id | UUID | FK → partners, NOT NULL | 取引先 |
-| name | VARCHAR(100) | NOT NULL | 担当者名 |
-| position | VARCHAR(100) | | 役職 |
-| phone | VARCHAR(20) | | 電話番号 |
-| email | VARCHAR(255) | | メール |
+| name | CharField | NOT NULL | 職種名 |
+| is_active | BooleanField | DEFAULT true | 有効 |
 
-#### H3. partner_evaluations — 発注先評価
+#### H3. Position — 役職マスタ
+
+Djangoアプリ: `workers`
+
 | カラム | 型 | 制約 | 説明 |
 |--------|-----|------|------|
-| partner_id | UUID | FK → partners, NOT NULL | 取引先 |
-| evaluator_id | UUID | FK → users, NOT NULL | 評価者 |
-| evaluation_date | DATE | NOT NULL | 評価日 |
-| price_rating | INT | CHECK 1-5 | 金額評価 |
-| delivery_rating | INT | CHECK 1-5 | 納期評価 |
-| quality_rating | INT | CHECK 1-5 | 品質評価 |
-| service_description | TEXT | | サービス/商品内容 |
-| notes | TEXT | | 備考 |
+| name | CharField | NOT NULL | 役職名 |
+| rank | IntegerField | NOT NULL | 序列 |
+| is_active | BooleanField | DEFAULT true | 有効 |
 
-#### H4. business_cards — 名刺
+#### H4. WorkerQualification — 作業員資格
+
+Djangoアプリ: `workers`
+
 | カラム | 型 | 制約 | 説明 |
 |--------|-----|------|------|
-| partner_id | UUID | FK → partners | 取引先 |
-| contact_id | UUID | FK → partner_contacts | 担当者 |
-| image_file_id | UUID | FK → files, NOT NULL | 名刺画像 |
+| worker_id | ForeignKey → Worker | NOT NULL | 作業員 |
+| name | CharField | NOT NULL | 資格名 |
+| category | CharField | NOT NULL | 区分: license, skill_course, education, other |
+| acquired_date | DateField | NULL | 取得日 |
+| expiry_date | DateField | NULL | 有効期限 |
+| certificate_image | ImageField | | 証明書画像 |
+| note | TextField | | 備考 |
+
+#### H5. HealthCheckup — 健康診断
+
+Djangoアプリ: `workers`
+
+| カラム | 型 | 制約 | 説明 |
+|--------|-----|------|------|
+| worker_id | ForeignKey → Worker | NOT NULL | 作業員 |
+| checkup_date | DateField | NOT NULL | 受診日 |
+| result | CharField | NOT NULL | 判定: normal, observation, reexam, treatment |
+| institution | CharField | | 受診機関 |
+| memo | TextField | | メモ |
+| report_file | FileField | | 結果ファイル |
+
+#### H6. EvaluationTemplate — 評価テンプレート
+
+Djangoアプリ: `workers`
+
+| カラム | 型 | 制約 | 説明 |
+|--------|-----|------|------|
+| name | CharField | NOT NULL | テンプレート名 |
+| sections | JSONField | | 評価項目 |
+| survey_items | JSONField | | 質問詳細 |
+| scale | JSONField | | 評価スケール |
+| overall | JSONField | | 総合所見項目 |
+| is_active | BooleanField | DEFAULT true | 有効 |
+
+#### H7. WorkerEvaluation — 作業員評価
+
+Djangoアプリ: `workers`
+
+| カラム | 型 | 制約 | 説明 |
+|--------|-----|------|------|
+| worker_id | ForeignKey → Worker | NOT NULL | 作業員 |
+| evaluated_by_id | ForeignKey → User | NULL | 評価者 |
+| template_id | ForeignKey → EvaluationTemplate | NULL | 使用テンプレート |
+| period | CharField | NOT NULL | 評価期間 |
+| score | IntegerField | NULL | 総合評点 |
+| comment | TextField | | 総合コメント |
+| responses | JSONField | | アンケート回答 |
+| overall_responses | JSONField | | 総合所見回答 |
 
 ---
 
-### I. 開発管理
+### I. 取引先・マスタ
 
-#### I1. dev_tasks — 開発タスク
+#### I1. WorkType — 工種マスタ
+
+Djangoアプリ: `masters`
+
 | カラム | 型 | 制約 | 説明 |
 |--------|-----|------|------|
-| title | VARCHAR(300) | NOT NULL | タスク名 |
-| description | TEXT | | 説明 |
-| assignee_id | UUID | FK → users | 担当者 |
-| status | VARCHAR(20) | DEFAULT 'todo' | 'todo','in_progress','review','done' |
-| priority | VARCHAR(10) | DEFAULT 'medium' | 'low','medium','high','urgent' |
-| due_date | DATE | | 期限 |
-| github_issue_url | VARCHAR(500) | | GitHub issue URL |
-| github_pr_url | VARCHAR(500) | | GitHub PR URL |
+| code | CharField | NOT NULL | コード |
+| name | CharField | NOT NULL | 工種名 |
+| parent_id | ForeignKey → WorkType | NULL | 親工種（階層化） |
+| display_order | IntegerField | DEFAULT 0 | 表示順 |
+| is_active | BooleanField | DEFAULT true | 有効 |
 
-#### I2. dev_task_comments — タスクコメント
+#### I2. CostCategory — 原価区分マスタ
+
+Djangoアプリ: `masters`
+
 | カラム | 型 | 制約 | 説明 |
 |--------|-----|------|------|
-| task_id | UUID | FK → dev_tasks, NOT NULL | タスク |
-| user_id | UUID | FK → users, NOT NULL | 投稿者 |
-| body | TEXT | NOT NULL | コメント内容 |
-| source | VARCHAR(20) | DEFAULT 'app' | 'app','discord','github' |
+| code | CharField | NOT NULL | コード |
+| name | CharField | NOT NULL | 区分名 |
+| display_order | IntegerField | DEFAULT 0 | 表示順 |
+
+> **注**: CostCategory は company_id を持たない（全テナント共通マスタ）。
+
+#### I3. Customer — 得意先
+
+Djangoアプリ: `masters`
+
+| カラム | 型 | 制約 | 説明 |
+|--------|-----|------|------|
+| code | CharField | NOT NULL | コード |
+| name | CharField | NOT NULL | 得意先名 |
+| address | TextField | | 住所 |
+| is_active | BooleanField | DEFAULT true | 有効 |
+
+#### I4. Supplier — 仕入先
+
+Djangoアプリ: `masters`
+
+| カラム | 型 | 制約 | 説明 |
+|--------|-----|------|------|
+| code | CharField | NOT NULL | コード |
+| name | CharField | NOT NULL | 仕入先名 |
+| contact_info | TextField | | 連絡先 |
+| is_active | BooleanField | DEFAULT true | 有効 |
+
+#### I5. WorkStandard — 作業標準
+
+Djangoアプリ: `masters`
+
+| カラム | 型 | 制約 | 説明 |
+|--------|-----|------|------|
+| work_type_id | ForeignKey → WorkType | NOT NULL | 工種 |
+| name | CharField | NOT NULL | 作業名 |
+| unit | CharField | | 単位 |
+| standard_unit_cost | DecimalField | | 標準単価 |
+| standard_manhours | DecimalField | | 標準工数 |
+| valid_from | DateField | | 有効開始日 |
+| is_active | BooleanField | DEFAULT true | 有効 |
 
 ---
 
-### J. 共通
+### J. 開発管理
 
-#### J1. files — ファイル管理
+#### J1. DevProject — 開発プロジェクト
+
+Djangoアプリ: `devkanri`
+
 | カラム | 型 | 制約 | 説明 |
 |--------|-----|------|------|
-| original_name | VARCHAR(500) | NOT NULL | 元ファイル名 |
-| storage_path | VARCHAR(500) | NOT NULL | ストレージパス |
-| mime_type | VARCHAR(100) | | MIME |
-| file_size | BIGINT | | バイト数 |
-| uploaded_by | UUID | FK → users | アップロード者 |
+| name | CharField | NOT NULL | プロジェクト名 |
+| description | TextField | | 説明 |
+| status | CharField | NOT NULL | ステータス: planning, in_progress, completed, suspended |
+| assignee_id | ForeignKey → User | NULL | 責任者 |
+| start_date | DateField | NULL | 開始日 |
+| due_date | DateField | NULL | 期限 |
+| discord_webhook_url | URLField | | Discord Webhook URL |
 
-#### J2. notifications — 通知
+#### J2. DevTask — 開発タスク
+
+Djangoアプリ: `devkanri`
+
 | カラム | 型 | 制約 | 説明 |
 |--------|-----|------|------|
-| user_id | UUID | FK → users, NOT NULL | 通知先 |
-| title | VARCHAR(300) | NOT NULL | タイトル |
-| body | TEXT | | 本文 |
-| notification_type | VARCHAR(30) | NOT NULL | 'in_app','email','discord' |
-| module | VARCHAR(50) | | 発生モジュール |
-| reference_type | VARCHAR(50) | | 参照先テーブル名 |
-| reference_id | UUID | | 参照先ID |
-| is_read | BOOLEAN | DEFAULT false | 既読 |
-| sent_at | TIMESTAMPTZ | DEFAULT now() | 送信日時 |
+| project_id | ForeignKey → DevProject | NOT NULL | プロジェクト |
+| title | CharField | NOT NULL | タイトル |
+| description | TextField | | 詳細 |
+| status | CharField | NOT NULL | ステータス: open, in_progress, review, done, closed |
+| priority | CharField | NOT NULL | 優先度: low, medium, high, critical |
+| category | CharField | NOT NULL | カテゴリ: feature, bug, refactor, docs, test, infra, other |
+| assignee_id | ForeignKey → User | NULL | 担当者 |
+| due_date | DateField | NULL | 期限 |
+| estimate_hours | DecimalField | NULL | 見積(h) |
+| actual_hours | DecimalField | NULL | 実績(h) |
+| sort_order | IntegerField | DEFAULT 0 | 表示順 |
+
+#### J3. DevComment — タスクコメント
+
+Djangoアプリ: `devkanri`
+
+| カラム | 型 | 制約 | 説明 |
+|--------|-----|------|------|
+| task_id | ForeignKey → DevTask | NOT NULL | タスク |
+| author_id | ForeignKey → User | NULL | 投稿者 |
+| body | TextField | NOT NULL | 本文 |
+
+---
+
+### K. 通知
+
+#### K1. Notification — 通知
+
+Djangoアプリ: `notifications`
+
+| カラム | 型 | 制約 | 説明 |
+|--------|-----|------|------|
+| recipient_id | ForeignKey → User | NOT NULL | 通知先 |
+| title | CharField | NOT NULL | タイトル |
+| body | TextField | | 本文 |
+| level | CharField | NOT NULL | 重要度: info, warning, error |
+| module | CharField | NOT NULL | 発生モジュール: reports, costs, materials, bids, schedules, workers, devkanri, masters, system |
+| channel | CharField | NOT NULL | 通知チャネル: in_app, email, discord |
+| reference_type | CharField | | 参照先モデル |
+| reference_id | PositiveBigIntegerField | NULL | 参照先ID |
+| reference_url | CharField | | 参照先URL |
+| is_read | BooleanField | DEFAULT false | 既読 |
+| read_at | DateTimeField | NULL | 既読日時 |
+| sent_at | DateTimeField | NOT NULL | 送信日時 |
+
+#### K2. AlertRule — アラートルール
+
+Djangoアプリ: `notifications`
+
+| カラム | 型 | 制約 | 説明 |
+|--------|-----|------|------|
+| name | CharField | NOT NULL | ルール名 |
+| alert_type | CharField | NOT NULL | アラート種別: cost_threshold, qualification_expiry, schedule_delay, bid_deadline, safety_incomplete |
+| is_active | BooleanField | DEFAULT true | 有効 |
+| threshold_value | IntegerField | NULL | 閾値 |
+| notification_level | CharField | NOT NULL | 通知レベル: info, warning, error |
+| notify_channels | JSONField | | 通知チャネル |
+| notify_roles | JSONField | | 通知先ロール |
+
+#### K3. AlertLog — アラート発火ログ
+
+Djangoアプリ: `notifications`
+
+| カラム | 型 | 制約 | 説明 |
+|--------|-----|------|------|
+| alert_rule_id | ForeignKey → AlertRule | NOT NULL | アラートルール |
+| reference_type | CharField | NOT NULL | 参照先モデル |
+| reference_id | PositiveBigIntegerField | NOT NULL | 参照先ID |
+| triggered_at | DateTimeField | NOT NULL | 発火日時 |
+| detail | TextField | | 詳細 |
 
 ---
 
 ## インデックス設計（主要）
 
 ```sql
+-- テナント分離（全テーブル共通）
+-- Django ORM のクエリは常に WHERE company_id = %s を付与する
+
 -- 日報の検索
-CREATE INDEX idx_daily_reports_site_date ON daily_reports(site_id, report_date);
-CREATE INDEX idx_daily_report_items_worker ON daily_report_items(worker_id, report_id);
+CREATE INDEX idx_dailyreport_site_date ON reports_dailyreport(company_id, site_id, report_date);
+CREATE INDEX idx_dailyreport_worker ON reports_dailyreport(company_id, worker_id, report_date);
 
 -- 安全書類の未記入チェック
-CREATE INDEX idx_safety_records_date ON safety_records(record_date, completed);
+CREATE INDEX idx_safetyrecord_date ON reports_safetyrecord(company_id, record_date, completed);
 
 -- 原価集計
-CREATE INDEX idx_actual_costs_site_cat ON actual_costs(site_id, cost_category, cost_date);
-CREATE INDEX idx_budgets_site ON budgets(site_id);
+CREATE INDEX idx_costtransaction_site ON costs_costtransaction(company_id, site_id, transaction_date);
+CREATE INDEX idx_budgetitem_site ON costs_budgetitem(company_id, site_id);
 
 -- 入札期限
-CREATE INDEX idx_bid_projects_deadline ON bid_projects(bid_deadline) WHERE status IN ('new','preparing');
+CREATE INDEX idx_bidproject_deadline ON bids_bidproject(company_id, deadline)
+  WHERE status IN ('new', 'considering');
 
 -- 資格期限
-CREATE INDEX idx_qualifications_expiry ON qualifications(expiry_date) WHERE is_active = true;
+CREATE INDEX idx_workerqualification_expiry ON workers_workerqualification(company_id, expiry_date)
+  WHERE expiry_date IS NOT NULL;
 
 -- 配置管理
-CREATE INDEX idx_site_assignments_date ON site_assignments(assigned_date, user_id);
-CREATE INDEX idx_site_assignments_user ON site_assignments(user_id, assigned_date);
+CREATE INDEX idx_assignment_worker ON schedules_assignment(company_id, worker_id, start_date);
+CREATE INDEX idx_assignment_site ON schedules_assignment(company_id, site_id, start_date);
 
 -- 通知
-CREATE INDEX idx_notifications_user ON notifications(user_id, is_read, sent_at DESC);
+CREATE INDEX idx_notification_recipient ON notifications_notification(company_id, recipient_id, is_read, sent_at DESC);
 
--- 在庫
-CREATE INDEX idx_inventory_material ON inventory(material_id, site_id);
+-- 材料
+CREATE INDEX idx_material_worktype ON materials_material(company_id, work_type_id);
 ```
+
+---
+
+## HistoricalRecords（監査ログ）
+
+django-simple-history を使用し、主要テーブルに対してシャドーテーブル（`historical_*`）が自動生成される。
+
+シャドーテーブルには元テーブルの全カラムに加え以下が追加される:
+
+| カラム | 型 | 説明 |
+|--------|-----|------|
+| history_id | AutoField | 履歴レコードID |
+| history_date | DateTimeField | 変更日時 |
+| history_change_reason | CharField | 変更理由 |
+| history_type | CharField | '+' (作成), '~' (更新), '-' (削除) |
+| history_user_id | ForeignKey → User | 変更操作者 |
 
 ---
 
@@ -636,17 +847,20 @@ CREATE INDEX idx_inventory_material ON inventory(material_id, site_id);
 
 | 領域 | テーブル数 | テーブル名 |
 |------|-----------|-----------|
-| ユーザー・権限 | 4 | users, roles, user_roles, module_permissions |
-| 現場・工期 | 7 | sites, work_types, phases, milestones, site_assignments, phase_templates, phase_template_items |
-| 日報 | 5 | daily_reports, daily_report_items, report_material_usage, safety_templates, safety_records |
-| 原価 | 3 | budgets, actual_costs, cost_alerts |
-| 材料 | 8 | material_items, quotations, quotation_items, purchase_orders, po_items, deliveries, delivery_items, inventory |
-| 入札 | 3 | bid_projects, bid_documents, bid_competitors |
-| 人材 | 6 | qualifications, qualification_alerts, trainings, health_checks, skill_maps, attendance_summary |
-| 取引先 | 4 | partners, partner_contacts, partner_evaluations, business_cards |
-| 開発 | 2 | dev_tasks, dev_task_comments |
-| 共通 | 2 | files, notifications |
-| **合計** | **44** | — |
+| テナント | 2 | Company, CompanyApp |
+| ユーザー・権限 | 5 | User, Department, Role, ModulePermission, UserRole |
+| 現場・工期 | 5 | Site, Process, Phase, Milestone, Assignment |
+| 日報 | 4 | DailyReport, DailyReportMaterial, SafetyTemplate, SafetyRecord |
+| 原価 | 2 | BudgetItem, CostTransaction |
+| 材料 | 3 | Material, PurchaseOrder, PurchaseOrderItem |
+| 入札 | 6 | BidProject, BidCost, BidCompetitor, ScrapeTarget, UnitPrice, Qualification |
+| 人材 | 7 | Worker, JobTitle, Position, WorkerQualification, HealthCheckup, EvaluationTemplate, WorkerEvaluation |
+| 取引先・マスタ | 5 | WorkType, CostCategory, Customer, Supplier, WorkStandard |
+| 開発 | 3 | DevProject, DevTask, DevComment |
+| 通知 | 3 | Notification, AlertRule, AlertLog |
+| **合計** | **45** | — |
+
+> **注**: 上記に加え、django-simple-history による `historical_*` シャドーテーブルが対象モデル数分生成される。Django 標準の `auth_*`, `django_*`, `admin_*` テーブルも別途存在する。
 
 ---
 
