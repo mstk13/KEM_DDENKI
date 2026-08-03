@@ -40,6 +40,7 @@ urlpatterns = [
     path("bids/", include("apps.bids.urls")),
     path("notifications/", include("apps.notifications.urls")),
     path("settings/permissions/", include("apps.permissions.urls")),
+    path("sales/", include("apps.sales.urls")),
 ]
 
 if settings.DEBUG:

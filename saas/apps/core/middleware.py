@@ -19,6 +19,9 @@ _PATH_TO_APP = {
     "/bids/": "bids",
     "/dev/": "devkanri",
     "/masters/": "masters",
+    "/sales/": "sales",
+    "/notifications/": "notifications",
+    "/settings/": "settings",
 }
 
 # 権限チェック不要のパス

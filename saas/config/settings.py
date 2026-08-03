@@ -40,6 +40,7 @@ INSTALLED_APPS = [
     "apps.bids",
     "apps.notifications",
     "apps.permissions",
+    "apps.sales",
 ]
 
 MIDDLEWARE = [
