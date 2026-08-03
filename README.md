@@ -98,6 +98,22 @@ GitHub: [mstk13/KEM_DDENKI](https://github.com/mstk13/KEM_DDENKI)
 
 **[開発ステータス（アプリごとの進捗・課題）](docs/status.md)**
 
+### 📐 次期バージョン設計資料
+
+次期バージョン（統合リアーキテクチャ）の設計資料です。設計判断の「なぜ」まで理解した上で開発に臨んでください。
+
+| 資料 | 内容 |
+|------|------|
+| [要件定義書](docs/design/要件定義書.md) | 全8モジュールの機能仕様（ヒアリング結果ベース） |
+| [DB設計書](docs/design/DB設計書.md) | 44テーブル定義・ER図・インデックス設計 |
+| [技術選定書](docs/design/技術選定書.md) | Next.js / Prisma / PostgreSQL 等の技術スタックと選定理由 |
+| [画面設計書](docs/design/画面設計書.md) | 全31画面のワイヤーフレーム・画面遷移 |
+| **[設計判断の根拠書](docs/design/設計判断の根拠書.md)** | **全ての設計で「なぜそうしたのか」を解説** |
+| [TM向けQ&A集](docs/design/TM向けQ&A集.md) | 想定質問20問と回答（コスト比較・セキュリティ等） |
+| [技術用語集](docs/design/技術用語集.md) | 50以上の技術用語を業務用語に対応づけて解説 |
+
+> **初めて参加する開発者へ**: まず [設計判断の根拠書](docs/design/設計判断の根拠書.md) を読んでください。「何を作るか」だけでなく「なぜそう作るか」がわかります。
+
 ---
 
 ## 開発環境URL
@@ -308,6 +324,7 @@ docker compose exec bid_manager python /app/shared/seed_all.py --reset
 | [docs/geps_setup.md](docs/geps_setup.md) | GEPS メール連携のセットアップ |
 | [docs/process.md](docs/process.md) | 業務プロセスフロー |
 | [docs/tailscale_setup.md](docs/tailscale_setup.md) | 外部アクセス（Tailscale）セットアップ手順 |
+| **[docs/design/](docs/design/)** | **次期バージョン設計資料一式（要件定義・DB・技術選定・画面・根拠書・Q&A・用語集）** |
 
 ---
 
