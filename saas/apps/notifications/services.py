@@ -288,11 +288,11 @@ def check_schedule_delay_alerts(company):
     sites = Site.unscoped.filter(
         company=company,
         status="active",
-        planned_end__isnull=False,
+        end_date__isnull=False,
     )
 
     for site in sites:
-        days_remaining = (site.planned_end - today).days
+        days_remaining = (site.end_date - today).days
 
         for rule in rules:
             threshold_days = rule.threshold_value or 14
@@ -310,7 +310,7 @@ def check_schedule_delay_alerts(company):
                     company=company,
                     recipients=recipients,
                     title=title,
-                    body=f"予定終了日: {site.planned_end}",
+                    body=f"予定終了日: {site.end_date}",
                     level=Notification.Level.WARNING,
                     module=Notification.Module.SCHEDULES,
                     channel=channel,

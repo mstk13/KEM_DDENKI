@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+{% block title %}原価ダッシュボード {{ site.name }} — 建設SaaS{% endblock %}
+{% block topbar_title %}原価管理{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>{{ site.name }}</h1>
+  <a href="{% url 'costs:list' %}" class="btn btn-outline">← 現場一覧</a>
+</div>
+
+<!-- KPI カード -->
+<div class="stats">
+  <div class="stat-card blue">
+    <div class="stat-label">予算合計</div>
+    <div class="stat-value blue">¥{{ summary.budget_total|floatformat:0 }}</div>
+  </div>
+  <div class="stat-card {% if summary.consumption_pct >= 100 %}red{% elif summary.consumption_pct >= 90 %}orange{% else %}default{% endif %}">
+    <div class="stat-label">実績合計</div>
+    <div class="stat-value">¥{{ summary.cost_total|floatformat:0 }}</div>
+  </div>
+  <div class="stat-card {% if summary.consumption_pct >= 100 %}red{% elif summary.consumption_pct >= 90 %}orange{% else %}green{% endif %}">
+    <div class="stat-label">消化率</div>
+    <div class="stat-value">{{ summary.consumption_pct }}%</div>
+  </div>
+  <div class="stat-card {% if summary.margin_rate and summary.margin_rate < 0 %}red{% else %}green{% endif %}">
+    <div class="stat-label">粗利率</div>
+    <div class="stat-value">{{ summary.margin_rate|default:"—" }}%</div>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+
+  <!-- 区分別消化率 -->
+  <div class="card">
+    <div class="card-header"><h2>原価区分別 予算vs実績</h2></div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>区分</th>
+            <th style="text-align:right;">予算</th>
+            <th style="text-align:right;">実績</th>
+            <th style="text-align:right;">消化率</th>
+            <th>状態</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for cat in summary.by_category %}
+          <tr>
+            <td>{{ cat.category }}</td>
+            <td style="text-align:right;">¥{{ cat.budget|floatformat:0 }}</td>
+            <td style="text-align:right;">¥{{ cat.actual|floatformat:0 }}</td>
+            <td style="text-align:right;font-weight:600;">{{ cat.pct }}%</td>
+            <td>
+              {% if cat.pct >= 100 %}
+                <span class="badge badge-red">超過</span>
+              {% elif cat.pct >= 90 %}
+                <span class="badge badge-orange">警告</span>
+              {% elif cat.pct >= 75 %}
+                <span class="badge badge-yellow">注意</span>
+              {% else %}
+                <span class="badge badge-green">正常</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- 月別費用推移グラフ -->
+  <div class="card">
+    <div class="card-header"><h2>費用推移（月別）</h2></div>
+    <div style="padding:16px;">
+      <canvas id="costTrendChart" height="250"></canvas>
+    </div>
+  </div>
+
+</div>
+
+<!-- 最近の原価データ -->
+<div class="card" style="margin-top:20px;">
+  <div class="card-header"><h2>最近の原価データ</h2></div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>日付</th>
+          <th>工種</th>
+          <th>区分</th>
+          <th>発生元</th>
+          <th style="text-align:right;">金額</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for tx in transactions %}
+        <tr>
+          <td>{{ tx.transaction_date }}</td>
+          <td>{{ tx.work_type }}</td>
+          <td>{{ tx.cost_category }}</td>
+          <td><span class="badge badge-gray">{{ tx.get_source_type_display }}</span></td>
+          <td style="text-align:right;font-weight:600;">¥{{ tx.amount|floatformat:0 }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="5"><div class="empty"><p>原価データなし</p></div></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+<script>
+const trendData = {{ trend_json|safe }};
+const colors = ['#3b82f6', '#ef4444', '#f59e0b', '#10b981', '#8b5cf6', '#ec4899'];
+
+new Chart(document.getElementById('costTrendChart'), {
+  type: 'bar',
+  data: {
+    labels: trendData.labels,
+    datasets: trendData.datasets.map((ds, i) => ({
+      label: ds.label,
+      data: ds.data,
+      backgroundColor: colors[i % colors.length] + '80',
+      borderColor: colors[i % colors.length],
+      borderWidth: 1,
+    })),
+  },
+  options: {
+    responsive: true,
+    plugins: { legend: { position: 'top' } },
+    scales: {
+      x: { stacked: true },
+      y: {
+        stacked: true,
+        ticks: {
+          callback: function(v) { return '¥' + v.toLocaleString(); }
+        }
+      }
+    }
+  }
+});
+</script>
+{% endblock %}
