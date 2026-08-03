@@ -63,6 +63,11 @@ class Customer(TenantModel):
     code = models.CharField("コード", max_length=50)
     name = models.CharField("得意先名", max_length=200)
     address = models.TextField("住所", blank=True)
+    industry = models.CharField("業種", max_length=100, blank=True)
+    region = models.CharField("地域", max_length=100, blank=True)
+    scale = models.CharField("取引規模", max_length=50, blank=True)
+    phone = models.CharField("電話番号", max_length=20, blank=True)
+    email = models.EmailField("メールアドレス", blank=True)
     is_active = models.BooleanField("有効", default=True)
 
     history = HistoricalRecords()
@@ -82,6 +87,8 @@ class Supplier(TenantModel):
     code = models.CharField("コード", max_length=50)
     name = models.CharField("仕入先名", max_length=200)
     contact_info = models.TextField("連絡先", blank=True)
+    phone = models.CharField("電話番号", max_length=20, blank=True)
+    email = models.EmailField("メールアドレス", blank=True)
     is_active = models.BooleanField("有効", default=True)
 
     history = HistoricalRecords()
@@ -93,6 +100,79 @@ class Supplier(TenantModel):
 
     def __str__(self):
         return self.name
+
+
+class SupplierEvaluation(TenantModel):
+    """仕入先評価。金額・納期・品質・サービス内容を記録する。"""
+
+    supplier = models.ForeignKey(
+        Supplier,
+        on_delete=models.CASCADE,
+        related_name="evaluations",
+        verbose_name="仕入先",
+    )
+    evaluator = models.ForeignKey(
+        "accounts.User",
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="supplier_evaluations",
+        verbose_name="評価者",
+    )
+    evaluation_date = models.DateField("評価日")
+    price_rating = models.IntegerField("金額評価(1-5)", default=3)
+    delivery_rating = models.IntegerField("納期評価(1-5)", default=3)
+    quality_rating = models.IntegerField("品質評価(1-5)", default=3)
+    service_description = models.TextField("サービス/商品内容", blank=True)
+    notes = models.TextField("備考", blank=True)
+
+    class Meta:
+        verbose_name = "仕入先評価"
+        verbose_name_plural = "仕入先評価"
+        ordering = ["-evaluation_date"]
+
+    @property
+    def average_rating(self):
+        return round((self.price_rating + self.delivery_rating + self.quality_rating) / 3, 1)
+
+    def __str__(self):
+        return f"{self.supplier.name} - {self.evaluation_date}"
+
+
+class BusinessCard(TenantModel):
+    """名刺。取引先の担当者の名刺画像を保存する。"""
+
+    customer = models.ForeignKey(
+        Customer,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="business_cards",
+        verbose_name="得意先",
+    )
+    supplier = models.ForeignKey(
+        Supplier,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="business_cards",
+        verbose_name="仕入先",
+    )
+    person_name = models.CharField("担当者名", max_length=100)
+    position = models.CharField("役職", max_length=100, blank=True)
+    phone = models.CharField("電話番号", max_length=20, blank=True)
+    email = models.EmailField("メール", blank=True)
+    image = models.ImageField(
+        "名刺画像",
+        upload_to="business_cards/%Y/%m/",
+    )
+
+    class Meta:
+        verbose_name = "名刺"
+        verbose_name_plural = "名刺"
+
+    def __str__(self):
+        partner = self.customer or self.supplier
+        return f"{partner} - {self.person_name}"
 
 
 class WorkStandard(TenantModel):

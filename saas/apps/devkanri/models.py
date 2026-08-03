@@ -116,6 +116,8 @@ class DevTask(TenantModel):
     actual_hours = models.DecimalField(
         "実績(h)", max_digits=6, decimal_places=1, null=True, blank=True,
     )
+    github_issue_url = models.URLField("GitHub Issue URL", max_length=500, blank=True)
+    github_pr_url = models.URLField("GitHub PR URL", max_length=500, blank=True)
     sort_order = models.IntegerField("表示順", default=0)
 
     history = HistoricalRecords()
