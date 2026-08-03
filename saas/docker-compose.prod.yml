@@ -1,0 +1,35 @@
+# ============================================================
+# 本番用オーバーライド
+# 使い方: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+# ============================================================
+# 並行稼働時のポート割当:
+#   現行版 (Streamlit)  → 8080 (変更なし)
+#   次期版 (Django)     → 8081 (nginx経由)
+# 切替後:
+#   次期版 (Django)     → 8080 (nginx設定を変更)
+# ============================================================
+
+services:
+  web:
+    command: ["gunicorn", "config.wsgi:application", "--bind", "0.0.0.0:8000", "--workers", "3"]
+    environment:
+      DJANGO_DEBUG: "False"
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY}
+      DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1,192.168.0.35}
+    ports: []  # nginx経由のみ
+    volumes:
+      - media_data:/app/media
+      - static_data:/app/staticfiles
+    # 開発用のソースマウントを無効化（イメージ内のコードを使用）
+
+  nginx:
+    image: nginx:alpine
+    restart: unless-stopped
+    depends_on:
+      - web
+    ports:
+      - "${NGINX_PORT:-8081}:80"
+    volumes:
+      - ./docker/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - static_data:/app/staticfiles:ro
+      - media_data:/app/media:ro
