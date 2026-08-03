@@ -38,6 +38,7 @@ urlpatterns = [
     path("dev/", include("apps.devkanri.urls")),
     path("schedules/", include("apps.schedules.urls")),
     path("bids/", include("apps.bids.urls")),
+    path("notifications/", include("apps.notifications.urls")),
 ]
 
 if settings.DEBUG:

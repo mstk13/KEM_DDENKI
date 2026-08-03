@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block title %}通知 — 建設SaaS{% endblock %}
+{% block topbar_title %}通知{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>通知 {% if unread_count %}<span class="badge badge-orange">{{ unread_count }}件未読</span>{% endif %}</h1>
+  {% if unread_count %}
+  <form method="post" action="{% url 'notification_read_all' %}">
+    {% csrf_token %}
+    <button type="submit" class="btn btn-outline btn-sm">すべて既読にする</button>
+  </form>
+  {% endif %}
+</div>
+
+<!-- フィルタ -->
+<div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;">
+  <a href="{% url 'notification_list' %}" class="btn btn-sm {% if not current_module and not current_level %}btn-primary{% else %}btn-outline{% endif %}">すべて</a>
+  <a href="?is_read=false" class="btn btn-sm {% if request.GET.is_read == 'false' %}btn-primary{% else %}btn-outline{% endif %}">未読</a>
+  {% for value, label in modules %}
+  <a href="?module={{ value }}" class="btn btn-sm {% if current_module == value %}btn-primary{% else %}btn-outline{% endif %}">{{ label }}</a>
+  {% endfor %}
+</div>
+
+<!-- 通知一覧 -->
+<div class="card">
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th style="width:40px;"></th>
+          <th>通知内容</th>
+          <th style="width:100px;">モジュール</th>
+          <th style="width:120px;">日時</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for n in notifications %}
+        <tr style="{% if not n.is_read %}background:var(--bg-info,#f0f7ff);{% endif %}">
+          <td>
+            {% if n.level == 'error' %}🔴
+            {% elif n.level == 'warning' %}⚠️
+            {% else %}📋{% endif %}
+          </td>
+          <td>
+            {% if n.reference_url %}
+            <a href="{{ n.reference_url }}" style="font-weight:{% if not n.is_read %}600{% else %}400{% endif %};">{{ n.title }}</a>
+            {% else %}
+            <span style="font-weight:{% if not n.is_read %}600{% else %}400{% endif %};">{{ n.title }}</span>
+            {% endif %}
+            {% if n.body %}<br><small style="color:var(--text-secondary);">{{ n.body }}</small>{% endif %}
+            {% if not n.is_read %}
+            <form method="post" action="{% url 'notification_read' n.pk %}" style="display:inline;">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-outline btn-xs" style="margin-left:8px;">既読</button>
+            </form>
+            {% endif %}
+          </td>
+          <td><span class="badge badge-gray">{{ n.get_module_display }}</span></td>
+          <td style="color:var(--text-secondary);white-space:nowrap;">{{ n.sent_at|date:"m/d H:i" }}</td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="4">
+            <div class="empty">
+              <div class="empty-icon">🔔</div>
+              <p>通知はありません</p>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

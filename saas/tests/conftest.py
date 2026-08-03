@@ -47,6 +47,31 @@ def user_b(company_b):
 
 
 @pytest.fixture
+def company(company_a):
+    """汎用 company フィクスチャ（company_a のエイリアス）。"""
+    return company_a
+
+
+@pytest.fixture
+def user(user_a):
+    """汎用 user フィクスチャ（user_a のエイリアス）。"""
+    return user_a
+
+
+@pytest.fixture
+def user2(company_a):
+    """2人目のユーザー（同一会社）。"""
+    user = User.objects.create_user(
+        username="user_a2",
+        password="testpass123",
+        company=company_a,
+    )
+    group, _ = Group.objects.get_or_create(name="worker")
+    user.groups.add(group)
+    return user
+
+
+@pytest.fixture
 def tenant_context_a(company_a):
     """テナントコンテキストをA社に設定するフィクスチャ。"""
     set_current_company(company_a)

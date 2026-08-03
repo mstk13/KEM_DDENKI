@@ -38,6 +38,7 @@ INSTALLED_APPS = [
     "apps.devkanri",
     "apps.schedules",
     "apps.bids",
+    "apps.notifications",
 ]
 
 MIDDLEWARE = [
