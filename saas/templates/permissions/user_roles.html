@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}ユーザーロール管理 — 建設SaaS{% endblock %}
+{% block topbar_title %}設定{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>ユーザーロール管理</h1>
+  <a href="{% url 'permissions:matrix' %}" class="btn btn-outline">← 権限マトリクス</a>
+</div>
+
+<div class="card">
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>ユーザー</th>
+          {% for role in roles %}
+          <th style="text-align:center;">{{ role.name }}</th>
+          {% endfor %}
+          <th style="width:100px;"></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for u in users %}
+        <tr>
+          <form method="post" action="{% url 'permissions:user_role_update' u.pk %}">
+            {% csrf_token %}
+            <td style="font-weight:600;">
+              {{ u.get_full_name|default:u.username }}
+              {% if u.employee_no %}<br><small style="color:var(--text-secondary);">{{ u.employee_no }}</small>{% endif %}
+            </td>
+            {% for role in roles %}
+            <td style="text-align:center;">
+              <input type="checkbox" name="role_{{ role.pk }}"
+                {% if role in user_role_map|default_if_none:u.pk %}checked{% endif %}
+                {% for ur_role in user_role_map|default_if_none:"" %}{% endfor %}
+              >
+            </td>
+            {% endfor %}
+            <td>
+              <button type="submit" class="btn btn-outline btn-xs">保存</button>
+            </td>
+          </form>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

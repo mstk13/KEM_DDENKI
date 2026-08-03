@@ -39,6 +39,7 @@ INSTALLED_APPS = [
     "apps.schedules",
     "apps.bids",
     "apps.notifications",
+    "apps.permissions",
 ]
 
 MIDDLEWARE = [

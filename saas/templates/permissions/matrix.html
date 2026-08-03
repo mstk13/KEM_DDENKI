@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% load permission_tags %}
+{% block title %}権限マトリクス — 建設SaaS{% endblock %}
+{% block topbar_title %}設定{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>ロール × モジュール 権限マトリクス</h1>
+  <a href="{% url 'permissions:user_roles' %}" class="btn btn-outline">ユーザーロール管理 →</a>
+</div>
+
+<div class="card">
+  <form method="post">
+    {% csrf_token %}
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th style="min-width:120px;">ロール</th>
+            {% for mod_code, mod_label in modules %}
+            <th style="text-align:center;min-width:80px;">{{ mod_label }}</th>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for role in roles %}
+          <tr>
+            <td style="font-weight:600;">
+              {{ role.name }}
+              {% if role.is_system %}<small style="color:var(--text-secondary);">(システム)</small>{% endif %}
+            </td>
+            {% for mod_code, mod_label in modules %}
+            {% with perms=matrix|dictsort:role.pk %}
+            <td style="text-align:center;">
+              <div style="display:flex;flex-direction:column;gap:2px;align-items:center;">
+                <label style="font-size:12px;cursor:pointer;">
+                  <input type="checkbox" name="{{ role.pk }}_{{ mod_code }}_read"
+                    {% if matrix|get_nested:role.pk|get_nested:mod_code|get_nested:"read" %}checked{% endif %}>
+                  R
+                </label>
+                <label style="font-size:12px;cursor:pointer;">
+                  <input type="checkbox" name="{{ role.pk }}_{{ mod_code }}_write"
+                    {% if matrix|get_nested:role.pk|get_nested:mod_code|get_nested:"write" %}checked{% endif %}>
+                  W
+                </label>
+                <label style="font-size:12px;cursor:pointer;">
+                  <input type="checkbox" name="{{ role.pk }}_{{ mod_code }}_admin"
+                    {% if matrix|get_nested:role.pk|get_nested:mod_code|get_nested:"admin" %}checked{% endif %}>
+                  A
+                </label>
+              </div>
+            </td>
+            {% endwith %}
+            {% endfor %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div style="padding:16px;text-align:right;">
+      <small style="color:var(--text-secondary);margin-right:16px;">R=閲覧 W=編集 A=管理</small>
+      <button type="submit" class="btn btn-primary">権限を保存</button>
+    </div>
+  </form>
+</div>
+{% endblock %}
