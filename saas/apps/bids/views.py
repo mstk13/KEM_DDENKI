@@ -1,5 +1,7 @@
 import datetime
+import json
 
+from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db.models import Q
 from django.shortcuts import get_object_or_404, redirect, render
@@ -11,6 +13,7 @@ from apps.bids.forms import (
     UnitPriceForm,
 )
 from apps.bids.models import BidProject, Qualification, UnitPrice
+from apps.bids.services import get_dashboard_stats, mark_as_won
 
 
 @login_required
@@ -171,3 +174,25 @@ def unit_price_edit(request, pk):
     else:
         form = UnitPriceForm(instance=obj)
     return render(request, "bids/unit_price_form.html", {"form": form})
+
+
+@login_required
+def bid_dashboard(request):
+    """入札ダッシュボード。受注率・月別件数・地域別分布。"""
+    stats = get_dashboard_stats(request.user.company)
+    return render(request, "bids/dashboard.html", {
+        "stats": stats,
+        "by_month_json": json.dumps(stats["by_month"], ensure_ascii=False),
+    })
+
+
+@login_required
+def bid_mark_won(request, pk):
+    """案件を落札にし、現場を自動作成する。"""
+    if request.method != "POST":
+        return redirect("bids:project_detail", pk=pk)
+
+    project = get_object_or_404(BidProject, pk=pk)
+    site = mark_as_won(project, created_by=request.user)
+    messages.success(request, f"落札しました。現場「{site.name}」を自動作成しました。")
+    return redirect("bids:project_detail", pk=pk)

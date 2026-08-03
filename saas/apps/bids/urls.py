@@ -15,4 +15,6 @@ urlpatterns = [
     path("unit-prices/", views.unit_price_list, name="unit_price_list"),
     path("unit-prices/new/", views.unit_price_create, name="unit_price_create"),
     path("unit-prices/<int:pk>/edit/", views.unit_price_edit, name="unit_price_edit"),
+    path("dashboard/", views.bid_dashboard, name="dashboard"),
+    path("<int:pk>/mark-won/", views.bid_mark_won, name="mark_won"),
 ]

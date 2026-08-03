@@ -15,8 +15,21 @@ class BidProject(TenantModel):
         LOST = "lost", "失注"
         SKIPPED = "skipped", "見送り"
 
+    class SourceType(models.TextChoices):
+        MANUAL = "manual", "手動登録"
+        SCRAPING = "scraping", "Webスクレイピング"
+        EMAIL = "email", "メール取込"
+
     title = models.CharField("案件名", max_length=300)
     client = models.CharField("発注者", max_length=200, blank=True)
+    client_ref = models.ForeignKey(
+        "masters.Customer",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="bid_projects",
+        verbose_name="発注者（マスタ）",
+    )
     region = models.CharField("地域", max_length=100, blank=True)
     category = models.CharField("工事種別", max_length=100, blank=True)
     deadline = models.DateField("入札期限", null=True, blank=True)
@@ -26,6 +39,19 @@ class BidProject(TenantModel):
         decimal_places=0,
         default=0,
     )
+    our_bid_amount = models.DecimalField(
+        "自社入札額",
+        max_digits=14,
+        decimal_places=0,
+        null=True,
+        blank=True,
+    )
+    source_type = models.CharField(
+        "収集元",
+        max_length=20,
+        choices=SourceType.choices,
+        default=SourceType.MANUAL,
+    )
     source_url = models.URLField("情報源URL", blank=True)
     status = models.CharField(
         "状態",
@@ -33,6 +59,7 @@ class BidProject(TenantModel):
         choices=Status.choices,
         default=Status.NEW,
     )
+    notes = models.TextField("備考", blank=True)
 
     history = HistoricalRecords()
 
@@ -105,6 +132,35 @@ class BidCompetitor(TenantModel):
 
     def __str__(self):
         return f"{self.competitor_name} ({self.project})"
+
+
+class BidDocument(TenantModel):
+    """入札書類。入札に必要な書類をアプリ上で管理する。"""
+
+    project = models.ForeignKey(
+        BidProject,
+        on_delete=models.CASCADE,
+        related_name="documents",
+        verbose_name="入札案件",
+    )
+    name = models.CharField("書類名", max_length=200)
+    doc_type = models.CharField(
+        "書類種別",
+        max_length=50,
+        blank=True,
+        help_text="仕様書、図面、見積書 等",
+    )
+    file = models.FileField(
+        "ファイル",
+        upload_to="bid_documents/%Y/%m/",
+    )
+
+    class Meta:
+        verbose_name = "入札書類"
+        verbose_name_plural = "入札書類"
+
+    def __str__(self):
+        return f"{self.project.title} - {self.name}"
 
 
 class ScrapeTarget(TenantModel):

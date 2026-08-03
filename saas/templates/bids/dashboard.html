@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% block title %}入札ダッシュボード — 建設SaaS{% endblock %}
+{% block topbar_title %}入札管理{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>入札ダッシュボード</h1>
+  <a href="{% url 'bids:project_list' %}" class="btn btn-outline">案件一覧 →</a>
+</div>
+
+<!-- KPI -->
+<div class="stats">
+  <div class="stat-card blue">
+    <div class="stat-label">全案件数</div>
+    <div class="stat-value blue">{{ stats.total_count }}</div>
+  </div>
+  <div class="stat-card green">
+    <div class="stat-label">受注率</div>
+    <div class="stat-value green">{{ stats.win_rate }}%</div>
+  </div>
+  <div class="stat-card default">
+    <div class="stat-label">落札</div>
+    <div class="stat-value">{{ stats.won_count }}件</div>
+  </div>
+  <div class="stat-card orange">
+    <div class="stat-label">受注金額</div>
+    <div class="stat-value orange">¥{{ stats.total_won_amount|floatformat:0 }}</div>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+
+  <!-- 月別件数推移 -->
+  <div class="card">
+    <div class="card-header"><h2>月別件数推移</h2></div>
+    <div style="padding:16px;">
+      <canvas id="monthlyChart" height="250"></canvas>
+    </div>
+  </div>
+
+  <!-- 地域別受注分布 -->
+  <div class="card">
+    <div class="card-header"><h2>地域別件数</h2></div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>地域</th><th style="text-align:right;">件数</th></tr></thead>
+        <tbody>
+          {% for item in stats.by_region %}
+          <tr>
+            <td>{{ item.region }}</td>
+            <td style="text-align:right;font-weight:600;">{{ item.count }}</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="2"><div class="empty"><p>データなし</p></div></td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+<script>
+const monthlyData = {{ by_month_json|safe }};
+new Chart(document.getElementById('monthlyChart'), {
+  type: 'bar',
+  data: {
+    labels: monthlyData.map(d => d.month),
+    datasets: [
+      {
+        label: '全件',
+        data: monthlyData.map(d => d.count),
+        backgroundColor: '#3b82f680',
+        borderColor: '#3b82f6',
+        borderWidth: 1,
+      },
+      {
+        label: '落札',
+        data: monthlyData.map(d => d.won),
+        backgroundColor: '#10b98180',
+        borderColor: '#10b981',
+        borderWidth: 1,
+      },
+    ],
+  },
+  options: {
+    responsive: true,
+    plugins: { legend: { position: 'top' } },
+  }
+});
+</script>
+{% endblock %}
