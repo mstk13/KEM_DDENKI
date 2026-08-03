@@ -228,6 +228,67 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 # ポート: NGINX_PORT=8081（並行稼働時）→ 8080（切替後）
 ```
 
+### 4. GitHub Webhook（push時の自動デプロイ）
+
+`developer` ブランチにpushされたら、開発サーバーが自動で最新コードを取得して再起動します。
+
+**サーバー側のセットアップ（初回のみ）:**
+
+```bash
+# 1. Webhookシークレットを生成
+export WEBHOOK_SECRET=$(python3 -c 'import secrets; print(secrets.token_hex(32))')
+echo "生成されたシークレット: $WEBHOOK_SECRET"
+# ↑ このシークレットをメモしておく（GitHub側にも設定する）
+
+# 2. systemd サービスをインストール
+sudo cp saas/scripts/webhook/kem-webhook.service /etc/systemd/system/
+
+# 3. サービスファイルの WEBHOOK_SECRET を編集
+sudo nano /etc/systemd/system/kem-webhook.service
+# → Environment=WEBHOOK_SECRET=ここに上で生成したシークレットを貼る
+
+# 4. サービスを起動
+sudo systemctl daemon-reload
+sudo systemctl enable kem-webhook
+sudo systemctl start kem-webhook
+
+# 5. 動作確認
+curl http://localhost:9000/health
+# → {"status": "ok", "target_branch": "refs/heads/developer", "port": 9000}
+```
+
+**GitHub側のセットアップ（初回のみ）:**
+
+1. [https://github.com/mstk13/KEM_DDENKI/settings/hooks](https://github.com/mstk13/KEM_DDENKI/settings/hooks) を開く
+2. 「Add webhook」をクリック
+3. 以下を入力:
+
+| 項目 | 値 |
+|------|-----|
+| Payload URL | `http://サーバーのグローバルIP:9000/webhook` ※Tailscale経由の場合は `http://100.120.92.15:9000/webhook` |
+| Content type | `application/json` |
+| Secret | サーバー側で生成したシークレット |
+| Events | 「Just the push event」を選択 |
+
+4. 「Add webhook」で保存
+
+**動作フロー:**
+
+```
+開発者がdeveloperにpush → GitHub → Webhook通知 → サーバー(port 9000)
+  → git pull → migrate → restart → 開発環境(8081)に反映（数秒）
+```
+
+**ログ確認:**
+
+```bash
+# リアルタイムログ
+sudo journalctl -u kem-webhook -f
+
+# Webhookのログファイル
+tail -f /tmp/kem-webhook.log
+```
+
 ---
 
 ## 開発コマンド一覧
