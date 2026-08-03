@@ -174,6 +174,8 @@ def worker_excel(request):
 
 @login_required
 def worker_create(request):
+    from apps.workers.services import is_developer_worker, setup_developer_worker
+
     if request.method == "POST":
         form = WorkerForm(request.POST, company=request.user.company)
         if form.is_valid():
@@ -181,6 +183,18 @@ def worker_create(request):
             worker.company = request.user.company
             worker.created_by = request.user
             worker.save()
+
+            # 職種=ITインフラ, 役職=Developer の場合、自動でユーザーアカウント+権限を設定
+            if is_developer_worker(worker):
+                user = setup_developer_worker(worker, created_by=request.user)
+                messages.success(
+                    request,
+                    f"開発者「{worker.name}」を登録しました。"
+                    f"ログインID: {user.username} / 初期パスワード: {user.username}",
+                )
+            else:
+                messages.success(request, f"作業員「{worker.name}」を登録しました。")
+
             return redirect("workers:detail", pk=worker.pk)
     else:
         form = WorkerForm(company=request.user.company)

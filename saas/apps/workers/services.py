@@ -122,3 +122,60 @@ def get_expiring_qualifications(company, days_ahead=90):
         }
         for q in quals
     ]
+
+
+def setup_developer_worker(worker, created_by=None):
+    """職種=ITインフラ, 役職=Developer の作業員にユーザーアカウント+権限を自動設定する。
+
+    - Userアカウントを作成（username=社員番号, 初期パスワード=社員番号）
+    - developerロールを付与
+    - allowed_appsにdevkanriを追加
+
+    Returns:
+        User インスタンス（作成済みの場合は既存を返す）
+    """
+    from apps.accounts.models import User
+    from apps.permissions.models import Role, UserRole
+
+    if worker.user:
+        return worker.user
+
+    # ユーザーアカウント作成
+    username = worker.employee_code or f"dev-{worker.pk}"
+    user = User.objects.create_user(
+        username=username,
+        password=username,  # 初期パスワード=社員番号（初回ログイン時に変更を促す）
+        company=worker.company,
+    )
+    user.first_name = worker.name
+    user.save()
+
+    # Workerに紐づけ
+    worker.user = user
+    # devkanriをallowed_appsに追加
+    apps = worker.allowed_apps or []
+    if "devkanri" not in apps:
+        apps.append("devkanri")
+    worker.allowed_apps = apps
+    worker.save(update_fields=["user", "allowed_apps"])
+
+    # developerロールを付与
+    developer_role = Role.unscoped.filter(
+        company=worker.company, code="developer",
+    ).first()
+    if developer_role:
+        UserRole.unscoped.get_or_create(
+            company=worker.company,
+            user=user,
+            role=developer_role,
+            defaults={"granted_by": created_by},
+        )
+
+    return user
+
+
+def is_developer_worker(worker):
+    """職種=ITインフラ かつ 役職=Developer かを判定する。"""
+    job = worker.job_title.name if worker.job_title else ""
+    pos = worker.position.name if worker.position else ""
+    return job == "ITインフラ" and pos == "Developer"
