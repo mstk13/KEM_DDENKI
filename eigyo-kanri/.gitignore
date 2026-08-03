@@ -1,9 +1,0 @@
-.env
-database.db
-data/inbox/*
-data/files/*
-!data/inbox/.gitkeep
-!data/files/.gitkeep
-__pycache__/
-*.pyc
-*.log
