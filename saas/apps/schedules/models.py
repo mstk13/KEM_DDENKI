@@ -90,3 +90,41 @@ class Assignment(TenantModel):
 
     def __str__(self):
         return f"{self.worker} @ {self.site}"
+
+
+class PhaseTemplate(TenantModel):
+    """工程テンプレート。よくある工事パターンをテンプレート化して再利用する。"""
+
+    name = models.CharField("テンプレート名", max_length=200)
+    description = models.TextField("説明", blank=True)
+
+    class Meta:
+        verbose_name = "工程テンプレート"
+        verbose_name_plural = "工程テンプレート"
+
+    def __str__(self):
+        return self.name
+
+
+class PhaseTemplateItem(TenantModel):
+    """工程テンプレート明細。開始日からのオフセット（日数）で定義。"""
+
+    template = models.ForeignKey(
+        PhaseTemplate,
+        on_delete=models.CASCADE,
+        related_name="items",
+        verbose_name="テンプレート",
+    )
+    name = models.CharField("工程名", max_length=200)
+    offset_days_start = models.IntegerField("開始日オフセット（日）", default=0)
+    offset_days_end = models.IntegerField("終了日オフセット（日）", default=7)
+    sort_order = models.IntegerField("表示順", default=0)
+    color = models.CharField("色", max_length=7, default="#3b82f6")
+
+    class Meta:
+        verbose_name = "テンプレート工程"
+        verbose_name_plural = "テンプレート工程"
+        ordering = ["sort_order"]
+
+    def __str__(self):
+        return f"{self.template.name} - {self.name}"

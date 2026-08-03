@@ -5,9 +5,14 @@ from apps.schedules import views
 app_name = "schedules"
 
 urlpatterns = [
-    # Site schedule list
+    # Site schedule list + Gantt
     path("", views.schedule_list, name="list"),
     path("<int:pk>/", views.schedule_detail, name="detail"),
+    # Calendar
+    path("calendar/", views.calendar_view, name="calendar"),
+    path("calendar/events/", views.calendar_events, name="calendar_events"),
+    # Template
+    path("<int:site_pk>/apply-template/", views.apply_template_view, name="apply_template"),
     # Phases
     path("<int:site_pk>/phases/new/", views.phase_create, name="phase_create"),
     path("phases/<int:pk>/edit/", views.phase_edit, name="phase_edit"),

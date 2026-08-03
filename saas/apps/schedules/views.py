@@ -1,10 +1,19 @@
+import json
+
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db.models import Avg, Count
+from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 
 from apps.schedules.forms import AssignmentForm, MilestoneForm, PhaseForm
-from apps.schedules.models import Assignment, Milestone, Phase
+from apps.schedules.models import Assignment, Milestone, Phase, PhaseTemplate
+from apps.schedules.services import (
+    apply_template,
+    get_calendar_data,
+    get_gantt_data,
+    get_site_gantt_data,
+)
 from apps.sites.models import Site
 
 
@@ -14,7 +23,16 @@ def schedule_list(request):
         phase_count=Count("phases"),
         avg_progress=Avg("phases__progress"),
     ).order_by("-created_at")
-    return render(request, "schedules/list.html", {"sites": sites})
+
+    # ガントチャート用データ
+    gantt_json = json.dumps(
+        get_gantt_data(request.user.company), ensure_ascii=False,
+    )
+
+    return render(request, "schedules/list.html", {
+        "sites": sites,
+        "gantt_json": gantt_json,
+    })
 
 
 @login_required
@@ -23,12 +41,64 @@ def schedule_detail(request, pk):
     phases = site.phases.all()
     milestones = site.milestones.all()
     assignments = site.assignments.select_related("worker").all()
+    templates = PhaseTemplate.objects.all()
+
+    # 工程別ガントチャート
+    gantt_json = json.dumps(
+        get_site_gantt_data(site), ensure_ascii=False,
+    )
+
     return render(request, "schedules/detail.html", {
         "site": site,
         "phases": phases,
         "milestones": milestones,
         "assignments": assignments,
+        "templates": templates,
+        "gantt_json": gantt_json,
     })
+
+
+@login_required
+def calendar_view(request):
+    """配置カレンダー画面。FullCalendarで作業員×現場の配置を表示。"""
+    return render(request, "schedules/calendar.html")
+
+
+@login_required
+def calendar_events(request):
+    """FullCalendar用のイベントJSONを返す。"""
+    start = request.GET.get("start", "")
+    end = request.GET.get("end", "")
+
+    from datetime import date
+
+    try:
+        start_date = date.fromisoformat(start[:10]) if start else date.today()
+        end_date = date.fromisoformat(end[:10]) if end else date.today()
+    except ValueError:
+        start_date = date.today()
+        end_date = date.today()
+
+    events = get_calendar_data(request.user.company, start_date, end_date)
+    return JsonResponse(events, safe=False)
+
+
+@login_required
+def apply_template_view(request, site_pk):
+    """工程テンプレートを現場に適用する。"""
+    if request.method != "POST":
+        return redirect("schedules:detail", pk=site_pk)
+
+    site = get_object_or_404(Site, pk=site_pk)
+    template_id = request.POST.get("template_id")
+    base_date_str = request.POST.get("base_date")
+
+    from datetime import date as date_cls
+    base_date = date_cls.fromisoformat(base_date_str) if base_date_str else None
+
+    created = apply_template(site, template_id, base_date)
+    messages.success(request, f"テンプレートから{len(created)}件の工程を作成しました。")
+    return redirect("schedules:detail", pk=site_pk)
 
 
 # ─── Phase CRUD ───

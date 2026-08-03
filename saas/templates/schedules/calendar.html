@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}配置カレンダー — 建設SaaS{% endblock %}
+{% block topbar_title %}工期管理{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>配置カレンダー</h1>
+  <a href="{% url 'schedules:list' %}" class="btn btn-outline">← ガントチャート</a>
+</div>
+
+<div class="card" style="padding:16px;">
+  <div id="calendar"></div>
+</div>
+
+<!-- FullCalendar CDN -->
+<link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  var calendarEl = document.getElementById('calendar');
+  var calendar = new FullCalendar.Calendar(calendarEl, {
+    initialView: 'dayGridMonth',
+    locale: 'ja',
+    headerToolbar: {
+      left: 'prev,next today',
+      center: 'title',
+      right: 'dayGridMonth,timeGridWeek'
+    },
+    events: '{% url "schedules:calendar_events" %}',
+    eventClick: function(info) {
+      var props = info.event.extendedProps;
+      alert(props.worker + ' → ' + props.site);
+    },
+    height: 'auto',
+  });
+  calendar.render();
+});
+</script>
+{% endblock %}
