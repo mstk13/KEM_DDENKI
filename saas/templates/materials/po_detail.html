@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}発注詳細 — 建設SaaS{% endblock %}
+{% block topbar_title %}材料管理{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>PO-{{ po.pk }} {{ po.site.name }}</h1>
+  <span class="badge badge-gray">{{ po.get_status_display }}</span>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+  <div class="card">
+    <div class="card-header"><h2>発注情報</h2></div>
+    <div style="padding:16px;">
+      <table style="width:100%;">
+        <tr><th style="text-align:left;width:30%;">仕入先</th><td>{{ po.supplier }}</td></tr>
+        <tr><th style="text-align:left;">発注日</th><td>{{ po.order_date }}</td></tr>
+        <tr><th style="text-align:left;">合計金額</th><td style="font-weight:600;">¥{{ po.total_amount|floatformat:0 }}</td></tr>
+        {% if po.file %}<tr><th style="text-align:left;">発注書</th><td><a href="{{ po.file.url }}" target="_blank">ダウンロード</a></td></tr>{% endif %}
+      </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <h2>納品</h2>
+      <a href="{% url 'materials:delivery_create' po.pk %}" class="btn btn-outline btn-sm">+ 納品を記録</a>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>納品日</th><th>検収</th><th></th></tr></thead>
+        <tbody>
+          {% for d in deliveries %}
+          <tr>
+            <td>{{ d.delivery_date }}</td>
+            <td>{% if d.inspected %}<span class="badge badge-green">検収済</span>{% else %}<span class="badge badge-orange">未検収</span>{% endif %}</td>
+            <td>{% if not d.inspected %}<form method="post" action="{% url 'materials:delivery_inspect' d.pk %}" style="display:inline;">{% csrf_token %}<button class="btn btn-outline btn-xs">検収する</button></form>{% endif %}</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="3"><small>納品記録なし</small></td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="card" style="margin-top:20px;">
+  <div class="card-header"><h2>発注明細</h2></div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>材料</th><th>工種</th><th style="text-align:right;">数量</th><th style="text-align:right;">単価</th><th style="text-align:right;">金額</th></tr></thead>
+      <tbody>
+        {% for item in items %}
+        <tr>
+          <td>{{ item.material }}</td>
+          <td>{{ item.work_type }}</td>
+          <td style="text-align:right;">{{ item.quantity }}</td>
+          <td style="text-align:right;">¥{{ item.unit_price|floatformat:0 }}</td>
+          <td style="text-align:right;font-weight:600;">¥{{ item.amount|floatformat:0 }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="5"><div class="empty"><p>明細がありません</p></div></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

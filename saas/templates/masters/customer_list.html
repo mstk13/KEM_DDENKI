@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}得意先一覧 — 建設SaaS{% endblock %}
+{% block topbar_title %}取引先管理{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>得意先一覧</h1>
+  <a href="{% url 'masters:customer_create' %}" class="btn btn-primary">+ 得意先を登録</a>
+</div>
+<div class="card">
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>コード</th><th>得意先名</th><th>業種</th><th>地域</th><th>規模</th><th></th></tr></thead>
+      <tbody>
+        {% for c in customers %}
+        <tr>
+          <td>{{ c.code }}</td>
+          <td><a href="{% url 'masters:customer_detail' c.pk %}">{{ c.name }}</a></td>
+          <td>{{ c.industry|default:"—" }}</td>
+          <td>{{ c.region|default:"—" }}</td>
+          <td>{{ c.scale|default:"—" }}</td>
+          <td><a href="{% url 'masters:customer_edit' c.pk %}" class="btn btn-outline btn-xs">編集</a></td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="6"><div class="empty"><p>得意先がありません</p></div></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

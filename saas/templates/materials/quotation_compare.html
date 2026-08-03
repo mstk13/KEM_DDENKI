@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}仕入先比較 — 建設SaaS{% endblock %}
+{% block topbar_title %}材料管理{% endblock %}
+
+{% block content %}
+<div class="page-header"><h1>仕入先別 見積比較</h1></div>
+
+<div class="card" style="margin-bottom:16px;padding:16px;">
+  <form method="get" style="display:flex;gap:12px;align-items:end;">
+    <div>
+      <label class="form-label">材料を選択</label>
+      <select name="material_id" class="form-control">
+        <option value="">-- 選択 --</option>
+        {% for m in materials %}
+        <option value="{{ m.pk }}" {% if selected_material_id == m.pk %}selected{% endif %}>{{ m.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <button type="submit" class="btn btn-primary">比較</button>
+  </form>
+</div>
+
+{% if results %}
+<div class="card">
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>仕入先</th><th style="text-align:right;">単価</th><th style="text-align:right;">数量</th><th style="text-align:right;">金額</th><th></th></tr></thead>
+      <tbody>
+        {% for r in results %}
+        <tr {% if forloop.first %}style="background:#f0fdf4;"{% endif %}>
+          <td>{{ r.supplier.name }}</td>
+          <td style="text-align:right;">¥{{ r.unit_price|floatformat:0 }}</td>
+          <td style="text-align:right;">{{ r.quantity }}</td>
+          <td style="text-align:right;font-weight:600;">¥{{ r.amount|floatformat:0 }}</td>
+          <td>{% if forloop.first %}<span class="badge badge-green">最安</span>{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

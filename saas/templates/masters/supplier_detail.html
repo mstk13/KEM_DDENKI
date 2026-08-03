@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}{{ supplier.name }} — 建設SaaS{% endblock %}
+{% block topbar_title %}取引先管理{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1>{{ supplier.name }}</h1>
+  <div>
+    <a href="{% url 'masters:supplier_edit' supplier.pk %}" class="btn btn-outline">編集</a>
+    <a href="{% url 'masters:supplier_eval_create' supplier.pk %}" class="btn btn-primary">+ 評価を追加</a>
+    <a href="{% url 'masters:card_create' %}?supplier={{ supplier.pk }}" class="btn btn-outline">名刺を追加</a>
+  </div>
+</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+  <div class="card">
+    <div class="card-header"><h2>基本情報</h2></div>
+    <div style="padding:16px;">
+      <table style="width:100%;"><tr><th style="text-align:left;width:30%;">電話</th><td>{{ supplier.phone|default:"—" }}</td></tr><tr><th style="text-align:left;">メール</th><td>{{ supplier.email|default:"—" }}</td></tr><tr><th style="text-align:left;">連絡先</th><td>{{ supplier.contact_info|default:"—" }}</td></tr></table>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-header"><h2>評価サマリ</h2></div>
+    <div style="padding:16px;">
+      {% if rating %}
+      <p style="font-size:24px;font-weight:600;">★{{ rating.overall }} <small style="font-size:14px;color:var(--text-secondary);">({{ rating.count }}件)</small></p>
+      <table style="width:100%;"><tr><td>金額</td><td>★{{ rating.price }}</td></tr><tr><td>納期</td><td>★{{ rating.delivery }}</td></tr><tr><td>品質</td><td>★{{ rating.quality }}</td></tr></table>
+      {% else %}<p style="color:var(--text-secondary);">評価なし</p>{% endif %}
+    </div>
+  </div>
+</div>
+{% if evaluations %}
+<div class="card" style="margin-top:20px;">
+  <div class="card-header"><h2>評価履歴</h2></div>
+  <div class="table-wrap"><table><thead><tr><th>日付</th><th>金額</th><th>納期</th><th>品質</th><th>内容</th></tr></thead><tbody>
+    {% for ev in evaluations %}<tr><td>{{ ev.evaluation_date }}</td><td>★{{ ev.price_rating }}</td><td>★{{ ev.delivery_rating }}</td><td>★{{ ev.quality_rating }}</td><td>{{ ev.service_description|truncatewords:10 }}</td></tr>{% endfor %}
+  </tbody></table></div>
+</div>
+{% endif %}
+{% if cards %}
+<div class="card" style="margin-top:20px;">
+  <div class="card-header"><h2>名刺</h2></div>
+  <div style="padding:16px;display:flex;gap:12px;flex-wrap:wrap;">
+    {% for card in cards %}<div style="border:1px solid #e5e7eb;border-radius:8px;padding:8px;width:200px;"><img src="{{ card.image.url }}" style="width:100%;border-radius:4px;"><small>{{ card.person_name }} {{ card.position }}</small></div>{% endfor %}
+  </div>
+</div>
+{% endif %}
+{% endblock %}

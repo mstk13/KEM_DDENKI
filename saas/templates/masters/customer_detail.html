@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}{{ customer.name }} — 建設SaaS{% endblock %}
+{% block topbar_title %}取引先管理{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1>{{ customer.name }}</h1>
+  <div>
+    <a href="{% url 'masters:customer_edit' customer.pk %}" class="btn btn-outline">編集</a>
+    <a href="{% url 'masters:card_create' %}?customer={{ customer.pk }}" class="btn btn-outline">名刺を追加</a>
+  </div>
+</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+  <div class="card">
+    <div class="card-header"><h2>基本情報</h2></div>
+    <div style="padding:16px;">
+      <table style="width:100%;"><tr><th style="text-align:left;width:30%;">業種</th><td>{{ customer.industry|default:"—" }}</td></tr><tr><th style="text-align:left;">地域</th><td>{{ customer.region|default:"—" }}</td></tr><tr><th style="text-align:left;">電話</th><td>{{ customer.phone|default:"—" }}</td></tr><tr><th style="text-align:left;">メール</th><td>{{ customer.email|default:"—" }}</td></tr></table>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-header"><h2>取引履歴</h2></div>
+    <div class="table-wrap"><table><thead><tr><th>現場名</th><th>状態</th></tr></thead><tbody>
+      {% for site in sites %}<tr><td><a href="{% url 'sites:detail' site.pk %}">{{ site.name }}</a></td><td>{{ site.get_status_display }}</td></tr>{% empty %}<tr><td colspan="2"><small>取引履歴なし</small></td></tr>{% endfor %}
+    </tbody></table></div>
+  </div>
+</div>
+{% if cards %}
+<div class="card" style="margin-top:20px;">
+  <div class="card-header"><h2>名刺</h2></div>
+  <div style="padding:16px;display:flex;gap:12px;flex-wrap:wrap;">
+    {% for card in cards %}<div style="border:1px solid #e5e7eb;border-radius:8px;padding:8px;width:200px;"><img src="{{ card.image.url }}" style="width:100%;border-radius:4px;"><small>{{ card.person_name }} {{ card.position }}</small></div>{% endfor %}
+  </div>
+</div>
+{% endif %}
+{% endblock %}
