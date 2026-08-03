@@ -130,7 +130,40 @@
 
 # 開発者向け
 
-GitHub: [mstk13/KEM_DDENKI](https://github.com/mstk13/KEM_DDENKI)
+## 開発用リンク
+
+| リソース | URL |
+|---------|-----|
+| **GitHub リポジトリ** | [https://github.com/mstk13/KEM_DDENKI](https://github.com/mstk13/KEM_DDENKI) |
+| **開発環境アプリ** | [http://192.168.0.35:8081/](http://192.168.0.35:8081/) |
+| **開発環境 Django Admin** | [http://192.168.0.35:8081/admin/](http://192.168.0.35:8081/admin/) |
+| **ローカル開発サーバー** | [http://localhost:8000/](http://localhost:8000/) |
+| **ローカル Django Admin** | [http://localhost:8000/admin/](http://localhost:8000/admin/) |
+| **設計資料** | [docs/design/](https://github.com/mstk13/KEM_DDENKI/tree/main/docs/design) |
+| **設計判断の根拠書** | [docs/design/設計判断の根拠書.md](https://github.com/mstk13/KEM_DDENKI/blob/main/docs/design/設計判断の根拠書.md) |
+| **DB設計書** | [docs/design/DB設計書.md](https://github.com/mstk13/KEM_DDENKI/blob/main/docs/design/DB設計書.md) |
+| **CI/CD (GitHub Actions)** | [Actions](https://github.com/mstk13/KEM_DDENKI/actions) |
+| **Issues** | [Issues](https://github.com/mstk13/KEM_DDENKI/issues) |
+| **Pull Requests** | [Pull Requests](https://github.com/mstk13/KEM_DDENKI/pulls) |
+
+### 開発環境の全画面URL
+
+| アプリ | ローカル | 開発サーバー |
+|--------|---------|------------|
+| ダッシュボード | [localhost:8000/](http://localhost:8000/) | [192.168.0.35:8081/](http://192.168.0.35:8081/) |
+| 現場管理 | [localhost:8000/sites/](http://localhost:8000/sites/) | [192.168.0.35:8081/sites/](http://192.168.0.35:8081/sites/) |
+| 日報管理 | [localhost:8000/reports/](http://localhost:8000/reports/) | [192.168.0.35:8081/reports/](http://192.168.0.35:8081/reports/) |
+| 原価管理 | [localhost:8000/costs/](http://localhost:8000/costs/) | [192.168.0.35:8081/costs/](http://192.168.0.35:8081/costs/) |
+| 材料管理 | [localhost:8000/materials/](http://localhost:8000/materials/) | [192.168.0.35:8081/materials/](http://192.168.0.35:8081/materials/) |
+| 入札管理 | [localhost:8000/bids/](http://localhost:8000/bids/) | [192.168.0.35:8081/bids/](http://192.168.0.35:8081/bids/) |
+| 営業管理 | [localhost:8000/sales/](http://localhost:8000/sales/) | [192.168.0.35:8081/sales/](http://192.168.0.35:8081/sales/) |
+| 工期管理 | [localhost:8000/schedules/](http://localhost:8000/schedules/) | [192.168.0.35:8081/schedules/](http://192.168.0.35:8081/schedules/) |
+| 人材管理 | [localhost:8000/workers/](http://localhost:8000/workers/) | [192.168.0.35:8081/workers/](http://192.168.0.35:8081/workers/) |
+| 開発管理 | [localhost:8000/dev/](http://localhost:8000/dev/) | [192.168.0.35:8081/dev/](http://192.168.0.35:8081/dev/) |
+| 取引先管理 | [localhost:8000/masters/](http://localhost:8000/masters/) | [192.168.0.35:8081/masters/](http://192.168.0.35:8081/masters/) |
+| 通知 | [localhost:8000/notifications/](http://localhost:8000/notifications/) | [192.168.0.35:8081/notifications/](http://192.168.0.35:8081/notifications/) |
+| 権限管理 | [localhost:8000/settings/permissions/](http://localhost:8000/settings/permissions/) | [192.168.0.35:8081/settings/permissions/](http://192.168.0.35:8081/settings/permissions/) |
+| Django Admin | [localhost:8000/admin/](http://localhost:8000/admin/) | [192.168.0.35:8081/admin/](http://192.168.0.35:8081/admin/) |
 
 ## クイックスタート
 
