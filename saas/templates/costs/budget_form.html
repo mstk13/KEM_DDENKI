@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}予算項目追加 — {{ site.name }}{% endblock %}
+{% block topbar_title %}原価管理{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>予算項目を追加: {{ site.name }}</h1>
+</div>
+
+<div class="card">
+  <form method="post" style="padding:24px;">
+    {% csrf_token %}
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+      {% for field in form %}
+      <div class="form-group">
+        <label class="form-label">{{ field.label }}</label>
+        {{ field }}
+        {% if field.errors %}<small style="color:red;">{{ field.errors.0 }}</small>{% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    <div style="margin-top:24px;display:flex;gap:12px;">
+      <button type="submit" class="btn btn-primary">保存</button>
+      <a href="{% url 'costs:detail' site.pk %}" class="btn btn-outline">キャンセル</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

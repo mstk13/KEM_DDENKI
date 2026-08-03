@@ -73,3 +73,55 @@ def notification_badge(request):
         "notifications/badge.html",
         {"unread_count": count},
     )
+
+
+@login_required
+def alert_rule_list(request):
+    """アラートルール一覧。"""
+    from apps.notifications.models import AlertRule
+    rules = AlertRule.objects.order_by("alert_type", "threshold_value")
+    return render(request, "notifications/alert_rules.html", {"rules": rules})
+
+
+@login_required
+def alert_rule_create(request):
+    """アラートルールの作成。"""
+    from apps.notifications.forms import AlertRuleForm
+    if request.method == "POST":
+        form = AlertRuleForm(request.POST)
+        if form.is_valid():
+            rule = form.save(commit=False)
+            rule.company = request.user.company
+            rule.created_by = request.user
+            rule.save()
+            return redirect("alert_rule_list")
+    else:
+        form = AlertRuleForm()
+    return render(request, "notifications/alert_rule_form.html", {"form": form, "title": "アラートルールを作成"})
+
+
+@login_required
+def alert_rule_edit(request, pk):
+    """アラートルールの編集。"""
+    from apps.notifications.forms import AlertRuleForm
+    from apps.notifications.models import AlertRule
+    rule = get_object_or_404(AlertRule, pk=pk)
+    if request.method == "POST":
+        form = AlertRuleForm(request.POST, instance=rule)
+        if form.is_valid():
+            form.save()
+            return redirect("alert_rule_list")
+    else:
+        form = AlertRuleForm(instance=rule)
+    return render(request, "notifications/alert_rule_form.html", {"form": form, "title": "アラートルールを編集"})
+
+
+@login_required
+def alert_rule_delete(request, pk):
+    """アラートルールの削除。"""
+    from apps.notifications.models import AlertRule
+    rule = get_object_or_404(AlertRule, pk=pk)
+    if request.method == "POST":
+        rule.delete()
+        return redirect("alert_rule_list")
+    return render(request, "notifications/alert_rule_confirm_delete.html", {"rule": rule})

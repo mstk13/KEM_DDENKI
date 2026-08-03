@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}アラートルール削除 — 建設SaaS{% endblock %}
+{% block topbar_title %}通知{% endblock %}
+
+{% block content %}
+<div class="page-header"><h1>アラートルールの削除確認</h1></div>
+<div class="card" style="padding:24px;">
+  <p>以下のアラートルールを削除しますか？</p>
+  <div style="background:var(--bg-warning,#fff3cd);padding:16px;border-radius:8px;margin:16px 0;">
+    <strong>{{ rule.name }}</strong> ({{ rule.get_alert_type_display }})
+  </div>
+  <form method="post" style="display:flex;gap:12px;">
+    {% csrf_token %}
+    <button type="submit" class="btn" style="background:#ef4444;color:#fff;">削除する</button>
+    <a href="{% url 'alert_rule_list' %}" class="btn btn-outline">キャンセル</a>
+  </form>
+</div>
+{% endblock %}

@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}アラートルール — 建設SaaS{% endblock %}
+{% block topbar_title %}通知{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>アラートルール</h1>
+  <a href="{% url 'alert_rule_create' %}" class="btn btn-primary">+ ルールを追加</a>
+</div>
+
+<div class="card">
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>ルール名</th><th>種別</th><th>閾値</th><th>レベル</th><th>有効</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for rule in rules %}
+        <tr>
+          <td>{{ rule.name }}</td>
+          <td><span class="badge badge-gray">{{ rule.get_alert_type_display }}</span></td>
+          <td>{{ rule.threshold_value|default:"—" }}</td>
+          <td>{{ rule.get_notification_level_display }}</td>
+          <td>{% if rule.is_active %}<span class="badge badge-green">有効</span>{% else %}<span class="badge badge-gray">無効</span>{% endif %}</td>
+          <td>
+            <a href="{% url 'alert_rule_edit' rule.pk %}" class="btn btn-outline btn-xs">編集</a>
+            <a href="{% url 'alert_rule_delete' rule.pk %}" class="btn btn-outline btn-xs" style="color:#ef4444;">削除</a>
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="6"><div class="empty"><p>アラートルールがありません</p></div></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

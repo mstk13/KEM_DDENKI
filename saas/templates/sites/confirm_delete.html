@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}現場削除確認 — 建設SaaS{% endblock %}
+{% block topbar_title %}現場管理{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>現場の削除確認</h1>
+</div>
+
+<div class="card" style="padding:24px;">
+  <p style="font-size:16px;">以下の現場を削除しますか？関連する日報・原価データも全て削除されます。</p>
+  <div style="background:var(--bg-warning,#fff3cd);padding:16px;border-radius:8px;margin:16px 0;">
+    <strong>{{ site.name }}</strong><br>
+    <small>コード: {{ site.code }} / 状態: {{ site.get_status_display }}</small>
+  </div>
+  <form method="post" style="display:flex;gap:12px;margin-top:16px;">
+    {% csrf_token %}
+    <button type="submit" class="btn" style="background:#ef4444;color:#fff;">削除する</button>
+    <a href="{% url 'sites:detail' site.pk %}" class="btn btn-outline">キャンセル</a>
+  </form>
+</div>
+{% endblock %}

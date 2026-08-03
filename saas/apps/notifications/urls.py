@@ -7,4 +7,9 @@ urlpatterns = [
     path("<int:pk>/read/", views.notification_read, name="notification_read"),
     path("read-all/", views.notification_read_all, name="notification_read_all"),
     path("badge/", views.notification_badge, name="notification_badge"),
+    path("rules/", views.alert_rule_list, name="alert_rule_list"),
+    path("rules/new/", views.alert_rule_create, name="alert_rule_create"),
+    path("rules/<int:pk>/edit/", views.alert_rule_edit, name="alert_rule_edit"),
+    path("rules/<int:pk>/delete/", views.alert_rule_delete, name="alert_rule_delete"),
 ]
+
