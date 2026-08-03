@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}月別集計 — 建設SaaS{% endblock %}
+{% block topbar_title %}月別集計{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>月別集計</h1>
+</div>
+
+<!-- 月選択 -->
+<div class="card" style="margin-bottom:16px;padding:16px;">
+  <form method="get" style="display:flex;gap:12px;align-items:end;">
+    <div>
+      <label class="form-label">年</label>
+      <input type="number" name="year" value="{{ year }}" class="form-control" style="width:100px;">
+    </div>
+    <div>
+      <label class="form-label">月</label>
+      <input type="number" name="month" value="{{ month }}" min="1" max="12" class="form-control" style="width:80px;">
+    </div>
+    <button type="submit" class="btn btn-primary">表示</button>
+  </form>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <h2>{{ year }}年{{ month }}月 勤怠集計</h2>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>氏名</th>
+          <th>出勤日</th>
+          <th>通常時間</th>
+          <th>残業時間</th>
+          <th>合計時間</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in summary %}
+        <tr>
+          <td>{{ row.worker__name }}</td>
+          <td>{{ row.work_days }}日</td>
+          <td>{{ row.total_regular|default:"—" }}h</td>
+          <td>{{ row.total_overtime|default:"0" }}h</td>
+          <td style="font-weight:600;">{{ row.total_hours|default:"—" }}h</td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="5">
+            <div class="empty">
+              <div class="empty-icon">📊</div>
+              <p>承認済みの日報がありません</p>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

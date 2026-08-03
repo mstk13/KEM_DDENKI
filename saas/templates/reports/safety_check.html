@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block title %}安全書類チェック — 建設SaaS{% endblock %}
+{% block topbar_title %}安全書類チェック{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>安全書類チェック</h1>
+</div>
+
+<!-- フィルタ -->
+<div class="card" style="margin-bottom:16px;padding:16px;">
+  <form method="get" style="display:flex;gap:12px;align-items:end;flex-wrap:wrap;">
+    <div>
+      <label class="form-label">現場</label>
+      <select name="site" class="form-control">
+        <option value="">-- 選択 --</option>
+        {% for site in sites %}
+        <option value="{{ site.pk }}" {% if selected_site and selected_site.pk == site.pk %}selected{% endif %}>{{ site.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label class="form-label">日付</label>
+      <input type="date" name="date" value="{{ check_date }}" class="form-control">
+    </div>
+    <button type="submit" class="btn btn-primary">チェック</button>
+  </form>
+</div>
+
+{% if result %}
+<div class="card">
+  <div class="card-header">
+    <h2>{{ selected_site.name }} — {{ check_date }}</h2>
+    <span>記入率: {{ result.completed }}/{{ result.total }} ({{ result.rate }}%)</span>
+  </div>
+
+  {% if result.incomplete %}
+  <form method="post" style="padding:8px 16px;">
+    {% csrf_token %}
+    <button type="submit" class="btn btn-outline btn-sm" style="margin-bottom:8px;">未記入者に一括通知</button>
+  </form>
+  {% endif %}
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>作業員</th>
+          <th>書類</th>
+          <th>記入状況</th>
+          <th>操作</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for record in result.incomplete %}
+        <tr style="background:#fff3cd;">
+          <td>{{ record.worker.name }}</td>
+          <td>{{ record.template.name }}</td>
+          <td>⚠ 未記入</td>
+          <td>
+            <a href="{% url 'reports:safety_complete' record.pk %}" class="btn btn-outline btn-xs">記入済みにする</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% if not result.incomplete %}
+  <div style="padding:24px;text-align:center;color:var(--text-secondary);">
+    ✅ 全員記入済みです
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}
