@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block title %}{% if form.instance.pk %}評価項目を編集{% else %}評価項目を追加{% endif %} — 建設SaaS{% endblock %}
+{% block topbar_title %}{% if form.instance.pk %}評価項目を編集{% else %}評価項目を追加{% endif %}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>{% if form.instance.pk %}{{ form.instance.name }} を編集{% else %}評価項目を追加{% endif %}</h1>
+</div>
+
+<div class="card">
+  <div class="card-body">
+    <form method="post">
+      {% csrf_token %}
+      <div class="form-row">
+        <div class="form-group">
+          <label for="id_section">セクション</label>
+          {{ form.section }}
+          {{ form.section.errors }}
+          <small style="color:var(--gray-400);">「共通」または職種名</small>
+        </div>
+        <div class="form-group">
+          <label for="id_num">項目番号</label>
+          {{ form.num }}
+          {{ form.num.errors }}
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="id_name">項目名</label>
+          {{ form.name }}
+          {{ form.name.errors }}
+        </div>
+        <div class="form-group">
+          <label for="id_max_score">最大スコア</label>
+          {{ form.max_score }}
+          {{ form.max_score.errors }}
+        </div>
+      </div>
+      <div class="form-group">
+        <label for="id_description">説明</label>
+        {{ form.description }}
+        {{ form.description.errors }}
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="id_choice_group">選択肢グループ</label>
+          {{ form.choice_group }}
+          {{ form.choice_group.errors }}
+        </div>
+        <div class="form-group">
+          <label for="id_sort_order">並び順</label>
+          {{ form.sort_order }}
+          {{ form.sort_order.errors }}
+        </div>
+      </div>
+
+      <h3 style="margin-top:20px;">採点基準</h3>
+      <div class="form-group">
+        <label for="id_anchor_5">5点基準</label>
+        {{ form.anchor_5 }}
+        {{ form.anchor_5.errors }}
+      </div>
+      <div class="form-group">
+        <label for="id_anchor_3">3点基準</label>
+        {{ form.anchor_3 }}
+        {{ form.anchor_3.errors }}
+      </div>
+      <div class="form-group">
+        <label for="id_anchor_1">1点基準</label>
+        {{ form.anchor_1 }}
+        {{ form.anchor_1.errors }}
+      </div>
+      <div class="form-group">
+        <label for="id_free_text">自由記述</label>
+        {{ form.free_text }}
+        {{ form.free_text.errors }}
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">保存</button>
+        <a href="{% url 'evaluation:criteria_list' %}" class="btn btn-outline">キャンセル</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

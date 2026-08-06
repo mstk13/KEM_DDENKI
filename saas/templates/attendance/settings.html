@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}勤怠設定 — 建設SaaS{% endblock %}
+{% block topbar_title %}勤怠管理{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>勤怠計算設定</h1>
+  <div>
+    <a href="{% url 'attendance:report_list' %}" class="btn btn-outline btn-sm">日報一覧に戻る</a>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-body">
+    <form method="post">
+      {% csrf_token %}
+      <div class="form-row">
+        <div class="form-group">
+          <label for="id_standard_start">{{ form.standard_start.label }}</label>
+          {{ form.standard_start }}
+          {{ form.standard_start.errors }}
+        </div>
+        <div class="form-group">
+          <label for="id_standard_end">{{ form.standard_end.label }}</label>
+          {{ form.standard_end }}
+          {{ form.standard_end.errors }}
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="id_early_boundary">{{ form.early_boundary.label }}</label>
+          {{ form.early_boundary }}
+          {{ form.early_boundary.errors }}
+          <small style="color:var(--gray-400);">この時刻より前の出勤を早出とする</small>
+        </div>
+        <div class="form-group">
+          <label for="id_standard_hours">{{ form.standard_hours.label }}</label>
+          {{ form.standard_hours }}
+          {{ form.standard_hours.errors }}
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="id_break_minutes">{{ form.break_minutes.label }}</label>
+          {{ form.break_minutes }}
+          {{ form.break_minutes.errors }}
+        </div>
+        <div class="form-group">
+          <label for="id_round_minutes">{{ form.round_minutes.label }}</label>
+          {{ form.round_minutes }}
+          {{ form.round_minutes.errors }}
+          <small style="color:var(--gray-400);">0=丸めなし、15=15分単位で丸め</small>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="id_overtime_mode">{{ form.overtime_mode.label }}</label>
+          {{ form.overtime_mode }}
+          {{ form.overtime_mode.errors }}
+        </div>
+      </div>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">保存</button>
+        <a href="{% url 'attendance:report_list' %}" class="btn btn-outline">キャンセル</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

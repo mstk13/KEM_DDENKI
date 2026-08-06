@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% block title %}{% if form.instance.pk %}訪問記録を編集{% else %}訪問記録を登録{% endif %} — 建設SaaS{% endblock %}
+{% block topbar_title %}{% if form.instance.pk %}訪問記録を編集{% else %}訪問記録を登録{% endif %}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>{% if form.instance.pk %}{{ form.instance.company_name }} を編集{% else %}営業訪問記録を登録{% endif %}</h1>
+</div>
+
+<div class="card">
+  <div class="card-body">
+    <form method="post">
+      {% csrf_token %}
+      <h3>基本情報</h3>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="id_company_name">会社名</label>
+          {{ form.company_name }}
+          {{ form.company_name.errors }}
+        </div>
+        <div class="form-group">
+          <label for="id_industry">業種</label>
+          {{ form.industry }}
+          {{ form.industry.errors }}
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="id_rep_name">担当者名</label>
+          {{ form.rep_name }}
+          {{ form.rep_name.errors }}
+        </div>
+        <div class="form-group">
+          <label for="id_status">状態</label>
+          {{ form.status }}
+          {{ form.status.errors }}
+        </div>
+      </div>
+
+      <h3 style="margin-top:20px;">連絡先</h3>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="id_phone">電話番号</label>
+          {{ form.phone }}
+          {{ form.phone.errors }}
+        </div>
+        <div class="form-group">
+          <label for="id_email">メール</label>
+          {{ form.email }}
+          {{ form.email.errors }}
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="id_website">Webサイト</label>
+          {{ form.website }}
+          {{ form.website.errors }}
+        </div>
+        <div class="form-group">
+          <label for="id_source_file">添付資料パス</label>
+          {{ form.source_file }}
+          {{ form.source_file.errors }}
+        </div>
+      </div>
+      <div class="form-group">
+        <label for="id_address">住所</label>
+        {{ form.address }}
+        {{ form.address.errors }}
+      </div>
+
+      <h3 style="margin-top:20px;">日程</h3>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="id_visit_date">訪問日</label>
+          {{ form.visit_date }}
+          {{ form.visit_date.errors }}
+        </div>
+        <div class="form-group">
+          <label for="id_received_date">受領日</label>
+          {{ form.received_date }}
+          {{ form.received_date.errors }}
+        </div>
+      </div>
+
+      <h3 style="margin-top:20px;">営業詳細</h3>
+      <div class="form-group">
+        <label for="id_business_overview">事業概要</label>
+        {{ form.business_overview }}
+        {{ form.business_overview.errors }}
+      </div>
+      <div class="form-group">
+        <label for="id_sales_content">営業内容</label>
+        {{ form.sales_content }}
+        {{ form.sales_content.errors }}
+      </div>
+      <div class="form-group">
+        <label for="id_memo">メモ</label>
+        {{ form.memo }}
+        {{ form.memo.errors }}
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">保存</button>
+        <a href="{% url 'sales:visit_list' %}" class="btn btn-outline">キャンセル</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

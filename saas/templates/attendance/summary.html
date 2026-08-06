@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}勤怠サマリ — 建設SaaS{% endblock %}
+{% block topbar_title %}勤怠管理{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>月次勤怠サマリ</h1>
+  <div>
+    <a href="{% url 'attendance:report_list' %}" class="btn btn-outline">日報一覧</a>
+    <a href="{% url 'attendance:entry_list' %}" class="btn btn-outline">個人別一覧</a>
+    <a href="{% url 'attendance:settings' %}" class="btn btn-outline">設定</a>
+  </div>
+</div>
+
+<div class="card" style="margin-bottom:20px;">
+  <div class="card-body">
+    <form method="get" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;">
+      <div class="form-group" style="margin-bottom:0;">
+        <label>対象月</label>
+        <input type="month" name="month" value="{{ month_str }}" class="form-control">
+      </div>
+      <button type="submit" class="btn btn-primary">表示</button>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header"><h2>{{ year }}年{{ month }}月 従業員別集計</h2></div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>氏名</th>
+          <th>出勤日数</th>
+          <th>早出(分)</th>
+          <th>所定(分)</th>
+          <th>残業(分)</th>
+          <th>合計(分)</th>
+          <th>合計(時間)</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for emp in employee_summary %}
+        <tr>
+          <td>{{ emp.name }}</td>
+          <td>{{ emp.days }}</td>
+          <td>{{ emp.early }}</td>
+          <td>{{ emp.normal }}</td>
+          <td>{{ emp.overtime }}</td>
+          <td>{{ emp.total }}</td>
+          <td>{{ emp.total|floatformat:0 }}</td>
+          <td>
+            {% if emp.worker_pk %}
+            <a href="{% url 'attendance:employee_record' emp.worker_pk %}?month={{ month_str }}" class="btn btn-outline btn-sm">詳細</a>
+            {% endif %}
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="8"><div class="empty"><div class="empty-icon">&#x1f4cb;</div><p>該当月のデータがありません</p></div></td></tr>
+        {% endfor %}
+      </tbody>
+      {% if employee_summary %}
+      <tfoot>
+        <tr style="font-weight:bold;">
+          <td>合計</td>
+          <td>{{ grand_total.days }}</td>
+          <td>{{ grand_total.early }}</td>
+          <td>{{ grand_total.normal }}</td>
+          <td>{{ grand_total.overtime }}</td>
+          <td>{{ grand_total.total }}</td>
+          <td>{{ grand_total.total|floatformat:0 }}</td>
+          <td></td>
+        </tr>
+      </tfoot>
+      {% endif %}
+    </table>
+  </div>
+</div>
+{% endblock %}

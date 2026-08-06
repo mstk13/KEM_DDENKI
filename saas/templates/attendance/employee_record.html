@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block title %}{{ worker.name }} 勤怠記録 — 建設SaaS{% endblock %}
+{% block topbar_title %}個人別勤怠記録{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>{{ worker.name }} の勤怠記録</h1>
+  <div>
+    <a href="{% url 'attendance:entry_list' %}" class="btn btn-outline btn-sm">個人別一覧</a>
+    <a href="{% url 'attendance:report_list' %}" class="btn btn-outline btn-sm">日報一覧</a>
+  </div>
+</div>
+
+<div class="card" style="margin-bottom:20px;">
+  <div class="card-body">
+    <form method="get" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;">
+      <div class="form-group" style="margin-bottom:0;">
+        <label>対象月</label>
+        <input type="month" name="month" value="{{ month_str }}" class="form-control">
+      </div>
+      <button type="submit" class="btn btn-primary">表示</button>
+    </form>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px;">
+  <div class="card">
+    <div class="card-header"><h2>{{ year }}年{{ month }}月 集計</h2></div>
+    <dl class="detail-grid">
+      <dt>出勤日数</dt><dd>{{ work_days }}日</dd>
+      <dt>早出合計</dt><dd>{{ totals.total_early|default:0 }}分 ({{ totals.total_early|default:0|floatformat:0 }}分)</dd>
+      <dt>所定合計</dt><dd>{{ totals.total_normal|default:0 }}分</dd>
+      <dt>残業合計</dt><dd>{{ totals.total_overtime|default:0 }}分</dd>
+      <dt>総労働合計</dt><dd>{{ totals.total_total|default:0 }}分</dd>
+    </dl>
+  </div>
+  <div class="card">
+    <div class="card-header"><h2>作業員情報</h2></div>
+    <dl class="detail-grid">
+      <dt>氏名</dt><dd>{{ worker.name }}</dd>
+      <dt>社員番号</dt><dd>{{ worker.employee_code|default:"-" }}</dd>
+      <dt>職種</dt><dd>{{ worker.job_title|default:"-" }}</dd>
+      <dt>役職</dt><dd>{{ worker.position|default:"-" }}</dd>
+    </dl>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header"><h2>日別明細</h2></div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>日付</th>
+          <th>現場</th>
+          <th>開始</th>
+          <th>終了</th>
+          <th>休憩</th>
+          <th>早出</th>
+          <th>所定</th>
+          <th>残業</th>
+          <th>合計</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for e in entries %}
+        <tr>
+          <td><a href="{% url 'attendance:report_detail' e.report.pk %}">{{ e.report.report_date }}</a></td>
+          <td>{{ e.report.site_name|default:"-" }}</td>
+          <td>{{ e.start_time|default:"-" }}</td>
+          <td>{{ e.end_time|default:"-" }}</td>
+          <td>{{ e.break_minutes }}分</td>
+          <td>{{ e.early_minutes }}分</td>
+          <td>{{ e.normal_minutes }}分</td>
+          <td>{{ e.overtime_minutes }}分</td>
+          <td>{{ e.total_minutes }}分</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="9" style="text-align:center;color:var(--gray-400);padding:20px;">該当月のデータがありません</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

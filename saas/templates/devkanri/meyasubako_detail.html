@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}目安箱 — {{ post.title }} — 建設SaaS{% endblock %}
+{% block topbar_title %}目安箱{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>{{ post.title }}</h1>
+  <a href="{% url 'devkanri:meyasubako_list' %}" class="btn btn-outline">一覧に戻る</a>
+</div>
+
+<div class="card">
+  <div class="card-body">
+    <dl class="detail-grid">
+      <dt>報告者</dt><dd>{{ post.reporter_name }}</dd>
+      <dt>種別</dt>
+      <dd>
+        {% if post.kind == 'bug' %}<span class="badge badge-red">不具合</span>
+        {% elif post.kind == 'usability' %}<span class="badge badge-orange">使いにくい</span>
+        {% elif post.kind == 'feature' %}<span class="badge badge-blue">機能追加</span>
+        {% else %}<span class="badge badge-gray">その他</span>
+        {% endif %}
+      </dd>
+      <dt>対象モジュール</dt><dd>{{ post.get_module_display }}</dd>
+      <dt>緊急度</dt>
+      <dd>
+        {% if post.urgency == 'urgent' %}<span class="badge badge-red">すぐ対応</span>
+        {% else %}<span class="badge badge-gray">急がない</span>
+        {% endif %}
+      </dd>
+      <dt>状態</dt>
+      <dd>
+        {% if post.resolved %}<span class="badge badge-green">対応済み</span>
+        {% else %}<span class="badge badge-blue">未対応</span>
+        {% endif %}
+      </dd>
+      <dt>投稿日</dt><dd>{{ post.created_at|date:"Y/m/d H:i" }}</dd>
+    </dl>
+
+    <hr>
+
+    <h3>困っていること</h3>
+    <p style="white-space: pre-wrap;">{{ post.problem }}</p>
+
+    {% if post.wish %}
+    <h3>こうなってほしい</h3>
+    <p style="white-space: pre-wrap;">{{ post.wish }}</p>
+    {% endif %}
+
+    {% if post.screenshot %}
+    <h3>スクリーンショット</h3>
+    <img src="{{ post.screenshot.url }}" alt="スクリーンショット" style="max-width: 100%; border: 1px solid var(--border); border-radius: var(--radius-sm);">
+    {% endif %}
+
+    <hr>
+
+    <form method="post" action="{% url 'devkanri:meyasubako_resolve' post.pk %}">
+      {% csrf_token %}
+      {% if post.resolved %}
+        <button type="submit" class="btn btn-outline">未対応に戻す</button>
+      {% else %}
+        <button type="submit" class="btn btn-primary">対応済みにする</button>
+      {% endif %}
+    </form>
+  </div>
+</div>
+{% endblock %}

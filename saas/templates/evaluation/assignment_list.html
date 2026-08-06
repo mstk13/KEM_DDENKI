@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}評価者割当 — 建設SaaS{% endblock %}
+{% block topbar_title %}評価者割当{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>評価者割当管理</h1>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 2fr;gap:20px;">
+  <div class="card">
+    <div class="card-header"><h2>割当を追加</h2></div>
+    <div class="card-body">
+      <form method="post">
+        {% csrf_token %}
+        <div class="form-group">
+          <label for="id_evaluator_name">評価者名</label>
+          {{ form.evaluator_name }}
+          {{ form.evaluator_name.errors }}
+        </div>
+        <div class="form-group">
+          <label for="id_target_name">被評価者名</label>
+          {{ form.target_name }}
+          {{ form.target_name.errors }}
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary">追加</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><h2>現在の割当</h2></div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>評価者</th><th>被評価者</th><th></th></tr>
+        </thead>
+        <tbody>
+          {% for a in assignments %}
+          <tr>
+            <td>{{ a.evaluator_name }}</td>
+            <td>{{ a.target_name }}</td>
+            <td>
+              <form method="post" action="{% url 'evaluation:assignment_delete' a.pk %}" style="display:inline;">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-outline btn-sm" onclick="return confirm('削除しますか？')">削除</button>
+              </form>
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="3" style="text-align:center;color:var(--gray-400);padding:20px;">割当がありません</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

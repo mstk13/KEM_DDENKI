@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block title %}{{ evaluation.employee_name }} の評価入力 — 建設SaaS{% endblock %}
+{% block topbar_title %}評価入力{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>{{ evaluation.employee_name }} の評価入力</h1>
+  <a href="{% url 'evaluation:eval_detail' evaluation.pk %}" class="btn btn-outline btn-sm">詳細に戻る</a>
+</div>
+
+<form method="post">
+  {% csrf_token %}
+
+  {% if scores %}
+  <div class="card" style="margin-bottom:20px;">
+    <div class="card-header"><h2>項目別スコア</h2></div>
+    <div class="card-body">
+      {% for s in scores %}
+      <div style="border-bottom:1px solid var(--gray-200);padding:12px 0;">
+        <div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap;">
+          <div style="flex:0 0 40px;font-weight:600;">{{ s.item_num }}.</div>
+          <div style="flex:1;min-width:200px;">
+            <strong>{{ s.item_name }}</strong>
+          </div>
+          <div style="flex:0 0 120px;">
+            <label>スコア</label>
+            <select name="score_{{ s.pk }}" class="form-control">
+              <option value="0" {% if s.score == 0 %}selected{% endif %}>-- 未選択 --</option>
+              <option value="1" {% if s.score == 1 %}selected{% endif %}>1</option>
+              <option value="2" {% if s.score == 2 %}selected{% endif %}>2</option>
+              <option value="3" {% if s.score == 3 %}selected{% endif %}>3</option>
+              <option value="4" {% if s.score == 4 %}selected{% endif %}>4</option>
+              <option value="5" {% if s.score == 5 %}selected{% endif %}>5</option>
+            </select>
+          </div>
+          <div style="flex:1;min-width:200px;">
+            <label>コメント</label>
+            <textarea name="comment_{{ s.pk }}" class="form-control" rows="2">{{ s.comment }}</textarea>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  {% if answers %}
+  <div class="card" style="margin-bottom:20px;">
+    <div class="card-header"><h2>質問回答 (1-5段階)</h2></div>
+    <div class="card-body">
+      {% for a in answers %}
+      <div style="border-bottom:1px solid var(--gray-200);padding:12px 0;">
+        <div style="margin-bottom:8px;">
+          <strong>{{ a.qnum }}.</strong> {{ a.question_text }}
+          <span style="color:var(--gray-400);font-size:0.9em;">({{ a.item_name }})</span>
+        </div>
+        <div style="display:flex;gap:12px;align-items:center;">
+          {% for val in "12345" %}
+          <label style="display:flex;align-items:center;gap:4px;cursor:pointer;">
+            <input type="radio" name="answer_{{ a.pk }}" value="{{ val }}"
+                   {% if a.answer|stringformat:"d" == val %}checked{% endif %}>
+            {{ val }}
+          </label>
+          {% endfor %}
+          <label style="display:flex;align-items:center;gap:4px;cursor:pointer;color:var(--gray-400);">
+            <input type="radio" name="answer_{{ a.pk }}" value=""
+                   {% if not a.answer %}checked{% endif %}>
+            未回答
+          </label>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  {% if overalls %}
+  <div class="card" style="margin-bottom:20px;">
+    <div class="card-header"><h2>総合コメント</h2></div>
+    <div class="card-body">
+      {% for o in overalls %}
+      <div class="form-group">
+        <label><strong>{{ o.qnum }}.</strong> {{ o.question_text }}</label>
+        <textarea name="overall_{{ o.pk }}" class="form-control" rows="3">{{ o.answer_text }}</textarea>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="form-actions">
+    <button type="submit" class="btn btn-primary">回答を保存</button>
+    <a href="{% url 'evaluation:eval_detail' evaluation.pk %}" class="btn btn-outline">キャンセル</a>
+  </div>
+</form>
+{% endblock %}

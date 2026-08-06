@@ -1,218 +1,54 @@
 # =====================================================================
-# ポート割り当て一覧（重複禁止 — 新規追加時は空き番号を使うこと）
-# ---------------------------------------------------------------------
-#   80   : nginx (ポータル + リバースプロキシ)
-#   5000 : material_manager (Flask)
-#   5432 : postgres
-#   8501 : bid_manager
-#   8502 : sagyo_nippou
-#   8503 : eigyo_kanri          [optional]
-#   8504 : evaluation
-#   8505 : evaluation_admin
-#   8506 : kouki_kanri
-#   8510 : nippou_kanri         [optional]
-#   8507〜8509, 8511〜 : 空き（次のアプリ用に予約）
+# KEM_DDENKI SaaS (Django) — Docker Compose
+# =====================================================================
+#
+# 起動: docker compose up -d
+# ログ: docker compose logs -f web
+# マイグレーション: docker compose exec web python manage.py migrate
 # =====================================================================
 
-x-common-env: &common-env
-  KEM_DATA_DIR: /data
-  DATABASE_URL: postgresql://kem:kem@postgres:5432/kem_main
-  # KEM_DEV_MODE=1 はdevブランチでのみ設定。mainでは無効。
-  # KEM_DEV_MODE: "1"
-
-x-app-base: &app-base
-  build:
-    context: .
-    dockerfile: docker/Dockerfile.app
-  volumes:
-    - kem_data:/data
-  env_file:
-    - .env
-  restart: unless-stopped
-  depends_on:
-    postgres:
-      condition: service_healthy
-
 services:
-  # --- データベース ---
-  postgres:
+  db:
     image: postgres:16-alpine
-    environment:
-      POSTGRES_USER: kem
-      POSTGRES_PASSWORD: kem
-      POSTGRES_DB: kem_main
-    volumes:
-      - pg_data:/var/lib/postgresql/data
-      - ./shared/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
-    ports:
-      - "5433:5432"
     restart: unless-stopped
+    environment:
+      POSTGRES_DB: kensetsu_saas
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U kem -d kem_main"]
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
-      timeout: 5s
+      timeout: 3s
       retries: 5
 
-  # --- リバースプロキシ ---
-  # nginx は upstream の DNS を起動時に1回だけ解決する。
-  # depends_on により、アプリ再作成時に nginx も再起動され IP 不整合を防ぐ。
-  nginx:
-    image: nginx:alpine
-    ports:
-      - "8080:80"
-    volumes:
-      - ./docker/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./docker/portal:/usr/share/nginx/html:ro
+  web:
+    build: ./saas
     restart: unless-stopped
     depends_on:
-      - bid_manager
-      - material_manager
-      - sagyo_nippou
-      - evaluation
-      - evaluation_admin
-      - kouki_kanri
-      - jinzai_kanri
-      - dev_kanri
-
-  # --- コアアプリ (4つ) ---
-  bid_manager:
-    <<: *app-base
+      db:
+        condition: service_healthy
     environment:
-      <<: *common-env
-    command:
-      - bid_manager
-      - streamlit
-      - run
-      - app.py
-      - --server.port=8501
-      - --server.headless=true
-      - --server.address=0.0.0.0
-      - --server.baseUrlPath=/bid
-
-  material_manager:
-    <<: *app-base
-    environment:
-      <<: *common-env
-    command:
-      - material_manager
-      - python
-      - app.py
-
-  sagyo_nippou:
-    <<: *app-base
-    environment:
-      <<: *common-env
-    command:
-      - sagyo-nippou
-      - streamlit
-      - run
-      - app.py
-      - --server.port=8502
-      - --server.headless=true
-      - --server.address=0.0.0.0
-      - --server.baseUrlPath=/nippou
-
-  evaluation:
-    <<: *app-base
-    environment:
-      <<: *common-env
-    command:
-      - evaluation
-      - streamlit
-      - run
-      - app.py
-      - --server.port=8504
-      - --server.headless=true
-      - --server.address=0.0.0.0
-      - --server.baseUrlPath=/eval
-
-  evaluation_admin:
-    <<: *app-base
-    environment:
-      <<: *common-env
-    command:
-      - evaluation
-      - streamlit
-      - run
-      - admin_app.py
-      - --server.port=8505
-      - --server.headless=true
-      - --server.address=0.0.0.0
-      - --server.baseUrlPath=/eval-admin
-
-  kouki_kanri:
-    <<: *app-base
-    environment:
-      <<: *common-env
-    command:
-      - kouki-kanri
-      - streamlit
-      - run
-      - app.py
-      - --server.port=8506
-      - --server.headless=true
-      - --server.address=0.0.0.0
-      - --server.baseUrlPath=/kouki
-
-  jinzai_kanri:
-    <<: *app-base
-    environment:
-      <<: *common-env
-    command:
-      - jinzai-kanri
-      - streamlit
-      - run
-      - app.py
-      - --server.port=8507
-      - --server.headless=true
-      - --server.address=0.0.0.0
-      - --server.baseUrlPath=/jinzai
-
-  # --- オプションアプリ (docker compose --profile optional up -d) ---
-  eigyo_kanri:
-    <<: *app-base
-    profiles: [optional]
-    environment:
-      <<: *common-env
-    command:
-      - eigyo-kanri
-      - streamlit
-      - run
-      - app.py
-      - --server.port=8503
-      - --server.headless=true
-      - --server.address=0.0.0.0
-      - --server.baseUrlPath=/eigyo
-
-  nippou_kanri:
-    <<: *app-base
-    profiles: [optional]
-    environment:
-      <<: *common-env
-    command:
-      - nippou-kanri
-      - streamlit
-      - run
-      - app.py
-      - --server.port=8510
-      - --server.headless=true
-      - --server.address=0.0.0.0
-      - --server.baseUrlPath=/nippou-kanri
-
-  dev_kanri:
-    <<: *app-base
-    environment:
-      <<: *common-env
-    command:
-      - dev-kanri
-      - streamlit
-      - run
-      - app.py
-      - --server.port=8508
-      - --server.headless=true
-      - --server.address=0.0.0.0
-      - --server.baseUrlPath=/dev
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:-change-me-in-production}
+      DJANGO_DEBUG: ${DJANGO_DEBUG:-True}
+      DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1,*}
+      DB_NAME: kensetsu_saas
+      DB_USER: postgres
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      DB_HOST: db
+      DB_PORT: "5432"
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    ports:
+      - "8000:8000"
+    volumes:
+      - media_data:/app/media
+    command: >
+      sh -c "python manage.py migrate --noinput &&
+             gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 4 --threads 2"
 
 volumes:
-  kem_data:
-  pg_data:
+  pgdata:
+  media_data:
