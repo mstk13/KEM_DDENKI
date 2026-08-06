@@ -2,8 +2,8 @@
 # pre-push hook: push前にリモートの最新を取得し、ローカルが古い場合はpushを中断する
 #
 # 設定方法（各PCで1回実行）:
-#   cp tools/git-hooks/pre-push .git/hooks/pre-push
-#   chmod +x .git/hooks/pre-push
+#   bash tools/git-hooks/install.sh   (Linux/Mac/WSL)
+#   tools\git-hooks\install.bat       (Windows)
 
 set -e
 
@@ -12,33 +12,29 @@ if [ -z "$BRANCH" ]; then
     exit 0  # detached HEAD はスキップ
 fi
 
-REMOTE="origin"
+# push先のリモートとrefを標準入力から読み取る
+while read local_ref local_sha remote_ref remote_sha; do
+    # 新規ブランチ（remote_shaが全てゼロ）はスキップ
+    if echo "$remote_sha" | grep -q '^0\{40\}'; then
+        echo "[pre-push] 新しいブランチです。push を続行します。"
+        exit 0
+    fi
 
-echo "[pre-push] リモートの最新状態を確認中..."
-git fetch "$REMOTE" "$BRANCH" 2>/dev/null || exit 0
-
-LOCAL=$(git rev-parse "$BRANCH")
-REMOTE_REF=$(git rev-parse "$REMOTE/$BRANCH" 2>/dev/null || echo "")
-
-if [ -z "$REMOTE_REF" ]; then
-    echo "[pre-push] 新しいブランチです。push を続行します。"
-    exit 0
-fi
-
-# ローカルがリモートの子孫かチェック（fast-forward可能か）
-if ! git merge-base --is-ancestor "$REMOTE_REF" "$LOCAL" 2>/dev/null; then
-    echo ""
-    echo "======================================================"
-    echo "  エラー: ローカルがリモートより古い状態です！"
-    echo ""
-    echo "  先に以下を実行してください:"
-    echo "    git pull --rebase origin $BRANCH"
-    echo ""
-    echo "  その後もう一度 git push してください。"
-    echo "======================================================"
-    echo ""
-    exit 1
-fi
+    # ローカルがリモートの子孫かチェック（fast-forward可能か）
+    if ! git merge-base --is-ancestor "$remote_sha" "$local_sha" 2>/dev/null; then
+        echo ""
+        echo "======================================================"
+        echo "  エラー: ローカルがリモートより古い状態です！"
+        echo ""
+        echo "  先に以下を実行してください:"
+        echo "    git pull --rebase origin $BRANCH"
+        echo ""
+        echo "  その後もう一度 git push してください。"
+        echo "======================================================"
+        echo ""
+        exit 1
+    fi
+done
 
 echo "[pre-push] 最新状態を確認しました。push を続行します。"
 exit 0
