@@ -1,5 +1,5 @@
 from django.conf import settings
-from django.contrib.auth import login
+from django.contrib.auth import login, logout
 from django.http import JsonResponse
 from django.shortcuts import redirect, render
 
@@ -98,3 +98,9 @@ def employee_login(request):
             return redirect("dashboard")
 
     return render(request, "registration/login.html", {"error": error})
+
+
+def employee_logout(request):
+    """ログアウト。セッションを完全にクリアしてログイン画面へ。"""
+    logout(request)
+    return redirect("login")

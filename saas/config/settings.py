@@ -40,6 +40,8 @@ INSTALLED_APPS = [
     "apps.devkanri",
     "apps.schedules",
     "apps.bids",
+    "apps.notifications",
+    "apps.permissions",
     "apps.sales",
     "apps.evaluation",
     "apps.attendance",

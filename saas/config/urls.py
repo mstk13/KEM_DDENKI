@@ -1,7 +1,6 @@
 from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
-from django.contrib.auth import views as auth_views
 from django.http import JsonResponse
 from django.urls import include, path
 
@@ -25,7 +24,7 @@ urlpatterns = [
     path("health/", health_check),
     # Auth
     path("login/", include("apps.accounts.urls")),
-    path("logout/", auth_views.LogoutView.as_view(), name="logout"),
+    path("logout/", include("apps.accounts.urls_logout")),
     # Dashboard
     path("", dashboard, name="dashboard"),
     # Apps
@@ -38,6 +37,8 @@ urlpatterns = [
     path("dev/", include("apps.devkanri.urls")),
     path("schedules/", include("apps.schedules.urls")),
     path("bids/", include("apps.bids.urls")),
+    path("notifications/", include("apps.notifications.urls")),
+    path("settings/permissions/", include("apps.permissions.urls")),
     path("sales/", include("apps.sales.urls")),
     path("attendance/", include("apps.attendance.urls")),
     path("evaluation/", include("apps.evaluation.urls")),
