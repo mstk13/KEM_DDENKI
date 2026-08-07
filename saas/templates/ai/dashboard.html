@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% block title %}AI利用状況 — 建設SaaS{% endblock %}
+{% block topbar_title %}AI分析基盤{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>AI利用状況ダッシュボード</h1>
+  <div class="page-actions">
+    <a href="{% url 'ai:log_list' %}" class="btn btn-outline">実行ログ一覧</a>
+  </div>
+</div>
+
+<!-- KPIカード -->
+<div class="stats-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:24px;">
+  <div class="card">
+    <div class="card-body" style="text-align:center;">
+      <div style="color:var(--text-secondary);font-size:13px;">平均評価</div>
+      <div style="font-size:28px;font-weight:700;color:var(--primary);">
+        {% if feedback_stats.avg_rating %}
+          {{ feedback_stats.avg_rating|floatformat:1 }}
+        {% else %}—{% endif %}
+      </div>
+      <div style="font-size:13px;color:var(--text-secondary);">/ 5.0</div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-body" style="text-align:center;">
+      <div style="color:var(--text-secondary);font-size:13px;">総フィードバック数</div>
+      <div style="font-size:28px;font-weight:700;">{{ feedback_stats.total_feedbacks|default:"0" }}</div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-body" style="text-align:center;">
+      <div style="color:var(--text-secondary);font-size:13px;">提案採用数</div>
+      <div style="font-size:28px;font-weight:700;color:#10b981;">{{ feedback_stats.adopted_count|default:"0" }}</div>
+    </div>
+  </div>
+</div>
+
+<!-- タスク種別ごとの統計 -->
+<div class="card">
+  <div class="card-header"><h2>タスク種別ごとの利用状況</h2></div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>タスク種別</th>
+          <th style="text-align:right;">呼び出し回数</th>
+          <th style="text-align:right;">累計費用</th>
+          <th style="text-align:right;">平均レイテンシ</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for stat in task_stats %}
+        <tr>
+          <td>{{ stat.task_type }}</td>
+          <td style="text-align:right;">{{ stat.call_count }}</td>
+          <td style="text-align:right;">
+            {% if stat.total_cost %}${{ stat.total_cost|floatformat:4 }}{% else %}—{% endif %}
+          </td>
+          <td style="text-align:right;">
+            {% if stat.avg_latency %}{{ stat.avg_latency|floatformat:0 }}ms{% else %}—{% endif %}
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="4"><div class="empty"><p>データがありません</p></div></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- 月別推移 -->
+<div class="card" style="margin-top:16px;">
+  <div class="card-header"><h2>月別利用推移</h2></div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>月</th>
+          <th style="text-align:right;">呼び出し回数</th>
+          <th style="text-align:right;">累計費用</th>
+          <th style="text-align:right;">平均レイテンシ</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for stat in monthly_stats %}
+        <tr>
+          <td>{{ stat.month|date:"Y年m月" }}</td>
+          <td style="text-align:right;">{{ stat.call_count }}</td>
+          <td style="text-align:right;">
+            {% if stat.total_cost %}${{ stat.total_cost|floatformat:4 }}{% else %}—{% endif %}
+          </td>
+          <td style="text-align:right;">
+            {% if stat.avg_latency %}{{ stat.avg_latency|floatformat:0 }}ms{% else %}—{% endif %}
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="4"><div class="empty"><p>データがありません</p></div></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

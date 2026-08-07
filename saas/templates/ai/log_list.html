@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% block title %}AI実行ログ — 建設SaaS{% endblock %}
+{% block topbar_title %}AI分析基盤{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>AI実行ログ</h1>
+  <div class="page-actions">
+    <a href="{% url 'ai:dashboard' %}" class="btn btn-outline">利用状況ダッシュボード</a>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <h2>フィルタ</h2>
+  </div>
+  <div class="card-body">
+    <form method="get" style="display:flex;gap:12px;align-items:end;flex-wrap:wrap;">
+      <div>
+        <label class="form-label">タスク種別</label>
+        <select name="task_type" class="form-control">
+          <option value="">すべて</option>
+          {% for value, label in task_type_choices %}
+          <option value="{{ value }}" {% if selected_task_type == value %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="form-label">使用モデル</label>
+        <select name="model_used" class="form-control">
+          <option value="">すべて</option>
+          {% for value, label in model_choices %}
+          <option value="{{ value }}" {% if selected_model == value %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <button type="submit" class="btn btn-primary">絞り込み</button>
+    </form>
+  </div>
+</div>
+
+<div class="card" style="margin-top:16px;">
+  <div class="card-header"><h2>実行ログ</h2></div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>日時</th>
+          <th>タスク種別</th>
+          <th>モデル</th>
+          <th>対象現場</th>
+          <th>ステータス</th>
+          <th style="text-align:right;">レイテンシ</th>
+          <th style="text-align:right;">費用</th>
+          <th>評価</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for log in logs %}
+        <tr>
+          <td>{{ log.created_at|date:"Y-m-d H:i" }}</td>
+          <td><span class="badge badge-blue">{{ log.get_task_type_display }}</span></td>
+          <td>{{ log.get_model_used_display }}</td>
+          <td>{% if log.site %}{{ log.site.name }}{% else %}—{% endif %}</td>
+          <td>
+            {% if log.status == 'success' %}<span class="badge badge-green">成功</span>
+            {% elif log.status == 'error' %}<span class="badge badge-red">エラー</span>
+            {% else %}<span class="badge badge-orange">タイムアウト</span>
+            {% endif %}
+          </td>
+          <td style="text-align:right;">{{ log.latency_ms }}ms</td>
+          <td style="text-align:right;">
+            {% if log.cost_usd %}${{ log.cost_usd }}{% else %}—{% endif %}
+          </td>
+          <td>
+            {% if log.feedback %}
+              {% for i in "12345" %}
+                {% if forloop.counter <= log.feedback.rating %}
+                  <span style="color:#f59e0b;">&#9733;</span>
+                {% else %}
+                  <span style="color:#d1d5db;">&#9733;</span>
+                {% endif %}
+              {% endfor %}
+            {% else %}
+              <span style="color:var(--text-secondary);">未評価</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if not log.feedback %}
+            <a href="{% url 'ai:feedback_create' log.pk %}" class="btn btn-outline btn-xs">評価する</a>
+            {% endif %}
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="9"><div class="empty"><p>AI実行ログがありません</p></div></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

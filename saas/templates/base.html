@@ -95,6 +95,18 @@
         </div>
       </div>
 
+      <div class="nav-group {% if 'ai:' in request.resolver_match.view_name %}open{% endif %}">
+        <button class="nav-section" type="button">AI分析<span class="nav-chevron"></span></button>
+        <div class="nav-group-items">
+          <a href="{% url 'ai:dashboard' %}" class="{% if request.resolver_match.url_name == 'dashboard' and 'ai:' in request.resolver_match.view_name %}active{% endif %}">
+            <span class="nav-icon">&#x1f4ca;</span> 利用状況
+          </a>
+          <a href="{% url 'ai:log_list' %}" class="{% if 'log' in request.resolver_match.url_name and 'ai:' in request.resolver_match.view_name %}active{% endif %}">
+            <span class="nav-icon">&#x1f4c4;</span> 実行ログ
+          </a>
+        </div>
+      </div>
+
       <div class="nav-group {% if 'masters:' in request.resolver_match.view_name %}open{% endif %}">
         <button class="nav-section" type="button">設定<span class="nav-chevron"></span></button>
         <div class="nav-group-items">
