@@ -39,6 +39,20 @@ services:
       - media_data:/app/media
     command: ["python", "manage.py", "runserver", "0.0.0.0:8000"]
 
+  # --- Cloudflare Tunnel（社外アクセス用・任意） ---
+  # 使用する場合は .env に CLOUDFLARE_TUNNEL_TOKEN を設定してください。
+  # トークン未設定時はこのコンテナは起動しません。
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:-}
+    depends_on:
+      - web
+    profiles:
+      - tunnel
+
 volumes:
   pgdata:
   media_data:
