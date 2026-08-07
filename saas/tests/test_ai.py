@@ -1,7 +1,9 @@
-"""AI分析基盤テスト: モデル・越境テスト・データ収集・プロンプトビルダー。"""
+"""AI分析基盤テスト: モデル・越境テスト・データ収集・プロンプトビルダー・ML予測。"""
 
+import shutil
 from datetime import date, timedelta
 from decimal import Decimal
+from pathlib import Path
 
 import pytest
 
@@ -381,3 +383,161 @@ class TestPromptBuilder:
         assert "電気工事標準" in prompt
         assert "JSON" in prompt
         assert "phases" in prompt
+
+
+# ---------------------------------------------------------------------------
+# ML予測モデルテスト
+# ---------------------------------------------------------------------------
+
+lgb = pytest.importorskip("lightgbm", reason="lightgbm がインストールされていません")
+joblib = pytest.importorskip("joblib", reason="joblib がインストールされていません")
+sklearn = pytest.importorskip("sklearn", reason="scikit-learn がインストールされていません")
+
+
+@pytest.fixture
+def multiple_completed_sites(company_a, cost_categories):
+    """学習用の完工済み現場を複数作成する（最低5件）。"""
+    wt = WorkType.unscoped.filter(company=company_a, code="E01").first()
+    if not wt:
+        wt = WorkType.unscoped.create(company=company_a, code="E01", name="電気幹線")
+
+    today = date.today()
+    sites = []
+
+    for i in range(6):
+        contract = Decimal(str(8_000_000 + i * 2_000_000))
+        budget = Decimal(str(6_000_000 + i * 1_500_000))
+        cost = budget * Decimal("0.85") + Decimal(str(i * 100_000))
+
+        site = Site.unscoped.create(
+            company=company_a,
+            code=f"COMP{i:03d}",
+            name=f"完工現場{i}",
+            contract_amount=contract,
+            status=Site.Status.COMPLETED,
+            start_date=today - timedelta(days=200 + i * 10),
+            end_date=today - timedelta(days=30 + i * 5),
+        )
+        site.work_types.add(wt)
+
+        BudgetItem.unscoped.create(
+            company=company_a,
+            site=site,
+            work_type=wt,
+            cost_category=cost_categories["labor"],
+            name="労務費",
+            amount=budget,
+        )
+        CostTransaction.unscoped.create(
+            company=company_a,
+            site=site,
+            work_type=wt,
+            cost_category=cost_categories["labor"],
+            amount=cost,
+            transaction_date=today - timedelta(days=60 + i * 5),
+            source_type=CostTransaction.SourceType.DAILY_REPORT,
+        )
+        sites.append(site)
+
+    return sites
+
+
+@pytest.fixture
+def predictor_with_tmp_dir(tmp_path):
+    """一時ディレクトリを使う CostPredictor を生成する。"""
+    from apps.ai.services.ml_predictor import CostPredictor
+
+    predictor = CostPredictor()
+    predictor.MODEL_DIR = tmp_path / "ml_models"
+    predictor.MODEL_DIR.mkdir(parents=True, exist_ok=True)
+    return predictor
+
+
+@pytest.mark.django_db
+class TestCostPredictor:
+    def test_train_with_insufficient_data(
+        self, company_a, cost_categories, predictor_with_tmp_dir,
+    ):
+        """5件未満で学習できないことを確認。"""
+        wt = WorkType.unscoped.filter(company=company_a, code="E01").first()
+        if not wt:
+            wt = WorkType.unscoped.create(
+                company=company_a, code="E01", name="電気幹線",
+            )
+        today = date.today()
+
+        # 2件だけ作成（5件未満）
+        for i in range(2):
+            site = Site.unscoped.create(
+                company=company_a,
+                code=f"FEW{i:03d}",
+                name=f"少数現場{i}",
+                contract_amount=Decimal("10000000"),
+                status=Site.Status.COMPLETED,
+                start_date=today - timedelta(days=180),
+                end_date=today - timedelta(days=30),
+            )
+            BudgetItem.unscoped.create(
+                company=company_a,
+                site=site,
+                work_type=wt,
+                cost_category=cost_categories["labor"],
+                name="労務費",
+                amount=Decimal("5000000"),
+            )
+            CostTransaction.unscoped.create(
+                company=company_a,
+                site=site,
+                work_type=wt,
+                cost_category=cost_categories["labor"],
+                amount=Decimal("4500000"),
+                transaction_date=today - timedelta(days=60),
+                source_type=CostTransaction.SourceType.DAILY_REPORT,
+            )
+
+        result = predictor_with_tmp_dir.train(company_a)
+        assert result["status"] == "insufficient_data"
+
+    def test_train_and_predict(
+        self,
+        company_a,
+        cost_categories,
+        multiple_completed_sites,
+        site_with_data,
+        predictor_with_tmp_dir,
+    ):
+        """完工済み現場でtrain → 施工中現場でpredict が動くことを確認。"""
+        # 学習
+        result = predictor_with_tmp_dir.train(company_a)
+        assert result["status"] == "success"
+        assert result["n_samples"] >= 5
+
+        # 予測
+        site = site_with_data["site"]
+        prediction = predictor_with_tmp_dir.predict(site)
+
+        assert prediction is not None
+        assert "predicted_final_cost" in prediction
+        assert "predicted_consumption_ratio" in prediction
+        assert "overrun_probability" in prediction
+        assert "confidence" in prediction
+        assert "feature_importance" in prediction
+
+        # 型チェック
+        assert isinstance(prediction["predicted_final_cost"], Decimal)
+        assert isinstance(prediction["predicted_consumption_ratio"], float)
+        assert isinstance(prediction["overrun_probability"], float)
+        assert prediction["confidence"] in ("high", "medium", "low")
+        assert isinstance(prediction["feature_importance"], dict)
+
+        # 値の範囲チェック
+        assert prediction["predicted_final_cost"] >= 0
+        assert 0 <= prediction["overrun_probability"] <= 1
+
+    def test_predict_without_model(
+        self, company_a, site_with_data, predictor_with_tmp_dir,
+    ):
+        """モデル未学習で予測するとNoneが返ることを確認。"""
+        site = site_with_data["site"]
+        prediction = predictor_with_tmp_dir.predict(site)
+        assert prediction is None

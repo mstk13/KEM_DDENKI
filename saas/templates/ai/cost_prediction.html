@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+{% block title %}AI コスト予測 {{ site.name }} — 建設SaaS{% endblock %}
+{% block topbar_title %}AI コスト予測{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>{{ site.name }} - コスト予測</h1>
+  <a href="{% url 'costs:list' %}" class="btn btn-outline">← 原価管理</a>
+</div>
+
+{% if error_message %}
+<div class="card" style="margin-bottom:20px;">
+  <div class="card-header"><h2>予測不可</h2></div>
+  <div style="padding:20px;">
+    <p style="color:#b91c1c;">{{ error_message }}</p>
+  </div>
+</div>
+{% endif %}
+
+{% if prediction %}
+<!-- KPI カード -->
+<div class="stats">
+  <div class="stat-card {% if prediction.consumption_ratio_pct >= 100 %}red{% elif prediction.consumption_ratio_pct >= 90 %}orange{% else %}blue{% endif %}">
+    <div class="stat-label">予測最終原価</div>
+    <div class="stat-value">¥{{ prediction.predicted_final_cost|floatformat:0 }}</div>
+  </div>
+  <div class="stat-card {% if prediction.consumption_ratio_pct >= 100 %}red{% elif prediction.consumption_ratio_pct >= 90 %}orange{% else %}green{% endif %}">
+    <div class="stat-label">予測消化率</div>
+    <div class="stat-value">{{ prediction.consumption_ratio_pct }}%</div>
+  </div>
+  <div class="stat-card {% if prediction.overrun_probability_pct >= 50 %}red{% elif prediction.overrun_probability_pct >= 30 %}orange{% else %}green{% endif %}">
+    <div class="stat-label">予算超過確率</div>
+    <div class="stat-value">{{ prediction.overrun_probability_pct }}%</div>
+  </div>
+  <div class="stat-card {% if prediction.confidence == 'high' %}green{% elif prediction.confidence == 'medium' %}orange{% else %}default{% endif %}">
+    <div class="stat-label">信頼度</div>
+    <div class="stat-value">
+      {% if prediction.confidence == 'high' %}高
+      {% elif prediction.confidence == 'medium' %}中
+      {% else %}低
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+
+  <!-- 予測詳細 -->
+  <div class="card">
+    <div class="card-header"><h2>予測詳細</h2></div>
+    <div class="table-wrap">
+      <table>
+        <tbody>
+          <tr>
+            <td style="font-weight:600;">予測最終原価</td>
+            <td style="text-align:right;font-size:1.1em;font-weight:600;">
+              ¥{{ prediction.predicted_final_cost|floatformat:0 }}
+            </td>
+          </tr>
+          <tr>
+            <td style="font-weight:600;">予測最終消化率</td>
+            <td style="text-align:right;">{{ prediction.consumption_ratio_pct }}%</td>
+          </tr>
+          <tr>
+            <td style="font-weight:600;">予算超過確率</td>
+            <td style="text-align:right;">
+              {% if prediction.overrun_probability_pct >= 50 %}
+                <span class="badge badge-red">{{ prediction.overrun_probability_pct }}%</span>
+              {% elif prediction.overrun_probability_pct >= 30 %}
+                <span class="badge badge-orange">{{ prediction.overrun_probability_pct }}%</span>
+              {% else %}
+                <span class="badge badge-green">{{ prediction.overrun_probability_pct }}%</span>
+              {% endif %}
+            </td>
+          </tr>
+          <tr>
+            <td style="font-weight:600;">信頼度</td>
+            <td style="text-align:right;">
+              {% if prediction.confidence == 'high' %}
+                <span class="badge badge-green">高</span>
+              {% elif prediction.confidence == 'medium' %}
+                <span class="badge badge-orange">中</span>
+              {% else %}
+                <span class="badge badge-yellow">低</span>
+              {% endif %}
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- 特徴量重要度 -->
+  <div class="card">
+    <div class="card-header"><h2>予測に影響した要因 (Top 5)</h2></div>
+    <div style="padding:20px;">
+      {% for item in importance_items %}
+      <div style="margin-bottom:12px;">
+        <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+          <span style="font-weight:600;font-size:0.9em;">{{ item.name }}</span>
+          <span style="font-size:0.85em;color:#6b7280;">{{ item.value|floatformat:0 }}</span>
+        </div>
+        <div style="background:#e5e7eb;border-radius:4px;height:20px;overflow:hidden;">
+          <div style="background:{% if forloop.first %}#3b82f6{% elif forloop.counter == 2 %}#60a5fa{% elif forloop.counter == 3 %}#93c5fd{% else %}#bfdbfe{% endif %};height:100%;width:{{ item.pct }}%;border-radius:4px;transition:width 0.3s;"></div>
+        </div>
+      </div>
+      {% empty %}
+      <p style="color:#9ca3af;">特徴量重要度データがありません。</p>
+      {% endfor %}
+    </div>
+  </div>
+
+</div>
+
+<div class="card" style="margin-top:20px;">
+  <div style="padding:16px;background:#f8fafc;border-radius:8px;">
+    <p style="font-size:0.85em;color:#6b7280;margin:0;">
+      <strong>注意:</strong>
+      この予測は過去の完工済み現場データに基づく統計的な推定です。
+      実際の原価は現場状況・外部環境によって異なる場合があります。
+      信頼度が「低」の場合、学習データが少ないため参考値としてご利用ください。
+    </p>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

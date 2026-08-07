@@ -8,4 +8,5 @@ urlpatterns = [
     path("logs/", views.ai_log_list, name="log_list"),
     path("logs/<int:pk>/feedback/", views.ai_feedback_create, name="feedback_create"),
     path("dashboard/", views.ai_dashboard, name="dashboard"),
+    path("predict/<int:site_id>/", views.cost_prediction, name="cost_prediction"),
 ]
