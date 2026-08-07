@@ -1,0 +1,176 @@
+{% extends "base.html" %}
+{% block title %}工程提案 — {{ site.name }}{% endblock %}
+{% block topbar_title %}AI分析基盤{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>AI工程提案 — {{ site.name }}</h1>
+  <div class="page-actions">
+    <a href="{% url 'schedules:list' %}" class="btn btn-outline">工期管理に戻る</a>
+  </div>
+</div>
+
+{% if error_message %}
+<div class="message message-warning" style="margin-bottom:16px;">{{ error_message }}</div>
+{% endif %}
+
+{% if not result %}
+<div class="card">
+  <div class="card-header"><h2>工程提案を実行</h2></div>
+  <div class="card-body">
+    <p style="margin-bottom:16px;color:var(--text-secondary);">
+      過去の類似現場の実績工程と既存テンプレートをもとに、Claude AIが最適な工程計画を提案します。
+    </p>
+    <form method="post">
+      {% csrf_token %}
+      <div style="display:flex;gap:12px;align-items:end;">
+        <div>
+          <label class="form-label">使用モデル</label>
+          <select name="model" class="form-control">
+            <option value="haiku" selected>Haiku（高速・低コスト）</option>
+            <option value="sonnet">Sonnet（高精度）</option>
+          </select>
+        </div>
+        <button type="submit" class="btn btn-primary">工程提案を取得</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
+
+{% if result %}
+  {% if result.parsed %}
+
+  {% if result.parsed.recommended_template %}
+  <div class="card" style="margin-bottom:16px;">
+    <div class="card-body">
+      <strong>推奨テンプレート:</strong> {{ result.parsed.recommended_template }}
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- 工程フェーズ -->
+  <div class="card" style="margin-bottom:16px;">
+    <div class="card-header"><h2>提案工程</h2></div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>工程名</th>
+            <th>工種</th>
+            <th style="text-align:right;">開始（日目）</th>
+            <th style="text-align:right;">終了（日目）</th>
+            <th>進捗目安</th>
+            <th>注意点</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for phase in result.parsed.phases %}
+          <tr>
+            <td style="font-weight:600;">{{ phase.name }}</td>
+            <td>{{ phase.work_type|default:"—" }}</td>
+            <td style="text-align:right;">+{{ phase.start_offset_days }}日</td>
+            <td style="text-align:right;">+{{ phase.end_offset_days }}日</td>
+            <td style="color:var(--text-secondary);font-size:13px;">{{ phase.estimated_progress_rate|default:"—" }}</td>
+            <td style="color:#f59e0b;font-size:13px;">{{ phase.risk_note|default:"—" }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ガントチャート風の視覚化 -->
+  {% if result.parsed.phases %}
+  <div class="card" style="margin-bottom:16px;">
+    <div class="card-header"><h2>工程イメージ</h2></div>
+    <div class="card-body" style="overflow-x:auto;">
+      {% for phase in result.parsed.phases %}
+      <div style="display:flex;align-items:center;margin-bottom:8px;">
+        <span style="width:120px;font-size:13px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ phase.name }}</span>
+        <div style="flex:1;position:relative;height:24px;background:var(--bg-secondary);border-radius:4px;">
+          {% widthratio phase.start_offset_days result.parsed.phases|last:end_offset_days 100 as start_pct %}
+          {% widthratio phase.end_offset_days result.parsed.phases|last:end_offset_days 100 as end_pct %}
+          <div style="position:absolute;left:{{ start_pct|default:0 }}%;width:{{ end_pct|default:50 }}%;height:100%;background:#3b82f6;border-radius:4px;opacity:0.8;"></div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- マイルストーン -->
+  {% if result.parsed.milestones %}
+  <div class="card" style="margin-bottom:16px;">
+    <div class="card-header"><h2>マイルストーン</h2></div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>名称</th><th style="text-align:right;">目標日（日目）</th><th>重要度</th></tr>
+        </thead>
+        <tbody>
+          {% for ms in result.parsed.milestones %}
+          <tr>
+            <td>{{ ms.name }}</td>
+            <td style="text-align:right;">+{{ ms.offset_days }}日</td>
+            <td>
+              {% if ms.importance == 'high' %}<span class="badge badge-red">高</span>
+              {% elif ms.importance == 'medium' %}<span class="badge badge-orange">中</span>
+              {% else %}<span class="badge badge-green">低</span>{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- 注意点 -->
+  {% if result.parsed.warnings %}
+  <div class="card" style="margin-bottom:16px;">
+    <div class="card-header"><h2>過去の類似現場からの注意点</h2></div>
+    <div class="card-body">
+      <ul>
+        {% for w in result.parsed.warnings %}
+        <li style="margin-bottom:8px;color:#f59e0b;">{{ w }}</li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- 人員配置提案 -->
+  {% if result.parsed.resource_suggestion %}
+  <div class="card" style="margin-bottom:16px;">
+    <div class="card-header"><h2>人員配置提案</h2></div>
+    <div class="card-body">
+      <dl style="display:grid;grid-template-columns:150px 1fr;gap:8px 16px;">
+        <dt style="color:var(--text-secondary);">ピーク人員</dt>
+        <dd>{{ result.parsed.resource_suggestion.peak_workers }}人</dd>
+        <dt style="color:var(--text-secondary);">ピーク期間</dt>
+        <dd>{{ result.parsed.resource_suggestion.peak_period }}</dd>
+        <dt style="color:var(--text-secondary);">備考</dt>
+        <dd>{{ result.parsed.resource_suggestion.note }}</dd>
+      </dl>
+    </div>
+  </div>
+  {% endif %}
+
+  {% else %}
+  <div class="card" style="margin-bottom:16px;">
+    <div class="card-header"><h2>AIの応答（生テキスト）</h2></div>
+    <div class="card-body">
+      <pre style="background:var(--bg-secondary);padding:16px;border-radius:8px;overflow-x:auto;font-size:13px;line-height:1.6;white-space:pre-wrap;">{{ result.raw }}</pre>
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="card">
+    <div class="card-body" style="display:flex;justify-content:space-between;align-items:center;">
+      <span style="color:var(--text-secondary);">この提案は役に立ちましたか？</span>
+      <a href="{% url 'ai:feedback_create' result.ai_log_id %}" class="btn btn-outline btn-sm">評価する</a>
+    </div>
+  </div>
+{% endif %}
+{% endblock %}

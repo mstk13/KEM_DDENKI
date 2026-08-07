@@ -201,3 +201,145 @@ def _feature_display_name(key):
         code = key.replace("ratio_", "")
         return f"{code}比率"
     return names.get(key, key)
+
+
+def _check_site_access(request, site):
+    """テナント分離チェック。アクセス不可なら redirect を返す。"""
+    if site.company != request.user.company:
+        messages.error(request, "この現場にアクセスする権限がありません。")
+        return redirect("costs:list")
+    return None
+
+
+@login_required
+def cost_optimization(request, site_id):
+    """コスト最適化提案を表示する。"""
+    site = get_object_or_404(Site, pk=site_id)
+    denied = _check_site_access(request, site)
+    if denied:
+        return denied
+
+    result = None
+    error_message = None
+    model_key = request.GET.get("model", "haiku")
+
+    if request.method == "POST":
+        try:
+            from apps.ai.services.llm_advisor import get_cost_optimization, HAS_ANTHROPIC
+
+            if not HAS_ANTHROPIC:
+                error_message = "anthropic パッケージがインストールされていません。"
+            else:
+                # ML予測結果があれば取得
+                ml_prediction = None
+                try:
+                    from apps.ai.services.ml_predictor import CostPredictor, HAS_LGBM
+
+                    if HAS_LGBM:
+                        predictor = CostPredictor()
+                        ml_prediction = predictor.predict(site, user=request.user)
+                except Exception:
+                    logger.info("ML予測は利用不可（スキップ）")
+
+                model_key = request.POST.get("model", "haiku")
+                result = get_cost_optimization(
+                    site,
+                    user=request.user,
+                    model_key=model_key,
+                    prediction=ml_prediction,
+                )
+                if result["parsed"] is None:
+                    error_message = "AIの応答を解析できませんでした。生テキストを表示します。"
+
+        except ValueError as e:
+            error_message = str(e)
+        except Exception:
+            logger.exception("コスト最適化提案でエラー: site=%s", site.name)
+            error_message = "処理中にエラーが発生しました。"
+
+    return render(request, "ai/cost_optimization.html", {
+        "site": site,
+        "result": result,
+        "error_message": error_message,
+        "model_key": model_key,
+    })
+
+
+@login_required
+def schedule_suggestion(request, site_id):
+    """工程提案を表示する。"""
+    site = get_object_or_404(Site, pk=site_id)
+    denied = _check_site_access(request, site)
+    if denied:
+        return denied
+
+    result = None
+    error_message = None
+    model_key = request.GET.get("model", "haiku")
+
+    if request.method == "POST":
+        try:
+            from apps.ai.services.llm_advisor import get_schedule_suggestion, HAS_ANTHROPIC
+
+            if not HAS_ANTHROPIC:
+                error_message = "anthropic パッケージがインストールされていません。"
+            else:
+                model_key = request.POST.get("model", "haiku")
+                result = get_schedule_suggestion(
+                    site, user=request.user, model_key=model_key,
+                )
+                if result["parsed"] is None:
+                    error_message = "AIの応答を解析できませんでした。生テキストを表示します。"
+
+        except ValueError as e:
+            error_message = str(e)
+        except Exception:
+            logger.exception("工程提案でエラー: site=%s", site.name)
+            error_message = "処理中にエラーが発生しました。"
+
+    return render(request, "ai/schedule_suggestion.html", {
+        "site": site,
+        "result": result,
+        "error_message": error_message,
+        "model_key": model_key,
+    })
+
+
+@login_required
+def schedule_risk(request, site_id):
+    """工程リスク分析を表示する。"""
+    site = get_object_or_404(Site, pk=site_id)
+    denied = _check_site_access(request, site)
+    if denied:
+        return denied
+
+    result = None
+    error_message = None
+    model_key = request.GET.get("model", "haiku")
+
+    if request.method == "POST":
+        try:
+            from apps.ai.services.llm_advisor import get_schedule_risk_analysis, HAS_ANTHROPIC
+
+            if not HAS_ANTHROPIC:
+                error_message = "anthropic パッケージがインストールされていません。"
+            else:
+                model_key = request.POST.get("model", "haiku")
+                result = get_schedule_risk_analysis(
+                    site, user=request.user, model_key=model_key,
+                )
+                if result["parsed"] is None:
+                    error_message = "AIの応答を解析できませんでした。生テキストを表示します。"
+
+        except ValueError as e:
+            error_message = str(e)
+        except Exception:
+            logger.exception("工程リスク分析でエラー: site=%s", site.name)
+            error_message = "処理中にエラーが発生しました。"
+
+    return render(request, "ai/schedule_risk.html", {
+        "site": site,
+        "result": result,
+        "error_message": error_message,
+        "model_key": model_key,
+    })
