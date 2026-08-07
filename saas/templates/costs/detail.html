@@ -5,7 +5,11 @@
 {% block content %}
 <div class="page-header">
   <h1>{{ site.name }}</h1>
-  <a href="{% url 'costs:list' %}" class="btn btn-outline">← 現場一覧</a>
+  <div class="page-actions" style="display:flex;gap:8px;">
+    <a href="{% url 'ai:cost_prediction' site.pk %}" class="btn btn-outline">AI予測</a>
+    <a href="{% url 'ai:cost_optimization' site.pk %}" class="btn btn-primary">AI最適化提案</a>
+    <a href="{% url 'costs:list' %}" class="btn btn-outline">← 現場一覧</a>
+  </div>
 </div>
 
 <!-- KPI カード -->

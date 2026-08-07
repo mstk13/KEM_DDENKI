@@ -1,7 +1,7 @@
 from django.contrib import admin
 from simple_history.admin import SimpleHistoryAdmin
 
-from apps.devkanri.models import DevComment, DevProject, DevTask
+from apps.devkanri.models import DevComment, DevProject, DevTask, Meyasubako
 
 
 @admin.register(DevProject)
@@ -22,3 +22,10 @@ class DevTaskAdmin(SimpleHistoryAdmin):
 class DevCommentAdmin(SimpleHistoryAdmin):
     list_display = ("task", "author", "created_at", "company")
     list_filter = ("company",)
+
+
+@admin.register(Meyasubako)
+class MeyasubakoAdmin(SimpleHistoryAdmin):
+    list_display = ("title", "kind", "module", "reporter_name", "urgency", "resolved", "created_at", "company")
+    list_filter = ("kind", "module", "urgency", "resolved", "company")
+    search_fields = ("title", "reporter_name")

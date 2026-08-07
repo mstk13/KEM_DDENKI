@@ -1,10 +1,13 @@
+import tempfile
+from pathlib import Path
+
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 
-from apps.masters.forms import BusinessCardForm, CustomerForm, SupplierEvaluationForm, SupplierForm
-from apps.masters.models import BusinessCard, CostCategory, Customer, Supplier, SupplierEvaluation, WorkType
-from apps.masters.services import get_customer_site_history, get_supplier_rating_summary
+from apps.masters.forms import CustomerForm, SupplierForm
+from apps.masters.models import CostCategory, Customer, Supplier, WorkType
 
 
 @login_required
@@ -17,10 +20,14 @@ def worktype_list(request):
     })
 
 
+# =====================================================================
+# 顧客管理
+# =====================================================================
+
 @login_required
 def customer_list(request):
-    customers = Customer.objects.order_by("code")
-    return render(request, "masters/customer_list.html", {"customers": customers})
+    qs = Customer.objects.order_by("code")
+    return render(request, "masters/customer_list.html", {"customers": qs})
 
 
 @login_required
@@ -28,47 +35,49 @@ def customer_create(request):
     if request.method == "POST":
         form = CustomerForm(request.POST)
         if form.is_valid():
-            c = form.save(commit=False)
-            c.company = request.user.company
-            c.created_by = request.user
-            c.save()
-            messages.success(request, "得意先を登録しました。")
+            obj = form.save(commit=False)
+            obj.company = request.user.company
+            obj.created_by = request.user
+            obj.save()
+            messages.success(request, "顧客を登録しました。")
             return redirect("masters:customer_list")
     else:
         form = CustomerForm()
-    return render(request, "masters/customer_form.html", {"form": form, "title": "得意先を登録"})
+    return render(request, "masters/customer_form.html", {"form": form, "type_label": "顧客"})
 
 
 @login_required
 def customer_edit(request, pk):
-    customer = get_object_or_404(Customer, pk=pk)
+    obj = get_object_or_404(Customer, pk=pk)
     if request.method == "POST":
-        form = CustomerForm(request.POST, instance=customer)
+        form = CustomerForm(request.POST, instance=obj)
         if form.is_valid():
             form.save()
-            messages.success(request, "得意先を更新しました。")
-            return redirect("masters:customer_detail", pk=pk)
+            messages.success(request, "顧客を更新しました。")
+            return redirect("masters:customer_list")
     else:
-        form = CustomerForm(instance=customer)
-    return render(request, "masters/customer_form.html", {"form": form, "title": "得意先を編集"})
+        form = CustomerForm(instance=obj)
+    return render(request, "masters/customer_form.html", {"form": form, "type_label": "顧客"})
 
 
 @login_required
-def customer_detail(request, pk):
-    customer = get_object_or_404(Customer, pk=pk)
-    sites = get_customer_site_history(customer)
-    cards = customer.business_cards.all()
-    return render(request, "masters/customer_detail.html", {
-        "customer": customer, "sites": sites, "cards": cards,
-    })
+def customer_delete(request, pk):
+    obj = get_object_or_404(Customer, pk=pk)
+    if request.method == "POST":
+        obj.delete()
+        messages.success(request, "顧客を削除しました。")
+        return redirect("masters:customer_list")
+    return render(request, "masters/confirm_delete.html", {"obj": obj, "type_label": "顧客", "back_url": "masters:customer_list"})
 
+
+# =====================================================================
+# 発注先（仕入先）管理
+# =====================================================================
 
 @login_required
 def supplier_list(request):
-    suppliers = Supplier.objects.order_by("code")
-    for s in suppliers:
-        s.rating = get_supplier_rating_summary(s)
-    return render(request, "masters/supplier_list.html", {"suppliers": suppliers})
+    qs = Supplier.objects.order_by("code")
+    return render(request, "masters/supplier_list.html", {"suppliers": qs})
 
 
 @login_required
@@ -76,82 +85,73 @@ def supplier_create(request):
     if request.method == "POST":
         form = SupplierForm(request.POST)
         if form.is_valid():
-            s = form.save(commit=False)
-            s.company = request.user.company
-            s.created_by = request.user
-            s.save()
-            messages.success(request, "仕入先を登録しました。")
+            obj = form.save(commit=False)
+            obj.company = request.user.company
+            obj.created_by = request.user
+            obj.save()
+            messages.success(request, "発注先を登録しました。")
             return redirect("masters:supplier_list")
     else:
         form = SupplierForm()
-    return render(request, "masters/supplier_form.html", {"form": form, "title": "仕入先を登録"})
-
-
-@login_required
-def supplier_detail(request, pk):
-    supplier = get_object_or_404(Supplier, pk=pk)
-    rating = get_supplier_rating_summary(supplier)
-    evaluations = SupplierEvaluation.unscoped.filter(supplier=supplier).order_by("-evaluation_date")
-    cards = supplier.business_cards.all()
-    return render(request, "masters/supplier_detail.html", {
-        "supplier": supplier, "rating": rating, "evaluations": evaluations, "cards": cards,
-    })
+    return render(request, "masters/customer_form.html", {"form": form, "type_label": "発注先"})
 
 
 @login_required
 def supplier_edit(request, pk):
-    supplier = get_object_or_404(Supplier, pk=pk)
+    obj = get_object_or_404(Supplier, pk=pk)
     if request.method == "POST":
-        form = SupplierForm(request.POST, instance=supplier)
+        form = SupplierForm(request.POST, instance=obj)
         if form.is_valid():
             form.save()
-            messages.success(request, "仕入先を更新しました。")
-            return redirect("masters:supplier_detail", pk=pk)
+            messages.success(request, "発注先を更新しました。")
+            return redirect("masters:supplier_list")
     else:
-        form = SupplierForm(instance=supplier)
-    return render(request, "masters/supplier_form.html", {"form": form, "title": "仕入先を編集"})
+        form = SupplierForm(instance=obj)
+    return render(request, "masters/customer_form.html", {"form": form, "type_label": "発注先"})
 
 
 @login_required
-def supplier_eval_create(request, supplier_pk):
-    supplier = get_object_or_404(Supplier, pk=supplier_pk)
+def supplier_delete(request, pk):
+    obj = get_object_or_404(Supplier, pk=pk)
     if request.method == "POST":
-        form = SupplierEvaluationForm(request.POST)
-        if form.is_valid():
-            ev = form.save(commit=False)
-            ev.supplier = supplier
-            ev.evaluator = request.user
-            ev.company = request.user.company
-            ev.created_by = request.user
-            ev.save()
-            messages.success(request, "評価を登録しました。")
-            return redirect("masters:supplier_detail", pk=supplier_pk)
-    else:
-        form = SupplierEvaluationForm()
-    return render(request, "masters/eval_form.html", {"form": form, "supplier": supplier})
+        obj.delete()
+        messages.success(request, "発注先を削除しました。")
+        return redirect("masters:supplier_list")
+    return render(request, "masters/confirm_delete.html", {"obj": obj, "type_label": "発注先", "back_url": "masters:supplier_list"})
 
+
+# =====================================================================
+# AI抽出（写真/PDFから取引先情報を読み取り）
+# =====================================================================
 
 @login_required
-def business_card_create(request):
-    customer_id = request.GET.get("customer")
-    supplier_id = request.GET.get("supplier")
-    if request.method == "POST":
-        form = BusinessCardForm(request.POST, request.FILES)
-        if form.is_valid():
-            card = form.save(commit=False)
-            card.company = request.user.company
-            card.created_by = request.user
-            if customer_id:
-                card.customer_id = customer_id
-            if supplier_id:
-                card.supplier_id = supplier_id
-            card.save()
-            messages.success(request, "名刺を登録しました。")
-            if customer_id:
-                return redirect("masters:customer_detail", pk=customer_id)
-            if supplier_id:
-                return redirect("masters:supplier_detail", pk=supplier_id)
-            return redirect("masters:worktypes")
-    else:
-        form = BusinessCardForm()
-    return render(request, "masters/card_form.html", {"form": form})
+def extract_partner(request):
+    """写真/PDFをアップロードしてAIで取引先情報を抽出するAPI。"""
+    if request.method != "POST":
+        return JsonResponse({"error": "POST only"}, status=405)
+
+    uploaded = request.FILES.get("file")
+    if not uploaded:
+        return JsonResponse({"error": "ファイルが選択されていません"}, status=400)
+
+    suffix = Path(uploaded.name).suffix.lower()
+    if suffix not in (".jpg", ".jpeg", ".png", ".gif", ".webp", ".pdf"):
+        return JsonResponse({"error": "jpg/png/pdf のみ対応しています"}, status=400)
+
+    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+        for chunk in uploaded.chunks():
+            tmp.write(chunk)
+        tmp_path = tmp.name
+
+    try:
+        from apps.masters.extractor import extract_from_file
+        results = extract_from_file(tmp_path)
+        return JsonResponse({"results": results})
+    except ImportError as e:
+        return JsonResponse({"error": str(e)}, status=500)
+    except ValueError as e:
+        return JsonResponse({"error": str(e)}, status=500)
+    except Exception as e:
+        return JsonResponse({"error": f"抽出エラー: {e}"}, status=500)
+    finally:
+        Path(tmp_path).unlink(missing_ok=True)

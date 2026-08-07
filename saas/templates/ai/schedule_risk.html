@@ -1,0 +1,165 @@
+{% extends "base.html" %}
+{% block title %}工程リスク分析 — {{ site.name }}{% endblock %}
+{% block topbar_title %}AI分析基盤{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>工程リスク分析 — {{ site.name }}</h1>
+  <div class="page-actions">
+    <a href="{% url 'schedules:list' %}" class="btn btn-outline">工期管理に戻る</a>
+  </div>
+</div>
+
+{% if error_message %}
+<div class="message message-warning" style="margin-bottom:16px;">{{ error_message }}</div>
+{% endif %}
+
+{% if not result %}
+<div class="card">
+  <div class="card-header"><h2>リスク分析を実行</h2></div>
+  <div class="card-body">
+    <p style="margin-bottom:16px;color:var(--text-secondary);">
+      現在の工程進捗・コスト消化状況から、Claude AIが遅延リスクを分析し対策を提案します。
+    </p>
+    <form method="post">
+      {% csrf_token %}
+      <div style="display:flex;gap:12px;align-items:end;">
+        <div>
+          <label class="form-label">使用モデル</label>
+          <select name="model" class="form-control">
+            <option value="haiku" selected>Haiku（高速・低コスト）</option>
+            <option value="sonnet">Sonnet（高精度）</option>
+          </select>
+        </div>
+        <button type="submit" class="btn btn-primary">リスク分析を実行</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
+
+{% if result %}
+  {% if result.parsed %}
+
+  <!-- 総合リスクと遅延予測 -->
+  <div class="stats-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:24px;">
+    <div class="card">
+      <div class="card-body" style="text-align:center;">
+        <div style="color:var(--text-secondary);font-size:13px;">総合リスク</div>
+        <div style="font-size:28px;font-weight:700;
+          {% if result.parsed.overall_risk == 'high' %}color:#ef4444;
+          {% elif result.parsed.overall_risk == 'medium' %}color:#f59e0b;
+          {% else %}color:#10b981;{% endif %}">
+          {% if result.parsed.overall_risk == 'high' %}HIGH
+          {% elif result.parsed.overall_risk == 'medium' %}MEDIUM
+          {% else %}LOW{% endif %}
+        </div>
+      </div>
+    </div>
+    {% if result.parsed.delay_forecast %}
+    <div class="card">
+      <div class="card-body" style="text-align:center;">
+        <div style="color:var(--text-secondary);font-size:13px;">予想遅延日数</div>
+        <div style="font-size:28px;font-weight:700;
+          {% if result.parsed.delay_forecast.likely_delay_days > 7 %}color:#ef4444;
+          {% elif result.parsed.delay_forecast.likely_delay_days > 0 %}color:#f59e0b;
+          {% else %}color:#10b981;{% endif %}">
+          {{ result.parsed.delay_forecast.likely_delay_days }}日
+        </div>
+        <div style="font-size:13px;color:var(--text-secondary);">
+          信頼度: {{ result.parsed.delay_forecast.confidence }}
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-body" style="text-align:center;">
+        <div style="color:var(--text-secondary);font-size:13px;">最重要工程</div>
+        <div style="font-size:18px;font-weight:700;">
+          {{ result.parsed.delay_forecast.most_critical_process|default:"—" }}
+        </div>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- リスク要因 -->
+  {% if result.parsed.risk_factors %}
+  <div class="card" style="margin-bottom:16px;">
+    <div class="card-header"><h2>リスク要因</h2></div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>深刻度</th>
+            <th>リスク要因</th>
+            <th>影響工程</th>
+            <th>根拠</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for rf in result.parsed.risk_factors %}
+          <tr>
+            <td>
+              {% if rf.severity == 'high' %}<span class="badge badge-red">高</span>
+              {% elif rf.severity == 'medium' %}<span class="badge badge-orange">中</span>
+              {% else %}<span class="badge badge-green">低</span>{% endif %}
+            </td>
+            <td style="font-weight:600;">{{ rf.factor }}</td>
+            <td>
+              {% for p in rf.affected_processes %}
+                <span class="badge badge-blue" style="margin:2px;">{{ p }}</span>
+              {% endfor %}
+            </td>
+            <td style="color:var(--text-secondary);font-size:13px;">{{ rf.evidence }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- 対策アクション -->
+  {% if result.parsed.mitigation_actions %}
+  <div class="card" style="margin-bottom:16px;">
+    <div class="card-header"><h2>対策アクション</h2></div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>優先度</th><th>アクション</th><th>対象工程</th></tr>
+        </thead>
+        <tbody>
+          {% for action in result.parsed.mitigation_actions %}
+          <tr>
+            <td>
+              {% if action.priority == 'high' %}<span class="badge badge-red">高</span>
+              {% elif action.priority == 'medium' %}<span class="badge badge-orange">中</span>
+              {% else %}<span class="badge badge-green">低</span>{% endif %}
+            </td>
+            <td>{{ action.action }}</td>
+            <td>{{ action.target_process|default:"—" }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+
+  {% else %}
+  <div class="card" style="margin-bottom:16px;">
+    <div class="card-header"><h2>AIの応答（生テキスト）</h2></div>
+    <div class="card-body">
+      <pre style="background:var(--bg-secondary);padding:16px;border-radius:8px;overflow-x:auto;font-size:13px;line-height:1.6;white-space:pre-wrap;">{{ result.raw }}</pre>
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="card">
+    <div class="card-body" style="display:flex;justify-content:space-between;align-items:center;">
+      <span style="color:var(--text-secondary);">この分析は役に立ちましたか？</span>
+      <a href="{% url 'ai:feedback_create' result.ai_log_id %}" class="btn btn-outline btn-sm">評価する</a>
+    </div>
+  </div>
+{% endif %}
+{% endblock %}

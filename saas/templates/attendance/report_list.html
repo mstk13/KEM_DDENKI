@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block title %}勤怠日報一覧 — 建設SaaS{% endblock %}
+{% block topbar_title %}勤怠管理{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>勤怠日報一覧</h1>
+  <div>
+    <a href="{% url 'attendance:entry_list' %}" class="btn btn-outline">個人別一覧</a>
+    <a href="{% url 'attendance:summary' %}" class="btn btn-outline">月次サマリ</a>
+    <a href="{% url 'attendance:report_create' %}" class="btn btn-primary">+ 日報を登録</a>
+  </div>
+</div>
+
+<div class="card" style="margin-bottom:20px;">
+  <div class="card-body">
+    <form method="get" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;">
+      <div class="form-group" style="margin-bottom:0;">
+        <label>開始日</label>
+        <input type="date" name="date_from" value="{{ date_from }}" class="form-control">
+      </div>
+      <div class="form-group" style="margin-bottom:0;">
+        <label>終了日</label>
+        <input type="date" name="date_to" value="{{ date_to }}" class="form-control">
+      </div>
+      <div class="form-group" style="margin-bottom:0;">
+        <label>現場名</label>
+        <input type="text" name="site" value="{{ site }}" class="form-control" placeholder="現場名">
+      </div>
+      <div class="form-group" style="margin-bottom:0;">
+        <label>状態</label>
+        <select name="status" class="form-control">
+          <option value="">すべて</option>
+          {% for val, label in status_choices %}
+          <option value="{{ val }}" {% if status == val %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <button type="submit" class="btn btn-primary">検索</button>
+      <a href="{% url 'attendance:report_list' %}" class="btn btn-outline">リセット</a>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>日付</th><th>現場名</th><th>作業内容</th><th>状態</th><th>人数</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for r in reports %}
+        <tr>
+          <td><a href="{% url 'attendance:report_detail' r.pk %}">{{ r.report_date }}</a></td>
+          <td>{{ r.site_name|default:"-" }}</td>
+          <td>{{ r.work_content|truncatechars:40|default:"-" }}</td>
+          <td>
+            {% if r.status == '未確認' %}<span class="badge badge-gray">未確認</span>
+            {% elif r.status == '確認済' %}<span class="badge badge-blue">確認済</span>
+            {% elif r.status == '承認済' %}<span class="badge badge-green">承認済</span>
+            {% elif r.status == '差戻し' %}<span class="badge badge-red">差戻し</span>
+            {% endif %}
+          </td>
+          <td>{{ r.entries.count }}名</td>
+          <td>
+            <a href="{% url 'attendance:report_edit' r.pk %}" class="btn btn-outline btn-sm">編集</a>
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="6"><div class="empty"><div class="empty-icon">&#x1f4cb;</div><p>勤怠日報が登録されていません</p></div></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

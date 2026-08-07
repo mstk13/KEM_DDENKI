@@ -260,11 +260,22 @@ def _make_page_header(template, period=""):
     if period:
         title += f"　【{period}】"
 
-    scale_text = ""
+    # スケール情報を事前に準備
+    scale_items = []
     if template.scale:
-        scale_text = "　".join(
-            f"{s.get('value')}={s.get('label', '')}" for s in template.scale
-        )
+        # value の降順（5→1）で並べる
+        sorted_scale = sorted(template.scale, key=lambda s: s.get("value", 0), reverse=True)
+        for s in sorted_scale:
+            scale_items.append((s.get("value", 0), s.get("label", "")))
+
+    # スケールバーの色（5=濃い青 → 1=赤系）
+    _SCALE_COLORS = {
+        5: "#2b6cb0",
+        4: "#3182ce",
+        3: "#48bb78",
+        2: "#ed8936",
+        1: "#e53e3e",
+    }
 
     def _draw_header(canvas, doc):
         canvas.saveState()
@@ -272,17 +283,48 @@ def _make_page_header(template, period=""):
         top_y = doc.pagesize[1] - 8 * mm
 
         # タイトル
-        canvas.setFont(_FONT, 9)
+        canvas.setFont(_FONT, 11)
         canvas.setFillColor(colors.HexColor("#1a202c"))
         canvas.drawString(12 * mm, top_y, title)
 
-        # スケール凡例
-        if scale_text:
-            canvas.setFont(_FONT, 7)
-            canvas.setFillColor(colors.HexColor("#2b6cb0"))
-            canvas.drawString(12 * mm, top_y - 12, f"評価スケール: {scale_text}")
-            canvas.setFillColor(colors.HexColor("#4a5568"))
-            canvas.drawString(12 * mm, top_y - 22, "※ 各欄に該当する数字（1〜5）を記入してください")
+        # スケール凡例（視覚的な横棒バー表示）
+        if scale_items:
+            bar_y = top_y - 18  # バー描画の基準Y
+            canvas.setFont(_FONT, 12)
+            canvas.setFillColor(colors.HexColor("#1a202c"))
+            canvas.drawString(12 * mm, bar_y, "評価スケール:")
+
+            # 「評価スケール:」の右から横並びにバーを描画
+            bar_start_x = 12 * mm + 90  # ラベルの右側
+            max_bar_w = 5  # 1段階あたりのバー基本幅
+            bar_h = 12  # バーの高さ
+            spacing = 4  # バー間のスペース
+            content_w = page_w - bar_start_x - 12 * mm
+            item_w = content_w / len(scale_items) if scale_items else 100
+
+            for i, (val, label) in enumerate(scale_items):
+                x = bar_start_x + i * item_w
+                bar_w = val * max_bar_w  # 値に比例した幅
+
+                # 色付き横棒
+                bar_color = _SCALE_COLORS.get(val, "#718096")
+                canvas.setFillColor(colors.HexColor(bar_color))
+                canvas.roundRect(x, bar_y - 2, bar_w, bar_h, 2, fill=1, stroke=0)
+
+                # 数字（バーの右側）
+                canvas.setFont(_FONT, 12)
+                canvas.setFillColor(colors.HexColor(bar_color))
+                canvas.drawString(x + bar_w + 3, bar_y, f"{val}")
+
+                # ラベル（数字の右側）
+                canvas.setFont(_FONT, 8)
+                canvas.setFillColor(colors.HexColor("#4a5568"))
+                canvas.drawString(x + bar_w + 16, bar_y, f"={label}")
+
+            # 注記
+            canvas.setFont(_FONT, 8)
+            canvas.setFillColor(colors.HexColor("#718096"))
+            canvas.drawString(12 * mm, bar_y - 16, "※ 各欄に該当する数字（1〜5）を記入してください")
 
         # ページ番号
         canvas.setFont(_FONT, 7)
@@ -305,7 +347,7 @@ def generate_comparison_pdf(template, workers, period=""):
     doc = SimpleDocTemplate(
         buf, pagesize=landscape(A4),
         leftMargin=12 * mm, rightMargin=12 * mm,
-        topMargin=30 * mm, bottomMargin=14 * mm,
+        topMargin=38 * mm, bottomMargin=14 * mm,
     )
 
     page_header = _make_page_header(template, period)

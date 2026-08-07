@@ -5,7 +5,11 @@
 {% block content %}
 <div class="page-header">
   <h1>{{ site.name }}</h1>
-  <a href="{% url 'schedules:list' %}" class="btn btn-outline">一覧に戻る</a>
+  <div class="page-actions" style="display:flex;gap:8px;">
+    <a href="{% url 'ai:schedule_suggestion' site.pk %}" class="btn btn-outline">AI工程提案</a>
+    <a href="{% url 'ai:schedule_risk' site.pk %}" class="btn btn-primary">AIリスク分析</a>
+    <a href="{% url 'schedules:list' %}" class="btn btn-outline">一覧に戻る</a>
+  </div>
 </div>
 
 <div class="card" style="margin-bottom:16px;">

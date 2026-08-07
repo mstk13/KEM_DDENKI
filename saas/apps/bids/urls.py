@@ -11,6 +11,7 @@ urlpatterns = [
     path("<int:pk>/edit/", views.project_edit, name="project_edit"),
     path("qualifications/", views.qualification_list, name="qualification_list"),
     path("qualifications/new/", views.qualification_create, name="qualification_create"),
+    path("qualifications/import/", views.qualification_import, name="qualification_import"),
     path("qualifications/<int:pk>/edit/", views.qualification_edit, name="qualification_edit"),
     path("unit-prices/", views.unit_price_list, name="unit_price_list"),
     path("unit-prices/new/", views.unit_price_create, name="unit_price_create"),

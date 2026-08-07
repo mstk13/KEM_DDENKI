@@ -24,7 +24,7 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     path("health/", health_check),
     # Auth
-    path("login/", auth_views.LoginView.as_view(), name="login"),
+    path("login/", include("apps.accounts.urls")),
     path("logout/", auth_views.LogoutView.as_view(), name="logout"),
     # Dashboard
     path("", dashboard, name="dashboard"),
@@ -38,9 +38,10 @@ urlpatterns = [
     path("dev/", include("apps.devkanri.urls")),
     path("schedules/", include("apps.schedules.urls")),
     path("bids/", include("apps.bids.urls")),
-    path("notifications/", include("apps.notifications.urls")),
-    path("settings/permissions/", include("apps.permissions.urls")),
     path("sales/", include("apps.sales.urls")),
+    path("attendance/", include("apps.attendance.urls")),
+    path("evaluation/", include("apps.evaluation.urls")),
+    path("ai/", include("apps.ai.urls")),
 ]
 
 if settings.DEBUG:

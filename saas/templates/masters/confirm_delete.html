@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}{{ type_label }}を削除 — 建設SaaS{% endblock %}
+{% block topbar_title %}{{ type_label }}を削除{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>{{ type_label }}を削除</h1>
+</div>
+
+<div class="card">
+  <div class="card-body">
+    <p>「<strong>{{ obj.name }}</strong>」を削除しますか？</p>
+    <form method="post" style="margin-top: 20px;">
+      {% csrf_token %}
+      <div class="form-actions">
+        <button type="submit" class="btn btn-danger">削除する</button>
+        <a href="{% url back_url %}" class="btn btn-outline">キャンセル</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

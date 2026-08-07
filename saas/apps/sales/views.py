@@ -1,128 +1,160 @@
-"""営業管理画面。"""
+import datetime
 
-from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404, redirect, render
 
 from apps.sales.forms import SalesVisitForm
-from apps.sales.models import SalesAttachment, SalesVisit
-from apps.sales.services import (
-    get_companies_by_industry,
-    get_dashboard_stats,
-    search_visits,
-)
+from apps.sales.models import SalesVisit
 
 
 @login_required
-def sales_dashboard(request):
-    """営業ダッシュボード。"""
-    stats = get_dashboard_stats(request.user.company)
-    return render(request, "sales/dashboard.html", {"stats": stats})
+def visit_list(request):
+    qs = SalesVisit.objects.order_by("-created_at")
 
+    q = request.GET.get("q", "").strip()
+    industry = request.GET.get("industry", "").strip()
+    status = request.GET.get("status", "").strip()
 
-@login_required
-def sales_list(request):
-    """営業一覧（検索・フィルタ）。"""
-    q = request.GET.get("q", "")
-    industry = request.GET.get("industry", "")
-    status = request.GET.get("status", "")
-
-    visits = search_visits(request.user.company, q=q, industry=industry, status=status)
+    if q:
+        qs = qs.filter(
+            Q(company_name__icontains=q)
+            | Q(rep_name__icontains=q)
+            | Q(business_overview__icontains=q)
+        )
+    if industry:
+        qs = qs.filter(industry=industry)
+    if status:
+        qs = qs.filter(status=status)
 
     return render(request, "sales/list.html", {
-        "visits": visits[:100],
+        "visits": qs,
         "q": q,
         "industry": industry,
         "status": status,
-        "industry_choices": SalesVisit.INDUSTRY_CHOICES,
+        "industry_choices": SalesVisit.Industry.choices,
         "status_choices": SalesVisit.Status.choices,
     })
 
 
 @login_required
-def sales_by_industry(request):
-    """業界から探す。"""
-    industry = request.GET.get("industry", "")
-    companies = []
-    if industry:
-        companies = get_companies_by_industry(request.user.company, industry)
-
-    return render(request, "sales/by_industry.html", {
-        "industry_choices": SalesVisit.INDUSTRY_CHOICES,
-        "selected_industry": industry,
-        "companies": companies,
-    })
-
-
-@login_required
-def sales_create(request):
-    """営業記録の作成。"""
+def visit_create(request):
     if request.method == "POST":
         form = SalesVisitForm(request.POST)
         if form.is_valid():
-            visit = form.save(commit=False)
-            visit.company = request.user.company
-            visit.created_by = request.user
-            visit.save()
-
-            # ファイル添付
-            for f in request.FILES.getlist("attachments"):
-                SalesAttachment.unscoped.create(
-                    company=request.user.company,
-                    visit=visit,
-                    file=f,
-                    original_name=f.name,
-                    file_type=_detect_file_type(f.name),
-                )
-
-            messages.success(request, "営業記録を登録しました。")
-            return redirect("sales:detail", pk=visit.pk)
+            obj = form.save(commit=False)
+            obj.company = request.user.company
+            obj.created_by = request.user
+            obj.save()
+            return redirect("sales:visit_detail", pk=obj.pk)
     else:
         form = SalesVisitForm()
-    return render(request, "sales/form.html", {"form": form, "title": "営業記録を作成"})
+    return render(request, "sales/form.html", {"form": form})
 
 
 @login_required
-def sales_detail(request, pk):
-    """営業記録の詳細。"""
+def visit_detail(request, pk):
     visit = get_object_or_404(SalesVisit, pk=pk)
-    attachments = visit.attachments.all()
-    return render(request, "sales/detail.html", {
-        "visit": visit,
-        "attachments": attachments,
-    })
+    return render(request, "sales/detail.html", {"visit": visit})
 
 
 @login_required
-def sales_edit(request, pk):
-    """営業記録の編集。"""
+def visit_edit(request, pk):
     visit = get_object_or_404(SalesVisit, pk=pk)
     if request.method == "POST":
         form = SalesVisitForm(request.POST, instance=visit)
         if form.is_valid():
             form.save()
-
-            for f in request.FILES.getlist("attachments"):
-                SalesAttachment.unscoped.create(
-                    company=request.user.company,
-                    visit=visit,
-                    file=f,
-                    original_name=f.name,
-                    file_type=_detect_file_type(f.name),
-                )
-
-            messages.success(request, "営業記録を更新しました。")
-            return redirect("sales:detail", pk=visit.pk)
+            return redirect("sales:visit_detail", pk=visit.pk)
     else:
         form = SalesVisitForm(instance=visit)
-    return render(request, "sales/form.html", {"form": form, "title": "営業記録を編集"})
+    return render(request, "sales/form.html", {"form": form})
 
 
-def _detect_file_type(filename):
-    """ファイル名から種別を推定する。"""
-    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
-    if ext == "pdf":
-        return "pdf"
-    if ext in ("png", "jpg", "jpeg", "webp", "gif"):
-        return "image"
-    return "other"
+@login_required
+def visit_delete(request, pk):
+    visit = get_object_or_404(SalesVisit, pk=pk)
+    if request.method == "POST":
+        visit.delete()
+        return redirect("sales:visit_list")
+    return render(request, "sales/detail.html", {"visit": visit, "confirm_delete": True})
+
+
+@login_required
+def dashboard(request):
+    qs = SalesVisit.objects.all()
+    today = datetime.date.today()
+    first_of_month = today.replace(day=1)
+
+    total = qs.count()
+    this_month = qs.filter(created_at__date__gte=first_of_month).count()
+    action_required = qs.filter(status__in=["下書き", "対応中"]).count()
+
+    # Industry distribution
+    industry_data = (
+        qs.values("industry")
+        .annotate(count=Count("id"))
+        .order_by("-count")
+    )
+
+    # Status distribution
+    status_data = (
+        qs.values("status")
+        .annotate(count=Count("id"))
+        .order_by("-count")
+    )
+
+    # Recent visits
+    recent = qs.order_by("-created_at")[:10]
+
+    return render(request, "sales/dashboard.html", {
+        "total": total,
+        "this_month": this_month,
+        "action_required": action_required,
+        "industry_data": list(industry_data),
+        "status_data": list(status_data),
+        "recent": recent,
+        "industry_choices": dict(SalesVisit.Industry.choices),
+        "status_choices": dict(SalesVisit.Status.choices),
+    })
+
+
+@login_required
+def industry_browse(request):
+    selected_industry = request.GET.get("industry", "").strip()
+    selected_company = request.GET.get("company", "").strip()
+
+    # Get all industries with counts
+    industry_data = (
+        SalesVisit.objects.values("industry")
+        .annotate(count=Count("id"))
+        .order_by("industry")
+    )
+
+    companies = []
+    records = []
+
+    if selected_industry:
+        # Get companies within selected industry
+        companies = (
+            SalesVisit.objects.filter(industry=selected_industry)
+            .values("company_name")
+            .annotate(count=Count("id"))
+            .order_by("company_name")
+        )
+
+    if selected_company:
+        # Get records for selected company in selected industry
+        records = SalesVisit.objects.filter(
+            industry=selected_industry,
+            company_name=selected_company,
+        ).order_by("-visit_date")
+
+    return render(request, "sales/industry_browse.html", {
+        "industry_data": industry_data,
+        "companies": companies,
+        "records": records,
+        "selected_industry": selected_industry,
+        "selected_company": selected_company,
+        "industry_choices": dict(SalesVisit.Industry.choices),
+    })

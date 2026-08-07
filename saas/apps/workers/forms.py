@@ -71,6 +71,7 @@ class WorkerForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         self.fields["job_title"].required = True
         self.fields["position"].required = True
+        self.fields["hourly_cost"].required = False
         for _name, field in self.fields.items():
             field.widget.attrs.setdefault("class", "form-control")
         if company:

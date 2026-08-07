@@ -5,7 +5,10 @@
 {% block content %}
 <div class="page-header">
   <h1>入札参加資格一覧</h1>
-  <a href="{% url 'bids:qualification_create' %}" class="btn btn-primary">+ 資格を登録</a>
+  <div style="display:flex;gap:8px;">
+    <a href="{% url 'bids:qualification_import' %}" class="btn btn-success btn-sm">Excel/PDFインポート</a>
+    <a href="{% url 'bids:qualification_create' %}" class="btn btn-primary">+ 資格を登録</a>
+  </div>
 </div>
 
 <div class="card">

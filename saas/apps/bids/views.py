@@ -1,5 +1,6 @@
 import datetime
-import json
+import tempfile
+from pathlib import Path
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -111,6 +112,79 @@ def qualification_list(request):
         "qualifications": qs,
         "today": today,
         "alert_date": alert_date,
+    })
+
+
+@login_required
+def qualification_import(request):
+    """Excel/PDFから入札参加資格を一括インポート。"""
+    preview = None
+    filename = ""
+
+    if request.method == "POST":
+        # 確定インポート
+        if "confirm_import" in request.POST:
+            import json
+
+            records = json.loads(request.POST.get("records_json", "[]"))
+            replace_all = request.POST.get("replace_all") == "1"
+
+            if replace_all:
+                Qualification.objects.all().delete()
+
+            count = 0
+            for rec in records:
+                Qualification.objects.create(
+                    company=request.user.company,
+                    created_by=request.user,
+                    issuer=rec.get("issuer") or "不明",
+                    category=rec.get("category") or "",
+                    grade=rec.get("grade") or "",
+                    keisin_score=rec.get("keisin_score"),
+                    total_score=rec.get("total_score"),
+                    vendor_number=rec.get("vendor_number") or "",
+                    valid_from=rec.get("valid_from") or None,
+                    valid_until=rec.get("valid_until") or None,
+                    application_type=rec.get("application_type") or "",
+                    application_method=rec.get("application_method") or "",
+                )
+                count += 1
+
+            action = "置換" if replace_all else "追加"
+            messages.success(request, f"{count}件の資格を{action}インポートしました。")
+            return redirect("bids:qualification_list")
+
+        # ファイルアップロード → プレビュー
+        uploaded = request.FILES.get("file")
+        if uploaded:
+            from apps.bids.importer import import_excel, import_pdf
+
+            suffix = Path(uploaded.name).suffix.lower()
+            filename = uploaded.name
+
+            with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+                for chunk in uploaded.chunks():
+                    tmp.write(chunk)
+                tmp_path = tmp.name
+
+            try:
+                if suffix in (".xlsx", ".xls"):
+                    preview = import_excel(tmp_path)
+                elif suffix == ".pdf":
+                    preview = import_pdf(tmp_path)
+                else:
+                    messages.error(request, "Excel(.xlsx) または PDF(.pdf) のみ対応しています。")
+            except Exception as e:
+                messages.error(request, f"ファイル読み込みエラー: {e}")
+            finally:
+                Path(tmp_path).unlink(missing_ok=True)
+
+    import json
+    return render(request, "bids/qualification_import.html", {
+        "preview": preview,
+        "preview_json": json.dumps(preview, ensure_ascii=False) if preview else "[]",
+        "filename": filename,
+        "count": len(preview) if preview else 0,
     })
 
 

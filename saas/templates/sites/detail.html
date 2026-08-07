@@ -6,6 +6,8 @@
 <div class="page-header">
   <h1>{{ site.name }}</h1>
   <div>
+    <a href="{% url 'ai:cost_optimization' site.pk %}" class="btn btn-primary btn-sm">AIコスト分析</a>
+    <a href="{% url 'ai:schedule_suggestion' site.pk %}" class="btn btn-outline btn-sm">AI工程提案</a>
     <a href="{% url 'sites:edit' site.pk %}" class="btn btn-outline btn-sm">編集</a>
     <a href="{% url 'sites:list' %}" class="btn btn-outline btn-sm">一覧に戻る</a>
   </div>

@@ -1,0 +1,171 @@
+{% extends "base.html" %}
+{% block title %}コスト最適化提案 — {{ site.name }}{% endblock %}
+{% block topbar_title %}AI分析基盤{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>コスト最適化提案 — {{ site.name }}</h1>
+  <div class="page-actions">
+    <a href="{% url 'costs:detail' site.pk %}" class="btn btn-outline">原価詳細に戻る</a>
+  </div>
+</div>
+
+{% if error_message %}
+<div class="message message-warning" style="margin-bottom:16px;">{{ error_message }}</div>
+{% endif %}
+
+{% if not result %}
+<!-- 分析実行フォーム -->
+<div class="card">
+  <div class="card-header"><h2>AI分析を実行</h2></div>
+  <div class="card-body">
+    <p style="margin-bottom:16px;color:var(--text-secondary);">
+      過去の類似現場データとML予測結果をもとに、Claude AIがコスト最適化の提案を行います。
+    </p>
+    <form method="post">
+      {% csrf_token %}
+      <div style="display:flex;gap:12px;align-items:end;">
+        <div>
+          <label class="form-label">使用モデル</label>
+          <select name="model" class="form-control">
+            <option value="haiku" selected>Haiku（高速・低コスト）</option>
+            <option value="sonnet">Sonnet（高精度）</option>
+          </select>
+        </div>
+        <button type="submit" class="btn btn-primary">分析を実行</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
+
+{% if result %}
+  {% if result.parsed %}
+  <!-- リスクレベル -->
+  <div class="stats-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:24px;">
+    <div class="card">
+      <div class="card-body" style="text-align:center;">
+        <div style="color:var(--text-secondary);font-size:13px;">リスクレベル</div>
+        <div style="font-size:28px;font-weight:700;
+          {% if result.parsed.risk_level == 'high' %}color:#ef4444;
+          {% elif result.parsed.risk_level == 'medium' %}color:#f59e0b;
+          {% else %}color:#10b981;{% endif %}">
+          {% if result.parsed.risk_level == 'high' %}HIGH
+          {% elif result.parsed.risk_level == 'medium' %}MEDIUM
+          {% else %}LOW{% endif %}
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-body" style="text-align:center;">
+        <div style="color:var(--text-secondary);font-size:13px;">提案数</div>
+        <div style="font-size:28px;font-weight:700;">
+          {{ result.parsed.recommendations|length }}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 現状分析 -->
+  <div class="card" style="margin-bottom:16px;">
+    <div class="card-header"><h2>現状分析</h2></div>
+    <div class="card-body">
+      <p style="line-height:1.8;">{{ result.parsed.current_analysis }}</p>
+      {% if result.parsed.predicted_issues %}
+      <div style="margin-top:12px;">
+        <strong>予想される問題点:</strong>
+        <ul style="margin-top:8px;">
+          {% for issue in result.parsed.predicted_issues %}
+          <li style="margin-bottom:4px;">{{ issue }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- 提案一覧 -->
+  <div class="card" style="margin-bottom:16px;">
+    <div class="card-header"><h2>最適化提案</h2></div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>優先度</th>
+            <th>アクション</th>
+            <th>カテゴリ</th>
+            <th style="text-align:right;">想定削減</th>
+            <th>根拠</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for rec in result.parsed.recommendations %}
+          <tr>
+            <td>
+              {% if rec.priority == 'high' %}<span class="badge badge-red">高</span>
+              {% elif rec.priority == 'medium' %}<span class="badge badge-orange">中</span>
+              {% else %}<span class="badge badge-green">低</span>{% endif %}
+            </td>
+            <td>{{ rec.action }}</td>
+            <td>
+              {% if rec.category == 'labor' %}労務
+              {% elif rec.category == 'material' %}材料
+              {% elif rec.category == 'outsourcing' %}外注
+              {% elif rec.category == 'schedule' %}工程
+              {% else %}{{ rec.category }}{% endif %}
+            </td>
+            <td style="text-align:right;">
+              {% if rec.expected_saving_pct %}{{ rec.expected_saving_pct }}%{% else %}—{% endif %}
+            </td>
+            <td style="color:var(--text-secondary);font-size:13px;">{{ rec.reason }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  {% if result.parsed.monthly_budget_suggestion %}
+  <!-- 月別予算配分提案 -->
+  <div class="card" style="margin-bottom:16px;">
+    <div class="card-header"><h2>今後の予算配分提案</h2></div>
+    <div class="card-body">
+      <p style="margin-bottom:12px;">{{ result.parsed.monthly_budget_suggestion.description }}</p>
+      {% if result.parsed.monthly_budget_suggestion.remaining_months %}
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>月</th><th style="text-align:right;">推奨予算</th></tr></thead>
+          <tbody>
+            {% for m in result.parsed.monthly_budget_suggestion.remaining_months %}
+            <tr>
+              <td>{{ m.month }}</td>
+              <td style="text-align:right;">&yen;{{ m.suggested_budget|floatformat:0 }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
+  {% else %}
+  <!-- パース失敗時は生テキストを表示 -->
+  <div class="card" style="margin-bottom:16px;">
+    <div class="card-header"><h2>AIの応答（生テキスト）</h2></div>
+    <div class="card-body">
+      <pre style="background:var(--bg-secondary);padding:16px;border-radius:8px;overflow-x:auto;font-size:13px;line-height:1.6;white-space:pre-wrap;">{{ result.raw }}</pre>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- フィードバック -->
+  <div class="card">
+    <div class="card-body" style="display:flex;justify-content:space-between;align-items:center;">
+      <span style="color:var(--text-secondary);">この提案は役に立ちましたか？</span>
+      <a href="{% url 'ai:feedback_create' result.ai_log_id %}" class="btn btn-outline btn-sm">評価する</a>
+    </div>
+  </div>
+{% endif %}
+{% endblock %}

@@ -3,8 +3,8 @@ from django.contrib.auth.decorators import login_required
 from django.db.models import Count, Q, Sum
 from django.shortcuts import get_object_or_404, redirect, render
 
-from apps.devkanri.forms import DevCommentForm, DevProjectForm, DevTaskForm
-from apps.devkanri.models import DevProject, DevTask
+from apps.devkanri.forms import DevCommentForm, DevProjectForm, DevTaskForm, MeyasubakoForm
+from apps.devkanri.models import DevProject, DevTask, Meyasubako
 from apps.devkanri.notifications import notify_task_assigned, notify_task_status_changed
 
 
@@ -202,3 +202,66 @@ def task_move(request, pk):
         task.save(update_fields=["status", "updated_at"])
         notify_task_status_changed(task, request.user, old_status)
     return redirect("devkanri:project_detail", pk=task.project.pk)
+
+
+# ── 目安箱 ──────────────────────────────────────────────
+
+
+def _get_reporter_name(user):
+    """ログインユーザーから報告者名を取得。Worker名 → User名 → username の順。"""
+    try:
+        if user.worker_profile and user.worker_profile.name:
+            return user.worker_profile.name
+    except Exception:
+        pass
+    return user.get_full_name() or user.username
+
+
+@login_required
+def meyasubako_list(request):
+    posts = Meyasubako.objects.select_related("reporter").all()
+    return render(request, "devkanri/meyasubako_list.html", {"posts": posts})
+
+
+@login_required
+def meyasubako_create(request):
+    company = request.user.company
+    if request.method == "POST":
+        form = MeyasubakoForm(request.POST, request.FILES, company=company)
+        if form.is_valid():
+            post = form.save(commit=False)
+            post.company = company
+            worker = form.cleaned_data["reporter_worker"]
+            post.reporter = worker.user
+            post.reporter_name = worker.name
+            post.created_by = request.user
+            post.save()
+            messages.success(request, "ご意見を投稿しました。ありがとうございます！")
+            return redirect("devkanri:meyasubako_list")
+    else:
+        # ログインユーザーに紐づくWorkerがあれば初期選択
+        initial = {}
+        try:
+            if request.user.worker_profile:
+                initial["reporter_worker"] = request.user.worker_profile.pk
+        except Exception:
+            pass
+        form = MeyasubakoForm(company=company, initial=initial)
+    return render(request, "devkanri/meyasubako_form.html", {
+        "form": form,
+    })
+
+
+@login_required
+def meyasubako_detail(request, pk):
+    post = get_object_or_404(Meyasubako, pk=pk)
+    return render(request, "devkanri/meyasubako_detail.html", {"post": post})
+
+
+@login_required
+def meyasubako_resolve(request, pk):
+    post = get_object_or_404(Meyasubako, pk=pk)
+    if request.method == "POST":
+        post.resolved = not post.resolved
+        post.save(update_fields=["resolved", "updated_at"])
+    return redirect("devkanri:meyasubako_detail", pk=pk)

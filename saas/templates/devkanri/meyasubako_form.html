@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}目安箱 — 投稿 — 建設SaaS{% endblock %}
+{% block topbar_title %}目安箱{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>ご意見・ご要望を投稿</h1>
+</div>
+
+<div class="card">
+  <div class="card-body">
+    <form method="post" enctype="multipart/form-data">
+      {% csrf_token %}
+
+      <div class="form-group">
+        <label for="id_reporter_worker">報告者</label>
+        {{ form.reporter_worker }}
+        {{ form.reporter_worker.errors }}
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label for="id_kind">種別</label>
+          {{ form.kind }}
+          {{ form.kind.errors }}
+        </div>
+        <div class="form-group">
+          <label for="id_module">対象モジュール</label>
+          {{ form.module }}
+          {{ form.module.errors }}
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="id_title">タイトル</label>
+        {{ form.title }}
+        {{ form.title.errors }}
+      </div>
+
+      <div class="form-group">
+        <label for="id_problem">困っていること</label>
+        {{ form.problem }}
+        {{ form.problem.errors }}
+      </div>
+
+      <div class="form-group">
+        <label for="id_wish">こうなってほしい（任意）</label>
+        {{ form.wish }}
+        {{ form.wish.errors }}
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label for="id_urgency">緊急度</label>
+          {{ form.urgency }}
+          {{ form.urgency.errors }}
+        </div>
+        <div class="form-group">
+          <label for="id_screenshot">スクリーンショット（任意）</label>
+          {{ form.screenshot }}
+          {{ form.screenshot.errors }}
+        </div>
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">投稿する</button>
+        <a href="{% url 'devkanri:meyasubako_list' %}" class="btn btn-outline">キャンセル</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

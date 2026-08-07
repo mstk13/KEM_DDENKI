@@ -1,16 +1,11 @@
 from django.contrib import admin
+from simple_history.admin import SimpleHistoryAdmin
 
-from apps.sales.models import SalesAttachment, SalesVisit
-
-
-class SalesAttachmentInline(admin.TabularInline):
-    model = SalesAttachment
-    extra = 0
+from apps.sales.models import SalesVisit
 
 
 @admin.register(SalesVisit)
-class SalesVisitAdmin(admin.ModelAdmin):
-    list_display = ["company_name", "rep_name", "industry", "status", "visit_date"]
-    list_filter = ["industry", "status"]
-    search_fields = ["company_name", "rep_name", "sales_content"]
-    inlines = [SalesAttachmentInline]
+class SalesVisitAdmin(SimpleHistoryAdmin):
+    list_display = ("company_name", "industry", "rep_name", "status", "visit_date", "company")
+    list_filter = ("industry", "status", "company")
+    search_fields = ("company_name", "rep_name", "business_overview")

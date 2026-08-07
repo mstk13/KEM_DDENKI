@@ -1,71 +1,74 @@
 {% extends "base.html" %}
-{% block title %}営業一覧 — 建設SaaS{% endblock %}
+{% block title %}営業訪問一覧 — 建設SaaS{% endblock %}
 {% block topbar_title %}営業管理{% endblock %}
 
 {% block content %}
 <div class="page-header">
-  <h1>営業一覧</h1>
-  <a href="{% url 'sales:create' %}" class="btn btn-primary">+ 営業記録を作成</a>
+  <h1>営業訪問一覧</h1>
+  <div>
+    <a href="{% url 'sales:dashboard' %}" class="btn btn-outline">ダッシュボード</a>
+    <a href="{% url 'sales:industry_browse' %}" class="btn btn-outline">業種別一覧</a>
+    <a href="{% url 'sales:visit_create' %}" class="btn btn-primary">+ 訪問記録を登録</a>
+  </div>
 </div>
 
-<div class="card" style="margin-bottom:16px;padding:16px;">
-  <form method="get" style="display:flex;gap:12px;align-items:end;flex-wrap:wrap;">
-    <div>
-      <label class="form-label">キーワード</label>
-      <input type="text" name="q" value="{{ q }}" class="form-control" placeholder="会社名・担当者・内容">
-    </div>
-    <div>
-      <label class="form-label">業界</label>
-      <select name="industry" class="form-control">
-        <option value="">全て</option>
-        {% for val, label in industry_choices %}
-        <option value="{{ val }}" {% if industry == val %}selected{% endif %}>{{ label }}</option>
-        {% endfor %}
-      </select>
-    </div>
-    <div>
-      <label class="form-label">ステータス</label>
-      <select name="status" class="form-control">
-        <option value="">全て</option>
-        {% for val, label in status_choices %}
-        <option value="{{ val }}" {% if status == val %}selected{% endif %}>{{ label }}</option>
-        {% endfor %}
-      </select>
-    </div>
-    <button type="submit" class="btn btn-primary">検索</button>
-  </form>
+<div class="card" style="margin-bottom:20px;">
+  <div class="card-body">
+    <form method="get" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;">
+      <div class="form-group" style="margin-bottom:0;">
+        <label>キーワード</label>
+        <input type="text" name="q" value="{{ q }}" class="form-control" placeholder="会社名・担当者">
+      </div>
+      <div class="form-group" style="margin-bottom:0;">
+        <label>業種</label>
+        <select name="industry" class="form-control">
+          <option value="">すべて</option>
+          {% for val, label in industry_choices %}
+          <option value="{{ val }}" {% if industry == val %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group" style="margin-bottom:0;">
+        <label>状態</label>
+        <select name="status" class="form-control">
+          <option value="">すべて</option>
+          {% for val, label in status_choices %}
+          <option value="{{ val }}" {% if status == val %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <button type="submit" class="btn btn-primary">検索</button>
+      <a href="{% url 'sales:visit_list' %}" class="btn btn-outline">リセット</a>
+    </form>
+  </div>
 </div>
 
 <div class="card">
   <div class="table-wrap">
     <table>
       <thead>
-        <tr>
-          <th>営業日</th>
-          <th>会社名</th>
-          <th>担当者</th>
-          <th>業界</th>
-          <th>状態</th>
-        </tr>
+        <tr><th>会社名</th><th>業種</th><th>担当者</th><th>状態</th><th>訪問日</th><th>電話</th><th></th></tr>
       </thead>
       <tbody>
         {% for v in visits %}
         <tr>
-          <td style="white-space:nowrap;">{{ v.visit_date|default:"—" }}</td>
-          <td><a href="{% url 'sales:detail' v.pk %}">{{ v.company_name }}</a></td>
-          <td>{{ v.rep_name|default:"—" }}</td>
-          <td><span class="badge badge-gray">{{ v.get_industry_display }}</span></td>
+          <td><a href="{% url 'sales:visit_detail' v.pk %}">{{ v.company_name }}</a></td>
+          <td>{{ v.get_industry_display }}</td>
+          <td>{{ v.rep_name|default:"-" }}</td>
           <td>
-            {% if v.status == 'draft' %}<span class="badge badge-gray">下書き</span>
-            {% elif v.status == 'confirmed' %}<span class="badge badge-blue">確認済</span>
-            {% elif v.status == 'in_progress' %}<span class="badge badge-orange">対応中</span>
-            {% elif v.status == 'done' %}<span class="badge badge-green">完了</span>
-            {% elif v.status == 'rejected' %}<span class="badge badge-gray">見送り</span>
+            {% if v.status == '下書き' %}<span class="badge badge-gray">下書き</span>
+            {% elif v.status == '確認済' %}<span class="badge badge-blue">確認済</span>
+            {% elif v.status == '対応中' %}<span class="badge badge-orange">対応中</span>
+            {% elif v.status == '完了' %}<span class="badge badge-green">完了</span>
+            {% elif v.status == '見送り' %}<span class="badge badge-red">見送り</span>
             {% endif %}
           </td>
+          <td>{{ v.visit_date|default:"-" }}</td>
+          <td>{{ v.phone|default:"-" }}</td>
+          <td><a href="{% url 'sales:visit_edit' v.pk %}" class="btn btn-outline btn-sm">編集</a></td>
         </tr>
         {% empty %}
-        <tr><td colspan="5"><div class="empty"><div class="empty-icon">&#x1f4bc;</div><p>営業記録がありません</p></div></td></tr>
+        <tr><td colspan="7"><div class="empty"><div class="empty-icon">&#x1f4cb;</div><p>営業訪問記録が登録されていません</p></div></td></tr>
         {% endfor %}
       </tbody>
     </table>

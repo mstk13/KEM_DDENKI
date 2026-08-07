@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block title %}{{ worker.name }} の評価サマリ — 建設SaaS{% endblock %}
+{% block topbar_title %}従業員評価サマリ{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>{{ worker.name }} の評価サマリ</h1>
+  <a href="{% url 'evaluation:eval_list' %}" class="btn btn-outline btn-sm">一覧に戻る</a>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+  <div class="card">
+    <div class="card-header"><h2>基本情報</h2></div>
+    <dl class="detail-grid">
+      <dt>氏名</dt><dd>{{ worker.name }}</dd>
+      <dt>評価件数</dt><dd>{{ evaluations|length }} 件</dd>
+    </dl>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><h2>最新評価</h2></div>
+    {% if trend_data %}
+    {% with latest=trend_data|last %}
+    <dl class="detail-grid">
+      <dt>期間</dt><dd>{{ latest.period }}</dd>
+      <dt>スコア</dt><dd>{{ latest.total_score }} / {{ latest.max_total }}</dd>
+      <dt>達成率</dt>
+      <dd>
+        {% if latest.percent >= 80 %}<span class="badge badge-green">{{ latest.percent }}%</span>
+        {% elif latest.percent >= 50 %}<span class="badge badge-orange">{{ latest.percent }}%</span>
+        {% else %}<span class="badge badge-gray">{{ latest.percent }}%</span>
+        {% endif %}
+      </dd>
+      <dt>評価者</dt><dd>{{ latest.evaluator }}</dd>
+    </dl>
+    {% endwith %}
+    {% else %}
+    <div class="card-body" style="color:var(--gray-400);text-align:center;padding:20px;">評価データがありません</div>
+    {% endif %}
+  </div>
+</div>
+
+{% if trend_data %}
+<div class="card" style="margin-top:20px;">
+  <div class="card-header"><h2>評価推移</h2></div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>期間</th><th>スコア</th><th>最大点</th><th>達成率</th><th>評価者</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for t in trend_data %}
+        <tr>
+          <td>{{ t.period }}</td>
+          <td>{{ t.total_score }}</td>
+          <td>{{ t.max_total }}</td>
+          <td>
+            {% if t.percent >= 80 %}<span class="badge badge-green">{{ t.percent }}%</span>
+            {% elif t.percent >= 50 %}<span class="badge badge-orange">{{ t.percent }}%</span>
+            {% else %}<span class="badge badge-gray">{{ t.percent }}%</span>
+            {% endif %}
+          </td>
+          <td>{{ t.evaluator }}</td>
+          <td>
+            {% for ev in evaluations %}
+              {% if ev.period == t.period %}
+              <a href="{% url 'evaluation:eval_detail' ev.pk %}" class="btn btn-outline btn-sm">詳細</a>
+              {% endif %}
+            {% endfor %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{% if category_scores %}
+<div class="card" style="margin-top:20px;">
+  <div class="card-header"><h2>最新の項目別スコア</h2></div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>項目名</th><th>スコア</th></tr></thead>
+      <tbody>
+        {% for cs in category_scores %}
+        <tr>
+          <td>{{ cs.item_name }}</td>
+          <td>{{ cs.score }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

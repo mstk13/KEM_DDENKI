@@ -51,16 +51,27 @@ services:
       DB_PASSWORD: ${DB_PASSWORD:-postgres}
       DB_HOST: db
       DB_PORT: "5432"
-      REDIS_URL: redis://redis:6379/0
-      # 現行版DBの接続情報（データ移行用）
-      LEGACY_DB_URL: ${LEGACY_DB_URL:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
     ports:
       - "${WEB_PORT:-8000}:8000"
     volumes:
       - .:/app
       - media_data:/app/media
-      - static_data:/app/staticfiles
-    command: ["python", "manage.py", "runserver", "0.0.0.0:8000"]
+    command: ["gunicorn", "config.wsgi:application", "--bind", "0.0.0.0:8000", "--workers", "4", "--threads", "2"]
+
+  # --- Cloudflare Tunnel（社外アクセス用・任意） ---
+  # 使用する場合は .env に CLOUDFLARE_TUNNEL_TOKEN を設定してください。
+  # トークン未設定時はこのコンテナは起動しません。
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:-}
+    depends_on:
+      - web
+    profiles:
+      - tunnel
 
 volumes:
   pgdata:

@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% block title %}AI評価 — 建設SaaS{% endblock %}
+{% block topbar_title %}AI分析基盤{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>AIフィードバック</h1>
+</div>
+
+<div class="card">
+  <div class="card-header"><h2>対象のAI実行</h2></div>
+  <div class="card-body">
+    <dl style="display:grid;grid-template-columns:120px 1fr;gap:8px 16px;">
+      <dt style="color:var(--text-secondary);">実行日時</dt>
+      <dd>{{ ai_log.created_at|date:"Y-m-d H:i" }}</dd>
+      <dt style="color:var(--text-secondary);">タスク種別</dt>
+      <dd>{{ ai_log.get_task_type_display }}</dd>
+      <dt style="color:var(--text-secondary);">使用モデル</dt>
+      <dd>{{ ai_log.get_model_used_display }}</dd>
+      <dt style="color:var(--text-secondary);">対象現場</dt>
+      <dd>{% if ai_log.site %}{{ ai_log.site.name }}{% else %}—{% endif %}</dd>
+    </dl>
+  </div>
+</div>
+
+<div class="card" style="margin-top:16px;">
+  <div class="card-header"><h2>AIの応答</h2></div>
+  <div class="card-body">
+    <pre style="background:var(--bg-secondary);padding:16px;border-radius:8px;overflow-x:auto;font-size:13px;line-height:1.6;">{{ ai_log.response }}</pre>
+  </div>
+</div>
+
+<div class="card" style="margin-top:16px;">
+  <div class="card-header"><h2>評価を入力</h2></div>
+  <div class="card-body">
+    <form method="post">
+      {% csrf_token %}
+
+      <div class="form-group">
+        <label class="form-label">評価</label>
+        <div id="star-rating" style="font-size:28px;cursor:pointer;display:flex;gap:4px;">
+          {% for i in "12345" %}
+          <span class="star" data-value="{{ forloop.counter }}" style="color:#d1d5db;">&#9733;</span>
+          {% endfor %}
+        </div>
+        <input type="hidden" name="rating" id="rating-value" value="3">
+      </div>
+
+      <div class="form-group" style="margin-top:16px;">
+        <label class="form-label">
+          <input type="checkbox" name="is_adopted" style="margin-right:8px;">
+          この提案を実際に業務に採用した
+        </label>
+      </div>
+
+      <div class="form-group" style="margin-top:16px;">
+        <label class="form-label">コメント（どこが良かった/悪かったか）</label>
+        <textarea name="comment" class="form-control" rows="4" placeholder="例: 予算超過の指摘は正確だったが、対策の具体性が足りなかった"></textarea>
+      </div>
+
+      <div style="margin-top:24px;display:flex;gap:12px;">
+        <button type="submit" class="btn btn-primary">フィードバックを送信</button>
+        <a href="{% url 'ai:log_list' %}" class="btn btn-outline">キャンセル</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+(function() {
+  var stars = document.querySelectorAll('#star-rating .star');
+  var input = document.getElementById('rating-value');
+  function setRating(val) {
+    input.value = val;
+    stars.forEach(function(s) {
+      s.style.color = parseInt(s.dataset.value) <= val ? '#f59e0b' : '#d1d5db';
+    });
+  }
+  stars.forEach(function(s) {
+    s.addEventListener('click', function() { setRating(parseInt(this.dataset.value)); });
+    s.addEventListener('mouseenter', function() {
+      var v = parseInt(this.dataset.value);
+      stars.forEach(function(s2) {
+        s2.style.color = parseInt(s2.dataset.value) <= v ? '#f59e0b' : '#d1d5db';
+      });
+    });
+  });
+  document.getElementById('star-rating').addEventListener('mouseleave', function() {
+    setRating(parseInt(input.value));
+  });
+  setRating(3);
+})();
+</script>
+{% endblock %}

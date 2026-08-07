@@ -1,68 +1,133 @@
 {% extends "base.html" %}
 {% block title %}営業ダッシュボード — 建設SaaS{% endblock %}
-{% block topbar_title %}営業管理{% endblock %}
+{% block topbar_title %}営業ダッシュボード{% endblock %}
 
 {% block content %}
 <div class="page-header">
   <h1>営業ダッシュボード</h1>
   <div>
-    <a href="{% url 'sales:create' %}" class="btn btn-primary">+ 営業記録を作成</a>
-    <a href="{% url 'sales:list' %}" class="btn btn-outline">一覧 →</a>
+    <a href="{% url 'sales:visit_list' %}" class="btn btn-outline">訪問一覧</a>
+    <a href="{% url 'sales:visit_create' %}" class="btn btn-primary">+ 訪問記録を登録</a>
   </div>
 </div>
 
-<div class="stats">
-  <div class="stat-card blue">
-    <div class="stat-label">全件数</div>
-    <div class="stat-value blue">{{ stats.total }}</div>
-  </div>
-  <div class="stat-card default">
-    <div class="stat-label">今月</div>
-    <div class="stat-value">{{ stats.this_month }}</div>
-  </div>
-  <div class="stat-card orange">
-    <div class="stat-label">要対応</div>
-    <div class="stat-value orange">{{ stats.needs_action }}</div>
-  </div>
-</div>
-
-<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+<!-- KPI Cards -->
+<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-bottom:20px;">
   <div class="card">
-    <div class="card-header"><h2>業界別件数</h2></div>
+    <div class="card-body" style="text-align:center;padding:20px;">
+      <div style="font-size:2em;font-weight:bold;color:var(--primary, #2563eb);">{{ total }}</div>
+      <div style="color:var(--gray-500, #6b7280);margin-top:5px;">総訪問件数</div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-body" style="text-align:center;padding:20px;">
+      <div style="font-size:2em;font-weight:bold;color:var(--green, #16a34a);">{{ this_month }}</div>
+      <div style="color:var(--gray-500, #6b7280);margin-top:5px;">今月の訪問</div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-body" style="text-align:center;padding:20px;">
+      <div style="font-size:2em;font-weight:bold;color:var(--orange, #ea580c);">{{ action_required }}</div>
+      <div style="color:var(--gray-500, #6b7280);margin-top:5px;">要対応（下書き・対応中）</div>
+    </div>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px;">
+  <!-- Industry Distribution -->
+  <div class="card">
+    <div class="card-header"><h2>業種別分布</h2></div>
     <div class="table-wrap">
       <table>
-        <thead><tr><th>業界</th><th style="text-align:right;">件数</th></tr></thead>
+        <thead><tr><th>業種</th><th>件数</th><th>割合</th></tr></thead>
         <tbody>
-          {% for item in stats.by_industry %}
+          {% for item in industry_data %}
           <tr>
-            <td><a href="{% url 'sales:by_industry' %}?industry={{ item.industry }}">{{ item.industry }}</a></td>
-            <td style="text-align:right;font-weight:600;">{{ item.count }}</td>
+            <td>{{ item.industry }}</td>
+            <td>{{ item.count }}</td>
+            <td>
+              {% if total > 0 %}
+              <div style="display:flex;align-items:center;gap:8px;">
+                <div style="background:var(--primary, #2563eb);height:8px;border-radius:4px;width:{% widthratio item.count total 100 %}%;"></div>
+                <span>{% widthratio item.count total 100 %}%</span>
+              </div>
+              {% else %}-{% endif %}
+            </td>
           </tr>
           {% empty %}
-          <tr><td colspan="2"><div class="empty"><p>データなし</p></div></td></tr>
+          <tr><td colspan="3" style="text-align:center;color:var(--gray-400);padding:20px;">データがありません</td></tr>
           {% endfor %}
         </tbody>
       </table>
     </div>
   </div>
 
+  <!-- Status Distribution -->
   <div class="card">
-    <div class="card-header"><h2>ステータス別</h2></div>
+    <div class="card-header"><h2>状態別分布</h2></div>
     <div class="table-wrap">
       <table>
-        <thead><tr><th>ステータス</th><th style="text-align:right;">件数</th></tr></thead>
+        <thead><tr><th>状態</th><th>件数</th><th>割合</th></tr></thead>
         <tbody>
-          {% for item in stats.by_status %}
+          {% for item in status_data %}
           <tr>
-            <td>{{ item.status }}</td>
-            <td style="text-align:right;font-weight:600;">{{ item.count }}</td>
+            <td>
+              {% if item.status == '下書き' %}<span class="badge badge-gray">下書き</span>
+              {% elif item.status == '確認済' %}<span class="badge badge-blue">確認済</span>
+              {% elif item.status == '対応中' %}<span class="badge badge-orange">対応中</span>
+              {% elif item.status == '完了' %}<span class="badge badge-green">完了</span>
+              {% elif item.status == '見送り' %}<span class="badge badge-red">見送り</span>
+              {% endif %}
+            </td>
+            <td>{{ item.count }}</td>
+            <td>
+              {% if total > 0 %}
+              <div style="display:flex;align-items:center;gap:8px;">
+                <div style="background:var(--primary, #2563eb);height:8px;border-radius:4px;width:{% widthratio item.count total 100 %}%;"></div>
+                <span>{% widthratio item.count total 100 %}%</span>
+              </div>
+              {% else %}-{% endif %}
+            </td>
           </tr>
           {% empty %}
-          <tr><td colspan="2"><div class="empty"><p>データなし</p></div></td></tr>
+          <tr><td colspan="3" style="text-align:center;color:var(--gray-400);padding:20px;">データがありません</td></tr>
           {% endfor %}
         </tbody>
       </table>
     </div>
+  </div>
+</div>
+
+<!-- Recent Visits -->
+<div class="card">
+  <div class="card-header"><h2>最近の訪問記録</h2></div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>会社名</th><th>業種</th><th>担当者</th><th>状態</th><th>訪問日</th><th>登録日</th></tr>
+      </thead>
+      <tbody>
+        {% for v in recent %}
+        <tr>
+          <td><a href="{% url 'sales:visit_detail' v.pk %}">{{ v.company_name }}</a></td>
+          <td>{{ v.get_industry_display }}</td>
+          <td>{{ v.rep_name|default:"-" }}</td>
+          <td>
+            {% if v.status == '下書き' %}<span class="badge badge-gray">下書き</span>
+            {% elif v.status == '確認済' %}<span class="badge badge-blue">確認済</span>
+            {% elif v.status == '対応中' %}<span class="badge badge-orange">対応中</span>
+            {% elif v.status == '完了' %}<span class="badge badge-green">完了</span>
+            {% elif v.status == '見送り' %}<span class="badge badge-red">見送り</span>
+            {% endif %}
+          </td>
+          <td>{{ v.visit_date|default:"-" }}</td>
+          <td>{{ v.created_at|date:"Y-m-d" }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="6"><div class="empty"><div class="empty-icon">&#x1f4cb;</div><p>訪問記録がありません</p></div></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
   </div>
 </div>
 {% endblock %}
