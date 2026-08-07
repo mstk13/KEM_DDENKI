@@ -37,7 +37,7 @@ services:
     volumes:
       - .:/app
       - media_data:/app/media
-    command: ["python", "manage.py", "runserver", "0.0.0.0:8000"]
+    command: ["gunicorn", "config.wsgi:application", "--bind", "0.0.0.0:8000", "--workers", "4", "--threads", "2"]
 
   # --- Cloudflare Tunnel（社外アクセス用・任意） ---
   # 使用する場合は .env に CLOUDFLARE_TUNNEL_TOKEN を設定してください。

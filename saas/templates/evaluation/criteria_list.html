@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}評価基準一覧 — 建設SaaS{% endblock %}
+{% block topbar_title %}評価基準{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>評価基準一覧</h1>
+  <a href="{% url 'evaluation:criteria_create' %}" class="btn btn-primary">+ 項目を追加</a>
+</div>
+
+<div class="card" style="margin-bottom:20px;">
+  <div class="card-body">
+    <form method="get" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;">
+      <div class="form-group" style="margin-bottom:0;">
+        <label>セクション / 職種</label>
+        <select name="role" class="form-control">
+          <option value="">すべて</option>
+          {% for s in sections %}
+          <option value="{{ s }}" {% if role == s %}selected{% endif %}>{{ s }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <button type="submit" class="btn btn-primary">絞り込み</button>
+      <a href="{% url 'evaluation:criteria_list' %}" class="btn btn-outline">リセット</a>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>セクション</th>
+          <th>No.</th>
+          <th>項目名</th>
+          <th>説明</th>
+          <th>最大点</th>
+          <th>5点基準</th>
+          <th>3点基準</th>
+          <th>1点基準</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in items %}
+        <tr>
+          <td><span class="badge badge-blue">{{ item.section }}</span></td>
+          <td>{{ item.num }}</td>
+          <td>{{ item.name }}</td>
+          <td>{{ item.description|truncatewords:10|default:"-" }}</td>
+          <td>{{ item.max_score }}</td>
+          <td>{{ item.anchor_5|truncatewords:8|default:"-" }}</td>
+          <td>{{ item.anchor_3|truncatewords:8|default:"-" }}</td>
+          <td>{{ item.anchor_1|truncatewords:8|default:"-" }}</td>
+          <td><a href="{% url 'evaluation:criteria_edit' item.pk %}" class="btn btn-outline btn-sm">編集</a></td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="9"><div class="empty"><p>評価項目が登録されていません</p></div></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

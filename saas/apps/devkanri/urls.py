@@ -17,4 +17,9 @@ urlpatterns = [
     path("tasks/<int:pk>/edit/", views.task_edit, name="task_edit"),
     path("tasks/<int:pk>/delete/", views.task_delete, name="task_delete"),
     path("tasks/<int:pk>/move/", views.task_move, name="task_move"),
+    # 目安箱
+    path("meyasubako/", views.meyasubako_list, name="meyasubako_list"),
+    path("meyasubako/new/", views.meyasubako_create, name="meyasubako_create"),
+    path("meyasubako/<int:pk>/", views.meyasubako_detail, name="meyasubako_detail"),
+    path("meyasubako/<int:pk>/resolve/", views.meyasubako_resolve, name="meyasubako_resolve"),
 ]

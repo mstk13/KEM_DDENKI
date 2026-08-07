@@ -86,11 +86,62 @@
         </div>
       </div>
 
+      <div class="nav-group {% if 'sales:' in request.resolver_match.view_name %}open{% endif %}">
+        <button class="nav-section" type="button">営業<span class="nav-chevron"></span></button>
+        <div class="nav-group-items">
+          <a href="{% url 'sales:dashboard' %}" class="{% if request.resolver_match.url_name == 'dashboard' and 'sales:' in request.resolver_match.view_name %}active{% endif %}">
+            <span class="nav-icon">&#x1f4ca;</span> 営業ダッシュボード
+          </a>
+          <a href="{% url 'sales:visit_list' %}" class="{% if request.resolver_match.url_name == 'visit_list' and 'sales:' in request.resolver_match.view_name %}active{% endif %}">
+            <span class="nav-icon">&#x1f4cb;</span> 訪問記録
+          </a>
+          <a href="{% url 'sales:industry_browse' %}" class="{% if 'industry' in request.resolver_match.url_name and 'sales:' in request.resolver_match.view_name %}active{% endif %}">
+            <span class="nav-icon">&#x1f3ed;</span> 業種別一覧
+          </a>
+        </div>
+      </div>
+
+      <div class="nav-group {% if 'attendance:' in request.resolver_match.view_name %}open{% endif %}">
+        <button class="nav-section" type="button">勤怠<span class="nav-chevron"></span></button>
+        <div class="nav-group-items">
+          <a href="{% url 'attendance:report_list' %}" class="{% if request.resolver_match.url_name == 'report_list' and 'attendance:' in request.resolver_match.view_name %}active{% endif %}">
+            <span class="nav-icon">&#x1f4cb;</span> 勤怠日報
+          </a>
+          <a href="{% url 'attendance:entry_list' %}" class="{% if request.resolver_match.url_name == 'entry_list' and 'attendance:' in request.resolver_match.view_name %}active{% endif %}">
+            <span class="nav-icon">&#x1f465;</span> 個人別一覧
+          </a>
+          <a href="{% url 'attendance:summary' %}" class="{% if request.resolver_match.url_name == 'summary' and 'attendance:' in request.resolver_match.view_name %}active{% endif %}">
+            <span class="nav-icon">&#x1f4ca;</span> 月次サマリ
+          </a>
+          <a href="{% url 'attendance:settings' %}" class="{% if request.resolver_match.url_name == 'settings' and 'attendance:' in request.resolver_match.view_name %}active{% endif %}">
+            <span class="nav-icon">&#x2699;&#xfe0f;</span> 勤怠設定
+          </a>
+        </div>
+      </div>
+
+      <div class="nav-group {% if 'evaluation:' in request.resolver_match.view_name %}open{% endif %}">
+        <button class="nav-section" type="button">人事評価<span class="nav-chevron"></span></button>
+        <div class="nav-group-items">
+          <a href="{% url 'evaluation:eval_list' %}" class="{% if request.resolver_match.url_name == 'eval_list' and 'evaluation:' in request.resolver_match.view_name %}active{% endif %}">
+            <span class="nav-icon">&#x1f4cb;</span> 評価一覧
+          </a>
+          <a href="{% url 'evaluation:criteria_list' %}" class="{% if 'criteria' in request.resolver_match.url_name and 'evaluation:' in request.resolver_match.view_name %}active{% endif %}">
+            <span class="nav-icon">&#x1f4cf;</span> 評価基準
+          </a>
+          <a href="{% url 'evaluation:assignment_list' %}" class="{% if 'assignment' in request.resolver_match.url_name and 'evaluation:' in request.resolver_match.view_name %}active{% endif %}">
+            <span class="nav-icon">&#x1f517;</span> 評価対象設定
+          </a>
+        </div>
+      </div>
+
       <div class="nav-group {% if 'devkanri:' in request.resolver_match.view_name %}open{% endif %}">
         <button class="nav-section" type="button">開発<span class="nav-chevron"></span></button>
         <div class="nav-group-items">
-          <a href="{% url 'devkanri:project_list' %}" class="{% if 'devkanri:' in request.resolver_match.view_name %}active{% endif %}">
+          <a href="{% url 'devkanri:project_list' %}" class="{% if request.resolver_match.url_name == 'project_list' or request.resolver_match.url_name == 'project_detail' or request.resolver_match.url_name == 'task_detail' %}active{% endif %}">
             <span class="nav-icon">&#x1f4bb;</span> 開発管理
+          </a>
+          <a href="{% url 'devkanri:meyasubako_list' %}" class="{% if 'meyasubako' in request.resolver_match.url_name %}active{% endif %}">
+            <span class="nav-icon">&#x1f4ee;</span> 目安箱
           </a>
         </div>
       </div>
@@ -123,7 +174,10 @@
           <div class="user-name">{{ user.get_full_name|default:user.username }}</div>
           <div class="user-company">{% if user.company %}{{ user.company.name }}{% endif %}</div>
         </div>
-        <a href="{% url 'logout' %}" class="logout-btn">ログアウト</a>
+        <form method="post" action="{% url 'logout' %}" style="display:inline">
+          {% csrf_token %}
+          <button type="submit" class="logout-btn">ログアウト</button>
+        </form>
       {% endif %}
     </div>
   </aside>

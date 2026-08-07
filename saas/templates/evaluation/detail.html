@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% block title %}{{ evaluation.employee_name }} の評価 — 建設SaaS{% endblock %}
+{% block topbar_title %}評価詳細{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>{{ evaluation.employee_name }} の評価</h1>
+  <div>
+    <a href="{% url 'evaluation:eval_input' evaluation.pk %}" class="btn btn-primary btn-sm">回答入力</a>
+    <a href="{% url 'evaluation:eval_list' %}" class="btn btn-outline btn-sm">一覧に戻る</a>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+  <div class="card">
+    <div class="card-header"><h2>基本情報</h2></div>
+    <dl class="detail-grid">
+      <dt>被評価者</dt><dd>{{ evaluation.employee_name }}</dd>
+      <dt>職種</dt><dd>{{ evaluation.role|default:"-" }}</dd>
+      <dt>評価期間</dt><dd>{{ evaluation.period|default:"-" }}</dd>
+      <dt>評価者</dt><dd>{{ evaluation.evaluator_name|default:"-" }}</dd>
+      <dt>作成日</dt><dd>{{ evaluation.created_at|date:"Y/m/d H:i" }}</dd>
+    </dl>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><h2>スコアサマリ</h2></div>
+    <dl class="detail-grid">
+      <dt>合計スコア</dt><dd>{{ evaluation.total_score }} / {{ evaluation.max_total }}</dd>
+      <dt>達成率</dt>
+      <dd>
+        {% if evaluation.score_percent >= 80 %}<span class="badge badge-green">{{ evaluation.score_percent }}%</span>
+        {% elif evaluation.score_percent >= 50 %}<span class="badge badge-orange">{{ evaluation.score_percent }}%</span>
+        {% else %}<span class="badge badge-gray">{{ evaluation.score_percent }}%</span>
+        {% endif %}
+      </dd>
+    </dl>
+  </div>
+</div>
+
+<div class="card" style="margin-top:20px;">
+  <div class="card-header"><h2>項目別スコア</h2></div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>No.</th><th>項目名</th><th>スコア</th><th>コメント</th></tr></thead>
+      <tbody>
+        {% for s in scores %}
+        <tr>
+          <td>{{ s.item_num }}</td>
+          <td>{{ s.item_name }}</td>
+          <td>{{ s.score }}</td>
+          <td>{{ s.comment|default:"-" }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="4" style="text-align:center;color:var(--gray-400);padding:20px;">スコアが未入力です</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% if answers %}
+<div class="card" style="margin-top:20px;">
+  <div class="card-header"><h2>質問回答</h2></div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>No.</th><th>項目</th><th>質問</th><th>回答</th></tr></thead>
+      <tbody>
+        {% for a in answers %}
+        <tr>
+          <td>{{ a.qnum }}</td>
+          <td>{{ a.item_name }}</td>
+          <td>{{ a.question_text }}</td>
+          <td>{% if a.answer %}{{ a.answer }} / 5{% else %}-{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{% if overalls %}
+<div class="card" style="margin-top:20px;">
+  <div class="card-header"><h2>総合コメント</h2></div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>No.</th><th>質問</th><th>回答</th></tr></thead>
+      <tbody>
+        {% for o in overalls %}
+        <tr>
+          <td>{{ o.qnum }}</td>
+          <td>{{ o.question_text }}</td>
+          <td>{{ o.answer_text|default:"-" }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

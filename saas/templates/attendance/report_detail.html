@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% block title %}{{ report.report_date }} 勤怠日報 — 建設SaaS{% endblock %}
+{% block topbar_title %}勤怠日報詳細{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>{{ report.report_date }} {{ report.site_name }}</h1>
+  <div>
+    <a href="{% url 'attendance:report_edit' report.pk %}" class="btn btn-outline btn-sm">編集</a>
+    <a href="{% url 'attendance:report_list' %}" class="btn btn-outline btn-sm">一覧に戻る</a>
+  </div>
+</div>
+
+{% if confirm_delete %}
+<div class="card" style="margin-bottom:20px;border:2px solid var(--red);">
+  <div class="card-body" style="text-align:center;">
+    <p>この勤怠日報を削除しますか？この操作は取り消せません。</p>
+    <form method="post" action="{% url 'attendance:report_delete' report.pk %}" style="display:inline;">
+      {% csrf_token %}
+      <button type="submit" class="btn btn-primary" style="background:var(--red);">削除する</button>
+      <a href="{% url 'attendance:report_detail' report.pk %}" class="btn btn-outline">キャンセル</a>
+    </form>
+  </div>
+</div>
+{% endif %}
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+  <div class="card">
+    <div class="card-header"><h2>基本情報</h2></div>
+    <dl class="detail-grid">
+      <dt>日付</dt><dd>{{ report.report_date }}</dd>
+      <dt>現場名</dt><dd>{{ report.site_name|default:"-" }}</dd>
+      <dt>状態</dt><dd>{{ report.get_status_display }}</dd>
+      <dt>作成者</dt><dd>{{ report.created_by|default:"-" }}</dd>
+      <dt>作成日時</dt><dd>{{ report.created_at }}</dd>
+    </dl>
+  </div>
+  <div class="card">
+    <div class="card-header"><h2>作業内容</h2></div>
+    <div class="card-body">
+      <p>{{ report.work_content|default:"-"|linebreaksbr }}</p>
+      {% if report.note %}
+      <p style="margin-top:10px;"><strong>備考:</strong> {{ report.note|linebreaksbr }}</p>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<div class="card" style="margin-top:20px;">
+  <div class="card-header"><h2>勤怠エントリ ({{ entries.count }}名)</h2></div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>氏名</th>
+          <th>開始</th>
+          <th>終了</th>
+          <th>休憩</th>
+          <th>早出</th>
+          <th>所定</th>
+          <th>残業</th>
+          <th>合計</th>
+          <th>備考</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for e in entries %}
+        <tr>
+          <td>
+            {% if e.worker %}
+            <a href="{% url 'attendance:employee_record' e.worker.pk %}">{{ e.employee_name }}</a>
+            {% else %}
+            {{ e.employee_name }}
+            {% endif %}
+          </td>
+          <td>{{ e.start_time|default:"-" }}</td>
+          <td>{{ e.end_time|default:"-" }}</td>
+          <td>{{ e.break_minutes }}分</td>
+          <td>{{ e.early_minutes }}分</td>
+          <td>{{ e.normal_minutes }}分</td>
+          <td>{{ e.overtime_minutes }}分</td>
+          <td>{{ e.total_minutes }}分</td>
+          <td>{{ e.note|default:"-" }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="9" style="text-align:center;color:var(--gray-400);padding:20px;">エントリがありません</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% if not confirm_delete %}
+<div style="margin-top:20px;">
+  <a href="{% url 'attendance:report_delete' report.pk %}" class="btn btn-outline" style="color:var(--red);border-color:var(--red);">この日報を削除</a>
+</div>
+{% endif %}
+{% endblock %}

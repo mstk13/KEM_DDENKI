@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}{{ visit.company_name }} — 建設SaaS{% endblock %}
+{% block topbar_title %}営業訪問詳細{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>{{ visit.company_name }}</h1>
+  <div>
+    <a href="{% url 'sales:visit_edit' visit.pk %}" class="btn btn-outline btn-sm">編集</a>
+    <a href="{% url 'sales:visit_list' %}" class="btn btn-outline btn-sm">一覧に戻る</a>
+  </div>
+</div>
+
+{% if confirm_delete %}
+<div class="card" style="margin-bottom:20px;border:2px solid var(--red, #e74c3c);">
+  <div class="card-body" style="text-align:center;padding:20px;">
+    <p style="font-size:1.1em;margin-bottom:15px;">この訪問記録を削除してよろしいですか？</p>
+    <form method="post" style="display:inline;">
+      {% csrf_token %}
+      <button type="submit" class="btn btn-primary" style="background:var(--red, #e74c3c);">削除する</button>
+      <a href="{% url 'sales:visit_detail' visit.pk %}" class="btn btn-outline">キャンセル</a>
+    </form>
+  </div>
+</div>
+{% endif %}
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+  <div class="card">
+    <div class="card-header"><h2>基本情報</h2></div>
+    <dl class="detail-grid">
+      <dt>業種</dt><dd>{{ visit.get_industry_display }}</dd>
+      <dt>会社名</dt><dd>{{ visit.company_name }}</dd>
+      <dt>担当者名</dt><dd>{{ visit.rep_name|default:"-" }}</dd>
+      <dt>状態</dt><dd>{{ visit.get_status_display }}</dd>
+      <dt>訪問日</dt><dd>{{ visit.visit_date|default:"-" }}</dd>
+      <dt>受領日</dt><dd>{{ visit.received_date|default:"-" }}</dd>
+    </dl>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><h2>連絡先</h2></div>
+    <dl class="detail-grid">
+      <dt>電話番号</dt><dd>{{ visit.phone|default:"-" }}</dd>
+      <dt>メール</dt><dd>{% if visit.email %}<a href="mailto:{{ visit.email }}">{{ visit.email }}</a>{% else %}-{% endif %}</dd>
+      <dt>Webサイト</dt><dd>{% if visit.website %}<a href="{{ visit.website }}" target="_blank">{{ visit.website }}</a>{% else %}-{% endif %}</dd>
+      <dt>住所</dt><dd>{{ visit.address|default:"-"|linebreaksbr }}</dd>
+    </dl>
+  </div>
+</div>
+
+<div class="card" style="margin-top:20px;">
+  <div class="card-header"><h2>営業詳細</h2></div>
+  <dl class="detail-grid">
+    <dt>事業概要</dt><dd>{{ visit.business_overview|default:"-"|linebreaksbr }}</dd>
+    <dt>営業内容</dt><dd>{{ visit.sales_content|default:"-"|linebreaksbr }}</dd>
+    <dt>添付資料</dt><dd>{{ visit.source_file|default:"-" }}</dd>
+    <dt>メモ</dt><dd>{{ visit.memo|default:"-"|linebreaksbr }}</dd>
+  </dl>
+</div>
+
+<div style="margin-top:20px;display:flex;gap:10px;">
+  <a href="{% url 'sales:visit_edit' visit.pk %}" class="btn btn-primary">編集</a>
+  <a href="{% url 'sales:visit_delete' visit.pk %}" class="btn btn-outline" style="color:var(--red, #e74c3c);">削除</a>
+</div>
+{% endblock %}

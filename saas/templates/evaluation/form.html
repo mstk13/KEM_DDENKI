@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}{% if form.instance.pk %}評価を編集{% else %}評価を作成{% endif %} — 建設SaaS{% endblock %}
+{% block topbar_title %}{% if form.instance.pk %}評価を編集{% else %}評価を作成{% endif %}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>{% if form.instance.pk %}評価を編集{% else %}新規評価を作成{% endif %}</h1>
+</div>
+
+<div class="card">
+  <div class="card-body">
+    <form method="post">
+      {% csrf_token %}
+      <div class="form-row">
+        <div class="form-group">
+          <label for="id_employee">被評価者 (作業員)</label>
+          {{ form.employee }}
+          {{ form.employee.errors }}
+        </div>
+        <div class="form-group">
+          <label for="id_employee_name">被評価者名</label>
+          {{ form.employee_name }}
+          {{ form.employee_name.errors }}
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="id_role">職種</label>
+          {{ form.role }}
+          {{ form.role.errors }}
+        </div>
+        <div class="form-group">
+          <label for="id_period">評価期間</label>
+          {{ form.period }}
+          {{ form.period.errors }}
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="id_evaluator">評価者 (作業員)</label>
+          {{ form.evaluator }}
+          {{ form.evaluator.errors }}
+        </div>
+        <div class="form-group">
+          <label for="id_evaluator_name">評価者名</label>
+          {{ form.evaluator_name }}
+          {{ form.evaluator_name.errors }}
+        </div>
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">保存</button>
+        <a href="{% url 'evaluation:eval_list' %}" class="btn btn-outline">キャンセル</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

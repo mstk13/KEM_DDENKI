@@ -157,3 +157,78 @@ class DevComment(TenantModel):
 
     def __str__(self):
         return f"Comment #{self.pk} on Task #{self.task_id}"
+
+
+class Meyasubako(TenantModel):
+    """目安箱（ユーザーからのフィードバック）。"""
+
+    class Kind(models.TextChoices):
+        BUG = "bug", "不具合"
+        USABILITY = "usability", "使いにくい"
+        FEATURE = "feature", "機能追加"
+        OTHER = "other", "その他"
+
+    class Urgency(models.TextChoices):
+        URGENT = "urgent", "すぐ対応してほしい"
+        NOT_URGENT = "not_urgent", "急がない"
+
+    MODULE_CHOICES = [
+        ("dashboard", "ダッシュボード"),
+        ("sites", "現場管理"),
+        ("reports", "日報管理"),
+        ("costs", "原価管理"),
+        ("materials", "材料管理"),
+        ("bids", "入札管理"),
+        ("sales", "営業管理"),
+        ("schedules", "工期管理"),
+        ("workers", "人材管理"),
+        ("devkanri", "開発管理"),
+        ("masters", "取引先管理"),
+        ("notifications", "通知"),
+        ("permissions", "権限管理"),
+        ("other", "その他"),
+    ]
+
+    reporter = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="meyasubako_posts",
+        verbose_name="報告者",
+    )
+    reporter_name = models.CharField("報告者名", max_length=100)
+    kind = models.CharField(
+        "種別",
+        max_length=20,
+        choices=Kind.choices,
+    )
+    module = models.CharField(
+        "対象モジュール",
+        max_length=30,
+        choices=MODULE_CHOICES,
+    )
+    title = models.CharField("タイトル", max_length=200)
+    problem = models.TextField("困っていること")
+    wish = models.TextField("こうなってほしい", blank=True)
+    urgency = models.CharField(
+        "緊急度",
+        max_length=20,
+        choices=Urgency.choices,
+        default=Urgency.NOT_URGENT,
+    )
+    screenshot = models.ImageField(
+        "スクリーンショット",
+        upload_to="meyasubako/",
+        blank=True,
+    )
+    resolved = models.BooleanField("対応済み", default=False)
+
+    history = HistoricalRecords()
+
+    class Meta:
+        verbose_name = "目安箱"
+        verbose_name_plural = "目安箱"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"[{self.get_kind_display()}] {self.title}"

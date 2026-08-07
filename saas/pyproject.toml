@@ -13,6 +13,7 @@ dependencies = [
     "Pillow>=10.0",
     "pdfplumber>=0.10",
     "anthropic>=0.30",
+    "whitenoise>=6.5",
     "lightgbm>=4.0",
     "scikit-learn>=1.4",
     "joblib>=1.3",
