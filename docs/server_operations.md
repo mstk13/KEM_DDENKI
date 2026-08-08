@@ -54,7 +54,13 @@ Webhook ではなく **こちらから2分おきに GitHub を見に行く** 方
 
 - **設定**: `~/kem-ops/autodeploy.conf`（このPC固有・Git管理外。雛形は `tools/autodeploy/autodeploy.conf.example`）
 - **ログ**: `~/kem-ops/autodeploy.log`
-- **スクリプト**: `tools/autodeploy/autodeploy.sh`（リポジトリ内）
+- **実行されるスクリプト**: `~/kem-ops/autodeploy.sh`（リポジトリ外の常設コピー）
+- **その正**: `tools/autodeploy/autodeploy.sh`（リポジトリ内。実行のたびに常設コピーへ自動同期される）
+
+> [!NOTE]
+> スクリプトの実体をリポジトリ外に置いているのは、リポジトリを巻き戻したときに
+> 自動デプロイ本体まで一緒に消えて、二度と動かなくなるのを防ぐためです。
+> リポジトリ側を直せば、次の実行で常設コピーに反映されます。
 
 サーバー上のリポジトリは **GitHub の鏡** として扱われます。`reset --hard` と `clean` が走るため、
 このPC上で直接編集したものは次回の反映で消えます。`.env` など `.gitignore` 対象は消えません。
@@ -81,8 +87,8 @@ curl -s http://127.0.0.1:8001/health/    # 開発
 ### 今すぐ反映したい（2分待たない）
 
 ```bash
-bash "/c/Users/kazushi kenmochi/projects/KEM_DDENKI_dev/tools/autodeploy/autodeploy.sh"
-bash "/c/Users/kazushi kenmochi/projects/KEM_DDENKI_dev/tools/autodeploy/autodeploy.sh" dev   # 開発だけ
+bash ~/kem-ops/autodeploy.sh
+bash ~/kem-ops/autodeploy.sh dev   # 開発だけ
 ```
 
 ### 手動で戻す
@@ -231,6 +237,6 @@ docker compose logs db --tail 50
 4. 本番DBを最新バックアップから復元する（第3章）
 5. `docker compose up -d --build` を両方で実行
 6. `tailscale serve --bg 8000` と `tailscale serve --bg --https=8443 http://127.0.0.1:8001`
-7. `~/kem-ops/autodeploy.conf` を作る（雛形: `tools/autodeploy/autodeploy.conf.example`）
+7. `~/kem-ops/autodeploy.conf` を作り、`tools/autodeploy/autodeploy.sh` を `~/kem-ops/autodeploy.sh` にコピーする
 8. タスクスケジューラに AutoDeploy と Daily Backup を登録する
 9. Docker Desktop の「サインイン時に起動」を有効にする

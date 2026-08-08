@@ -7,8 +7,13 @@
 # 到達性が不要なため、NAT の内側にある社内PCでもそのまま動く。
 #
 # 使い方:
-#   bash tools/autodeploy/autodeploy.sh              # 設定ファイルの全環境を処理
-#   bash tools/autodeploy/autodeploy.sh dev          # 指定した環境だけ処理
+#   bash ~/kem-ops/autodeploy.sh              # 設定ファイルの全環境を処理
+#   bash ~/kem-ops/autodeploy.sh dev          # 指定した環境だけ処理
+#
+# タスクスケジューラが叩くのは **~/kem-ops/autodeploy.sh**（リポジトリ外の常設コピー）。
+# リポジトリ内のこのファイルが正で、実行のたびに常設コピーへ同期される。
+# 常設コピーを分けているのは、リポジトリを巻き戻したときに自動デプロイ本体まで
+# 消えて二度と動かなくなるのを防ぐため（実際にそれで停止した）。
 #
 # 設定ファイル（既定: ~/kem-ops/autodeploy.conf）:
 #   環境名|リポジトリのパス|ブランチ|ヘルスチェックURL|backup(取る場合のみ)
@@ -155,12 +160,28 @@ deploy_one() {
 }
 
 rc=0
+repo_script=""
 while IFS='|' read -r name repo_dir branch health_url want_backup; do
     case "$name" in ''|\#*) continue ;; esac
     if [ -n "$ONLY_ENV" ] && [ "$ONLY_ENV" != "$name" ]; then
         continue
     fi
     deploy_one "$name" "$repo_dir" "$branch" "$health_url" "${want_backup:-}" || rc=1
+    if [ -f "$repo_dir/tools/autodeploy/autodeploy.sh" ]; then
+        repo_script="$repo_dir/tools/autodeploy/autodeploy.sh"
+    fi
 done < "$CONF"
+
+# --- 常設コピーを最新のリポジトリ版に揃える ---------------------------
+# タスクスケジューラが叩くのは常設コピーのほう。リポジトリ側でスクリプトを
+# 直しても、ここで同期しないと次回以降も古いものが動き続ける。
+SELF_INSTALL="${KEM_AUTODEPLOY_SELF:-$HOME/kem-ops/autodeploy.sh}"
+if [ -n "$repo_script" ] && [ -f "$SELF_INSTALL" ] && ! cmp -s "$repo_script" "$SELF_INSTALL"; then
+    if cp "$repo_script" "$SELF_INSTALL"; then
+        log "自動デプロイ本体を更新しました（次回実行から反映）"
+    else
+        log "WARN: 自動デプロイ本体の更新に失敗しました"
+    fi
+fi
 
 exit $rc
