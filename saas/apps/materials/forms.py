@@ -3,11 +3,9 @@ from django import forms
 from apps.masters.models import Supplier, WorkType
 from apps.materials.models import (
     Delivery,
-    DeliveryItem,
     Material,
     PurchaseOrder,
     Quotation,
-    QuotationItem,
 )
 from apps.sites.models import Site
 
@@ -55,7 +53,10 @@ class PurchaseOrderForm(forms.ModelForm):
 class QuotationForm(forms.ModelForm):
     class Meta:
         model = Quotation
-        fields = ["site", "supplier", "quotation_date", "valid_until", "total_amount", "status", "file", "notes"]
+        fields = [
+            "site", "supplier", "quotation_date", "valid_until", "total_amount",
+            "status", "file", "notes",
+        ]
         widgets = {
             "quotation_date": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
             "valid_until": forms.DateInput(attrs={"type": "date", "class": "form-control"}),

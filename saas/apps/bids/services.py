@@ -4,7 +4,6 @@
 将来の DRF API 移行時にもそのまま使える。
 """
 
-from datetime import date
 
 from django.db.models import Count, Q, Sum
 
@@ -45,9 +44,9 @@ def mark_as_won(bid_project, created_by=None):
     site = create_site_from_won_bid(bid_project, created_by=created_by)
 
     # 通知
-    from apps.notifications.services import notify_multiple
-    from apps.notifications.models import Notification
     from apps.accounts.models import User
+    from apps.notifications.models import Notification
+    from apps.notifications.services import notify_multiple
 
     recipients = User.objects.filter(
         company=bid_project.company, is_active=True,

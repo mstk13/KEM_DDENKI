@@ -9,10 +9,8 @@ from django.utils import timezone
 
 from apps.costs.services import create_material_cost_from_po_item
 from apps.materials.models import (
-    Delivery,
     Inventory,
     PurchaseOrder,
-    Quotation,
     QuotationItem,
 )
 
@@ -131,7 +129,7 @@ def get_site_material_consumption(site):
         u = used_map.get(mid, {})
         budget_qty = o.get("total", 0) or 0
         used_qty = u.get("total", 0) or 0
-        pct = int((used_qty / budget_qty * 100)) if budget_qty else 0
+        pct = int(used_qty / budget_qty * 100) if budget_qty else 0
         name = o.get("items__material__name") or u.get("material__name", "")
         results.append({
             "material_name": name,

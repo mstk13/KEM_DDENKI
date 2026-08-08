@@ -6,7 +6,7 @@
 
 from django.db.models import Avg
 
-from apps.masters.models import Supplier, SupplierEvaluation
+from apps.masters.models import SupplierEvaluation
 
 
 def get_supplier_rating_summary(supplier):

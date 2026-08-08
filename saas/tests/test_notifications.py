@@ -1,7 +1,6 @@
 """通知基盤のテスト。"""
 
 import pytest
-from django.utils import timezone
 
 from apps.notifications.models import AlertLog, AlertRule, Notification
 from apps.notifications.services import (
@@ -45,6 +44,7 @@ class TestNotificationModel:
             Notification.unscoped.filter(recipient=user).order_by("-sent_at")
         )
         assert notifications[0].pk == n2.pk
+        assert notifications[1].pk == n1.pk
 
 
 @pytest.mark.django_db

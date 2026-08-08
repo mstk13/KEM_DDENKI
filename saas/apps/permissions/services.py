@@ -5,7 +5,7 @@ views.py / middleware / decorators から呼ぶ。
 将来の DRF API 移行時にもそのまま使える。
 """
 
-from apps.permissions.models import ModulePermission, Role, UserRole
+from apps.permissions.models import ModulePermission, Role
 
 
 def get_user_roles(user):

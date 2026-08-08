@@ -298,7 +298,6 @@ def _make_page_header(template, period=""):
             bar_start_x = 12 * mm + 90  # ラベルの右側
             max_bar_w = 5  # 1段階あたりのバー基本幅
             bar_h = 12  # バーの高さ
-            spacing = 4  # バー間のスペース
             content_w = page_w - bar_start_x - 12 * mm
             item_w = content_w / len(scale_items) if scale_items else 100
 
@@ -324,7 +323,9 @@ def _make_page_header(template, period=""):
             # 注記
             canvas.setFont(_FONT, 8)
             canvas.setFillColor(colors.HexColor("#718096"))
-            canvas.drawString(12 * mm, bar_y - 16, "※ 各欄に該当する数字（1〜5）を記入してください")
+            canvas.drawString(
+                12 * mm, bar_y - 16, "※ 各欄に該当する数字（1〜5）を記入してください"
+            )
 
         # ページ番号
         canvas.setFont(_FONT, 7)

@@ -1,6 +1,6 @@
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.db.models import Avg, Q, Sum
+from django.db.models import Q, Sum
 from django.shortcuts import get_object_or_404, redirect, render
 
 from apps.evaluation.forms import (
@@ -11,11 +11,9 @@ from apps.evaluation.forms import (
 from apps.evaluation.models import (
     EvalAnswer,
     EvalItem,
-    EvalOverall,
     EvalScore,
     Evaluation,
     EvaluatorTarget,
-    SurveyQuestion,
 )
 
 

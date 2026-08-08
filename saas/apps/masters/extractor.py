@@ -14,10 +14,10 @@ def _get_client():
     """Anthropic クライアントを取得。"""
     try:
         import anthropic
-    except ImportError:
+    except ImportError as exc:
         raise ImportError(
             "anthropic パッケージが必要です。pip install anthropic を実行してください。"
-        )
+        ) from exc
 
     api_key = os.environ.get("ANTHROPIC_API_KEY")
     if not api_key:

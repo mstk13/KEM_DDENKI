@@ -5,7 +5,6 @@
 将来の DRF API 移行時にもそのまま使える。
 """
 
-import json
 from datetime import date, timedelta
 
 from apps.schedules.models import Assignment, Milestone, Phase, PhaseTemplate
@@ -16,7 +15,11 @@ def get_gantt_data(company):
 
     Returns:
         [
-            {"id": "site-1", "name": "A現場", "start": "2026-08-01", "end": "2026-10-31", "progress": 45, "custom_class": "bar-blue"},
+            {
+                "id": "site-1", "name": "A現場",
+                "start": "2026-08-01", "end": "2026-10-31",
+                "progress": 45, "custom_class": "bar-blue",
+            },
             ...
         ]
     """
@@ -66,7 +69,7 @@ def get_site_gantt_data(site):
             "start": phase.start_date.isoformat(),
             "end": phase.end_date.isoformat(),
             "progress": phase.progress,
-            "custom_class": f"bar-custom",
+            "custom_class": "bar-custom",
         })
 
     for ms in milestones:
@@ -89,7 +92,11 @@ def get_calendar_data(company, start_date, end_date):
 
     Returns:
         [
-            {"title": "田中太郎", "start": "2026-08-01", "end": "2026-08-05", "color": "#3b82f6", "extendedProps": {"site": "A現場"}},
+            {
+                "title": "田中太郎",
+                "start": "2026-08-01", "end": "2026-08-05",
+                "color": "#3b82f6", "extendedProps": {"site": "A現場"},
+            },
             ...
         ]
     """
