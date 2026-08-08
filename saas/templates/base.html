@@ -5,6 +5,14 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>{% block title %}建設SaaS{% endblock %}</title>
+<meta name="theme-color" content="#FF6B2C">
+<link rel="icon" href="{% static 'img/favicon.ico' %}" sizes="any">
+<link rel="icon" type="image/svg+xml" href="{% static 'img/icon.svg' %}">
+<link rel="apple-touch-icon" href="{% static 'img/apple-touch-icon.png' %}">
+<link rel="manifest" href="{% static 'manifest.webmanifest' %}">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="ケンモチ電機">
 <link rel="stylesheet" href="{% static 'css/style.css' %}">
 </head>
 <body>
@@ -12,7 +20,7 @@
 
   <aside class="sidebar">
     <div class="sidebar-logo">
-      <div class="sidebar-logo-icon">K</div>
+      <img class="sidebar-logo-icon" src="{% static 'img/icon.svg' %}" alt="ケンモチ電機">
       <div class="sidebar-logo-text">建設SaaS<span>業務管理プラットフォーム</span></div>
     </div>
     <nav class="sidebar-nav">

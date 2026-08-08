@@ -3,12 +3,20 @@
 # ============================================================
 # 開発: docker compose up
 # 本番: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# 同じPC上で本番用と開発用の2スタックを並行稼働させる前提のため、
+# 公開ポートはすべて環境変数で上書きできるようにしてある。
+# スタックの分離は .env の COMPOSE_PROJECT_NAME で行う
+# （本番=未設定でディレクトリ名 saas、開発=kemdev）。
+#
+# restart は always。unless-stopped だと Docker Desktop (Windows) の終了が
+# 「明示停止」と扱われ、PC再起動後に復帰しない。
 # ============================================================
 
 services:
   db:
     image: postgres:16-alpine
-    restart: unless-stopped
+    restart: always
     environment:
       POSTGRES_DB: kensetsu_saas
       POSTGRES_USER: postgres
@@ -25,9 +33,9 @@ services:
 
   redis:
     image: redis:7-alpine
-    restart: unless-stopped
+    restart: always
     ports:
-      - "6379:6379"
+      - "${REDIS_PORT:-6379}:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -36,7 +44,7 @@ services:
 
   web:
     build: .
-    restart: unless-stopped
+    restart: always
     depends_on:
       db:
         condition: service_healthy
@@ -45,7 +53,13 @@ services:
     environment:
       DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:-change-me-in-production}
       DJANGO_DEBUG: ${DJANGO_DEBUG:-True}
-      DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1,192.168.0.35}
+      DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1}
+      # リバースプロキシ（Tailscale serve 等）が TLS を終端して http へ渡す構成では、
+      # HTTPS オリジンを明示的に信頼させないと POST がすべて 403 になる。
+      CSRF_TRUSTED_ORIGINS: ${CSRF_TRUSTED_ORIGINS:-}
+      # 社長ポジションのログイン時に要求される管理者パスワード。
+      # 既定値は settings.py と揃える（空文字を渡すと誰もログインできなくなる）。
+      PRESIDENT_PIN: ${PRESIDENT_PIN:-1234}
       DB_NAME: kensetsu_saas
       DB_USER: postgres
       DB_PASSWORD: ${DB_PASSWORD:-postgres}

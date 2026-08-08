@@ -1,7 +1,19 @@
-# KEM_DDENKI — ケンモチ電機 業務管理システム
+<p align="center">
+  <img src="saas/static/img/icon-192.png" width="104" alt="ケンモチ電機 業務管理システム">
+</p>
+
+<h1 align="center">KEM_DDENKI — ケンモチ電機 業務管理システム</h1>
 
 電気工事の業務フローを一気通貫でカバーする統合Webアプリケーション。  
 日報・原価・材料・入札・工期・人材・営業・取引先・開発管理の **15モジュール** を1つのプラットフォームで提供します。
+
+**まず読むページ**
+
+| 立場 | ページ |
+|------|--------|
+| 現場・事務で**使う**人 | この下の [アクセス方法](#アクセス方法) |
+| **開発する**人 | [開発者ガイド](docs/developer_guide.md) |
+| サーバーを**管理する**人 | [サーバー運用ガイド](docs/server_operations.md) |
 
 ---
 
@@ -15,8 +27,9 @@
             │                  │                     │
             ▼                  ▼                     ▼
 ┌─────────────────────────────────────────────────────────────┐
-│                    Nginx (リバースプロキシ)                    │
-│                  http://192.168.0.35:8080                    │
+│              Tailscale serve (HTTPS終端・VPN内限定)            │
+│      本番 …:8000  https://desktop-rmsk0vg.tail8efe0d.ts.net  │
+│      開発 …:8001  https://desktop-rmsk0vg…ts.net:8443        │
 └───────────────────────────┬─────────────────────────────────┘
                             │
 ┌───────────────────────────▼─────────────────────────────────┐
@@ -73,97 +86,121 @@
 
 ## アクセス方法
 
-### 社内ネットワーク（Wi-Fi / LAN）
+### 開くURL
 
-| 環境 | URL |
-|------|-----|
-| **本番** | [http://192.168.0.35:8080/](http://192.168.0.35:8080/) |
-| **開発** | [http://192.168.0.35:8081/](http://192.168.0.35:8081/) |
+**PC でもスマホでも、開くURLは同じ1つです。**
 
-### 社外ネットワーク（Tailscale VPN）
+| | URL |
+|---|-----|
+| 🖥️ **PC**（Windows / Mac）<br>📱 **スマホ**（iPhone / Android） | **https://desktop-rmsk0vg.tail8efe0d.ts.net/** |
 
-| 環境 | URL |
-|------|-----|
-| **本番** | [http://100.120.92.15:8080/](http://100.120.92.15:8080/) |
-| **開発** | [http://100.120.92.15:8081/](http://100.120.92.15:8081/) |
+端末によって違うのは URL ではなく、**最初の準備**と**アイコンの置き方**だけです。下の自分の端末の手順に進んでください。
 
-> Tailscale 未導入の端末からは社外アクセスできません。セットアップ手順は [docs/tailscale_setup.md](docs/tailscale_setup.md) を参照。
+> [!IMPORTANT]
+> このURLは社内ネットワーク（Tailscale VPN）の中からしか開けません。
+> 会社のWi-Fiにつないでいても、**その端末に Tailscale が入っていないと開けません**。
+> 逆に Tailscale さえ入っていれば、自宅でも現場でも同じURLで使えます。
+> 端末の追加は管理者に依頼してください（手順: [docs/tailscale_setup.md](docs/tailscale_setup.md)）。
 
----
+### ログイン
 
-## PC（Windows / Mac）
+| 入力欄 | 入れるもの |
+|--------|-----------|
+| 社員番号 | 自分の社員番号（例: `E001`） |
+| 管理者パスワード | **社長のみ** 表示される。一般社員は表示されません |
 
-1. ブラウザ（Chrome / Edge 推奨）で [http://192.168.0.35:8080/](http://192.168.0.35:8080/) を開く
-2. ログイン画面でメールアドレスとパスワードを入力
-3. ダッシュボードが表示されたら利用開始
-
-### デスクトップアプリとして使う（任意）
-
-1. Chrome で上記URLを開く
-2. アドレスバー右の「インストール」アイコンをクリック
-3. 「インストール」を選択 → デスクトップにアイコンが追加される
+社員番号を入れると氏名が表示されます。表示されない場合は、その社員番号がまだ登録されていません。
 
 ---
 
-## iPhone（iOS）
+## 🖥️ PC（Windows / Mac）の場合
 
-1. **Safari** で [http://192.168.0.35:8080/](http://192.168.0.35:8080/) を開く
-2. ログインする
-3. 画面下の共有ボタン（□↑）をタップ
+1. **Chrome** または **Edge** で https://desktop-rmsk0vg.tail8efe0d.ts.net/ を開く
+2. 社員番号を入れてログイン
+3. ダッシュボードが出れば利用開始
+
+### デスクトップにアイコンを置く（任意・おすすめ）
+
+1. Chrome / Edge で上記URLを開く
+2. アドレスバー右端の **インストール**（⊕ または 🖥️ のアイコン）をクリック
+3. 「インストール」を選ぶ
+
+デスクトップとスタートメニューに **ヘルメットのアイコン** が追加され、ブラウザのタブではなく独立したウィンドウで開くようになります。
+
+---
+
+## 📱 iPhone（iOS）の場合
+
+**事前準備**: App Store から **Tailscale** を入れ、管理者に招待してもらってサインインしておく。
+
+1. **Safari** で https://desktop-rmsk0vg.tail8efe0d.ts.net/ を開く
+   （Safari 以外だとホーム画面に追加できません）
+2. 社員番号を入れてログイン
+3. 画面下の共有ボタン **□↑** をタップ
 4. 「**ホーム画面に追加**」をタップ
-5. 名前を確認して「追加」
+5. 名前が「ケンモチ電機」になっているのを確認して「追加」
 
-> ホーム画面に「ケンモチ電機」アイコンが追加され、タップするだけでアプリが開きます。
+ホーム画面に**ヘルメットのアイコン**が追加され、タップすると普通のアプリと同じ全画面で開きます。
 
 ---
 
-## Android
+## 📱 Android の場合
 
-1. **Chrome** で [http://192.168.0.35:8080/](http://192.168.0.35:8080/) を開く
-2. ログインする
-3. メニュー（⋮）→「**ホーム画面に追加**」または「**アプリをインストール**」
-4. 「追加」をタップ
+**事前準備**: Google Play から **Tailscale** を入れ、管理者に招待してもらってサインインしておく。
 
-> ホーム画面にアイコンが追加され、通常のアプリと同じように起動できます。
+1. **Chrome** で https://desktop-rmsk0vg.tail8efe0d.ts.net/ を開く
+2. 社員番号を入れてログイン
+3. 右上のメニュー **⋮** →「**アプリをインストール**」または「**ホーム画面に追加**」
+4. 「インストール」をタップ
+
+ホーム画面に**ヘルメットのアイコン**が追加されます。
+
+---
+
+## つながらないとき
+
+| 症状 | 原因と対処 |
+|------|-----------|
+| ページが開かない・タイムアウトする | Tailscale がオフになっています。Tailscale アプリを開いて接続状態にしてください |
+| 「この接続ではプライバシーが保護されません」 | URL を打ち間違えています。`https://` から始まっているか確認してください |
+| 「この社員番号は登録されていません」 | まだ作業員として登録されていません。管理者に依頼してください |
+| ログイン後に真っ白 / 画面が崩れる | ブラウザの再読み込み（PC は Ctrl+F5）を試してください |
+| 夜間や休日につながらない | サーバーPCの電源が落ちている可能性があります。管理者に連絡してください |
 
 ---
 
 # 開発者向け
 
+> 編集からリリースまでの流れ（どこを編集し、どう確認し、どう本番に出すか）は
+> **[開発者ガイド](docs/developer_guide.md)** に1枚でまとめてあります。まずそちらを読んでください。
+
 ## 開発用リンク
 
 | リソース | URL |
 |---------|-----|
-| **GitHub リポジトリ** | [https://github.com/mstk13/KEM_DDENKI](https://github.com/mstk13/KEM_DDENKI) |
-| **開発環境アプリ** | [http://192.168.0.35:8081/](http://192.168.0.35:8081/) |
-| **開発環境 Django Admin** | [http://192.168.0.35:8081/admin/](http://192.168.0.35:8081/admin/) |
-| **ローカル開発サーバー** | [http://localhost:8000/](http://localhost:8000/) |
-| **ローカル Django Admin** | [http://localhost:8000/admin/](http://localhost:8000/admin/) |
-| **設計資料** | [docs/design/](https://github.com/mstk13/KEM_DDENKI/tree/main/docs/design) |
-| **設計判断の根拠書** | [docs/design/設計判断の根拠書.md](https://github.com/mstk13/KEM_DDENKI/blob/main/docs/design/設計判断の根拠書.md) |
-| **DB設計書** | [docs/design/DB設計書.md](https://github.com/mstk13/KEM_DDENKI/blob/main/docs/design/DB設計書.md) |
-| **CI/CD (GitHub Actions)** | [Actions](https://github.com/mstk13/KEM_DDENKI/actions) |
+| **GitHub リポジトリ** | https://github.com/mstk13/KEM_DDENKI |
+| **開発環境アプリ**（`developer` ブランチが自動反映） | https://desktop-rmsk0vg.tail8efe0d.ts.net:8443/ |
+| **開発環境 Django Admin** | https://desktop-rmsk0vg.tail8efe0d.ts.net:8443/admin/ |
+| **本番アプリ**（`main` ブランチが自動反映） | https://desktop-rmsk0vg.tail8efe0d.ts.net/ |
+| **手元の開発サーバー** | http://localhost:8000/ |
+| **開発者ガイド** | [docs/developer_guide.md](docs/developer_guide.md) |
+| **サーバー運用ガイド** | [docs/server_operations.md](docs/server_operations.md) |
+| **設計資料** | [docs/design/](docs/design/) |
+| **CI (GitHub Actions)** | [Actions](https://github.com/mstk13/KEM_DDENKI/actions) |
 | **Issues** | [Issues](https://github.com/mstk13/KEM_DDENKI/issues) |
 | **Pull Requests** | [Pull Requests](https://github.com/mstk13/KEM_DDENKI/pulls) |
 
-### 開発環境の全画面URL
+どちらの環境も Tailscale VPN の中からのみ到達できます。
 
-| アプリ | ローカル | 開発サーバー |
-|--------|---------|------------|
-| ダッシュボード | [localhost:8000/](http://localhost:8000/) | [192.168.0.35:8081/](http://192.168.0.35:8081/) |
-| 現場管理 | [localhost:8000/sites/](http://localhost:8000/sites/) | [192.168.0.35:8081/sites/](http://192.168.0.35:8081/sites/) |
-| 日報管理 | [localhost:8000/reports/](http://localhost:8000/reports/) | [192.168.0.35:8081/reports/](http://192.168.0.35:8081/reports/) |
-| 原価管理 | [localhost:8000/costs/](http://localhost:8000/costs/) | [192.168.0.35:8081/costs/](http://192.168.0.35:8081/costs/) |
-| 材料管理 | [localhost:8000/materials/](http://localhost:8000/materials/) | [192.168.0.35:8081/materials/](http://192.168.0.35:8081/materials/) |
-| 入札管理 | [localhost:8000/bids/](http://localhost:8000/bids/) | [192.168.0.35:8081/bids/](http://192.168.0.35:8081/bids/) |
-| 営業管理 | [localhost:8000/sales/](http://localhost:8000/sales/) | [192.168.0.35:8081/sales/](http://192.168.0.35:8081/sales/) |
-| 工期管理 | [localhost:8000/schedules/](http://localhost:8000/schedules/) | [192.168.0.35:8081/schedules/](http://192.168.0.35:8081/schedules/) |
-| 人材管理 | [localhost:8000/workers/](http://localhost:8000/workers/) | [192.168.0.35:8081/workers/](http://192.168.0.35:8081/workers/) |
-| 開発管理 | [localhost:8000/dev/](http://localhost:8000/dev/) | [192.168.0.35:8081/dev/](http://192.168.0.35:8081/dev/) |
-| 取引先管理 | [localhost:8000/masters/](http://localhost:8000/masters/) | [192.168.0.35:8081/masters/](http://192.168.0.35:8081/masters/) |
-| 通知 | [localhost:8000/notifications/](http://localhost:8000/notifications/) | [192.168.0.35:8081/notifications/](http://192.168.0.35:8081/notifications/) |
-| 権限管理 | [localhost:8000/settings/permissions/](http://localhost:8000/settings/permissions/) | [192.168.0.35:8081/settings/permissions/](http://192.168.0.35:8081/settings/permissions/) |
-| Django Admin | [localhost:8000/admin/](http://localhost:8000/admin/) | [192.168.0.35:8081/admin/](http://192.168.0.35:8081/admin/) |
+### 各モジュールのURL
+
+下の [機能一覧](#機能一覧) のパスを、環境のURLの後ろに付けてください。
+
+```
+開発環境の日報:   https://desktop-rmsk0vg.tail8efe0d.ts.net:8443/reports/
+本番の日報:       https://desktop-rmsk0vg.tail8efe0d.ts.net/reports/
+手元の日報:       http://localhost:8000/reports/
+```
 
 ## クイックスタート
 
@@ -217,77 +254,25 @@ python manage.py runserver
 
 ### 3. 本番デプロイ
 
-```bash
-cd KEM_DDENKI/saas
+**通常は手作業不要です。** `main` にマージすれば、サーバーPCが自動で取り込みます（次項）。
 
-# .env の DJANGO_DEBUG=False, DJANGO_SECRET_KEY を設定
+サーバーを新しく立てる場合の手順は [docs/server_operations.md](docs/server_operations.md) を参照してください。
 
-# 本番起動（Gunicorn + Nginx）
-docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+### 4. push したら自動でサーバーに反映される仕組み
 
-# ポート: NGINX_PORT=8081（並行稼働時）→ 8080（切替後）
-```
-
-### 4. GitHub Webhook（push時の自動デプロイ）
-
-`developer` ブランチにpushされたら、開発サーバーが自動で最新コードを取得して再起動します。
-
-**サーバー側のセットアップ（初回のみ）:**
-
-```bash
-# 1. Webhookシークレットを生成
-export WEBHOOK_SECRET=$(python3 -c 'import secrets; print(secrets.token_hex(32))')
-echo "生成されたシークレット: $WEBHOOK_SECRET"
-# ↑ このシークレットをメモしておく（GitHub側にも設定する）
-
-# 2. systemd サービスをインストール
-sudo cp saas/scripts/webhook/kem-webhook.service /etc/systemd/system/
-
-# 3. サービスファイルの WEBHOOK_SECRET を編集
-sudo nano /etc/systemd/system/kem-webhook.service
-# → Environment=WEBHOOK_SECRET=ここに上で生成したシークレットを貼る
-
-# 4. サービスを起動
-sudo systemctl daemon-reload
-sudo systemctl enable kem-webhook
-sudo systemctl start kem-webhook
-
-# 5. 動作確認
-curl http://localhost:9000/health
-# → {"status": "ok", "target_branch": "refs/heads/developer", "port": 9000}
-```
-
-**GitHub側のセットアップ（初回のみ）:**
-
-1. [https://github.com/mstk13/KEM_DDENKI/settings/hooks](https://github.com/mstk13/KEM_DDENKI/settings/hooks) を開く
-2. 「Add webhook」をクリック
-3. 以下を入力:
-
-| 項目 | 値 |
-|------|-----|
-| Payload URL | `http://サーバーのグローバルIP:9000/webhook` ※Tailscale経由の場合は `http://100.120.92.15:9000/webhook` |
-| Content type | `application/json` |
-| Secret | サーバー側で生成したシークレット |
-| Events | 「Just the push event」を選択 |
-
-4. 「Add webhook」で保存
-
-**動作フロー:**
+サーバーPCが2分おきに GitHub を確認し、更新があれば自分で取り込んで再起動します。
+開発者側の操作は **push するだけ** です。
 
 ```
-開発者がdeveloperにpush → GitHub → Webhook通知 → サーバー(port 9000)
-  → git pull → migrate → restart → 開発環境(8081)に反映（数秒）
+developer に push  →  （最大2分）→  開発環境 https://…ts.net:8443/ に反映
+main   にマージ    →  （最大2分）→  本番     https://…ts.net/       に反映
 ```
 
-**ログ確認:**
+GitHub からサーバーへ届く必要がないため（サーバー→GitHub の一方向のみ）、
+社内PCが NAT の内側にあってもそのまま動きます。Webhook の設定も外部公開も不要です。
 
-```bash
-# リアルタイムログ
-sudo journalctl -u kem-webhook -f
-
-# Webhookのログファイル
-tail -f /tmp/kem-webhook.log
-```
+- 仕組みと運用: [docs/server_operations.md](docs/server_operations.md)
+- スクリプト: [tools/autodeploy/autodeploy.sh](tools/autodeploy/autodeploy.sh)
 
 ---
 
@@ -420,7 +405,10 @@ KEM_DDENKI/
 
 | ドキュメント | 内容 |
 |-------------|------|
+| **[docs/developer_guide.md](docs/developer_guide.md)** | **開発者向け1枚まとめ（編集→確認→承認→本番反映）** |
+| **[docs/server_operations.md](docs/server_operations.md)** | **サーバーPCの運用（自動起動・自動デプロイ・バックアップ）** |
 | [docs/design/](docs/design/) | 設計資料一式（7点） |
 | [docs/git_workflow.md](docs/git_workflow.md) | Git運用ルール・ブランチ戦略 |
+| [docs/branch_protection_setup.md](docs/branch_protection_setup.md) | main ブランチ保護（PM承認の強制）— リポジトリ管理者向け |
 | [docs/tailscale_setup.md](docs/tailscale_setup.md) | 社外アクセス（Tailscale VPN）セットアップ |
 | [docs/geps_setup.md](docs/geps_setup.md) | GEPSメール連携セットアップ |

@@ -2,10 +2,15 @@
 Django settings for kensetsu-saas project.
 """
 
+import mimetypes
 import os
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+# Windows / slim イメージには .webmanifest の登録がなく、そのままだと
+# application/octet-stream で配信されてブラウザが PWA として認識しない。
+mimetypes.add_type("application/manifest+json", ".webmanifest")
 
 SECRET_KEY = os.environ.get(
     "DJANGO_SECRET_KEY",
@@ -123,6 +128,12 @@ STORAGES = {
     "staticfiles": {
         "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
     },
+}
+
+# WhiteNoise は独自の MimeTypes インスタンスを持つため、上の mimetypes.add_type だけでは
+# 反映されない。実際の配信はこちらの設定が使われる。
+WHITENOISE_MIMETYPES = {
+    ".webmanifest": "application/manifest+json",
 }
 
 MEDIA_URL = "media/"

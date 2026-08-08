@@ -7,16 +7,36 @@ from django.urls import include, path
 from apps.core.views import dashboard
 
 
+def _deployed_version():
+    """自動デプロイが書き出した稼働中バージョンを読む。
+
+    コンテナには saas/ しかマウントされておらず .git を読めないため、
+    tools/autodeploy/autodeploy.sh が反映のたびにこのファイルを更新している。
+    手元で docker compose up した場合はファイルが無いので空を返す。
+    """
+    path = settings.BASE_DIR / "deployed_version.txt"
+    try:
+        commit, branch, deployed_at = path.read_text(encoding="utf-8").strip().split("|", 2)
+        return {"commit": commit, "branch": branch, "deployed_at": deployed_at}
+    except (OSError, ValueError):
+        return {"commit": None, "branch": None, "deployed_at": None}
+
+
 def health_check(request):
-    """DB到達性込みのヘルスチェック。"""
+    """DB到達性込みのヘルスチェック。稼働中のコミットも返す。
+
+    「push した変更がもうサーバーに入っているか」をここで確認できる。
+    """
     from django.db import connection
 
+    payload = {"status": "ok", **_deployed_version()}
     try:
         with connection.cursor() as cursor:
             cursor.execute("SELECT 1")
-        return JsonResponse({"status": "ok"})
+        return JsonResponse(payload)
     except Exception as e:
-        return JsonResponse({"status": "error", "detail": str(e)}, status=503)
+        payload.update(status="error", detail=str(e))
+        return JsonResponse(payload, status=503)
 
 
 urlpatterns = [

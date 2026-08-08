@@ -16,18 +16,8 @@ class Migration(migrations.Migration):
     operations = [
         migrations.AddField(
             model_name='customer',
-            name='email',
-            field=models.EmailField(blank=True, max_length=254, verbose_name='メールアドレス'),
-        ),
-        migrations.AddField(
-            model_name='customer',
             name='industry',
             field=models.CharField(blank=True, max_length=100, verbose_name='業種'),
-        ),
-        migrations.AddField(
-            model_name='customer',
-            name='phone',
-            field=models.CharField(blank=True, max_length=20, verbose_name='電話番号'),
         ),
         migrations.AddField(
             model_name='customer',
@@ -41,18 +31,8 @@ class Migration(migrations.Migration):
         ),
         migrations.AddField(
             model_name='historicalcustomer',
-            name='email',
-            field=models.EmailField(blank=True, max_length=254, verbose_name='メールアドレス'),
-        ),
-        migrations.AddField(
-            model_name='historicalcustomer',
             name='industry',
             field=models.CharField(blank=True, max_length=100, verbose_name='業種'),
-        ),
-        migrations.AddField(
-            model_name='historicalcustomer',
-            name='phone',
-            field=models.CharField(blank=True, max_length=20, verbose_name='電話番号'),
         ),
         migrations.AddField(
             model_name='historicalcustomer',
@@ -63,26 +43,6 @@ class Migration(migrations.Migration):
             model_name='historicalcustomer',
             name='scale',
             field=models.CharField(blank=True, max_length=50, verbose_name='取引規模'),
-        ),
-        migrations.AddField(
-            model_name='historicalsupplier',
-            name='email',
-            field=models.EmailField(blank=True, max_length=254, verbose_name='メールアドレス'),
-        ),
-        migrations.AddField(
-            model_name='historicalsupplier',
-            name='phone',
-            field=models.CharField(blank=True, max_length=20, verbose_name='電話番号'),
-        ),
-        migrations.AddField(
-            model_name='supplier',
-            name='email',
-            field=models.EmailField(blank=True, max_length=254, verbose_name='メールアドレス'),
-        ),
-        migrations.AddField(
-            model_name='supplier',
-            name='phone',
-            field=models.CharField(blank=True, max_length=20, verbose_name='電話番号'),
         ),
         migrations.CreateModel(
             name='BusinessCard',

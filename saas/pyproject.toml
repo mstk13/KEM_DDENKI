@@ -28,6 +28,17 @@ dev = [
     "django-stubs>=5.0",
 ]
 
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+# これは配布用パッケージではなく Django アプリなので、setuptools には
+# 何も梱包させない。指定しないと apps/config/static/templates/docker を
+# 「複数のトップレベルパッケージ」と誤検出して pip install -e が失敗し、
+# CI が依存インストールの時点で落ちる。
+[tool.setuptools]
+py-modules = []
+
 [tool.ruff]
 target-version = "py312"
 line-length = 99
