@@ -23,7 +23,7 @@
     check_safety_incomplete_alerts(company, date.today())
 """
 
-from datetime import date, timedelta
+from datetime import date
 
 from django.db.models import Sum
 from django.utils import timezone

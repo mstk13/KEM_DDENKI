@@ -67,7 +67,9 @@ def customer_delete(request, pk):
         obj.delete()
         messages.success(request, "顧客を削除しました。")
         return redirect("masters:customer_list")
-    return render(request, "masters/confirm_delete.html", {"obj": obj, "type_label": "顧客", "back_url": "masters:customer_list"})
+    return render(request, "masters/confirm_delete.html", {
+        "obj": obj, "type_label": "顧客", "back_url": "masters:customer_list",
+    })
 
 
 # =====================================================================
@@ -117,7 +119,9 @@ def supplier_delete(request, pk):
         obj.delete()
         messages.success(request, "発注先を削除しました。")
         return redirect("masters:supplier_list")
-    return render(request, "masters/confirm_delete.html", {"obj": obj, "type_label": "発注先", "back_url": "masters:supplier_list"})
+    return render(request, "masters/confirm_delete.html", {
+        "obj": obj, "type_label": "発注先", "back_url": "masters:supplier_list",
+    })
 
 
 # =====================================================================

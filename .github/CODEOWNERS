@@ -1,0 +1,5 @@
+# main へのマージには、ここに書かれた人のレビューが要求される。
+# （ブランチ保護の "Require review from Code Owners" を有効にした場合）
+#
+# 変更するとき: GitHub のユーザー名を書く。チームなら @org/team-name 形式。
+* @mstk13

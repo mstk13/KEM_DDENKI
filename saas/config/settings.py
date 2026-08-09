@@ -2,10 +2,15 @@
 Django settings for kensetsu-saas project.
 """
 
+import mimetypes
 import os
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+# Windows / slim イメージには .webmanifest の登録がなく、そのままだと
+# application/octet-stream で配信されてブラウザが PWA として認識しない。
+mimetypes.add_type("application/manifest+json", ".webmanifest")
 
 SECRET_KEY = os.environ.get(
     "DJANGO_SECRET_KEY",
@@ -16,7 +21,11 @@ DEBUG = os.environ.get("DJANGO_DEBUG", "True").lower() in ("true", "1", "yes")
 
 ALLOWED_HOSTS = os.environ.get("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
 
-CSRF_TRUSTED_ORIGINS = os.environ.get("CSRF_TRUSTED_ORIGINS", "").split(",") if os.environ.get("CSRF_TRUSTED_ORIGINS") else [f"http://{h}:8000" for h in ALLOWED_HOSTS if h and h != "*"]
+_csrf_origins = os.environ.get("CSRF_TRUSTED_ORIGINS", "")
+if _csrf_origins:
+    CSRF_TRUSTED_ORIGINS = _csrf_origins.split(",")
+else:
+    CSRF_TRUSTED_ORIGINS = [f"http://{h}:8000" for h in ALLOWED_HOSTS if h and h != "*"]
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -123,6 +132,12 @@ STORAGES = {
     "staticfiles": {
         "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
     },
+}
+
+# WhiteNoise は独自の MimeTypes インスタンスを持つため、上の mimetypes.add_type だけでは
+# 反映されない。実際の配信はこちらの設定が使われる。
+WHITENOISE_MIMETYPES = {
+    ".webmanifest": "application/manifest+json",
 }
 
 MEDIA_URL = "media/"

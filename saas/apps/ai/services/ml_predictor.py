@@ -20,8 +20,8 @@ logger = logging.getLogger(__name__)
 
 # LightGBM はオプショナル依存（CI等で未インストールの場合がある）
 try:
-    import numpy as np
     import lightgbm as lgb
+    import numpy as np
     from sklearn.model_selection import cross_val_predict
 
     HAS_LGBM = True

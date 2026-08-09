@@ -1,11 +1,9 @@
-import json
 import logging
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db.models import Avg, Count, Q, Sum
 from django.db.models.functions import TruncMonth
-from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 
 from apps.ai.models import AIFeedback, AILog
@@ -121,7 +119,7 @@ def cost_prediction(request, site_id):
     error_message = None
 
     try:
-        from apps.ai.services.ml_predictor import CostPredictor, HAS_LGBM
+        from apps.ai.services.ml_predictor import HAS_LGBM, CostPredictor
 
         if not HAS_LGBM:
             error_message = (
@@ -225,7 +223,7 @@ def cost_optimization(request, site_id):
 
     if request.method == "POST":
         try:
-            from apps.ai.services.llm_advisor import get_cost_optimization, HAS_ANTHROPIC
+            from apps.ai.services.llm_advisor import HAS_ANTHROPIC, get_cost_optimization
 
             if not HAS_ANTHROPIC:
                 error_message = "anthropic パッケージがインストールされていません。"
@@ -233,7 +231,7 @@ def cost_optimization(request, site_id):
                 # ML予測結果があれば取得
                 ml_prediction = None
                 try:
-                    from apps.ai.services.ml_predictor import CostPredictor, HAS_LGBM
+                    from apps.ai.services.ml_predictor import HAS_LGBM, CostPredictor
 
                     if HAS_LGBM:
                         predictor = CostPredictor()
@@ -279,7 +277,7 @@ def schedule_suggestion(request, site_id):
 
     if request.method == "POST":
         try:
-            from apps.ai.services.llm_advisor import get_schedule_suggestion, HAS_ANTHROPIC
+            from apps.ai.services.llm_advisor import HAS_ANTHROPIC, get_schedule_suggestion
 
             if not HAS_ANTHROPIC:
                 error_message = "anthropic パッケージがインストールされていません。"
@@ -319,7 +317,7 @@ def schedule_risk(request, site_id):
 
     if request.method == "POST":
         try:
-            from apps.ai.services.llm_advisor import get_schedule_risk_analysis, HAS_ANTHROPIC
+            from apps.ai.services.llm_advisor import HAS_ANTHROPIC, get_schedule_risk_analysis
 
             if not HAS_ANTHROPIC:
                 error_message = "anthropic パッケージがインストールされていません。"

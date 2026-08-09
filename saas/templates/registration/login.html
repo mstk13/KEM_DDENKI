@@ -5,12 +5,20 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ログイン — 建設SaaS</title>
+<meta name="theme-color" content="#FF6B2C">
+<link rel="icon" href="{% static 'img/favicon.ico' %}" sizes="any">
+<link rel="icon" type="image/svg+xml" href="{% static 'img/icon.svg' %}">
+<link rel="apple-touch-icon" href="{% static 'img/apple-touch-icon.png' %}">
+<link rel="manifest" href="{% static 'manifest.webmanifest' %}">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="ケンモチ電機">
 <link rel="stylesheet" href="{% static 'css/style.css' %}">
 </head>
 <body>
 <div class="login-page">
   <div class="login-card">
-    <div class="login-logo">K</div>
+    <img class="login-logo" src="{% static 'img/icon.svg' %}" alt="ケンモチ電機">
     <h1>建設SaaS</h1>
     <p class="subtitle">業務管理プラットフォーム</p>
 

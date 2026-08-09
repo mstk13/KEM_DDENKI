@@ -90,14 +90,14 @@ class AppPermissionMiddleware:
             app_code = "evaluations"
 
         # 権限チェック
-        if profile and profile.allowed_apps:
-            if app_code not in profile.allowed_apps:
-                return HttpResponseForbidden(
-                    '<div style="text-align:center;padding:80px 20px;">'
-                    '<h1 style="color:#1a2744;">アクセス権限がありません</h1>'
-                    '<p style="color:#666;">このアプリへのアクセスが許可されていません。<br>管理者にお問い合わせください。</p>'
-                    '<a href="/" style="color:#1a2744;">ダッシュボードに戻る</a>'
-                    '</div>'
-                )
+        if profile and profile.allowed_apps and app_code not in profile.allowed_apps:
+            return HttpResponseForbidden(
+                '<div style="text-align:center;padding:80px 20px;">'
+                '<h1 style="color:#1a2744;">アクセス権限がありません</h1>'
+                '<p style="color:#666;">このアプリへのアクセスが許可されていません。<br>'
+                '管理者にお問い合わせください。</p>'
+                '<a href="/" style="color:#1a2744;">ダッシュボードに戻る</a>'
+                '</div>'
+            )
 
         return self.get_response(request)

@@ -1,6 +1,7 @@
 """権限管理のテスト。"""
 
 import pytest
+from django.db import IntegrityError
 
 from apps.permissions.models import ModulePermission, Role, UserRole
 from apps.permissions.services import (
@@ -23,7 +24,9 @@ class TestRoleModel:
 
     def test_unique_code_per_company(self, company):
         Role.unscoped.create(company=company, code="test", name="テスト")
-        with pytest.raises(Exception):
+        # unique_together(company, code) 違反であることまで確かめる
+        # （Exception だと想定外のエラーでもテストが通ってしまう）
+        with pytest.raises(IntegrityError):
             Role.unscoped.create(company=company, code="test", name="テスト2")
 
 

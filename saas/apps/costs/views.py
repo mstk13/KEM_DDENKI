@@ -1,13 +1,12 @@
 import json
 
+from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
-from django.shortcuts import get_object_or_404, render
-
-from django.contrib import messages
+from django.shortcuts import get_object_or_404, redirect, render
 
 from apps.costs.forms import BudgetItemForm, ManualCostForm
-from apps.costs.models import BudgetItem, CostTransaction
+from apps.costs.models import CostTransaction
 from apps.costs.services import get_monthly_cost_trend, get_site_cost_summary
 from apps.permissions.decorators import module_permission_required
 from apps.sites.models import Site

@@ -89,14 +89,14 @@ a:hover { color: var(--brand-dark); }
   gap: 12px;
   border-bottom: 1px solid var(--border-light);
 }
+/* アイコン画像自体が角丸の背景を持つため、ここで背景色は敷かない
+   （敷くと SVG の角の透明部分から下地がはみ出して四角く見える）。 */
 .sidebar-logo-icon {
   width: 36px; height: 36px;
-  background: var(--brand-gradient);
   border-radius: 10px;
-  display: flex; align-items: center; justify-content: center;
-  color: var(--white);
-  font-weight: 700;
-  font-size: 1.1rem;
+  display: block;
+  object-fit: contain;
+  flex-shrink: 0;
 }
 .sidebar-logo-text {
   font-size: .95rem;
@@ -400,11 +400,10 @@ textarea.form-control { min-height: 88px; resize: vertical; line-height: 1.6; }
   position: relative; z-index: 1;
 }
 .login-card .login-logo {
-  width: 48px; height: 48px;
-  background: var(--brand-gradient);
-  border-radius: 14px;
-  display: flex; align-items: center; justify-content: center;
-  color: var(--white); font-weight: 700; font-size: 1.3rem;
+  width: 64px; height: 64px;
+  border-radius: 18px;
+  display: block;
+  object-fit: contain;
   margin: 0 auto 20px;
 }
 .login-card h1 { text-align: center; font-size: 1.3rem; font-weight: 700; margin-bottom: 4px; }

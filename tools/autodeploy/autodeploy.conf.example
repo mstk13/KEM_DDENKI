@@ -1,0 +1,14 @@
+# ============================================================
+# 自動デプロイ設定（サーバーPC固有のためGit管理外）
+# 実際の配置先: ~/kem-ops/autodeploy.conf
+#
+# 書式:
+#   環境名|リポジトリのパス|ブランチ|ヘルスチェックURL|backup
+#
+# - パスは Git Bash 形式（C:\... ではなく /c/...）で書く
+# - 5列目に backup と書いた環境だけ、反映前にDBバックアップを取る
+# - 上の行から順に処理される（開発を先に通してから本番へ）
+# ============================================================
+
+dev|/c/Users/kazushi kenmochi/projects/KEM_DDENKI_dev|developer|http://127.0.0.1:8001/login/|
+prod|/c/Users/kazushi kenmochi/projects/KEM_DDENKI|main|http://127.0.0.1:8000/login/|backup

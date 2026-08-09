@@ -1,4 +1,5 @@
 from django import forms
+from django.db import models
 
 from apps.accounts.models import User
 from apps.accounts.views import _get_or_create_user
@@ -41,14 +42,13 @@ def _get_developer_users(company):
     )
 
 
-# Django models.Q を使うためimport
-from django.db import models
-
-
 class DevProjectForm(forms.ModelForm):
     class Meta:
         model = DevProject
-        fields = ["name", "description", "status", "assignee", "start_date", "due_date", "discord_webhook_url"]
+        fields = [
+            "name", "description", "status", "assignee", "start_date", "due_date",
+            "discord_webhook_url",
+        ]
         widgets = {
             "start_date": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
             "due_date": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
@@ -108,10 +108,19 @@ class MeyasubakoForm(forms.ModelForm):
 
     class Meta:
         model = Meyasubako
-        fields = ["reporter_worker", "kind", "module", "title", "problem", "wish", "urgency", "screenshot"]
+        fields = [
+            "reporter_worker", "kind", "module", "title", "problem", "wish",
+            "urgency", "screenshot",
+        ]
         widgets = {
-            "problem": forms.Textarea(attrs={"class": "form-control", "rows": 4, "placeholder": "何が起きましたか？ 何に困っていますか？"}),
-            "wish": forms.Textarea(attrs={"class": "form-control", "rows": 3, "placeholder": "どうなると嬉しいですか？（任意）"}),
+            "problem": forms.Textarea(attrs={
+                "class": "form-control", "rows": 4,
+                "placeholder": "何が起きましたか？ 何に困っていますか？",
+            }),
+            "wish": forms.Textarea(attrs={
+                "class": "form-control", "rows": 3,
+                "placeholder": "どうなると嬉しいですか？（任意）",
+            }),
         }
 
     def __init__(self, *args, company=None, **kwargs):

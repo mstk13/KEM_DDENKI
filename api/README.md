@@ -2,12 +2,17 @@
 
 KEIHIなどの外部アプリと連携するためのREST APIサーバー。
 
+> [!NOTE]
+> ポートは 8002 を使います。8001 は開発環境の Django アプリが使用中のため、
+> そのまま 8001 で起動するとサーバーPC上で衝突します。
+> 使用中のポートは [サーバー運用ガイド](../docs/server_operations.md) を参照してください。
+
 ## 起動
 
 ```bash
 cd api
 pip install -r requirements.txt
-uvicorn main:app --reload --port 8001
+uvicorn main:app --reload --port 8002
 ```
 
 ## エンドポイント
@@ -22,4 +27,4 @@ uvicorn main:app --reload --port 8001
 
 ## APIドキュメント
 
-http://localhost:8001/docs
+http://localhost:8002/docs

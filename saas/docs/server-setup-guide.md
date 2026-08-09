@@ -1,5 +1,15 @@
 # KEM_DDENKI サーバーセットアップガイド
 
+> [!IMPORTANT]
+> **この手順は現在の構成では使っていません。**
+> 実際の外部公開は Cloudflare Tunnel ではなく **Tailscale serve** で行っており、
+> 独自ドメインもポート開放も使っていません。
+> 現在の構成は [サーバー運用ガイド](../../docs/server_operations.md)、
+> 端末側の接続手順は [Tailscale セットアップ](../../docs/tailscale_setup.md) を参照してください。
+> このページは将来ドメイン公開に切り替える場合の参考として残しています。
+
+---
+
 常時稼働デスクトップPC（FRONTIER BTO / i5-10400F / 32GB / RTX 3060 12GB / Windows 11 Home）に
 KEM_DDENKIを構築し、社内LAN + 社外（Cloudflare Tunnel）からアクセスできるようにする手順。
 
@@ -29,7 +39,7 @@ KEM_DDENKIを構築し、社内LAN + 社外（Cloudflare Tunnel）からアク�
 2. ルーター管理画面（通常 http://192.168.0.1 ）にアクセス
 
 3. DHCP予約設定で、このPCのMACアドレスに固定IPを割り当て:
-   - IPアドレス: 192.168.0.35（または任意の固定IP）
+   - IPアドレス: 任意の固定IP（DHCP のままだと後でURLが壊れる）
    - これによりPCを再起動してもIPが変わらなくなる
 
 4. PC を再起動して固定IPが反映されたか確認:
@@ -121,7 +131,7 @@ copy .env.example .env
 ```
 DJANGO_SECRET_KEY=<ランダムな長い文字列に変更>
 DJANGO_DEBUG=False
-DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1,192.168.0.35,app.your-domain.com
+DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1,app.your-domain.com
 
 DB_NAME=kensetsu_saas
 DB_USER=postgres
@@ -227,7 +237,7 @@ netsh advfirewall firewall add rule name="SSH" dir=in action=allow protocol=tcp 
 
 **ノートPC から接続:**
 ```bash
-ssh <ユーザー名>@192.168.0.35
+ssh <ユーザー名>@<サーバーのLAN IP>
 cd /mnt/c/Users/<ユーザー名>/KEM_DDENKI/saas
 docker compose ps
 docker compose logs web --tail 20
@@ -299,7 +309,7 @@ bash scripts/backup.sh /mnt/d/backup
 # CLOUDFLARE_TUNNEL_TOKEN=eyJhxxxxxxxx...
 
 # DJANGO_ALLOWED_HOSTS にドメインを追加
-# DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1,192.168.0.35,app.your-domain.com
+# DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1,app.your-domain.com
 
 # Tunnel付きで起動
 docker compose --profile tunnel up -d

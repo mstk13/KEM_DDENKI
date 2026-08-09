@@ -26,6 +26,9 @@ class DevCommentAdmin(SimpleHistoryAdmin):
 
 @admin.register(Meyasubako)
 class MeyasubakoAdmin(SimpleHistoryAdmin):
-    list_display = ("title", "kind", "module", "reporter_name", "urgency", "resolved", "created_at", "company")
+    list_display = (
+        "title", "kind", "module", "reporter_name", "urgency", "resolved",
+        "created_at", "company",
+    )
     list_filter = ("kind", "module", "urgency", "resolved", "company")
     search_fields = ("title", "reporter_name")

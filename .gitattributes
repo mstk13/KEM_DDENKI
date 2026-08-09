@@ -1,0 +1,7 @@
+# Linux コンテナ内で実行されるファイルは必ず LF にする。
+# Windows で core.autocrlf=true のままチェックアウトすると CRLF になり、
+# `exec ./entrypoint.sh: no such file or directory`（/bin/sh\r を探す）で失敗する。
+*.sh text eol=lf
+Dockerfile text eol=lf
+docker-compose*.yml text eol=lf
+*.conf text eol=lf

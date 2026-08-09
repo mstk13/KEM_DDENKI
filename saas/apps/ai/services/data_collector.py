@@ -7,7 +7,7 @@ ML学習やLLMプロンプト構築に使える構造化データを返す。
 from datetime import date, timedelta
 from decimal import Decimal
 
-from django.db.models import Avg, Count, F, Q, Sum
+from django.db.models import Count, Sum
 from django.db.models.functions import TruncMonth
 
 from apps.costs.models import BudgetItem, CostTransaction

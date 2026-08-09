@@ -1,7 +1,7 @@
 from django import forms
 
 from apps.costs.models import BudgetItem, CostTransaction
-from apps.masters.models import CostCategory, WorkType
+from apps.masters.models import WorkType
 from apps.sites.models import Site
 
 
@@ -30,7 +30,10 @@ class ManualCostForm(forms.ModelForm):
 
     class Meta:
         model = CostTransaction
-        fields = ["site", "work_type", "cost_category", "amount", "transaction_date", "source_type", "supplier"]
+        fields = [
+            "site", "work_type", "cost_category", "amount", "transaction_date",
+            "source_type", "supplier",
+        ]
         widgets = {
             "transaction_date": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
             "amount": forms.NumberInput(attrs={"class": "form-control"}),

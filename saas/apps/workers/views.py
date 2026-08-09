@@ -2,12 +2,16 @@ from datetime import date
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.db import models
 from django.http import HttpResponse, HttpResponseForbidden, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 
-from django.db import models
-
-from apps.workers.forms import AppPermissionForm, HealthCheckupForm, WorkerForm, WorkerQualificationForm
+from apps.workers.forms import (
+    AppPermissionForm,
+    HealthCheckupForm,
+    WorkerForm,
+    WorkerQualificationForm,
+)
 from apps.workers.models import (
     EvaluationTemplate,
     HealthCheckup,
@@ -111,7 +115,9 @@ def worker_excel(request):
     ws = wb.active
     ws.title = "社員名簿"
 
-    headers = ["社員番号", "氏名", "よみがな", "部署", "役職", "職種区分", "電話番号", "在籍", "備考"]
+    headers = [
+        "社員番号", "氏名", "よみがな", "部署", "役職", "職種区分", "電話番号", "在籍", "備考",
+    ]
     widths = [12, 18, 22, 16, 16, 14, 18, 10, 40]
     header_font = Font(bold=True, size=11, color="FFFFFF")
     header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
@@ -121,7 +127,7 @@ def worker_excel(request):
         top=Side(style="thin"), bottom=Side(style="thin"),
     )
 
-    for col_idx, (header, width) in enumerate(zip(headers, widths), 1):
+    for col_idx, (header, width) in enumerate(zip(headers, widths, strict=True), 1):
         cell = ws.cell(row=1, column=col_idx, value=header)
         cell.font = header_font
         cell.fill = header_fill
@@ -142,7 +148,7 @@ def worker_excel(request):
             w.note,
         ]
         # Fix: department is position's parent concept - use job_title for 部署 mapping
-        # Actually jinzai-kanri has department as free text. In Django we don't have dept on Worker.
+        # 旧システムでは部署が自由入力だったが、Django 版の Worker は部署を持たない
         # Map: 部署 = position, 役職 = position, 職種 = job_title
         vals[3] = ""  # department - not available in current model
         vals[4] = str(w.position) if w.position else ""
@@ -218,7 +224,9 @@ def worker_edit(request, pk):
             return redirect("workers:detail", pk=worker.pk)
     else:
         form = WorkerForm(instance=worker, company=request.user.company)
-        perm_form = AppPermissionForm(initial={"apps": worker.allowed_apps or []}) if is_admin else None
+        perm_form = None
+        if is_admin:
+            perm_form = AppPermissionForm(initial={"apps": worker.allowed_apps or []})
 
     return render(request, "workers/form.html", {
         "form": form,
@@ -414,10 +422,7 @@ def _get_period_choices():
     # 年度を計算（1〜3月は前年度に属する）
     fiscal_year = today.year if today.month >= 4 else today.year - 1
     # 現在が上期(4-9)か下期(10-3)か
-    if today.month >= 4 and today.month <= 9:
-        current_half = "上期"
-    else:
-        current_half = "下期"
+    current_half = "上期" if 4 <= today.month <= 9 else "下期"
 
     choices = []
     for fy in [fiscal_year + 1, fiscal_year, fiscal_year - 1]:
