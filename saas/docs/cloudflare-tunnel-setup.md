@@ -1,5 +1,15 @@
 # Cloudflare Tunnel セットアップ手順
 
+> [!IMPORTANT]
+> **この手順は現在の構成では使っていません。**
+> 実際の外部公開は Cloudflare Tunnel ではなく **Tailscale serve** で行っており、
+> 独自ドメインもポート開放も使っていません。
+> 現在の構成は [サーバー運用ガイド](../../docs/server_operations.md)、
+> 端末側の接続手順は [Tailscale セットアップ](../../docs/tailscale_setup.md) を参照してください。
+> このページは将来ドメイン公開に切り替える場合の参考として残しています。
+
+---
+
 社外（自宅・出先）からKEM_DDENKIに安全にアクセスするための設定手順。
 ルーターのポート開放は不要。HTTPS自動対応。
 
@@ -147,8 +157,11 @@ docker compose --profile tunnel logs cloudflared
 
 ### 社内LAN経由のアクセスは？
 
-Cloudflare Tunnelを使っても、社内LANからは従来通り `http://192.168.0.35:8000` でアクセス可能です。
+Cloudflare Tunnel を使っても、社内LANからは `http://<サーバーのLAN IP>:8000` でアクセスできます。
 両方のアクセス経路が共存します。
+
+ただし**現在の構成では社内LANの直接アクセスは提供していません**。DHCP でIPが変わると
+URLが壊れるため、社内・社外とも Tailscale 経由に統一しています。
 
 ### トンネルを停止したい
 
@@ -171,5 +184,5 @@ docker compose up -d
     → cloudflaredコンテナ → web:8000 → Django
 
 【社内アクセス（従来通り）】
-  社内PC → HTTP → 192.168.0.35:8000 → Django
+  社内PC → HTTP → <サーバーのLAN IP>:8000 → Django
 ```
