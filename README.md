@@ -52,13 +52,13 @@
 └──────┬──────────────┬──────────────┬────────────────────────┘
        │              │              │
        ▼              ▼              ▼
-┌──────────┐   ┌──────────┐   ┌──────────┐
-│PostgreSQL│   │  Redis   │   │  Nginx   │
-│    16    │   │    7     │   │ (静的)    │
-└──────────┘   └──────────┘   └──────────┘
+┌──────────┐   ┌──────────┐
+│PostgreSQL│   │  Redis   │
+│    16    │   │    7     │
+└──────────┘   └──────────┘
 ```
 
-**技術スタック:** Django 5.2 LTS / PostgreSQL 16 / Redis 7 / Nginx / Docker
+**技術スタック:** Django 5.2 LTS / PostgreSQL 16 / Redis 7 / Tailscale Serve / Docker
 
 ---
 
@@ -349,8 +349,7 @@ KEM_DDENKI/
     ├── tests/                  テスト（72件）
     │
     ├── docker-compose.yml      開発用（db + redis + web）
-    ├── docker-compose.prod.yml 本番用（+ nginx）
-    ├── docker/nginx.conf       Nginx設定
+    ├── docker-compose.prod.yml 本番用
     ├── Dockerfile
     ├── pyproject.toml          Python依存関係
     └── .env.example            環境変数サンプル

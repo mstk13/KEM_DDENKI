@@ -55,7 +55,7 @@
 |------|------|
 | パスワード漏洩 | bcryptハッシュ化（元のパスワードは保存しない） |
 | 不正ログイン | セッション管理（NextAuth.js）、ログイン試行回数制限 |
-| データ盗聴 | HTTPS通信（Let's Encrypt SSL） |
+| データ盗聴 | HTTPS通信（Tailscale が自動発行するSSL証明書） |
 | 権限超越 | ロールベースアクセス制御（原価は社長＋指名者のみ等） |
 | SQLインジェクション | Prisma ORM（パラメータ化クエリが標準） |
 | XSS | React（自動エスケープ）+ Content Security Policy |
