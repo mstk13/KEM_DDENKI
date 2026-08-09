@@ -68,7 +68,8 @@ class QualificationForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         for _name, field in self.fields.items():
-            if not isinstance(field.widget, (forms.Textarea, forms.DateInput, forms.CheckboxInput)):
+            plain_widgets = (forms.Textarea, forms.DateInput, forms.CheckboxInput)
+            if not isinstance(field.widget, plain_widgets):
                 field.widget.attrs.setdefault("class", "form-control")
 
 

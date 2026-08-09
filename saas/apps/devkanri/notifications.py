@@ -1,9 +1,9 @@
 """Discord Webhook通知。"""
 
+import json
 import logging
 import threading
 from urllib.request import Request, urlopen
-import json
 
 logger = logging.getLogger(__name__)
 
@@ -75,7 +75,9 @@ def notify_task_assigned(task, assigned_by):
     if task.description:
         embed["description"] = task.description[:200]
 
-    content = f"**タスクが割り当てられました** {mention}" if mention else "**タスクが割り当てられました**"
+    content = "**タスクが割り当てられました**"
+    if mention:
+        content = f"{content} {mention}"
 
     payload = {
         "content": content,
@@ -102,12 +104,16 @@ def notify_task_status_changed(task, changed_by, old_status):
         "fields": [
             {"name": "ステータス変更", "value": f"{old_label} → {new_label}", "inline": False},
             {"name": "担当者", "value": assignee_name, "inline": True},
-            {"name": "変更者", "value": changed_by.get_full_name() or changed_by.username, "inline": True},
+            {
+                "name": "変更者",
+                "value": changed_by.get_full_name() or changed_by.username,
+                "inline": True,
+            },
         ],
     }
 
     payload = {
-        "content": f"**ステータスが変更されました**",
+        "content": "**ステータスが変更されました**",
         "embeds": [embed],
     }
     _send_webhook(webhook_url, payload)

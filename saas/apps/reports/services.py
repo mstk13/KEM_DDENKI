@@ -8,8 +8,8 @@ from datetime import date
 
 from django.utils import timezone
 
-from apps.notifications.services import notify, notify_multiple
 from apps.notifications.models import Notification
+from apps.notifications.services import notify
 from apps.reports.models import DailyReport, SafetyRecord, SafetyTemplate
 
 
@@ -57,7 +57,7 @@ def check_safety_completion(site, check_date: date) -> dict:
             else:
                 incomplete.append(record)
 
-    rate = int((completed / total * 100)) if total > 0 else 0
+    rate = int(completed / total * 100) if total > 0 else 0
     return {
         "total": total,
         "completed": completed,

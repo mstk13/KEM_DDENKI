@@ -2,7 +2,7 @@
 
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
-from django.shortcuts import render
+from django.shortcuts import get_object_or_404, redirect, render
 
 from apps.notifications.models import Notification
 from apps.notifications.services import get_unread_count, mark_all_as_read, mark_as_read
@@ -97,7 +97,9 @@ def alert_rule_create(request):
             return redirect("alert_rule_list")
     else:
         form = AlertRuleForm()
-    return render(request, "notifications/alert_rule_form.html", {"form": form, "title": "アラートルールを作成"})
+    return render(request, "notifications/alert_rule_form.html", {
+        "form": form, "title": "アラートルールを作成",
+    })
 
 
 @login_required
@@ -113,7 +115,9 @@ def alert_rule_edit(request, pk):
             return redirect("alert_rule_list")
     else:
         form = AlertRuleForm(instance=rule)
-    return render(request, "notifications/alert_rule_form.html", {"form": form, "title": "アラートルールを編集"})
+    return render(request, "notifications/alert_rule_form.html", {
+        "form": form, "title": "アラートルールを編集",
+    })
 
 
 @login_required

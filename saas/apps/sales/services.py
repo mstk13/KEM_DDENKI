@@ -5,7 +5,6 @@
 """
 
 from django.db.models import Count, Q
-from django.db.models.functions import TruncMonth
 
 from apps.sales.models import SalesVisit
 

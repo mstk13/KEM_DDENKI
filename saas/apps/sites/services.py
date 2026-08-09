@@ -4,10 +4,9 @@
 将来の DRF API 移行時にもそのまま使える。
 """
 
-from django.db.models import Avg, Count, Sum
+from django.db.models import Avg, Sum
 
 from apps.costs.models import BudgetItem, CostTransaction
-from apps.sites.models import Site
 
 
 def get_site_summary(site):

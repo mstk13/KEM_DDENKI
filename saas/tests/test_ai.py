@@ -1,9 +1,7 @@
 """AI分析基盤テスト: モデル・越境テスト・データ収集・プロンプトビルダー・ML予測。"""
 
-import shutil
 from datetime import date, timedelta
 from decimal import Decimal
-from pathlib import Path
 
 import pytest
 
@@ -22,7 +20,7 @@ from apps.core.tenant_context import set_current_company
 from apps.costs.models import BudgetItem, CostTransaction
 from apps.masters.models import CostCategory, WorkType
 from apps.reports.models import DailyReport
-from apps.schedules.models import Phase, PhaseTemplate, PhaseTemplateItem
+from apps.schedules.models import PhaseTemplate, PhaseTemplateItem
 from apps.sites.models import Process, Site
 from apps.workers.models import Worker
 
@@ -44,9 +42,20 @@ def cost_categories(db):
 
 
 @pytest.fixture
-def site_with_data(company_a, user_a, cost_categories):
+def work_type_e01(company_a):
+    """テスト用の工種。
+
+    WorkType は (company, code) が unique なので、複数のフィクスチャが
+    それぞれ生成すると、両方を使うテストで IntegrityError になる。
+    生成をここ1箇所に集約する。
+    """
+    return WorkType.unscoped.create(company=company_a, code="E01", name="電気幹線")
+
+
+@pytest.fixture
+def site_with_data(company_a, user_a, cost_categories, work_type_e01):
     """原価・日報・工程データ付きの現場。"""
-    wt = WorkType.unscoped.create(company=company_a, code="E01", name="電気幹線")
+    wt = work_type_e01
     today = date.today()
 
     site = Site.unscoped.create(
@@ -146,11 +155,9 @@ def site_with_data(company_a, user_a, cost_categories):
 
 
 @pytest.fixture
-def completed_site(company_a, cost_categories):
+def completed_site(company_a, cost_categories, work_type_e01):
     """完工済みの現場（類似現場検索用）。"""
-    wt = WorkType.unscoped.filter(company=company_a, code="E01").first()
-    if not wt:
-        wt = WorkType.unscoped.create(company=company_a, code="E01", name="電気幹線")
+    wt = work_type_e01
     today = date.today()
 
     site = Site.unscoped.create(
@@ -231,6 +238,7 @@ class TestAILogIsolation:
 
         set_current_company(company_a)
         assert AILog.objects.count() == 1
+        assert AILog.objects.first().pk == log_a.pk
         assert AILog.objects.first().prompt == "テストA"
 
         set_current_company(company_b)
@@ -395,11 +403,9 @@ sklearn = pytest.importorskip("sklearn", reason="scikit-learn がインストー
 
 
 @pytest.fixture
-def multiple_completed_sites(company_a, cost_categories):
+def multiple_completed_sites(company_a, cost_categories, work_type_e01):
     """学習用の完工済み現場を複数作成する（最低5件）。"""
-    wt = WorkType.unscoped.filter(company=company_a, code="E01").first()
-    if not wt:
-        wt = WorkType.unscoped.create(company=company_a, code="E01", name="電気幹線")
+    wt = work_type_e01
 
     today = date.today()
     sites = []
@@ -456,14 +462,10 @@ def predictor_with_tmp_dir(tmp_path):
 @pytest.mark.django_db
 class TestCostPredictor:
     def test_train_with_insufficient_data(
-        self, company_a, cost_categories, predictor_with_tmp_dir,
+        self, company_a, cost_categories, work_type_e01, predictor_with_tmp_dir,
     ):
         """5件未満で学習できないことを確認。"""
-        wt = WorkType.unscoped.filter(company=company_a, code="E01").first()
-        if not wt:
-            wt = WorkType.unscoped.create(
-                company=company_a, code="E01", name="電気幹線",
-            )
+        wt = work_type_e01
         today = date.today()
 
         # 2件だけ作成（5件未満）

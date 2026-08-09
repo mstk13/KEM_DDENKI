@@ -3,7 +3,7 @@ from collections import defaultdict
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.db.models import Q, Sum
+from django.db.models import Sum
 from django.shortcuts import get_object_or_404, redirect, render
 
 from apps.attendance.forms import (

@@ -98,7 +98,7 @@ def get_site_cost_summary(site):
         or 0
     )
 
-    consumption_pct = int((cost_total / budget_total * 100)) if budget_total else 0
+    consumption_pct = int(cost_total / budget_total * 100) if budget_total else 0
     gross_profit = site.contract_amount - cost_total
     margin_rate = (
         round(float(gross_profit / site.contract_amount * 100), 1)
@@ -128,7 +128,7 @@ def get_site_cost_summary(site):
         a = actual_map.get(code, {})
         budget_amt = b.get("total", 0) or 0
         actual_amt = a.get("total", 0) or 0
-        pct = int((actual_amt / budget_amt * 100)) if budget_amt else 0
+        pct = int(actual_amt / budget_amt * 100) if budget_amt else 0
         cat_name = b.get("cost_category__name") or a.get("cost_category__name", code)
         by_category.append({
             "code": code,
@@ -196,7 +196,7 @@ def get_monthly_cost_trend(site, months=6):
     for cat_name, monthly_data in categories.items():
         datasets.append({
             "label": cat_name,
-            "data": [monthly_data.get(l, 0) for l in labels],
+            "data": [monthly_data.get(month, 0) for month in labels],
         })
 
     return {"labels": labels, "datasets": datasets}

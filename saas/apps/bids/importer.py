@@ -13,10 +13,9 @@ from __future__ import annotations
 import re
 from datetime import date
 from pathlib import Path
-from typing import Optional
 
 
-def _parse_valid_from(raw: Optional[str]) -> Optional[str]:
+def _parse_valid_from(raw: str | None) -> str | None:
     """'2025/4/1～' のような文字列から ISO date を返す。"""
     if not raw:
         return None
@@ -30,7 +29,7 @@ def _parse_valid_from(raw: Optional[str]) -> Optional[str]:
     return None
 
 
-def _parse_valid_until(valid_from: Optional[str], header_text: str) -> Optional[str]:
+def _parse_valid_until(valid_from: str | None, header_text: str) -> str | None:
     """ヘッダーの有効期限テキスト（例: '令和7年4月1日～令和9年3月31日'）から
     終了日を抽出する。見つからなければ valid_from + 2年 をデフォルトにする。"""
     # 西暦パターン
@@ -59,7 +58,7 @@ def _parse_valid_until(valid_from: Optional[str], header_text: str) -> Optional[
     return None
 
 
-def _safe_int(val) -> Optional[int]:
+def _safe_int(val) -> int | None:
     if val is None:
         return None
     try:
@@ -68,7 +67,7 @@ def _safe_int(val) -> Optional[int]:
         return None
 
 
-def _safe_str(val) -> Optional[str]:
+def _safe_str(val) -> str | None:
     if val is None:
         return None
     s = str(val).strip()
@@ -95,7 +94,7 @@ def import_excel(filepath: str | Path) -> list[dict]:
         header_text += " ".join(str(c) for c in row if c) + " "
 
     records: list[dict] = []
-    current_issuer: Optional[str] = None
+    current_issuer: str | None = None
 
     for row in ws.iter_rows(min_row=6, values_only=False):
         cells = {c.column: c.value for c in row}
@@ -129,11 +128,9 @@ def import_excel(filepath: str | Path) -> list[dict]:
                     current_issuer = f"{current_issuer_base}({suffix})"
             else:
                 current_issuer = cleaned
-        # カテゴリも発注先もない行はスキップ
-        if not category and not issuer_raw:
-            # 認定開始だけの行はスキップ
-            if not any(cells.get(c) for c in [3, 4, 5, 6, 7]):
-                continue
+        # カテゴリも発注先もなく、認定開始だけの行はスキップ
+        if not category and not issuer_raw and not any(cells.get(c) for c in [3, 4, 5, 6, 7]):
+            continue
 
         if not category:
             continue
@@ -162,7 +159,7 @@ def import_pdf(filepath: str | Path) -> list[dict]:
     import pdfplumber
 
     records: list[dict] = []
-    current_issuer: Optional[str] = None
+    current_issuer: str | None = None
     header_text = ""
 
     with pdfplumber.open(filepath) as pdf:

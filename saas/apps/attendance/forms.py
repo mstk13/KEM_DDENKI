@@ -1,7 +1,7 @@
 from django import forms
 from django.forms import inlineformset_factory
 
-from apps.attendance.models import AttendEntry, AttendReport, AttendSettings
+from apps.attendance.models import AttendEntry, AttendReport
 
 
 class AttendReportForm(forms.ModelForm):

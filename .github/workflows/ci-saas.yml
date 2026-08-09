@@ -5,7 +5,9 @@ on:
     branches: [main, developer]
     paths: ['saas/**']
   pull_request:
-    branches: [main]
+    # developer 宛の PR も検査する。main だけだと作業ブランチ→developer の
+    # PR が一切チェックされず、壊れたコードが開発環境に自動反映されてしまう。
+    branches: [main, developer]
     paths: ['saas/**']
 
 jobs:

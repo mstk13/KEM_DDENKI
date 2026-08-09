@@ -3,7 +3,7 @@ from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404, redirect, render
 
 from apps.reports.forms import DailyReportForm
-from apps.reports.models import DailyReport, SafetyRecord, SafetyTemplate
+from apps.reports.models import DailyReport, SafetyRecord
 from apps.reports.services import (
     alert_safety_incomplete,
     approve_report,
@@ -111,7 +111,9 @@ def safety_complete(request, pk):
     record.completed = True
     record.completed_at = timezone.now()
     record.save()
-    messages.success(request, f"{record.worker.name}の{record.template.name}を記入済みにしました。")
+    messages.success(
+        request, f"{record.worker.name}の{record.template.name}を記入済みにしました。"
+    )
 
     return redirect(
         f"/reports/safety/?site={record.template.site_id}&date={record.record_date}"

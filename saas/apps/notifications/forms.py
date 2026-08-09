@@ -1,6 +1,6 @@
 from django import forms
 
-from apps.notifications.models import AlertRule, Notification
+from apps.notifications.models import AlertRule
 
 
 class AlertRuleForm(forms.ModelForm):

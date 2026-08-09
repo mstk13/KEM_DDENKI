@@ -21,8 +21,6 @@
 import argparse
 import os
 import sys
-from datetime import date, datetime
-from decimal import Decimal
 
 import psycopg2
 from psycopg2.extras import RealDictCursor
@@ -289,9 +287,8 @@ def migrate_sales_visits(conn, company, dry_run=False):
 
 def migrate_schedule_data(conn, company, dry_run=False):
     """schedule.phases/milestones/assignments → schedules.*"""
-    from apps.schedules.models import Assignment, Milestone, Phase
+    from apps.schedules.models import Milestone, Phase
     from apps.sites.models import Site
-    from apps.workers.models import Worker
 
     cur = conn.cursor()
     count = 0

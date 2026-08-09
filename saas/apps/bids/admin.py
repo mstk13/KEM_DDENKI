@@ -56,6 +56,8 @@ class UnitPriceAdmin(SimpleHistoryAdmin):
 
 @admin.register(Qualification)
 class QualificationAdmin(SimpleHistoryAdmin):
-    list_display = ("issuer", "category", "grade", "valid_from", "valid_until", "renewed", "company")
+    list_display = (
+        "issuer", "category", "grade", "valid_from", "valid_until", "renewed", "company",
+    )
     list_filter = ("renewed", "company")
     search_fields = ("issuer",)

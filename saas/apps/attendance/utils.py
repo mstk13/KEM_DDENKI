@@ -40,7 +40,7 @@ def calc_attendance(start_time, end_time, break_minutes, settings):
         return result
 
     # 設定値をパース
-    std_start = parse_time_to_minutes(settings.get("standard_start", "08:00"))
+    # 出勤側の基準は standard_start ではなく early_boundary を使う（早出判定用）
     std_end = parse_time_to_minutes(settings.get("standard_end", "17:00"))
     early_boundary = parse_time_to_minutes(settings.get("early_boundary", "08:00"))
     round_min = int(settings.get("round_minutes", "0"))
