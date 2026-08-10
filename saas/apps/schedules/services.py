@@ -9,6 +9,32 @@ from datetime import date, timedelta
 
 from apps.schedules.models import Assignment, Milestone, Phase, PhaseTemplate
 
+# 比較ガントで現場ごとに色を割り当てるためのパレット数。
+# style.css の .gantt-site-0 〜 .gantt-site-7 と対応させている。
+COMPARISON_COLOR_COUNT = 8
+
+
+def _average_progress(phases):
+    """工程リストの平均進捗（％）。工程がなければ0。"""
+    phases = list(phases)
+    if not phases:
+        return 0
+    return sum(p.progress for p in phases) // len(phases)
+
+
+def _site_span(site, phases):
+    """現場の工期。現場に工期未設定なら工程の最早・最遅から補う。"""
+    if site.start_date and site.end_date:
+        return site.start_date, site.end_date
+
+    dated = [p for p in phases if p.start_date and p.end_date]
+    if not dated:
+        return None, None
+    return (
+        min(p.start_date for p in dated),
+        max(p.end_date for p in dated),
+    )
+
 
 def get_gantt_data(company):
     """全現場のガントチャートデータを生成する（frappe-gantt用JSON）。
@@ -36,11 +62,7 @@ def get_gantt_data(company):
             continue
 
         # 現場全体の平均進捗
-        phases = Phase.unscoped.filter(site=site)
-        avg_progress = 0
-        if phases.exists():
-            total = sum(p.progress for p in phases)
-            avg_progress = total // phases.count()
+        avg_progress = _average_progress(Phase.unscoped.filter(site=site))
 
         tasks.append({
             "id": f"site-{site.pk}",
@@ -52,6 +74,80 @@ def get_gantt_data(company):
         })
 
     return tasks
+
+
+def get_comparison_gantt_data(company, site_ids=None, mode="site"):
+    """複数現場を並べて比較するガントチャートデータを生成する。
+
+    Args:
+        company: 対象テナント
+        site_ids: 比較対象の現場PKリスト。空なら施工中・受注済の現場を対象にする。
+        mode: "site" は現場単位の工期のみ。"phase" は現場の下に工程を並べる。
+
+    Returns:
+        {
+            "tasks":  frappe-gantt 用のタスクJSON,
+            "legend": 現場と色の対応（凡例・比較表用）,
+        }
+    """
+    from apps.sites.models import Site
+
+    # unscoped: サービス層はリクエスト外（バッチ・将来のAPI）からも呼べるようにするため、
+    # company を引数で受けて明示的に絞る。既存の get_gantt_data と同じ方針。
+    sites = Site.unscoped.filter(company=company)
+    if site_ids:
+        sites = sites.filter(pk__in=site_ids)
+    else:
+        sites = sites.filter(status__in=["in_progress", "ordered"])
+    sites = sites.order_by("start_date", "pk")
+
+    tasks = []
+    legend = []
+
+    for idx, site in enumerate(sites):
+        color_class = f"gantt-site-{idx % COMPARISON_COLOR_COUNT}"
+        phases = list(Phase.unscoped.filter(site=site).order_by("sort_order"))
+        start, end = _site_span(site, phases)
+
+        legend.append({
+            "site_id": site.pk,
+            "name": site.name,
+            "color_class": color_class,
+            "start": start,
+            "end": end,
+            # 工期日数は開始日・終了日の両端を含めて数える（1日工事なら1日）。
+            "days": (end - start).days + 1 if start and end else None,
+            "progress": _average_progress(phases),
+            "phase_count": len(phases),
+        })
+
+        if start and end:
+            tasks.append({
+                "id": f"site-{site.pk}",
+                "name": site.name,
+                "start": start.isoformat(),
+                "end": end.isoformat(),
+                "progress": _average_progress(phases),
+                "custom_class": f"{color_class} gantt-row-site",
+            })
+
+        if mode != "phase":
+            continue
+
+        for phase in phases:
+            if not phase.start_date or not phase.end_date:
+                continue
+            tasks.append({
+                # 現場名を付けないと、同名の工程がどの現場のものか区別できない。
+                "id": f"phase-{phase.pk}",
+                "name": f"{site.name} / {phase.name}",
+                "start": phase.start_date.isoformat(),
+                "end": phase.end_date.isoformat(),
+                "progress": phase.progress,
+                "custom_class": f"{color_class} gantt-row-phase",
+            })
+
+    return {"tasks": tasks, "legend": legend}
 
 
 def get_site_gantt_data(site):
