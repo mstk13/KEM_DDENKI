@@ -45,7 +45,7 @@ def notify(
     reference_url: str = "",
 ):
     """単発通知を作成する。"""
-    return Notification.unscoped.create(
+    notif = Notification.unscoped.create(
         company=company,
         recipient=recipient,
         title=title,
@@ -57,6 +57,9 @@ def notify(
         reference_id=reference_id,
         reference_url=reference_url,
     )
+    if channel == Notification.Channel.EMAIL:
+        _send_email(notif)
+    return notif
 
 
 def notify_multiple(
@@ -88,7 +91,11 @@ def notify_multiple(
         )
         for user in recipients
     ]
-    return Notification.unscoped.bulk_create(notifications)
+    created = Notification.unscoped.bulk_create(notifications)
+    if channel == Notification.Channel.EMAIL:
+        for notif in created:
+            _send_email(notif)
+    return created
 
 
 def _already_alerted(alert_rule, reference_type, reference_id):
@@ -112,7 +119,7 @@ def _log_alert(alert_rule, reference_type, reference_id, detail=""):
 
 
 def _get_alert_recipients(company, roles):
-    """ロールに該当するユーザーを取得。"""
+    """ロールに該当するユーザーを取得。UserRole経由でフィルタする。"""
     from apps.accounts.models import User
 
     if not roles:
@@ -120,7 +127,7 @@ def _get_alert_recipients(company, roles):
     return User.objects.filter(
         company=company,
         is_active=True,
-        groups__name__in=roles,
+        user_roles__role__code__in=roles,
     ).distinct()
 
 
@@ -394,3 +401,231 @@ def get_unread_count(user):
         recipient=user,
         is_read=False,
     ).count()
+
+
+def _send_email(notification):
+    """メールチャネルの通知に対してSMTPメールを送信する。"""
+    from django.conf import settings
+    from django.core.mail import send_mail
+
+    recipient_email = notification.recipient.email
+    if not recipient_email:
+        return
+
+    prefix = getattr(settings, "EMAIL_SUBJECT_PREFIX", "")
+    subject = f"{prefix}{notification.title}"
+
+    try:
+        send_mail(
+            subject=subject,
+            message=notification.body or notification.title,
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[recipient_email],
+            fail_silently=True,
+        )
+    except Exception:
+        pass
+
+
+def check_certificate_missing_alerts(company):
+    """証明書未添付アラート。certificate_imageが空のWorkerQualificationを検出する。"""
+    from apps.workers.models import WorkerQualification
+
+    rules = AlertRule.unscoped.filter(
+        company=company,
+        alert_type=AlertRule.AlertType.CERT_MISSING,
+        is_active=True,
+    )
+    if not rules.exists():
+        return
+
+    rule = rules.first()
+
+    quals = WorkerQualification.unscoped.filter(
+        company=company,
+        certificate_image="",
+    ).select_related("worker", "worker__user")
+
+    for qual in quals:
+        ref_type = "workers.WorkerQualification"
+        if _already_alerted(rule, ref_type, qual.pk):
+            continue
+
+        title = f"{qual.worker.name}の「{qual.name}」に証明書が未添付です"
+        body = f"資格区分: {qual.get_category_display()}"
+        ref_url = f"/workers/{qual.worker.pk}/"
+
+        # 本人に通知
+        if qual.worker.user:
+            for channel in rule.notify_channels or ["in_app"]:
+                notify(
+                    company=company,
+                    recipient=qual.worker.user,
+                    title=title,
+                    body=body,
+                    level=Notification.Level.WARNING,
+                    module=Notification.Module.WORKERS,
+                    channel=channel,
+                    reference_type=ref_type,
+                    reference_id=qual.pk,
+                    reference_url=ref_url,
+                )
+
+        # 事務員等に通知
+        recipients = _get_alert_recipients(company, rule.notify_roles)
+        for channel in rule.notify_channels or ["in_app"]:
+            notify_multiple(
+                company=company,
+                recipients=recipients,
+                title=title,
+                body=body,
+                level=Notification.Level.WARNING,
+                module=Notification.Module.WORKERS,
+                channel=channel,
+                reference_type=ref_type,
+                reference_id=qual.pk,
+                reference_url=ref_url,
+            )
+        _log_alert(rule, ref_type, qual.pk, "証明書未添付")
+
+
+def check_health_report_missing_alerts(company):
+    """健診報告書未添付アラート。report_fileが空のHealthCheckupを検出する。"""
+    from apps.workers.models import HealthCheckup
+
+    rules = AlertRule.unscoped.filter(
+        company=company,
+        alert_type=AlertRule.AlertType.HEALTH_REPORT_MISSING,
+        is_active=True,
+    )
+    if not rules.exists():
+        return
+
+    rule = rules.first()
+
+    checkups = HealthCheckup.unscoped.filter(
+        company=company,
+        report_file="",
+    ).select_related("worker", "worker__user")
+
+    for checkup in checkups:
+        ref_type = "workers.HealthCheckup"
+        if _already_alerted(rule, ref_type, checkup.pk):
+            continue
+
+        title = f"{checkup.worker.name}の健康診断結果（{checkup.checkup_date}）が未添付です"
+        body = f"受診機関: {checkup.institution or '未設定'}"
+        ref_url = f"/workers/{checkup.worker.pk}/"
+
+        if checkup.worker.user:
+            for channel in rule.notify_channels or ["in_app"]:
+                notify(
+                    company=company,
+                    recipient=checkup.worker.user,
+                    title=title,
+                    body=body,
+                    level=Notification.Level.WARNING,
+                    module=Notification.Module.WORKERS,
+                    channel=channel,
+                    reference_type=ref_type,
+                    reference_id=checkup.pk,
+                    reference_url=ref_url,
+                )
+
+        recipients = _get_alert_recipients(company, rule.notify_roles)
+        for channel in rule.notify_channels or ["in_app"]:
+            notify_multiple(
+                company=company,
+                recipients=recipients,
+                title=title,
+                body=body,
+                level=Notification.Level.WARNING,
+                module=Notification.Module.WORKERS,
+                channel=channel,
+                reference_type=ref_type,
+                reference_id=checkup.pk,
+                reference_url=ref_url,
+            )
+        _log_alert(rule, ref_type, checkup.pk, "健診報告書未添付")
+
+
+def check_health_checkup_due_alerts(company):
+    """健診期限アラート。最新受診日の1年後が2ヶ月以内に迫っている作業員を検出する。"""
+    from dateutil.relativedelta import relativedelta
+    from django.db.models import Max
+
+    from apps.workers.models import HealthCheckup, Worker
+
+    rules = AlertRule.unscoped.filter(
+        company=company,
+        alert_type=AlertRule.AlertType.HEALTH_CHECKUP_DUE,
+        is_active=True,
+    )
+    if not rules.exists():
+        return
+
+    rule = rules.first()
+    today = date.today()
+    due_threshold = today + relativedelta(months=2)
+
+    # 各ワーカーの最新受診日を取得
+    latest_dates = (
+        HealthCheckup.unscoped.filter(company=company)
+        .values("worker_id")
+        .annotate(latest=Max("checkup_date"))
+    )
+
+    for row in latest_dates:
+        next_due = row["latest"] + relativedelta(years=1)
+        if next_due > due_threshold:
+            continue
+
+        worker_id = row["worker_id"]
+        ref_type = "workers.Worker"
+        if _already_alerted(rule, ref_type, worker_id):
+            continue
+
+        worker = Worker.unscoped.filter(pk=worker_id, company=company).select_related("user").first()
+        if not worker or not worker.is_active:
+            continue
+
+        days_remaining = (next_due - today).days
+        if days_remaining <= 0:
+            title = f"{worker.name}の健康診断が期限を過ぎています"
+            level = Notification.Level.ERROR
+        else:
+            title = f"{worker.name}の健康診断期限まで残り{days_remaining}日"
+            level = Notification.Level.WARNING
+        body = f"前回受診: {row['latest']} / 次回推奨: {next_due}"
+        ref_url = f"/workers/{worker.pk}/"
+
+        if worker.user:
+            for channel in rule.notify_channels or ["in_app"]:
+                notify(
+                    company=company,
+                    recipient=worker.user,
+                    title=title,
+                    body=body,
+                    level=level,
+                    module=Notification.Module.WORKERS,
+                    channel=channel,
+                    reference_type=ref_type,
+                    reference_id=worker.pk,
+                    reference_url=ref_url,
+                )
+
+        recipients = _get_alert_recipients(company, rule.notify_roles)
+        for channel in rule.notify_channels or ["in_app"]:
+            notify_multiple(
+                company=company,
+                recipients=recipients,
+                title=title,
+                body=body,
+                level=level,
+                module=Notification.Module.WORKERS,
+                channel=channel,
+                reference_type=ref_type,
+                reference_id=worker.pk,
+                reference_url=ref_url,
+            )
+        _log_alert(rule, ref_type, worker_id, f"残り{days_remaining}日")

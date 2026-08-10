@@ -64,6 +64,9 @@
           <a href="{% url 'workers:evaluations' %}" class="{% if 'eval' in request.resolver_match.url_name %}active{% endif %}">
             <span class="nav-icon">&#x1f4cb;</span> 人材評価
           </a>
+          <a href="{% url 'workers:document_alerts' %}" class="{% if request.resolver_match.url_name == 'document_alerts' %}active{% endif %}">
+            <span class="nav-icon">&#x26a0;&#xfe0f;</span> 書類アラート
+          </a>
         </div>
       </div>
 
