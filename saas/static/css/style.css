@@ -289,6 +289,47 @@ a:hover { color: var(--brand-dark); }
 .stat-value.green { color: var(--success); }
 .stat-value.orange { color: var(--warning); }
 
+/* ---- Accordion（業種別一覧などの「タップで下に開く」リスト） ----
+   サイドバーの .nav-group と同じ動き。開閉は app.js が .open を付け外しする。
+   max-height は中身より必ず大きい値にすること（足りないと下が切れる）。 */
+.acc-group { border-bottom: 1px solid var(--border-light); }
+.acc-group:last-child { border-bottom: none; }
+.acc-head {
+  display: flex; align-items: center; gap: 12px;
+  width: 100%;
+  padding: 16px 20px;
+  font-size: 16px; font-weight: 600;
+  color: var(--text-primary);
+  background: none; border: none; cursor: pointer;
+  text-align: left;
+  transition: var(--transition);
+}
+.acc-head:hover { background: var(--surface-hover); }
+.acc-group.open .acc-head { background: var(--brand-light); color: var(--brand); }
+.acc-title { flex: 1; min-width: 0; }
+.acc-group.open .nav-chevron { transform: rotate(180deg); }
+
+.acc-body {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height .3s cubic-bezier(.4,0,.2,1);
+}
+.acc-group.open .acc-body { max-height: 5000px; }
+.acc-list { padding: 4px 12px 12px; }
+.acc-item {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 16px;
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  font-size: 15px;
+  text-decoration: none;
+  transition: var(--transition);
+}
+.acc-item-name { flex: 1; min-width: 0; }
+.acc-item:hover { background: var(--bg); color: var(--text-primary); text-decoration: none; }
+.acc-item.active { background: var(--brand-light); color: var(--brand); font-weight: 600; }
+.acc-empty { padding: 20px; text-align: center; color: var(--text-muted); font-size: 15px; }
+
 /* ---- Tables ---- */
 .table-wrap { overflow-x: auto; }
 table { width: 100%; border-collapse: collapse; }
