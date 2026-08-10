@@ -3,6 +3,11 @@
 {% block topbar_title %}入札参加資格{% endblock %}
 
 {% block content %}
+<style>
+@media (max-width: 768px) {
+  .issuer-cell .issuer-sub { display: block; }
+}
+</style>
 <div class="page-header">
   <h1>入札参加資格一覧</h1>
   <div style="display:flex;gap:8px;">
@@ -15,16 +20,15 @@
   <div class="table-wrap">
     <table>
       <thead>
-        <tr><th>発注機関</th><th>業種区分</th><th>等級</th><th>経審点</th><th>業者番号</th><th>有効期限</th><th>更新済</th><th></th></tr>
+        <tr><th>発注機関</th><th>業種区分</th><th>等級</th><th>経審点</th><th>有効期限</th><th>更新済</th><th></th></tr>
       </thead>
       <tbody>
         {% for q in qualifications %}
         <tr>
-          <td>{{ q.issuer }}</td>
+          <td class="issuer-cell">{{ q.issuer }}</td>
           <td>{{ q.category|default:"-" }}</td>
           <td>{{ q.grade|default:"-" }}</td>
           <td>{{ q.keisin_score|default:"-" }}</td>
-          <td>{{ q.vendor_number|default:"-" }}</td>
           <td>
             {{ q.valid_until|default:"-" }}
             {% if q.valid_until and q.valid_until <= alert_date %}
@@ -39,10 +43,15 @@
           <td><a href="{% url 'bids:qualification_edit' q.pk %}" class="btn btn-outline btn-sm">編集</a></td>
         </tr>
         {% empty %}
-        <tr><td colspan="8"><div class="empty"><p>入札参加資格が登録されていません</p></div></td></tr>
+        <tr><td colspan="7"><div class="empty"><p>入札参加資格が登録されていません</p></div></td></tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
 </div>
+<script>
+document.querySelectorAll('.issuer-cell').forEach(function(td) {
+  td.innerHTML = td.textContent.replace(/(\(.+?\))/g, '<span class="issuer-sub">$1</span>');
+});
+</script>
 {% endblock %}
