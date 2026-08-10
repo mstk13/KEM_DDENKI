@@ -12,28 +12,10 @@ from apps.schedules.services import (
     apply_template,
     get_calendar_data,
     get_comparison_gantt_data,
-    get_gantt_data,
     get_site_gantt_data,
 )
 from apps.sites.models import Site
 
-
-@login_required
-def schedule_list(request):
-    sites = Site.objects.annotate(
-        phase_count=Count("phases"),
-        avg_progress=Avg("phases__progress"),
-    ).order_by("-created_at")
-
-    # ガントチャート用データ
-    gantt_json = json.dumps(
-        get_gantt_data(request.user.company), ensure_ascii=False,
-    )
-
-    return render(request, "schedules/list.html", {
-        "sites": sites,
-        "gantt_json": gantt_json,
-    })
 
 
 @login_required
