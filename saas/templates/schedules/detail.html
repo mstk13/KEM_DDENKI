@@ -192,11 +192,16 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   });
 
+  var chart = document.querySelector('#gantt-chart');
+  localizeGanttMonths(chart);
+
   document.querySelectorAll('.gantt-mode').forEach(function(btn) {
     btn.addEventListener('click', function() {
       document.querySelectorAll('.gantt-mode').forEach(function(b) { b.classList.remove('active'); });
       this.classList.add('active');
       gantt.change_view_mode(this.dataset.mode);
+      // 表示切替で描き直されるため、月ラベルを付け直す
+      localizeGanttMonths(chart);
     });
   });
 });
