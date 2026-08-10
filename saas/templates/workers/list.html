@@ -45,7 +45,7 @@
   <div class="card-header"><h2>有効な作業員（{{ active_workers|length }}名）</h2></div>
   <div class="table-wrap">
     <table>
-      <thead><tr><th>社員番号</th><th>氏名</th><th>よみがな</th><th>職種</th><th>役職</th><th>電話番号</th>{% if is_president %}<th>時間単価</th>{% endif %}<th></th></tr></thead>
+      <thead><tr><th>社員番号</th><th>氏名</th><th>よみがな</th><th>職種</th><th>役職</th>{% if is_president %}<th>時間単価</th>{% endif %}<th></th></tr></thead>
       <tbody>
         {% for w in active_workers %}
         <tr>
@@ -54,12 +54,11 @@
           <td style="color:var(--text-muted);font-size:.82rem;">{{ w.name_kana|default:"-" }}</td>
           <td>{{ w.job_title|default:"-" }}</td>
           <td>{{ w.position|default:"-" }}</td>
-          <td style="font-size:.82rem;">{{ w.phone|default:"-" }}</td>
           {% if is_president %}<td>{{ w.hourly_cost|floatformat:0 }} 円/h</td>{% endif %}
           <td><a href="{% url 'workers:edit' w.pk %}" class="btn btn-outline btn-sm">編集</a></td>
         </tr>
         {% empty %}
-        <tr><td colspan="8"><div class="empty"><div class="empty-icon">&#x1f465;</div><p>該当する作業員がいません</p></div></td></tr>
+        <tr><td colspan="7"><div class="empty"><div class="empty-icon">&#x1f465;</div><p>該当する作業員がいません</p></div></td></tr>
         {% endfor %}
       </tbody>
     </table>
@@ -71,7 +70,7 @@
   <div class="card-header"><h2 style="color:var(--text-muted);">退職者（{{ inactive_workers|length }}名）</h2></div>
   <div class="table-wrap">
     <table>
-      <thead><tr><th>社員番号</th><th>氏名</th><th>よみがな</th><th>職種</th><th>役職</th><th>電話番号</th>{% if is_president %}<th>時間単価</th>{% endif %}<th></th></tr></thead>
+      <thead><tr><th>社員番号</th><th>氏名</th><th>よみがな</th><th>職種</th><th>役職</th>{% if is_president %}<th>時間単価</th>{% endif %}<th></th></tr></thead>
       <tbody>
         {% for w in inactive_workers %}
         <tr style="color:var(--text-muted);">
@@ -80,7 +79,6 @@
           <td style="font-size:.82rem;">{{ w.name_kana|default:"-" }}</td>
           <td>{{ w.job_title|default:"-" }}</td>
           <td>{{ w.position|default:"-" }}</td>
-          <td style="font-size:.82rem;">{{ w.phone|default:"-" }}</td>
           {% if is_president %}<td>{{ w.hourly_cost|floatformat:0 }} 円/h</td>{% endif %}
           <td><a href="{% url 'workers:edit' w.pk %}" class="btn btn-outline btn-sm">編集</a></td>
         </tr>
