@@ -149,7 +149,7 @@ def extract_partner(request):
 
     try:
         from apps.masters.extractor import extract_from_file
-        results = extract_from_file(tmp_path)
+        results = extract_from_file(tmp_path, company=request.user.company, user=request.user)
         return JsonResponse({"results": results})
     except ImportError as e:
         return JsonResponse({"error": str(e)}, status=500)

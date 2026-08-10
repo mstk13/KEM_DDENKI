@@ -49,7 +49,7 @@ def get_monthly_cost_jpy(company=None):
 
     total_usd = qs.aggregate(t=Sum("cost_usd"))["t"] or Decimal("0")
     rate = getattr(settings, "AI_USD_TO_JPY_RATE", 152)
-    budget_jpy = getattr(settings, "AI_MONTHLY_BUDGET_JPY", 9900)
+    budget_jpy = getattr(settings, "AI_MONTHLY_BUDGET_JPY", 4000)
 
     cost_jpy = int(total_usd * rate)
     usage_pct = int(cost_jpy / budget_jpy * 100) if budget_jpy > 0 else 0

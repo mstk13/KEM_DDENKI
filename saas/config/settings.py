@@ -163,7 +163,7 @@ PRESIDENT_PIN = os.environ.get("PRESIDENT_PIN", "1234")
 
 # ---- AI API 使用量制限 ----
 # 月間上限（円）。超過するとAI機能を自動停止する。
-AI_MONTHLY_BUDGET_JPY = int(os.environ.get("AI_MONTHLY_BUDGET_JPY", "9900"))
+AI_MONTHLY_BUDGET_JPY = int(os.environ.get("AI_MONTHLY_BUDGET_JPY", "4000"))
 # USD→JPYレート（概算。正確なレートは不要）
 AI_USD_TO_JPY_RATE = int(os.environ.get("AI_USD_TO_JPY_RATE", "152"))
 

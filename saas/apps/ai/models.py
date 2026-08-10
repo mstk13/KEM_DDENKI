@@ -23,6 +23,8 @@ class AILog(TenantModel):
         COST_OPTIMIZATION = "cost_optimization", "コスト最適化提案"
         SCHEDULE_SUGGEST = "schedule_suggest", "工程提案"
         SCHEDULE_RISK = "schedule_risk", "工程リスク分析"
+        DELIVERY_OCR = "delivery_ocr", "納品書OCR"
+        MASTER_EXTRACT = "master_extract", "取引先抽出"
         GENERAL_ANALYSIS = "general_analysis", "汎用分析"
 
     class ModelType(models.TextChoices):

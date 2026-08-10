@@ -288,6 +288,8 @@ def generate_quotation_pdf(output, quotation, items, user):
 def extract_delivery_items_from_image(delivery, purchase_order, company):
     """納品書画像からClaude APIで明細を読み取り、DeliveryItemを生成する。
 
+    Haiku使用。AILogに記録。
+
     Args:
         delivery: Delivery instance (image フィールドに画像がセットされている)
         purchase_order: PurchaseOrder instance
@@ -297,35 +299,24 @@ def extract_delivery_items_from_image(delivery, purchase_order, company):
         list[DeliveryItem]: 生成された DeliveryItem のリスト
     """
     import os
+    from decimal import Decimal
 
-    from django.conf import settings
-
-    try:
-        import anthropic
-    except ImportError:
-        raise ImportError("anthropic がインストールされていません。")
-
-    api_key = getattr(settings, "ANTHROPIC_API_KEY", None) or os.environ.get("ANTHROPIC_API_KEY")
-    if not api_key:
-        raise ValueError("ANTHROPIC_API_KEY が設定されていません。")
+    from apps.ai.services.llm_advisor import call_claude_with_log
+    from apps.ai.models import AILog
+    from apps.materials.models import DeliveryItem, Material
 
     # 画像をbase64エンコード
     image_path = delivery.image.path
     with open(image_path, "rb") as f:
         image_data = base64.b64encode(f.read()).decode("utf-8")
 
-    # 拡張子からメディアタイプを判定
     ext = os.path.splitext(image_path)[1].lower()
-    media_type_map = {
-        ".jpg": "image/jpeg",
-        ".jpeg": "image/jpeg",
-        ".png": "image/png",
-        ".gif": "image/gif",
-        ".webp": "image/webp",
-    }
-    media_type = media_type_map.get(ext, "image/jpeg")
+    media_type = {
+        ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+        ".png": "image/png", ".gif": "image/gif", ".webp": "image/webp",
+    }.get(ext, "image/jpeg")
 
-    # PO明細の材料リストをプロンプトに含める（マッチング精度向上）
+    # PO明細の材料リストをプロンプトに含める
     po_items = purchase_order.items.select_related("material").all()
     material_list = "\n".join(
         f"- ID:{item.material.pk} 材料名:{item.material.name} 発注数量:{item.quantity}"
@@ -351,36 +342,39 @@ JSONのみを返してください。説明文は不要です。
   ]
 }}"""
 
-    client = anthropic.Anthropic(api_key=api_key)
-    message = client.messages.create(
-        model="claude-haiku-4-5-20251001",
+    content = [
+        {
+            "type": "image",
+            "source": {
+                "type": "base64",
+                "media_type": media_type,
+                "data": image_data,
+            },
+        },
+        {"type": "text", "text": prompt},
+    ]
+
+    result = call_claude_with_log(
+        prompt=prompt,
+        model_key="haiku",
         max_tokens=2000,
-        messages=[{
-            "role": "user",
-            "content": [
-                {
-                    "type": "image",
-                    "source": {
-                        "type": "base64",
-                        "media_type": media_type,
-                        "data": image_data,
-                    },
-                },
-                {"type": "text", "text": prompt},
-            ],
-        }],
+        company=company,
+        site=purchase_order.site,
+        task_type=AILog.TaskType.DELIVERY_OCR,
+        input_data={
+            "delivery_id": delivery.pk,
+            "po_id": purchase_order.pk,
+            "image_path": str(image_path),
+        },
+        user=delivery.created_by,
+        content=content,
     )
 
-    raw_text = message.content[0].text
+    raw_text = result["raw"]
     delivery.extraction_raw = raw_text
     delivery.save(update_fields=["extraction_raw"])
 
-    # JSONをパース
-    parsed = _parse_json_response(raw_text)
-    extracted_items = parsed.get("items", [])
-
-    # DeliveryItemを生成
-    from apps.materials.models import DeliveryItem, Material
+    extracted_items = (result["parsed"] or {}).get("items", [])
 
     created_items = []
     for ext_item in extracted_items:
@@ -390,7 +384,6 @@ JSONのみを返してください。説明文は不要です。
         if not material_name or not delivered_qty:
             continue
 
-        # PO明細から材料をマッチング
         matched_po_item = None
         for po_item in po_items:
             if po_item.material.name in material_name or material_name in po_item.material.name:
@@ -401,7 +394,6 @@ JSONのみを返してください。説明文は不要です。
             material = matched_po_item.material
             ordered_qty = matched_po_item.quantity
         else:
-            # マッチしない場合、材料名で部分一致検索
             material = Material.unscoped.filter(
                 company=company, name__icontains=material_name,
             ).first()
@@ -411,7 +403,6 @@ JSONのみを返してください。説明文は不要です。
             logger.warning(f"材料マッチ失敗: {material_name}")
             continue
 
-        from decimal import Decimal
         delivery_item = DeliveryItem.unscoped.create(
             company=company,
             created_by=delivery.created_by,
@@ -424,17 +415,3 @@ JSONのみを返してください。説明文は不要です。
         created_items.append(delivery_item)
 
     return created_items
-
-
-def _parse_json_response(text):
-    """LLMレスポンスからJSON部分を抽出してパースする。"""
-    if "```json" in text:
-        start = text.index("```json") + len("```json")
-        end = text.index("```", start)
-        text = text[start:end].strip()
-    elif "```" in text:
-        start = text.index("```") + len("```")
-        end = text.index("```", start)
-        text = text[start:end].strip()
-
-    return json.loads(text)
