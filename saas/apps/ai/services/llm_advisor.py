@@ -33,15 +33,17 @@ except ImportError:
     HAS_ANTHROPIC = False
 
 # モデルIDと料金（USD / 1M tokens）
+# モデルIDは日付サフィックスを付けないエイリアスを使う。
+# claude-sonnet-4-6-20250725 は存在せず 404 になっていた。
 MODEL_CONFIG = {
     "haiku": {
-        "model_id": "claude-haiku-4-5-20251001",
-        "input_price": 0.80,
-        "output_price": 4.00,
+        "model_id": "claude-haiku-4-5",
+        "input_price": 1.00,
+        "output_price": 5.00,
         "display": AILog.ModelType.CLAUDE_HAIKU,
     },
     "sonnet": {
-        "model_id": "claude-sonnet-4-6-20250725",
+        "model_id": "claude-sonnet-5",
         "input_price": 3.00,
         "output_price": 15.00,
         "display": AILog.ModelType.CLAUDE_SONNET,

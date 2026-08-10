@@ -58,7 +58,7 @@ class AILog(TenantModel):
         "モデルバージョン",
         max_length=100,
         blank=True,
-        help_text="例: claude-haiku-4-5-20251001, lgbm_cost_v3",
+        help_text="例: claude-haiku-4-5, lgbm_cost_v3",
     )
     input_data = models.JSONField(
         "入力データ",
