@@ -11,6 +11,7 @@ from apps.schedules.models import Assignment, Milestone, Phase, PhaseTemplate
 from apps.schedules.services import (
     apply_template,
     get_calendar_data,
+    get_comparison_gantt_data,
     get_gantt_data,
     get_site_gantt_data,
 )
@@ -55,6 +56,36 @@ def schedule_detail(request, pk):
         "templates": templates,
         "gantt_json": gantt_json,
         "gantt_tasks_exist": len(gantt_data) > 0,
+    })
+
+
+@login_required
+def schedule_compare(request):
+    """複数現場の工期・工程を並べて比較するガントチャート。
+
+    GET パラメータ:
+        site … 比較対象の現場PK（複数指定可）。未指定なら施工中・受注済の全現場。
+        mode … "site"（現場単位）または "phase"（工程単位）
+    """
+    mode = request.GET.get("mode", "site")
+    if mode not in ("site", "phase"):
+        mode = "site"
+
+    selected_ids = [v for v in request.GET.getlist("site") if v.isdigit()]
+
+    data = get_comparison_gantt_data(request.user.company, selected_ids, mode)
+
+    # 選択UI用。工期の設定有無にかかわらず全現場を出す。
+    all_sites = Site.objects.order_by("-start_date", "name")
+    selected_set = {int(v) for v in selected_ids}
+
+    return render(request, "schedules/compare.html", {
+        "all_sites": all_sites,
+        "selected_ids": selected_set,
+        "mode": mode,
+        "legend": data["legend"],
+        "gantt_json": json.dumps(data["tasks"], ensure_ascii=False),
+        "gantt_tasks_exist": len(data["tasks"]) > 0,
     })
 
 

@@ -432,6 +432,32 @@ textarea.form-control { min-height: 88px; resize: vertical; line-height: 1.6; }
 .gantt .bar-milestone .bar-progress { fill: var(--warning); }
 .gantt .bar-blue .bar-progress { fill: var(--info); }
 
+/* ---- 工期比較ガント ---- */
+/* 現場ごとに色を割り当て、同じ現場の工程が同色でまとまるようにする。
+   クラス名は services.COMPARISON_COLOR_COUNT（8色）と対応。 */
+.compare-site-picker { display: flex; flex-wrap: wrap; gap: 8px; }
+.compare-site-option {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 12px; border: 1px solid var(--border); border-radius: 6px;
+  font-size: .85rem; cursor: pointer; background: var(--white);
+}
+.compare-site-option:hover { border-color: var(--brand); }
+.legend-swatch {
+  display: inline-block; width: 16px; height: 16px; border-radius: 4px;
+  vertical-align: middle;
+}
+/* 現場全体のバーは工程バーと区別できるよう輪郭を付ける */
+.gantt .gantt-row-site .bar { stroke: var(--text-muted); stroke-width: 1; }
+
+.gantt .gantt-site-0 .bar { fill: #dbeafe; } .gantt .gantt-site-0 .bar-progress { fill: #3b82f6; } .legend-swatch.gantt-site-0 { background: #3b82f6; }
+.gantt .gantt-site-1 .bar { fill: #fee2e2; } .gantt .gantt-site-1 .bar-progress { fill: #ef4444; } .legend-swatch.gantt-site-1 { background: #ef4444; }
+.gantt .gantt-site-2 .bar { fill: #fef3c7; } .gantt .gantt-site-2 .bar-progress { fill: #f59e0b; } .legend-swatch.gantt-site-2 { background: #f59e0b; }
+.gantt .gantt-site-3 .bar { fill: #d1fae5; } .gantt .gantt-site-3 .bar-progress { fill: #10b981; } .legend-swatch.gantt-site-3 { background: #10b981; }
+.gantt .gantt-site-4 .bar { fill: #ede9fe; } .gantt .gantt-site-4 .bar-progress { fill: #8b5cf6; } .legend-swatch.gantt-site-4 { background: #8b5cf6; }
+.gantt .gantt-site-5 .bar { fill: #fce7f3; } .gantt .gantt-site-5 .bar-progress { fill: #ec4899; } .legend-swatch.gantt-site-5 { background: #ec4899; }
+.gantt .gantt-site-6 .bar { fill: #cffafe; } .gantt .gantt-site-6 .bar-progress { fill: #06b6d4; } .legend-swatch.gantt-site-6 { background: #06b6d4; }
+.gantt .gantt-site-7 .bar { fill: #ffedd5; } .gantt .gantt-site-7 .bar-progress { fill: #f97316; } .legend-swatch.gantt-site-7 { background: #f97316; }
+
 /* ---- Responsive ---- */
 @media (max-width: 768px) {
   .sidebar { transform: translateX(-100%); box-shadow: none; }

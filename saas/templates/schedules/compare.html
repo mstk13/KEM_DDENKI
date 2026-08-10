@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+{% block title %}工期比較 — {{ APP_NAME }}{% endblock %}
+{% block topbar_title %}工期管理{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>工期比較</h1>
+  <div class="page-actions" style="display:flex;gap:8px;">
+    <a href="{% url 'schedules:list' %}" class="btn btn-outline">一覧に戻る</a>
+  </div>
+</div>
+
+<!-- 表示条件 -->
+<form method="get" class="card" style="margin-bottom:16px;">
+  <div class="card-body">
+    <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;">
+      <button type="submit" name="mode" value="site"
+              class="btn btn-sm {% if mode == 'site' %}btn-primary{% else %}btn-outline{% endif %}">現場単位</button>
+      <button type="submit" name="mode" value="phase"
+              class="btn btn-sm {% if mode == 'phase' %}btn-primary{% else %}btn-outline{% endif %}">工程単位</button>
+      <span style="align-self:center;color:var(--text-muted);font-size:.82rem;">
+        {% if mode == 'phase' %}現場ごとの工程を並べて比較します{% else %}現場全体の工期を比較します{% endif %}
+      </span>
+    </div>
+
+    <p style="margin:0 0 8px;font-size:.85rem;color:var(--text-muted);">
+      比較する現場（未選択なら施工中・受注済の現場をすべて表示）
+    </p>
+    <div class="compare-site-picker">
+      {% for s in all_sites %}
+      <label class="compare-site-option">
+        <input type="checkbox" name="site" value="{{ s.pk }}"
+               {% if s.pk in selected_ids %}checked{% endif %}>
+        <span>{{ s.name }}</span>
+      </label>
+      {% empty %}
+      <p style="color:var(--text-muted);">現場がありません</p>
+      {% endfor %}
+    </div>
+
+    <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;">
+      <!-- mode は送信ボタン側で持つ。hidden と併用すると値が二重に送られ、
+           現場単位／工程単位の切替が効かなくなる。 -->
+      <button type="submit" name="mode" value="{{ mode }}" class="btn btn-primary btn-sm">表示を更新</button>
+      <a href="{% url 'schedules:compare' %}?mode={{ mode }}" class="btn btn-outline btn-sm">選択をクリア</a>
+    </div>
+  </div>
+</form>
+
+<!-- ガントチャート -->
+<div class="card" style="margin-bottom:16px;">
+  <div class="card-body">
+    {% if gantt_tasks_exist %}
+      <div class="gantt-controls" style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
+        <button class="btn btn-outline btn-sm gantt-mode" data-mode="Quarter Day">日</button>
+        <button class="btn btn-outline btn-sm gantt-mode active" data-mode="Week">週</button>
+        <button class="btn btn-outline btn-sm gantt-mode" data-mode="Month">月</button>
+      </div>
+      <div id="gantt-chart" style="overflow-x:auto;"></div>
+    {% else %}
+      <div class="empty">
+        <div class="empty-icon">&#x1f4c5;</div>
+        <p>比較できる工期がありません。現場に工期開始・終了日を設定するか、工程フェーズに日付を登録してください。</p>
+      </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- 工期の比較表 -->
+<div class="card">
+  <div class="page-header" style="padding:12px 16px;">
+    <h2 style="font-size:1.1rem;">工期一覧</h2>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th></th><th>現場名</th><th>工期</th><th>日数</th><th>工程数</th><th>平均進捗</th></tr>
+      </thead>
+      <tbody>
+        {% for l in legend %}
+        <tr>
+          <td><span class="legend-swatch {{ l.color_class }}"></span></td>
+          <td><a href="{% url 'schedules:detail' l.site_id %}">{{ l.name }}</a></td>
+          <td>{% if l.start %}{{ l.start }} ~ {{ l.end }}{% else %}-{% endif %}</td>
+          <td>{% if l.days %}{{ l.days }}日{% else %}-{% endif %}</td>
+          <td>{{ l.phase_count }}</td>
+          <td>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <div style="flex:1;background:#e5e7eb;border-radius:4px;height:8px;min-width:60px;">
+                <div style="width:{{ l.progress }}%;background:#3b82f6;height:100%;border-radius:4px;"></div>
+              </div>
+              <span>{{ l.progress }}%</span>
+            </div>
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="6"><div class="empty"><p>比較対象の現場がありません</p></div></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/frappe-gantt@0.6.1/dist/frappe-gantt.min.css">
+<script src="https://cdn.jsdelivr.net/npm/frappe-gantt@0.6.1/dist/frappe-gantt.min.js"></script>
+
+<script>
+{% if gantt_tasks_exist %}
+document.addEventListener('DOMContentLoaded', function() {
+  var tasks = {{ gantt_json|safe }};
+  var gantt = new Gantt('#gantt-chart', tasks, {
+    view_mode: 'Week',
+    language: 'ja',
+    custom_popup_html: function(task) {
+      var days = Math.round((task.end - task.start) / 86400000) + 1;
+      return '<div class="details-container" style="padding:12px;min-width:200px;">'
+        + '<h5 style="margin:0 0 6px;font-size:.95rem;">' + task.name + '</h5>'
+        + '<p style="margin:0;font-size:.82rem;color:#666;">'
+        + task.start.toLocaleDateString('ja-JP') + ' ～ ' + task.end.toLocaleDateString('ja-JP')
+        + '</p>'
+        + '<p style="margin:4px 0 0;font-size:.82rem;">工期: ' + days + '日</p>'
+        + '<p style="margin:4px 0 0;font-size:.82rem;">進捗: ' + task.progress + '%</p>'
+        + '</div>';
+    }
+  });
+
+  document.querySelectorAll('.gantt-mode').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      document.querySelectorAll('.gantt-mode').forEach(function(b) { b.classList.remove('active'); });
+      this.classList.add('active');
+      gantt.change_view_mode(this.dataset.mode);
+    });
+  });
+});
+{% endif %}
+</script>
+{% endblock %}
