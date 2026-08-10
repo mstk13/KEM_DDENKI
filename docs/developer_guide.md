@@ -107,6 +107,25 @@ git push origin developer
 curl -s https://desktop-rmsk0vg.tail8efe0d.ts.net:8443/health/ | head
 ```
 
+### 3-4-2. 開発環境にデモデータを入れる
+
+画面の実動作を見るためのテストデータは、サーバーPCで次を実行すると入ります。
+
+```bash
+docker compose -p kemdev exec web python manage.py seed_demo
+docker compose -p kemdev exec web python manage.py seed_demo --wipe  # 入れ直す
+```
+
+得意先・工種・材料・現場・工程・工期・日報・発注・実行予算・原価・入札案件・通知が
+一通り入ります。何度実行しても増えません（`--wipe` は自分が入れた分だけ消します）。
+
+作業員マスタには触れません。日報と現場配置は既存の作業員を参照するだけです。
+労務費は `Worker.hourly_cost`（実データは全員0）ではなく役職ごとのデモ単価で計上します。
+入札案件は収集済みの想定で投入します（スクレイピングの設定は別途必要）。
+入札参加資格は実データが入っているため対象外です。
+
+**本番では実行しないでください。** デモ用の現場・取引先がそのまま残ります。
+
 ### 3-5. 本番に出す（PM承認）
 
 開発環境で問題ないことを確認してから、Pull Request を作ります。
