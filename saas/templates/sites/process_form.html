@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}{% if process %}工程を編集{% else %}工程を追加{% endif %} — {{ APP_NAME }}{% endblock %}
+{% block topbar_title %}工程{% if process %}編集{% else %}追加{% endif %}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>{{ site.name }} — 工程を{% if process %}編集{% else %}追加{% endif %}</h1>
+  <a href="{% url 'sites:detail' site.pk %}" class="btn btn-outline btn-sm">現場詳細に戻る</a>
+</div>
+
+<div class="card">
+  <div class="card-body">
+    <form method="post">
+      {% csrf_token %}
+      {% for field in form %}
+      <div class="form-group">
+        <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+        {{ field }}
+        {% if field.help_text %}<small style="color:var(--text-secondary);">{{ field.help_text }}</small>{% endif %}
+        {{ field.errors }}
+      </div>
+      {% endfor %}
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">保存</button>
+        <a href="{% url 'sites:detail' site.pk %}" class="btn btn-outline">キャンセル</a>
+        {% if process %}
+        <a href="{% url 'sites:process_delete' process.pk %}" class="btn btn-danger">削除</a>
+        {% endif %}
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

@@ -9,6 +9,7 @@ urlpatterns = [
     path("new/", views.report_create, name="create"),
     path("<int:pk>/edit/", views.report_edit, name="edit"),
     path("<int:pk>/approve/", views.report_approve, name="approve"),
+    path("approve/bulk/", views.report_approve_bulk, name="approve_bulk"),
     path("safety/", views.safety_check, name="safety_check"),
     path("safety/<int:pk>/complete/", views.safety_complete, name="safety_complete"),
     path("monthly/", views.monthly_summary, name="monthly_summary"),

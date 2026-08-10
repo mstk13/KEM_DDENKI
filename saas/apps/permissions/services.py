@@ -15,6 +15,40 @@ def get_user_roles(user):
     ).distinct()
 
 
+def has_role(user, *codes) -> bool:
+    """ユーザーが指定ロールコードのいずれかを持つかチェック。
+
+    superuser は常に True。
+    """
+    if user.is_superuser:
+        return True
+    # unscoped: ロールはユーザー本人に紐づくためテナント横断で引く
+    from apps.permissions.models import UserRole
+
+    return UserRole.unscoped.filter(user=user, role__code__in=codes).exists()
+
+
+def is_president(user) -> bool:
+    """社長かどうかを判定する。
+
+    permissions の president ロール、または Worker の役職名「社長」で判定する。
+    """
+    if user.is_superuser:
+        return True
+    if has_role(user, "president"):
+        return True
+    profile = getattr(user, "worker_profile", None)
+    return bool(profile and profile.position and profile.position.name == "社長")
+
+
+def can_approve_report(user) -> bool:
+    """日報を承認できるユーザーかどうかを判定する。
+
+    承認できるのは社長と IT（developer ロール）のみ。
+    """
+    return is_president(user) or has_role(user, "developer")
+
+
 def has_module_permission(user, module: str, level: str = "read") -> bool:
     """ユーザーが指定モジュールの指定レベルの権限を持つかチェック。
 

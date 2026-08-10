@@ -10,7 +10,7 @@ class DailyReportForm(forms.ModelForm):
     class Meta:
         model = DailyReport
         fields = [
-            "site", "worker", "report_date", "weather",
+            "report_type", "site", "worker", "report_date", "weather",
             "process", "work_type", "work_description",
             "start_time", "end_time", "work_hours",
             "is_partner_worker", "partner",
@@ -29,6 +29,10 @@ class DailyReportForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         for _name, field in self.fields.items():
             field.widget.attrs.setdefault("class", "form-control")
+
+        # 協力会社欄は「協力会社の作業員」にチェックが入ったときだけ表示する。
+        # 表示切替は static/js/app.js が data-toggle-target を見て行う。
+        self.fields["is_partner_worker"].widget.attrs["data-toggle-target"] = "partner"
 
         # start_time/end_time を入力したら work_hours は自動計算されるので任意に
         self.fields["work_hours"].required = False
@@ -52,6 +56,14 @@ class DailyReportForm(forms.ModelForm):
 
     def clean(self):
         cleaned = super().clean()
+
+        # 協力会社は「協力会社の作業員」の場合のみ記入する。
+        if cleaned.get("is_partner_worker"):
+            if not cleaned.get("partner"):
+                self.add_error("partner", "協力会社を選択してください。")
+        else:
+            cleaned["partner"] = None
+
         start = cleaned.get("start_time")
         end = cleaned.get("end_time")
         hours = cleaned.get("work_hours")

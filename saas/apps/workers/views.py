@@ -3,8 +3,9 @@ from datetime import date
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.core.exceptions import PermissionDenied
 from django.db import models
-from django.http import HttpResponse, HttpResponseForbidden, JsonResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 
 from apps.workers.forms import (
@@ -52,7 +53,7 @@ def document_alert_dashboard(request):
     from dateutil.relativedelta import relativedelta
 
     if not (_is_admin(request.user) or _has_role(request.user, "office_staff")):
-        return HttpResponseForbidden("この画面は事務員・管理者のみ閲覧できます。")
+        raise PermissionDenied("この画面は事務員・管理者のみ閲覧できます。")
 
     today = date.today()
     due_threshold = today + relativedelta(months=2)
@@ -532,7 +533,7 @@ def _is_eval_admin(user):
 def eval_template_edit(request):
     """評価テンプレートの編集。admin グループのユーザーのみ。"""
     if not _is_eval_admin(request.user):
-        return HttpResponseForbidden("この操作にはadmin権限が必要です。")
+        raise PermissionDenied("この操作にはadmin権限が必要です。")
 
     company = request.user.company
     template = EvaluationTemplate.unscoped.filter(

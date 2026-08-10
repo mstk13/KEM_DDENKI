@@ -59,10 +59,21 @@ def material_edit(request, pk):
 
 @login_required
 def po_list(request):
+    from apps.sites.models import Site
+
     orders = PurchaseOrder.objects.select_related(
         "site", "supplier"
     ).order_by("-order_date")
-    return render(request, "materials/po_list.html", {"orders": orders})
+
+    selected_site = request.GET.get("site", "")
+    if selected_site:
+        orders = orders.filter(site_id=selected_site)
+
+    return render(request, "materials/po_list.html", {
+        "orders": orders,
+        "sites": Site.objects.order_by("name"),
+        "selected_site": selected_site,
+    })
 
 
 @login_required
@@ -77,8 +88,18 @@ def po_create(request):
             messages.success(request, "発注書を作成しました。")
             return redirect("materials:po_detail", pk=po.pk)
     else:
-        form = PurchaseOrderForm(company=request.user.company)
+        # 現場詳細から遷移した場合は現場を初期選択しておく
+        form = PurchaseOrderForm(
+            company=request.user.company,
+            initial=_site_initial(request),
+        )
     return render(request, "materials/form.html", {"form": form, "title": "発注書を作成"})
+
+
+def _site_initial(request):
+    """?site=<pk> が付いていれば現場の初期値を返す。"""
+    site_id = request.GET.get("site")
+    return {"site": site_id} if site_id else {}
 
 
 @login_required
@@ -115,7 +136,10 @@ def quotation_create(request):
             messages.success(request, "見積を登録しました。")
             return redirect("materials:quotation_list")
     else:
-        form = QuotationForm(company=request.user.company)
+        form = QuotationForm(
+            company=request.user.company,
+            initial=_site_initial(request),
+        )
     return render(request, "materials/form.html", {"form": form, "title": "見積を登録"})
 
 
