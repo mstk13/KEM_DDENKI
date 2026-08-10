@@ -179,7 +179,8 @@ document.addEventListener('DOMContentLoaded', function() {
   var tasks = {{ gantt_json|safe }};
   var gantt = new Gantt('#gantt-chart', tasks, {
     view_mode: 'Week',
-    language: 'ja',
+    // language は指定しない。frappe-gantt 0.6.1 は 'ja' の月名テーブルを持たず、
+    // 月ラベル生成時に例外を投げて描画が途中で止まる（バーが出ない）。
     custom_popup_html: function(task) {
       return '<div class="details-container" style="padding:12px;min-width:200px;">'
         + '<h5 style="margin:0 0 6px;font-size:.95rem;">' + task.name + '</h5>'
