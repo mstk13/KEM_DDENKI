@@ -108,11 +108,15 @@ def project_edit(request, pk):
 def qualification_list(request):
     qs = Qualification.objects.all()
     today = datetime.date.today()
-    alert_date = today + datetime.timedelta(days=90)
+    alert_2month = today + datetime.timedelta(days=60)
+    alert_1month = today + datetime.timedelta(days=30)
+    alert_2week = today + datetime.timedelta(days=14)
     return render(request, "bids/qualification_list.html", {
         "qualifications": qs,
         "today": today,
-        "alert_date": alert_date,
+        "alert_2month": alert_2month,
+        "alert_1month": alert_1month,
+        "alert_2week": alert_2week,
     })
 
 
