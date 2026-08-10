@@ -44,9 +44,8 @@ def schedule_detail(request, pk):
     templates = PhaseTemplate.objects.all()
 
     # 工程別ガントチャート
-    gantt_json = json.dumps(
-        get_site_gantt_data(site), ensure_ascii=False,
-    )
+    gantt_data = get_site_gantt_data(site)
+    gantt_json = json.dumps(gantt_data, ensure_ascii=False)
 
     return render(request, "schedules/detail.html", {
         "site": site,
@@ -55,6 +54,7 @@ def schedule_detail(request, pk):
         "assignments": assignments,
         "templates": templates,
         "gantt_json": gantt_json,
+        "gantt_tasks_exist": len(gantt_data) > 0,
     })
 
 

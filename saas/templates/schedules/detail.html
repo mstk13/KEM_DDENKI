@@ -20,14 +20,36 @@
 </div>
 
 <!-- Tabs -->
-<div class="tabs" style="display:flex;gap:0;margin-bottom:16px;">
-  <button class="btn tab-btn active" data-tab="phases" onclick="showTab('phases', this)">工程フェーズ</button>
+<div class="tabs" style="display:flex;gap:0;margin-bottom:16px;flex-wrap:wrap;">
+  <button class="btn tab-btn active" data-tab="gantt" onclick="showTab('gantt', this)">ガントチャート</button>
+  <button class="btn tab-btn" data-tab="phases" onclick="showTab('phases', this)">工程フェーズ</button>
   <button class="btn tab-btn" data-tab="milestones" onclick="showTab('milestones', this)">マイルストーン</button>
   <button class="btn tab-btn" data-tab="assignments" onclick="showTab('assignments', this)">配置</button>
 </div>
 
+<!-- Gantt Tab -->
+<div class="tab-content" id="tab-gantt">
+  <div class="card">
+    <div class="card-body">
+      {% if gantt_tasks_exist %}
+        <div class="gantt-controls" style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
+          <button class="btn btn-outline btn-sm gantt-mode active" data-mode="Week">週</button>
+          <button class="btn btn-outline btn-sm gantt-mode" data-mode="Month">月</button>
+          <button class="btn btn-outline btn-sm gantt-mode" data-mode="Quarter Day">日</button>
+        </div>
+        <div id="gantt-chart" style="overflow-x:auto;"></div>
+      {% else %}
+        <div class="empty">
+          <div class="empty-icon">&#x1f4c5;</div>
+          <p>工程フェーズに開始日・終了日を設定するとガントチャートが表示されます</p>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
 <!-- Phases Tab -->
-<div class="tab-content" id="tab-phases">
+<div class="tab-content" id="tab-phases" style="display:none;">
   <div class="card">
     <div class="page-header" style="padding:12px 16px;">
       <h2 style="font-size:1.1rem;">工程フェーズ</h2>
@@ -141,6 +163,9 @@
   </div>
 </div>
 
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/frappe-gantt@0.6.1/dist/frappe-gantt.min.css">
+<script src="https://cdn.jsdelivr.net/npm/frappe-gantt@0.6.1/dist/frappe-gantt.min.js"></script>
+
 <script>
 function showTab(name, btn) {
   document.querySelectorAll('.tab-content').forEach(el => el.style.display = 'none');
@@ -148,5 +173,32 @@ function showTab(name, btn) {
   document.getElementById('tab-' + name).style.display = 'block';
   btn.classList.add('active');
 }
+
+{% if gantt_tasks_exist %}
+document.addEventListener('DOMContentLoaded', function() {
+  var tasks = {{ gantt_json|safe }};
+  var gantt = new Gantt('#gantt-chart', tasks, {
+    view_mode: 'Week',
+    language: 'ja',
+    custom_popup_html: function(task) {
+      return '<div class="details-container" style="padding:12px;min-width:200px;">'
+        + '<h5 style="margin:0 0 6px;font-size:.95rem;">' + task.name + '</h5>'
+        + '<p style="margin:0;font-size:.82rem;color:#666;">'
+        + task.start.toLocaleDateString('ja-JP') + ' ～ ' + task.end.toLocaleDateString('ja-JP')
+        + '</p>'
+        + '<p style="margin:4px 0 0;font-size:.82rem;">進捗: ' + task.progress + '%</p>'
+        + '</div>';
+    }
+  });
+
+  document.querySelectorAll('.gantt-mode').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      document.querySelectorAll('.gantt-mode').forEach(function(b) { b.classList.remove('active'); });
+      this.classList.add('active');
+      gantt.change_view_mode(this.dataset.mode);
+    });
+  });
+});
+{% endif %}
 </script>
 {% endblock %}

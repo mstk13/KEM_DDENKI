@@ -409,6 +409,13 @@ textarea.form-control { min-height: 88px; resize: vertical; line-height: 1.6; }
 .login-card h1 { text-align: center; font-size: 1.3rem; font-weight: 700; margin-bottom: 4px; }
 .login-card .subtitle { text-align: center; color: var(--text-muted); font-size: .85rem; margin-bottom: 32px; }
 
+/* ---- Gantt chart ---- */
+.gantt-mode.active { background: var(--brand); color: var(--white); border-color: var(--brand); }
+.gantt .bar-custom .bar-progress { fill: var(--brand); }
+.gantt .bar-custom .bar-wrapper:hover .bar-progress { fill: var(--accent); }
+.gantt .bar-milestone .bar-progress { fill: var(--warning); }
+.gantt .bar-blue .bar-progress { fill: var(--info); }
+
 /* ---- Responsive ---- */
 @media (max-width: 768px) {
   .sidebar { transform: translateX(-100%); box-shadow: none; }
