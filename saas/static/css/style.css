@@ -120,7 +120,7 @@ a:hover { color: var(--brand-dark); }
   justify-content: space-between;
   width: 100%;
   padding: 12px 12px 6px;
-  font-size: 1.32rem;
+  font-size: 16px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: .1em;
@@ -162,7 +162,7 @@ a:hover { color: var(--brand-dark); }
   padding: 10px 12px;
   border-radius: var(--radius-sm);
   color: var(--text-secondary);
-  font-size: .88rem;
+  font-size: 15px;
   font-weight: 500;
   transition: var(--transition);
   text-decoration: none;
