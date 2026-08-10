@@ -36,16 +36,17 @@
     </div>
     <div class="table-wrap table-slide">
       <table>
-        <thead><tr><th>現場名</th><th>得意先</th><th>受注金額</th></tr></thead>
+        <thead><tr><th>現場名</th><th>得意先</th><th>工期</th><th>受注金額</th></tr></thead>
         <tbody>
           {% for site in recent_sites %}
           <tr>
             <td><a href="{% url 'sites:detail' site.pk %}">{{ site.name }}</a></td>
             <td style="color:var(--text-secondary);">{{ site.customer|default:"-" }}</td>
+            <td style="color:var(--text-secondary);">{{ site.start_date|default:"-" }} 〜 {{ site.end_date|default:"" }}</td>
             <td style="font-weight:600;">{{ site.contract_amount|floatformat:0 }} 円</td>
           </tr>
           {% empty %}
-          <tr><td colspan="3"><div class="empty"><div class="empty-icon">&#x1f3d7;&#xfe0f;</div><p>現場がありません</p></div></td></tr>
+          <tr><td colspan="4"><div class="empty"><div class="empty-icon">&#x1f3d7;&#xfe0f;</div><p>現場がありません</p></div></td></tr>
           {% endfor %}
         </tbody>
       </table>
