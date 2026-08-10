@@ -7,6 +7,14 @@
 @media (max-width: 768px) {
   .issuer-cell .issuer-sub { display: block; }
 }
+tr.qual-green { background: #f0fff4; }
+tr.qual-green:hover { background: #e6ffed; }
+tr.qual-orange { background: #fffaf0; }
+tr.qual-orange:hover { background: #fff5e6; }
+tr.qual-yellow { background: #fffff0; }
+tr.qual-yellow:hover { background: #ffffe6; }
+tr.qual-red { background: #fff5f5; }
+tr.qual-red:hover { background: #ffebeb; }
 </style>
 <div class="page-header">
   <h1>入札参加資格一覧</h1>
@@ -20,30 +28,20 @@
   <div class="table-wrap">
     <table>
       <thead>
-        <tr><th>発注機関</th><th>業種区分</th><th>等級</th><th>経審点</th><th>有効期限</th><th>更新済</th><th></th></tr>
+        <tr><th>発注機関</th><th>業種区分</th><th>等級</th><th>経審点</th><th>有効期限</th><th></th></tr>
       </thead>
       <tbody>
         {% for q in qualifications %}
-        <tr>
+        <tr class="{% if q.renewed %}qual-green{% elif q.valid_until and q.valid_until <= alert_2week %}qual-red{% elif q.valid_until and q.valid_until <= alert_1month %}qual-yellow{% elif q.valid_until and q.valid_until <= alert_2month %}qual-orange{% endif %}">
           <td class="issuer-cell">{{ q.issuer }}</td>
           <td>{{ q.category|default:"-" }}</td>
           <td>{{ q.grade|default:"-" }}</td>
           <td>{{ q.keisin_score|default:"-" }}</td>
-          <td>
-            {{ q.valid_until|date:"Y/n/j"|default:"-" }}
-            {% if q.valid_until and q.valid_until <= alert_date %}
-              {% if q.valid_until < today %}
-                <span class="badge badge-red">期限切れ</span>
-              {% else %}
-                <span class="badge badge-orange">期限間近</span>
-              {% endif %}
-            {% endif %}
-          </td>
-          <td>{% if q.renewed %}<span class="badge badge-green">済</span>{% else %}-{% endif %}</td>
+          <td>{{ q.valid_until|date:"Y/n/j"|default:"-" }}</td>
           <td><a href="{% url 'bids:qualification_edit' q.pk %}" class="btn btn-outline btn-sm">編集</a></td>
         </tr>
         {% empty %}
-        <tr><td colspan="7"><div class="empty"><p>入札参加資格が登録されていません</p></div></td></tr>
+        <tr><td colspan="6"><div class="empty"><p>入札参加資格が登録されていません</p></div></td></tr>
         {% endfor %}
       </tbody>
     </table>
