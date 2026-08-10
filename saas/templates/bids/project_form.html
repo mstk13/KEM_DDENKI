@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}{% if form.instance.pk %}案件を編集{% else %}案件を登録{% endif %} — 建設SaaS{% endblock %}
+{% block title %}{% if form.instance.pk %}案件を編集{% else %}案件を登録{% endif %} — {{ APP_NAME }}{% endblock %}
 {% block topbar_title %}{% if form.instance.pk %}案件を編集{% else %}案件を登録{% endif %}{% endblock %}
 
 {% block content %}

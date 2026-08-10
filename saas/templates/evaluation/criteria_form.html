@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}{% if form.instance.pk %}評価項目を編集{% else %}評価項目を追加{% endif %} — 建設SaaS{% endblock %}
+{% block title %}{% if form.instance.pk %}評価項目を編集{% else %}評価項目を追加{% endif %} — {{ APP_NAME }}{% endblock %}
 {% block topbar_title %}{% if form.instance.pk %}評価項目を編集{% else %}評価項目を追加{% endif %}{% endblock %}
 
 {% block content %}

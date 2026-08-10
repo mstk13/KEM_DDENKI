@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}{% if form.instance.pk %}マイルストーン編集{% else %}マイルストーン作成{% endif %} — 建設SaaS{% endblock %}
+{% block title %}{% if form.instance.pk %}マイルストーン編集{% else %}マイルストーン作成{% endif %} — {{ APP_NAME }}{% endblock %}
 {% block topbar_title %}工期管理{% endblock %}
 
 {% block content %}

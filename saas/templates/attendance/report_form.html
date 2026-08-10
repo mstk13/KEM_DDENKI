@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}{% if is_edit %}日報を編集{% else %}日報を登録{% endif %} — 建設SaaS{% endblock %}
+{% block title %}{% if is_edit %}日報を編集{% else %}日報を登録{% endif %} — {{ APP_NAME }}{% endblock %}
 {% block topbar_title %}{% if is_edit %}勤怠日報を編集{% else %}勤怠日報を登録{% endif %}{% endblock %}
 
 {% block content %}

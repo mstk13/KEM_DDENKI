@@ -84,6 +84,7 @@ TEMPLATES = [
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
+                "apps.core.context_processors.branding",
             ],
         },
     },
@@ -146,6 +147,12 @@ MEDIA_ROOT = BASE_DIR / "media"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 SIMPLE_HISTORY_REVERT_DISABLED = True
+
+# ---- Branding (SaaS外販時にここだけ変更すればOK) ----
+APP_NAME = os.environ.get("APP_NAME", "KEC")
+APP_NAME_FULL = os.environ.get("APP_NAME_FULL", "KEC 業務管理システム")
+APP_SUBTITLE = os.environ.get("APP_SUBTITLE", "業務管理プラットフォーム")
+APP_THEME_COLOR = os.environ.get("APP_THEME_COLOR", "#1a2744")
 
 LOGIN_URL = "login"
 LOGIN_REDIRECT_URL = "dashboard"

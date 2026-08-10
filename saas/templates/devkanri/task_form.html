@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}{% if form.instance.pk %}タスク編集{% else %}タスク作成{% endif %} — 建設SaaS{% endblock %}
+{% block title %}{% if form.instance.pk %}タスク編集{% else %}タスク作成{% endif %} — {{ APP_NAME }}{% endblock %}
 {% block topbar_title %}{% if form.instance.pk %}タスク編集{% else %}タスク作成{% endif %}{% endblock %}
 
 {% block content %}
