@@ -423,11 +423,14 @@ textarea.form-control { min-height: 88px; resize: vertical; line-height: 1.6; }
   .sidebar.open { transform: translateX(0); box-shadow: var(--shadow-lg); }
   .main { margin-left: 0; }
   .hamburger { display: flex; align-items: center; justify-content: center; }
-  .content { padding: 20px 16px; }
+  .content { padding: 20px 8px; }
   .topbar { padding: 0 16px; }
   .form-row { grid-template-columns: 1fr; }
   .stats { grid-template-columns: 1fr 1fr; }
   .detail-grid { grid-template-columns: 110px 1fr; }
   .page-header { flex-direction: column; align-items: flex-start; gap: 12px; }
+  thead th { padding: 8px 6px; font-size: .68rem; }
+  td { padding: 10px 6px; font-size: .82rem; }
+  .btn-sm { padding: 4px 8px; font-size: .72rem; }
 }
 @media (max-width: 480px) { .stats { grid-template-columns: 1fr; } }

@@ -24,6 +24,18 @@
 
 set -uo pipefail
 
+# --- git に人間の入力を求めさせない --------------------------------
+# 認証情報が切れていると git fetch が資格情報の入力待ちで止まる。無人実行では
+# 誰も答えられないため、ロックを握ったまま最大1時間ぶら下がり続けてしまう
+# （2026-08-10 に発生。トークン失効中の実行が 38分ロックを保持した）。
+# 待たずに失敗させ、WARN を出して次回に回す。
+export GIT_TERMINAL_PROMPT=0
+export GCM_INTERACTIVE=never
+export GIT_ASKPASS=echo
+export SSH_ASKPASS=echo
+
+FETCH_TIMEOUT="${KEM_AUTODEPLOY_FETCH_TIMEOUT:-120}"
+
 # --- 自身をコピーしてから実行する ---------------------------------
 # このスクリプト自体がリポジトリ内にあるため、git reset --hard の最中に
 # 本体が書き換わると bash が続きを読み損ねて誤動作する。複製から動かす。
@@ -108,8 +120,16 @@ deploy_one() {
 
     cd "$repo_dir" || return 1
 
-    if ! git fetch origin "$branch" --quiet 2>/dev/null; then
-        log "[$name] WARN: git fetch に失敗しました（ネットワーク／認証を確認）"
+    # timeout を噛ませるのは、認証プロンプト以外（DNS・プロキシ・GitHub 側の
+    # 不調）でも fetch は無言でぶら下がりうるため。終了コード 124 が時間切れ。
+    timeout "$FETCH_TIMEOUT" git fetch origin "$branch" --quiet 2>/dev/null
+    local fetch_rc=$?
+    if [ "$fetch_rc" -ne 0 ]; then
+        if [ "$fetch_rc" -eq 124 ]; then
+            log "[$name] WARN: git fetch が ${FETCH_TIMEOUT}秒で時間切れ（認証切れの可能性。gh auth status を確認）"
+        else
+            log "[$name] WARN: git fetch に失敗しました（ネットワーク／認証を確認）"
+        fi
         return 1
     fi
 
