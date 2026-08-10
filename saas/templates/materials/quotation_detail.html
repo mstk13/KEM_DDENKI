@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block title %}見積詳細 — {{ APP_NAME }}{% endblock %}
+{% block topbar_title %}材料管理{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>見積-{{ quotation.pk }} {{ quotation.supplier }}</h1>
+  <div style="display:flex;gap:8px;">
+    <a href="{% url 'materials:quotation_pdf' quotation.pk %}" class="btn btn-outline" target="_blank">PDF出力</a>
+    <span class="badge badge-gray">{{ quotation.get_status_display }}</span>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+  <div class="card">
+    <div class="card-header"><h2>見積情報</h2></div>
+    <div style="padding:16px;">
+      <table style="width:100%;">
+        <tr><th style="text-align:left;width:30%;">仕入先</th><td>{{ quotation.supplier }}</td></tr>
+        <tr><th style="text-align:left;">現場</th><td>{{ quotation.site|default:"—" }}</td></tr>
+        <tr><th style="text-align:left;">見積日</th><td>{{ quotation.quotation_date }}</td></tr>
+        <tr><th style="text-align:left;">有効期限</th><td>{{ quotation.valid_until|default:"—" }}</td></tr>
+        <tr><th style="text-align:left;">合計金額</th><td style="font-weight:600;">¥{{ quotation.total_amount|floatformat:0 }}</td></tr>
+        {% if quotation.file %}<tr><th style="text-align:left;">添付</th><td><a href="{{ quotation.file.url }}" target="_blank">ダウンロード</a></td></tr>{% endif %}
+        {% if quotation.notes %}<tr><th style="text-align:left;">備考</th><td>{{ quotation.notes }}</td></tr>{% endif %}
+      </table>
+    </div>
+  </div>
+
+  {# 明細追加フォーム #}
+  <div class="card">
+    <div class="card-header"><h2>明細を追加</h2></div>
+    <form method="post" action="{% url 'materials:quotation_item_add' quotation.pk %}" style="padding:16px;">
+      {% csrf_token %}
+      {% for field in item_form %}
+      <div class="form-group" style="margin-bottom:12px;">
+        <label class="form-label">{{ field.label }}</label>
+        {{ field }}
+        {% if field.help_text %}<small style="color:#888;">{{ field.help_text }}</small>{% endif %}
+      </div>
+      {% endfor %}
+      <button type="submit" class="btn btn-primary btn-sm">追加</button>
+    </form>
+  </div>
+</div>
+
+<div class="card" style="margin-top:20px;">
+  <div class="card-header"><h2>見積明細</h2></div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>材料</th>
+          <th style="text-align:right;">数量</th>
+          <th style="text-align:right;">単価</th>
+          <th style="text-align:right;">金額</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in items %}
+        <tr>
+          <td>{% if item.material %}{{ item.material }}{% else %}{{ item.material_name }}{% endif %}</td>
+          <td style="text-align:right;">{{ item.quantity }}</td>
+          <td style="text-align:right;">¥{{ item.unit_price|floatformat:0 }}</td>
+          <td style="text-align:right;font-weight:600;">¥{{ item.amount|floatformat:0 }}</td>
+          <td style="display:flex;gap:4px;">
+            <a href="{% url 'materials:quotation_item_edit' item.pk %}" class="btn btn-outline btn-xs">編集</a>
+            <form method="post" action="{% url 'materials:quotation_item_delete' item.pk %}" style="display:inline;"
+                  onsubmit="return confirm('削除しますか？');">
+              {% csrf_token %}
+              <button class="btn btn-outline btn-xs" style="color:#dc3545;">削除</button>
+            </form>
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="5"><div class="empty"><p>明細がありません</p></div></td></tr>
+        {% endfor %}
+      </tbody>
+      {% if items %}
+      <tfoot>
+        <tr>
+          <td colspan="3" style="text-align:right;font-weight:600;">合計</td>
+          <td style="text-align:right;font-weight:600;">¥{{ quotation.total_amount|floatformat:0 }}</td>
+          <td></td>
+        </tr>
+      </tfoot>
+      {% endif %}
+    </table>
+  </div>
+</div>
+{% endblock %}

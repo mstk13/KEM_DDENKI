@@ -30,19 +30,20 @@
 <div class="card">
   <div class="table-wrap">
     <table>
-      <thead><tr><th>発注日</th><th>現場</th><th>仕入先</th><th>合計金額</th><th>状態</th><th></th></tr></thead>
+      <thead><tr><th>発注日</th><th>現場</th><th>仕入先</th><th>発注者</th><th>合計金額</th><th>状態</th><th></th></tr></thead>
       <tbody>
         {% for po in orders %}
         <tr>
           <td>{{ po.order_date }}</td>
           <td>{{ po.site }}</td>
           <td>{{ po.supplier }}</td>
+          <td>{{ po.ordered_by|default:"—" }}</td>
           <td style="text-align:right;">¥{{ po.total_amount|floatformat:0 }}</td>
           <td><span class="badge badge-gray">{{ po.get_status_display }}</span></td>
           <td><a href="{% url 'materials:po_detail' po.pk %}" class="btn btn-outline btn-xs">詳細</a></td>
         </tr>
         {% empty %}
-        <tr><td colspan="6"><div class="empty"><p>発注書がありません</p></div></td></tr>
+        <tr><td colspan="7"><div class="empty"><p>発注書がありません</p></div></td></tr>
         {% endfor %}
       </tbody>
     </table>

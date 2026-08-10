@@ -68,6 +68,10 @@ def ai_feedback_create(request, pk):
 @login_required
 def ai_dashboard(request):
     """AI利用状況ダッシュボード。月次コスト・利用頻度・評価を表示。"""
+    # 月間使用量サマリ
+    from apps.ai.services.cost_monitor import get_monthly_cost_jpy
+    budget_summary = get_monthly_cost_jpy(request.user.company)
+
     # 月別利用統計
     monthly_stats = list(
         AILog.objects.annotate(month=TruncMonth("created_at"))
@@ -102,6 +106,7 @@ def ai_dashboard(request):
         "monthly_stats": monthly_stats,
         "task_stats": task_stats,
         "feedback_stats": feedback_stats,
+        "budget_summary": budget_summary,
     })
 
 
@@ -246,7 +251,25 @@ def cost_optimization(request, site_id):
     model_key = request.GET.get("model", "haiku")
     available, unavailable_message = _llm_availability()
 
+    # 17時以降チェック
+    from apps.ai.services.batch_handler import is_after_hours
+    after_hours = is_after_hours()
+
     if request.method == "POST":
+        # バッチ処理を選択した場合
+        if request.POST.get("batch") == "1":
+            from apps.ai.services.batch_handler import create_batch_request
+            batch = create_batch_request(
+                request.user.company, site, "cost_optimization",
+                request.POST.get("model", "haiku"), request.user,
+            )
+            messages.success(
+                request,
+                f"バッチ処理を予約しました（{batch.scheduled_for:%m/%d %H:%M} 実行予定）。"
+                "結果は通知でお知らせします。",
+            )
+            return redirect("ai:batch_list")
+
         if not available:
             error_message = unavailable_message
         else:
@@ -287,6 +310,7 @@ def cost_optimization(request, site_id):
         "model_key": model_key,
         "llm_available": available,
         "llm_unavailable_message": unavailable_message,
+        "after_hours": after_hours,
     })
 
 
@@ -303,7 +327,19 @@ def schedule_suggestion(request, site_id):
     model_key = request.GET.get("model", "haiku")
     available, unavailable_message = _llm_availability()
 
+    from apps.ai.services.batch_handler import is_after_hours
+    after_hours = is_after_hours()
+
     if request.method == "POST":
+        if request.POST.get("batch") == "1":
+            from apps.ai.services.batch_handler import create_batch_request
+            batch = create_batch_request(
+                request.user.company, site, "schedule_suggest",
+                request.POST.get("model", "haiku"), request.user,
+            )
+            messages.success(request, f"バッチ処理を予約しました（{batch.scheduled_for:%m/%d %H:%M} 実行予定）。")
+            return redirect("ai:batch_list")
+
         if not available:
             error_message = unavailable_message
         else:
@@ -330,6 +366,7 @@ def schedule_suggestion(request, site_id):
         "model_key": model_key,
         "llm_available": available,
         "llm_unavailable_message": unavailable_message,
+        "after_hours": after_hours,
     })
 
 
@@ -346,7 +383,19 @@ def schedule_risk(request, site_id):
     model_key = request.GET.get("model", "haiku")
     available, unavailable_message = _llm_availability()
 
+    from apps.ai.services.batch_handler import is_after_hours
+    after_hours = is_after_hours()
+
     if request.method == "POST":
+        if request.POST.get("batch") == "1":
+            from apps.ai.services.batch_handler import create_batch_request
+            batch = create_batch_request(
+                request.user.company, site, "schedule_risk",
+                request.POST.get("model", "haiku"), request.user,
+            )
+            messages.success(request, f"バッチ処理を予約しました（{batch.scheduled_for:%m/%d %H:%M} 実行予定）。")
+            return redirect("ai:batch_list")
+
         if not available:
             error_message = unavailable_message
         else:
@@ -373,4 +422,17 @@ def schedule_risk(request, site_id):
         "model_key": model_key,
         "llm_available": available,
         "llm_unavailable_message": unavailable_message,
+        "after_hours": after_hours,
     })
+
+
+@login_required
+def batch_list(request):
+    """AIバッチリクエスト一覧。"""
+    from apps.ai.models import AIBatchRequest
+
+    batches = AIBatchRequest.objects.select_related(
+        "site", "requested_by", "result_log",
+    ).order_by("-created_at")[:50]
+
+    return render(request, "ai/batch_list.html", {"batches": batches})

@@ -13,7 +13,7 @@
 <div class="card">
   <div class="table-wrap">
     <table>
-      <thead><tr><th>見積日</th><th>仕入先</th><th>現場</th><th style="text-align:right;">合計金額</th><th>状態</th><th>ファイル</th></tr></thead>
+      <thead><tr><th>見積日</th><th>仕入先</th><th>現場</th><th style="text-align:right;">合計金額</th><th>状態</th><th></th></tr></thead>
       <tbody>
         {% for q in quotations %}
         <tr>
@@ -22,7 +22,10 @@
           <td>{{ q.site|default:"—" }}</td>
           <td style="text-align:right;">¥{{ q.total_amount|floatformat:0 }}</td>
           <td><span class="badge badge-gray">{{ q.get_status_display }}</span></td>
-          <td>{% if q.file %}<a href="{{ q.file.url }}" target="_blank">DL</a>{% else %}—{% endif %}</td>
+          <td style="display:flex;gap:4px;">
+            <a href="{% url 'materials:quotation_detail' q.pk %}" class="btn btn-outline btn-xs">詳細</a>
+            <a href="{% url 'materials:quotation_pdf' q.pk %}" class="btn btn-outline btn-xs" target="_blank">PDF</a>
+          </td>
         </tr>
         {% empty %}
         <tr><td colspan="6"><div class="empty"><p>見積がありません</p></div></td></tr>

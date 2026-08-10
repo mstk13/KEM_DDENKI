@@ -1,0 +1,25 @@
+{# 17時以降のバッチ確認バナー。AI分析ページにインクルードして使う。 #}
+{# 必須コンテキスト: after_hours, site, model_key #}
+{% if after_hours %}
+<div class="card" style="margin-bottom:16px;border:2px solid #f59e0b;background:#fffbeb;">
+  <div style="padding:16px;">
+    <strong style="color:#92400e;">17時を過ぎています</strong>
+    <p style="margin:8px 0;color:#92400e;">
+      結果は明日でもよろしいですか？ バッチ処理にすると翌営業日の朝に自動実行されます。
+    </p>
+    <div style="display:flex;gap:12px;">
+      <form method="post">
+        {% csrf_token %}
+        <input type="hidden" name="model" value="{{ model_key }}">
+        <input type="hidden" name="batch" value="1">
+        <button type="submit" class="btn btn-outline btn-sm">明日でOK（バッチ予約）</button>
+      </form>
+      <form method="post">
+        {% csrf_token %}
+        <input type="hidden" name="model" value="{{ model_key }}">
+        <button type="submit" class="btn btn-primary btn-sm">今すぐ実行する</button>
+      </form>
+    </div>
+  </div>
+</div>
+{% endif %}

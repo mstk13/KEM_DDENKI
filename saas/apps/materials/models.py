@@ -156,6 +156,14 @@ class PurchaseOrder(TenantModel):
         verbose_name="元見積",
     )
     order_date = models.DateField("発注日")
+    ordered_by = models.ForeignKey(
+        "accounts.User",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="ordered_purchase_orders",
+        verbose_name="発注者",
+    )
     total_amount = models.DecimalField(
         "合計金額",
         max_digits=14,
@@ -240,6 +248,29 @@ class Delivery(TenantModel):
         verbose_name="発注書",
     )
     delivery_date = models.DateField("納品日")
+    image = models.ImageField(
+        "納品書画像",
+        upload_to="deliveries/%Y/%m/",
+        blank=True,
+        help_text="納品書の写真・スキャン画像",
+    )
+    original_filename = models.CharField(
+        "元ファイル名", max_length=255, blank=True,
+    )
+    extraction_raw = models.TextField(
+        "AI読取生データ", blank=True,
+        help_text="Claude APIによるOCR結果の生テキスト",
+    )
+    received = models.BooleanField("受領済み", default=False)
+    received_by = models.ForeignKey(
+        "accounts.User",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="received_deliveries",
+        verbose_name="受領者",
+    )
+    received_at = models.DateTimeField("受領日時", null=True, blank=True)
     inspected = models.BooleanField("検収済み", default=False)
     inspected_by = models.ForeignKey(
         "accounts.User",

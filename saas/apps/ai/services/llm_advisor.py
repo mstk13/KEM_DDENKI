@@ -105,19 +105,34 @@ def check_availability():
     return True, None
 
 
-def _call_claude(prompt, model_key="haiku", max_tokens=2000):
-    """Claude APIを呼び出す。
+def _call_claude(prompt, model_key="haiku", max_tokens=2000, company=None):
+    """Claude APIを呼び出す。月間予算チェック付き。
 
     Args:
         prompt: プロンプト文字列
         model_key: "haiku" or "sonnet"
         max_tokens: 最大出力トークン数
+        company: テナント（予算チェック用、省略時はチェックなし）
 
     Returns:
         dict: {"text": str, "input_tokens": int, "output_tokens": int, "model_id": str}
+
+    Raises:
+        ValueError: 予算超過時
     """
     if not HAS_ANTHROPIC:
         raise ImportError("anthropic がインストールされていません。")
+
+    # 月間予算チェック
+    if company:
+        from apps.ai.services.cost_monitor import check_budget_and_notify
+
+        if not check_budget_and_notify(company):
+            budget_jpy = getattr(settings, "AI_MONTHLY_BUDGET_JPY", 9900)
+            raise ValueError(
+                f"月間API使用量が上限(¥{budget_jpy:,})に達しました。"
+                "来月まで AI 機能は利用できません。"
+            )
 
     api_key = get_api_key()
     if not api_key:
@@ -171,7 +186,7 @@ def get_cost_optimization(site, user=None, model_key="haiku", prediction=None):
     prompt = build_cost_optimization_prompt(summary, similar, ml_prediction)
 
     config = MODEL_CONFIG.get(model_key, MODEL_CONFIG["haiku"])
-    response = _call_claude(prompt, model_key=model_key)
+    response = _call_claude(prompt, model_key=model_key, company=site.company)
     latency_ms = int((time.time() - start_time) * 1000)
 
     # レスポンスをパース
@@ -237,7 +252,7 @@ def get_schedule_suggestion(site, user=None, model_key="haiku"):
     prompt = build_schedule_suggestion_prompt(schedule_data)
 
     config = MODEL_CONFIG.get(model_key, MODEL_CONFIG["haiku"])
-    response = _call_claude(prompt, model_key=model_key, max_tokens=3000)
+    response = _call_claude(prompt, model_key=model_key, max_tokens=3000, company=site.company)
     latency_ms = int((time.time() - start_time) * 1000)
 
     parsed = None
@@ -298,7 +313,7 @@ def get_schedule_risk_analysis(site, user=None, model_key="haiku"):
     prompt = build_schedule_risk_prompt(summary, schedule_data)
 
     config = MODEL_CONFIG.get(model_key, MODEL_CONFIG["haiku"])
-    response = _call_claude(prompt, model_key=model_key, max_tokens=2500)
+    response = _call_claude(prompt, model_key=model_key, max_tokens=2500, company=site.company)
     latency_ms = int((time.time() - start_time) * 1000)
 
     parsed = None

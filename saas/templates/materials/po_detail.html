@@ -15,6 +15,7 @@
       <table style="width:100%;">
         <tr><th style="text-align:left;width:30%;">仕入先</th><td>{{ po.supplier }}</td></tr>
         <tr><th style="text-align:left;">発注日</th><td>{{ po.order_date }}</td></tr>
+        <tr><th style="text-align:left;">発注者</th><td>{{ po.ordered_by|default:"—" }}</td></tr>
         <tr><th style="text-align:left;">合計金額</th><td style="font-weight:600;">¥{{ po.total_amount|floatformat:0 }}</td></tr>
         {% if po.file %}<tr><th style="text-align:left;">発注書</th><td><a href="{{ po.file.url }}" target="_blank">ダウンロード</a></td></tr>{% endif %}
       </table>
@@ -28,16 +29,39 @@
     </div>
     <div class="table-wrap">
       <table>
-        <thead><tr><th>納品日</th><th>検収</th><th></th></tr></thead>
+        <thead><tr><th>納品日</th><th>受領</th><th>検収</th><th></th></tr></thead>
         <tbody>
           {% for d in deliveries %}
           <tr>
-            <td>{{ d.delivery_date }}</td>
-            <td>{% if d.inspected %}<span class="badge badge-green">検収済</span>{% else %}<span class="badge badge-orange">未検収</span>{% endif %}</td>
-            <td>{% if not d.inspected %}<form method="post" action="{% url 'materials:delivery_inspect' d.pk %}" style="display:inline;">{% csrf_token %}<button class="btn btn-outline btn-xs">検収する</button></form>{% endif %}</td>
+            <td><a href="{% url 'materials:delivery_detail' d.pk %}">{{ d.delivery_date }}</a></td>
+            <td>
+              {% if d.received %}
+                <span class="badge badge-green">受領済</span>
+                <small style="color:#666;">{{ d.received_by }} {{ d.received_at|date:"m/d H:i" }}</small>
+              {% else %}
+                <span class="badge badge-orange">未受領</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if d.inspected %}
+                <span class="badge badge-green">検収済</span>
+              {% elif d.received %}
+                <span class="badge badge-orange">未検収</span>
+              {% else %}
+                <span class="badge badge-gray">—</span>
+              {% endif %}
+            </td>
+            <td style="display:flex;gap:6px;">
+              <a href="{% url 'materials:delivery_detail' d.pk %}" class="btn btn-outline btn-xs">明細</a>
+              {% if not d.received %}
+                <form method="post" action="{% url 'materials:delivery_receive' d.pk %}" style="display:inline;">{% csrf_token %}<button class="btn btn-outline btn-xs">受領確認</button></form>
+              {% elif not d.inspected %}
+                <form method="post" action="{% url 'materials:delivery_inspect' d.pk %}" style="display:inline;">{% csrf_token %}<button class="btn btn-outline btn-xs">検収する</button></form>
+              {% endif %}
+            </td>
           </tr>
           {% empty %}
-          <tr><td colspan="3"><small>納品記録なし</small></td></tr>
+          <tr><td colspan="4"><small>納品記録なし</small></td></tr>
           {% endfor %}
         </tbody>
       </table>
@@ -45,11 +69,12 @@
   </div>
 </div>
 
+{# 発注明細 #}
 <div class="card" style="margin-top:20px;">
   <div class="card-header"><h2>発注明細</h2></div>
   <div class="table-wrap">
     <table>
-      <thead><tr><th>材料</th><th>工種</th><th style="text-align:right;">数量</th><th style="text-align:right;">単価</th><th style="text-align:right;">金額</th></tr></thead>
+      <thead><tr><th>材料</th><th>工種</th><th style="text-align:right;">数量</th><th style="text-align:right;">単価</th><th style="text-align:right;">金額</th><th></th></tr></thead>
       <tbody>
         {% for item in items %}
         <tr>
@@ -58,12 +83,40 @@
           <td style="text-align:right;">{{ item.quantity }}</td>
           <td style="text-align:right;">¥{{ item.unit_price|floatformat:0 }}</td>
           <td style="text-align:right;font-weight:600;">¥{{ item.amount|floatformat:0 }}</td>
+          <td>
+            {% if po.status == 'draft' %}
+            <form method="post" action="{% url 'materials:po_item_delete' item.pk %}" style="display:inline;"
+                  onsubmit="return confirm('削除しますか？');">
+              {% csrf_token %}
+              <button class="btn btn-outline btn-xs" style="color:#dc3545;">削除</button>
+            </form>
+            {% endif %}
+          </td>
         </tr>
         {% empty %}
-        <tr><td colspan="5"><div class="empty"><p>明細がありません</p></div></td></tr>
+        <tr><td colspan="6"><div class="empty"><p>明細がありません</p></div></td></tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
 </div>
+
+{# 明細追加フォーム (下書き時のみ) #}
+{% if po.status == 'draft' %}
+<div class="card" style="margin-top:20px;">
+  <div class="card-header"><h2>明細を追加</h2></div>
+  <form method="post" action="{% url 'materials:po_item_add' po.pk %}" style="padding:16px;">
+    {% csrf_token %}
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;">
+      {% for field in item_form %}
+      <div>
+        <label class="form-label">{{ field.label }}</label>
+        {{ field }}
+      </div>
+      {% endfor %}
+    </div>
+    <button type="submit" class="btn btn-primary btn-sm" style="margin-top:12px;">追加</button>
+  </form>
+</div>
+{% endif %}
 {% endblock %}

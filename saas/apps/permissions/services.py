@@ -64,6 +64,10 @@ def has_module_permission(user, module: str, level: str = "read") -> bool:
     if user.is_superuser:
         return True
 
+    # 原価モジュールは専用のアクセス制御を使う
+    if module == "costs":
+        return _has_cost_access(user, level)
+
     field_map = {
         "read": "can_read",
         "write": "can_write",
@@ -74,6 +78,51 @@ def has_module_permission(user, module: str, level: str = "read") -> bool:
     return ModulePermission.unscoped.filter(
         role__user_roles__user=user,
         module=module,
+        **{field: True},
+    ).exists()
+
+
+def _has_cost_access(user, level: str = "read") -> bool:
+    """原価・予実モジュールの専用アクセスチェック。
+
+    以下のいずれかに該当する場合にアクセスを許可する:
+    1. 社長ロールを持つユーザー
+    2. 社員番号が G で始まるユーザー
+    3. CostAccessGrant で個別に許可されたユーザー
+
+    write/admin 権限は社長ロール or 既存の ModulePermission で判定する。
+    """
+    from apps.costs.models import CostAccessGrant
+
+    # 1. 社長ロール → 全レベルOK
+    is_president = Role.unscoped.filter(
+        code="president",
+        user_roles__user=user,
+    ).exists()
+    if is_president:
+        return True
+
+    # read レベルのみ: 社員番号G始まり or 個別許可
+    if level == "read":
+        # 2. 社員番号が G で始まる
+        if user.employee_no and user.employee_no.upper().startswith("G"):
+            return True
+
+        # 3. 管理者が個別に許可したユーザー
+        if CostAccessGrant.unscoped.filter(user=user).exists():
+            return True
+
+    # write/admin: 従来の ModulePermission に従う
+    field_map = {
+        "read": "can_read",
+        "write": "can_write",
+        "admin": "can_admin",
+    }
+    field = field_map.get(level, "can_read")
+
+    return ModulePermission.unscoped.filter(
+        role__user_roles__user=user,
+        module="costs",
         **{field: True},
     ).exists()
 

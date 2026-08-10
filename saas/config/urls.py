@@ -4,7 +4,7 @@ from django.contrib import admin
 from django.http import JsonResponse
 from django.urls import include, path
 
-from apps.core.views import dashboard
+from apps.core.views import audit_log, dashboard
 
 
 def _deployed_version():
@@ -63,6 +63,7 @@ urlpatterns = [
     path("attendance/", include("apps.attendance.urls")),
     path("evaluation/", include("apps.evaluation.urls")),
     path("ai/", include("apps.ai.urls")),
+    path("audit-log/", audit_log, name="audit_log"),
 ]
 
 if settings.DEBUG:

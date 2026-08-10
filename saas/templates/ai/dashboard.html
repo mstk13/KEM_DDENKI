@@ -10,6 +10,39 @@
   </div>
 </div>
 
+<!-- 月間使用量 -->
+{% if budget_summary %}
+<div class="card" style="margin-bottom:24px;{% if budget_summary.is_over_budget %}border:2px solid #dc3545;{% elif budget_summary.usage_pct >= 80 %}border:2px solid #f59e0b;{% endif %}">
+  <div class="card-header">
+    <h2>月間API使用量</h2>
+    {% if budget_summary.is_over_budget %}
+    <span class="badge badge-red">停止中</span>
+    {% elif budget_summary.usage_pct >= 90 %}
+    <span class="badge badge-orange">まもなく上限</span>
+    {% endif %}
+  </div>
+  <div style="padding:16px;">
+    <div style="display:flex;align-items:center;gap:24px;flex-wrap:wrap;">
+      <div>
+        <div style="font-size:32px;font-weight:700;{% if budget_summary.is_over_budget %}color:#dc3545;{% endif %}">
+          ¥{{ budget_summary.cost_jpy|floatformat:0 }}
+        </div>
+        <div style="color:var(--text-secondary);">/ ¥{{ budget_summary.budget_jpy|floatformat:0 }} ({{ budget_summary.usage_pct }}%)</div>
+      </div>
+      <div style="flex:1;min-width:200px;">
+        <div style="background:#e5e7eb;border-radius:9999px;height:12px;overflow:hidden;">
+          <div style="background:{% if budget_summary.usage_pct >= 100 %}#dc3545{% elif budget_summary.usage_pct >= 80 %}#f59e0b{% else %}#10b981{% endif %};height:100%;width:{{ budget_summary.usage_pct }}%;max-width:100%;transition:width 0.3s;"></div>
+        </div>
+      </div>
+      <div style="text-align:right;">
+        <div style="font-size:18px;font-weight:600;">¥{{ budget_summary.remaining_jpy|floatformat:0 }}</div>
+        <div style="color:var(--text-secondary);font-size:13px;">残り</div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
 <!-- KPIカード -->
 <div class="stats-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:24px;">
   <div class="card">

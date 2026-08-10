@@ -13,4 +13,5 @@ urlpatterns = [
     path("optimize/<int:site_id>/", views.cost_optimization, name="cost_optimization"),
     path("schedule-suggest/<int:site_id>/", views.schedule_suggestion, name="schedule_suggestion"),
     path("schedule-risk/<int:site_id>/", views.schedule_risk, name="schedule_risk"),
+    path("batch/", views.batch_list, name="batch_list"),
 ]

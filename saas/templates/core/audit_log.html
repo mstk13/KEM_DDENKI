@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block title %}変更ログ — {{ APP_NAME }}{% endblock %}
+{% block topbar_title %}設定{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>変更ログ</h1>
+  <small style="color:var(--text-secondary);">全{{ total }}件（6ヶ月分保存）</small>
+</div>
+
+{# フィルタ #}
+<div class="card" style="margin-bottom:16px;">
+  <form method="get" style="padding:16px;display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;">
+    <div>
+      <label class="form-label">モデル</label>
+      <select name="model" class="form-control">
+        <option value="">全て</option>
+        {% for value, display in model_choices %}
+        <option value="{{ value }}" {% if value == model_filter %}selected{% endif %}>{{ display }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label class="form-label">ユーザー</label>
+      <input type="text" name="user" class="form-control" value="{{ user_filter }}" placeholder="ユーザー名で検索">
+    </div>
+    <button type="submit" class="btn btn-outline btn-sm">検索</button>
+    {% if model_filter or user_filter %}
+    <a href="{% url 'audit_log' %}" class="btn btn-outline btn-sm">クリア</a>
+    {% endif %}
+  </form>
+</div>
+
+{# ログ一覧 #}
+<div class="card">
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>日時</th>
+          <th>操作</th>
+          <th>モデル</th>
+          <th>対象</th>
+          <th>ユーザー</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for rec in records %}
+        <tr>
+          <td style="white-space:nowrap;">{{ rec.history_date|date:"Y/m/d H:i:s" }}</td>
+          <td>
+            {% if rec.history_type == "作成" %}
+              <span class="badge badge-green">作成</span>
+            {% elif rec.history_type == "変更" %}
+              <span class="badge badge-blue">変更</span>
+            {% elif rec.history_type == "削除" %}
+              <span class="badge badge-red">削除</span>
+            {% else %}
+              <span class="badge badge-gray">{{ rec.history_type }}</span>
+            {% endif %}
+          </td>
+          <td>{{ rec.model_name }}</td>
+          <td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+            {{ rec.object_str|truncatechars:60 }}
+          </td>
+          <td>{{ rec.history_user|default:"システム" }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="5"><div class="empty"><p>変更ログがありません</p></div></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{# ページネーション #}
+{% if total_pages > 1 %}
+<div style="display:flex;justify-content:center;gap:8px;margin-top:16px;">
+  {% if page > 1 %}
+  <a href="?model={{ model_filter }}&user={{ user_filter }}&page={{ page|add:"-1" }}" class="btn btn-outline btn-sm">前へ</a>
+  {% endif %}
+  <span style="padding:6px 12px;color:var(--text-secondary);">{{ page }} / {{ total_pages }}</span>
+  {% if page < total_pages %}
+  <a href="?model={{ model_filter }}&user={{ user_filter }}&page={{ page|add:"1" }}" class="btn btn-outline btn-sm">次へ</a>
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}

@@ -41,10 +41,14 @@
                style="font-size:1.1rem;text-align:center;letter-spacing:.1em;">
       </div>
       <div class="form-group" id="pin-group" style="display:none;">
-        <label for="pin">管理者パスワード</label>
+        <label for="pin" id="pin-label">暗証番号</label>
         <input type="password" name="pin" id="pin" class="form-control"
-               placeholder="パスワードを入力"
+               placeholder="4桁の暗証番号"
+               maxlength="4" inputmode="numeric" pattern="[0-9]*"
                style="font-size:1.1rem;text-align:center;letter-spacing:.15em;">
+      </div>
+      <div id="first-login-info" style="display:none;background:#e8f4ff;border:1px solid #bee3f8;border-radius:8px;padding:12px 16px;margin-bottom:8px;text-align:center;">
+        <small style="color:#2b6cb0;">初回ログインです。ログイン後に4桁の暗証番号を設定してください。</small>
       </div>
       <button type="submit" id="login-btn" class="btn btn-primary" style="width:100%;justify-content:center;padding:12px;margin-top:8px;font-size:.92rem;">
         ログイン
@@ -77,20 +81,32 @@ codeInput.addEventListener('input', function() {
     fetch('{% url "check_employee_code" %}?code=' + encodeURIComponent(code))
       .then(r => r.json())
       .then(data => {
+        const firstLoginInfo = document.getElementById('first-login-info');
+        const pinLabel = document.getElementById('pin-label');
         if (data.found) {
           workerName.textContent = data.name;
           workerInfo.style.display = 'block';
           if (data.needs_pin) {
             pinGroup.style.display = 'block';
             pinInput.required = true;
+            firstLoginInfo.style.display = 'none';
+            // 社長の場合はラベルを変更
+            pinLabel.textContent = data.is_first_login ? '暗証番号' : '暗証番号';
+          } else if (data.is_first_login) {
+            pinGroup.style.display = 'none';
+            pinInput.required = false;
+            pinInput.value = '';
+            firstLoginInfo.style.display = 'block';
           } else {
             pinGroup.style.display = 'none';
             pinInput.required = false;
             pinInput.value = '';
+            firstLoginInfo.style.display = 'none';
           }
         } else {
           workerInfo.style.display = 'none';
           pinGroup.style.display = 'none';
+          firstLoginInfo.style.display = 'none';
         }
       })
       .catch(() => {});

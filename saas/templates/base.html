@@ -185,6 +185,9 @@
           <a href="{% url 'permissions:matrix' %}" class="{% if 'permissions:' in request.resolver_match.view_name %}active{% endif %}">
             <span class="nav-icon">&#x1f512;</span> 権限管理
           </a>
+          <a href="{% url 'audit_log' %}" class="{% if request.resolver_match.url_name == 'audit_log' %}active{% endif %}">
+            <span class="nav-icon">&#x1f4dc;</span> 変更ログ
+          </a>
         </div>
       </div>
     </nav>

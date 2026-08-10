@@ -1,12 +1,13 @@
 import json
 
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 
 from apps.costs.forms import BudgetItemForm, ManualCostForm
-from apps.costs.models import CostTransaction
+from apps.costs.models import CostAccessGrant, CostTransaction
 from apps.costs.services import get_monthly_cost_trend, get_site_cost_summary
 from apps.permissions.decorators import module_permission_required
 from apps.sites.models import Site
@@ -114,3 +115,79 @@ def manual_cost_create(request):
     else:
         form = ManualCostForm(company=request.user.company)
     return render(request, "costs/manual_cost_form.html", {"form": form})
+
+
+# ── 原価アクセス管理 ──
+
+
+@login_required
+@module_permission_required("costs", "admin")
+def cost_access_list(request):
+    """原価モジュールへのアクセス許可を管理する。"""
+    User = __import__("django.contrib.auth", fromlist=["get_user_model"]).get_user_model()
+    company = request.user.company
+
+    grants = CostAccessGrant.unscoped.filter(
+        company=company,
+    ).select_related("user", "granted_by")
+
+    # 社員番号Gで始まるユーザー一覧（自動アクセス対象）
+    auto_access_users = User.objects.filter(
+        company=company,
+        employee_no__regex=r"^[Gg]",
+    )
+
+    # 追加可能なユーザー候補（まだ許可されておらず、自動対象でもない）
+    granted_user_ids = grants.values_list("user_id", flat=True)
+    auto_user_ids = auto_access_users.values_list("id", flat=True)
+    exclude_ids = set(granted_user_ids) | set(auto_user_ids)
+    available_users = User.objects.filter(
+        company=company,
+    ).exclude(id__in=exclude_ids).order_by("employee_no", "last_name")
+
+    return render(request, "costs/access_list.html", {
+        "grants": grants,
+        "auto_access_users": auto_access_users,
+        "available_users": available_users,
+    })
+
+
+@login_required
+@module_permission_required("costs", "admin")
+def cost_access_grant(request):
+    """ユーザーに原価アクセスを付与する。"""
+    if request.method == "POST":
+        User = __import__("django.contrib.auth", fromlist=["get_user_model"]).get_user_model()
+        user_id = request.POST.get("user_id")
+        memo = request.POST.get("memo", "")
+        try:
+            target_user = User.objects.get(pk=user_id, company=request.user.company)
+        except User.DoesNotExist:
+            messages.error(request, "ユーザーが見つかりません。")
+            return redirect("costs:access_list")
+
+        CostAccessGrant.unscoped.get_or_create(
+            company=request.user.company,
+            user=target_user,
+            defaults={
+                "granted_by": request.user,
+                "memo": memo,
+                "created_by": request.user,
+            },
+        )
+        messages.success(request, f"{target_user} にアクセス権を付与しました。")
+    return redirect("costs:access_list")
+
+
+@login_required
+@module_permission_required("costs", "admin")
+def cost_access_revoke(request, pk):
+    """原価アクセス許可を取り消す。"""
+    if request.method == "POST":
+        grant = get_object_or_404(
+            CostAccessGrant.unscoped, pk=pk, company=request.user.company,
+        )
+        user_name = str(grant.user)
+        grant.delete()
+        messages.success(request, f"{user_name} のアクセス権を取り消しました。")
+    return redirect("costs:access_list")
