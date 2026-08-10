@@ -1,3 +1,4 @@
+from collections import defaultdict
 from datetime import date
 
 from django.contrib import messages
@@ -36,6 +37,77 @@ def _is_admin(user):
         return True
     profile = getattr(user, "worker_profile", None)
     return profile and profile.employee_code and profile.employee_code.startswith("Y")
+
+
+def _has_role(user, role_code):
+    """UserRole経由でロールコードを確認。"""
+    from apps.permissions.models import UserRole
+
+    return UserRole.unscoped.filter(user=user, role__code=role_code).exists()
+
+
+@login_required
+def document_alert_dashboard(request):
+    """事務員向け: 証明書・健診書類の未添付一覧。"""
+    from dateutil.relativedelta import relativedelta
+
+    if not (_is_admin(request.user) or _has_role(request.user, "office_staff")):
+        return HttpResponseForbidden("この画面は事務員・管理者のみ閲覧できます。")
+
+    today = date.today()
+    due_threshold = today + relativedelta(months=2)
+
+    # 証明書未添付の資格
+    missing_certs = (
+        WorkerQualification.objects.filter(certificate_image="")
+        .select_related("worker")
+        .order_by("worker__name", "name")
+    )
+
+    # 健診報告書未添付
+    missing_health_reports = (
+        HealthCheckup.objects.filter(report_file="")
+        .select_related("worker")
+        .order_by("worker__name", "-checkup_date")
+    )
+
+    # 健診期限が2ヶ月以内のワーカー
+    latest_dates = (
+        HealthCheckup.objects.values("worker", "worker__name", "worker__is_active")
+        .annotate(latest=models.Max("checkup_date"))
+    )
+    checkup_due_workers = []
+    for row in latest_dates:
+        if not row["worker__is_active"]:
+            continue
+        next_due = row["latest"] + relativedelta(years=1)
+        if next_due <= due_threshold:
+            worker = Worker.objects.filter(pk=row["worker"]).first()
+            if worker:
+                checkup_due_workers.append({
+                    "worker": worker,
+                    "next_due": next_due,
+                    "days_remaining": (next_due - today).days,
+                })
+    checkup_due_workers.sort(key=lambda x: x["days_remaining"])
+
+    # ワーカー別にグルーピング
+    grouped = defaultdict(lambda: {"missing_certs": [], "missing_health_reports": []})
+    for q in missing_certs:
+        grouped[q.worker]["missing_certs"].append(q)
+    for h in missing_health_reports:
+        grouped[h.worker]["missing_health_reports"].append(h)
+
+    workers_with_issues = [
+        {"worker": w, **data}
+        for w, data in sorted(grouped.items(), key=lambda x: x[0].name)
+    ]
+
+    return render(request, "workers/document_alert_dashboard.html", {
+        "workers_with_issues": workers_with_issues,
+        "checkup_due_workers": checkup_due_workers,
+        "today": today,
+    })
 
 
 @login_required
