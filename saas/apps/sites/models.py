@@ -55,6 +55,14 @@ class Site(TenantModel):
         related_name="managed_sites",
         verbose_name="現場担当者",
     )
+    estimator = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="estimated_sites",
+        verbose_name="見積担当者",
+    )
 
     history = HistoricalRecords()
 

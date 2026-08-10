@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}AI分析 — {{ APP_NAME }}{% endblock %}
+{% block topbar_title %}AI分析{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>AI分析を実行する現場を選ぶ</h1>
+</div>
+
+{% if not llm_available %}
+<div class="message message-warning" style="margin-bottom:16px;">
+  <strong>AI機能は現在利用できません。</strong><br>
+  {{ llm_unavailable_message }}
+</div>
+{% endif %}
+
+<div class="card">
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>現場</th><th>得意先</th><th>状態</th><th>工期</th><th>AI機能</th></tr></thead>
+      <tbody>
+        {% for s in sites %}
+        <tr>
+          <td><a href="{% url 'sites:detail' s.pk %}">{{ s.name }}</a></td>
+          <td>{{ s.customer|default:"-" }}</td>
+          <td>{{ s.get_status_display }}</td>
+          <td>{{ s.start_date|default:"-" }} 〜 {{ s.end_date|default:"" }}</td>
+          <td>
+            <a href="{% url 'ai:cost_optimization' s.pk %}" class="btn btn-outline btn-sm">コスト分析</a>
+            <a href="{% url 'ai:cost_prediction' s.pk %}" class="btn btn-outline btn-sm">コスト予測</a>
+            <a href="{% url 'ai:schedule_suggestion' s.pk %}" class="btn btn-outline btn-sm">工程提案</a>
+            <a href="{% url 'ai:schedule_risk' s.pk %}" class="btn btn-outline btn-sm">工程リスク</a>
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="5"><div class="empty"><p>現場が登録されていません</p></div></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

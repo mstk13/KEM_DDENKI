@@ -11,7 +11,10 @@ class ProcessInline(admin.TabularInline):
 
 @admin.register(Site)
 class SiteAdmin(SimpleHistoryAdmin):
-    list_display = ("code", "name", "customer", "status", "contract_amount", "company")
+    list_display = (
+        "code", "name", "customer", "status", "contract_amount",
+        "manager", "estimator", "company",
+    )
     list_filter = ("status", "company")
     search_fields = ("code", "name")
     inlines = [ProcessInline]

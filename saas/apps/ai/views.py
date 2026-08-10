@@ -209,6 +209,30 @@ def _check_site_access(request, site):
     return None
 
 
+def _llm_availability():
+    """LLM機能が使えるか（APIキー登録済みか）を返す。"""
+    from apps.ai.services.llm_advisor import check_availability
+
+    return check_availability()
+
+
+@login_required
+def ai_site_select(request):
+    """AI機能を実行する現場を選ぶ画面。
+
+    コスト分析・工程提案は現場単位のため、サイドバーからは
+    この画面を経由して各機能に入る。
+    """
+    sites = Site.objects.select_related("customer").order_by("-created_at")
+    available, unavailable_message = _llm_availability()
+
+    return render(request, "ai/site_select.html", {
+        "sites": sites,
+        "llm_available": available,
+        "llm_unavailable_message": unavailable_message,
+    })
+
+
 @login_required
 def cost_optimization(request, site_id):
     """コスト最適化提案を表示する。"""
@@ -220,14 +244,15 @@ def cost_optimization(request, site_id):
     result = None
     error_message = None
     model_key = request.GET.get("model", "haiku")
+    available, unavailable_message = _llm_availability()
 
     if request.method == "POST":
-        try:
-            from apps.ai.services.llm_advisor import HAS_ANTHROPIC, get_cost_optimization
+        if not available:
+            error_message = unavailable_message
+        else:
+            try:
+                from apps.ai.services.llm_advisor import get_cost_optimization
 
-            if not HAS_ANTHROPIC:
-                error_message = "anthropic パッケージがインストールされていません。"
-            else:
                 # ML予測結果があれば取得
                 ml_prediction = None
                 try:
@@ -249,17 +274,19 @@ def cost_optimization(request, site_id):
                 if result["parsed"] is None:
                     error_message = "AIの応答を解析できませんでした。生テキストを表示します。"
 
-        except ValueError as e:
-            error_message = str(e)
-        except Exception:
-            logger.exception("コスト最適化提案でエラー: site=%s", site.name)
-            error_message = "処理中にエラーが発生しました。"
+            except ValueError as e:
+                error_message = str(e)
+            except Exception:
+                logger.exception("コスト最適化提案でエラー: site=%s", site.name)
+                error_message = "処理中にエラーが発生しました。"
 
     return render(request, "ai/cost_optimization.html", {
         "site": site,
         "result": result,
         "error_message": error_message,
         "model_key": model_key,
+        "llm_available": available,
+        "llm_unavailable_message": unavailable_message,
     })
 
 
@@ -274,14 +301,15 @@ def schedule_suggestion(request, site_id):
     result = None
     error_message = None
     model_key = request.GET.get("model", "haiku")
+    available, unavailable_message = _llm_availability()
 
     if request.method == "POST":
-        try:
-            from apps.ai.services.llm_advisor import HAS_ANTHROPIC, get_schedule_suggestion
+        if not available:
+            error_message = unavailable_message
+        else:
+            try:
+                from apps.ai.services.llm_advisor import get_schedule_suggestion
 
-            if not HAS_ANTHROPIC:
-                error_message = "anthropic パッケージがインストールされていません。"
-            else:
                 model_key = request.POST.get("model", "haiku")
                 result = get_schedule_suggestion(
                     site, user=request.user, model_key=model_key,
@@ -289,17 +317,19 @@ def schedule_suggestion(request, site_id):
                 if result["parsed"] is None:
                     error_message = "AIの応答を解析できませんでした。生テキストを表示します。"
 
-        except ValueError as e:
-            error_message = str(e)
-        except Exception:
-            logger.exception("工程提案でエラー: site=%s", site.name)
-            error_message = "処理中にエラーが発生しました。"
+            except ValueError as e:
+                error_message = str(e)
+            except Exception:
+                logger.exception("工程提案でエラー: site=%s", site.name)
+                error_message = "処理中にエラーが発生しました。"
 
     return render(request, "ai/schedule_suggestion.html", {
         "site": site,
         "result": result,
         "error_message": error_message,
         "model_key": model_key,
+        "llm_available": available,
+        "llm_unavailable_message": unavailable_message,
     })
 
 
@@ -314,14 +344,15 @@ def schedule_risk(request, site_id):
     result = None
     error_message = None
     model_key = request.GET.get("model", "haiku")
+    available, unavailable_message = _llm_availability()
 
     if request.method == "POST":
-        try:
-            from apps.ai.services.llm_advisor import HAS_ANTHROPIC, get_schedule_risk_analysis
+        if not available:
+            error_message = unavailable_message
+        else:
+            try:
+                from apps.ai.services.llm_advisor import get_schedule_risk_analysis
 
-            if not HAS_ANTHROPIC:
-                error_message = "anthropic パッケージがインストールされていません。"
-            else:
                 model_key = request.POST.get("model", "haiku")
                 result = get_schedule_risk_analysis(
                     site, user=request.user, model_key=model_key,
@@ -329,15 +360,17 @@ def schedule_risk(request, site_id):
                 if result["parsed"] is None:
                     error_message = "AIの応答を解析できませんでした。生テキストを表示します。"
 
-        except ValueError as e:
-            error_message = str(e)
-        except Exception:
-            logger.exception("工程リスク分析でエラー: site=%s", site.name)
-            error_message = "処理中にエラーが発生しました。"
+            except ValueError as e:
+                error_message = str(e)
+            except Exception:
+                logger.exception("工程リスク分析でエラー: site=%s", site.name)
+                error_message = "処理中にエラーが発生しました。"
 
     return render(request, "ai/schedule_risk.html", {
         "site": site,
         "result": result,
         "error_message": error_message,
         "model_key": model_key,
+        "llm_available": available,
+        "llm_unavailable_message": unavailable_message,
     })

@@ -74,6 +74,37 @@ def _parse_json_response(text):
     return json.loads(text)
 
 
+def get_api_key():
+    """ANTHROPIC_API_KEY を settings → 環境変数の順で取得する。"""
+    api_key = getattr(settings, "ANTHROPIC_API_KEY", None)
+    if not api_key:
+        import os
+
+        api_key = os.environ.get("ANTHROPIC_API_KEY")
+    return api_key or None
+
+
+def check_availability():
+    """LLM機能が使える状態かを返す。
+
+    Returns:
+        (available: bool, message: str | None)
+        message は使えない理由。使える場合は None。
+    """
+    if not HAS_ANTHROPIC:
+        return False, (
+            "anthropic パッケージがインストールされていません。"
+            "サーバー管理者に連絡してください。"
+        )
+    if not get_api_key():
+        return False, (
+            "Claude APIキーが未登録のため、AI機能は実行できません。"
+            "サーバーの saas/.env に ANTHROPIC_API_KEY を設定し、"
+            "コンテナを再起動してください。"
+        )
+    return True, None
+
+
 def _call_claude(prompt, model_key="haiku", max_tokens=2000):
     """Claude APIを呼び出す。
 
@@ -88,11 +119,7 @@ def _call_claude(prompt, model_key="haiku", max_tokens=2000):
     if not HAS_ANTHROPIC:
         raise ImportError("anthropic がインストールされていません。")
 
-    api_key = getattr(settings, "ANTHROPIC_API_KEY", None)
-    if not api_key:
-        import os
-
-        api_key = os.environ.get("ANTHROPIC_API_KEY")
+    api_key = get_api_key()
     if not api_key:
         raise ValueError(
             "ANTHROPIC_API_KEY が設定されていません。"

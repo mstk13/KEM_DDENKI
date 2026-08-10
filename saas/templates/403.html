@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}アクセス権限がありません — {{ APP_NAME }}{% endblock %}
+{% block topbar_title %}アクセス権限がありません{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-body">
+    <div class="empty">
+      <div class="empty-icon">&#x1f512;</div>
+      <h1 style="margin:8px 0 4px;">アクセス権限がありません</h1>
+      <p>{% firstof exception "この画面を表示する権限がありません。" %}</p>
+      <p>権限が必要な場合は社長または管理者にお問い合わせください。</p>
+      <p style="margin-top:20px;">
+        <a href="{% url 'dashboard' %}" class="btn btn-primary">ダッシュボードに戻る</a>
+      </p>
+    </div>
+  </div>
+</div>
+{% endblock %}

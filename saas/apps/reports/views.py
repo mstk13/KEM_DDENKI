@@ -1,7 +1,9 @@
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.core.exceptions import PermissionDenied
 from django.shortcuts import get_object_or_404, redirect, render
 
+from apps.permissions.services import can_approve_report
 from apps.reports.forms import DailyReportForm
 from apps.reports.models import DailyReport, SafetyRecord
 from apps.reports.services import (
@@ -17,7 +19,26 @@ def report_list(request):
     reports = DailyReport.objects.select_related(
         "worker", "site", "work_type"
     ).order_by("-report_date", "-created_at")
-    return render(request, "reports/list.html", {"reports": reports})
+
+    selected_status = request.GET.get("status", "")
+    if selected_status:
+        reports = reports.filter(status=selected_status)
+
+    selected_type = request.GET.get("report_type", "")
+    if selected_type:
+        reports = reports.filter(report_type=selected_type)
+
+    return render(request, "reports/list.html", {
+        "reports": reports,
+        "status_choices": DailyReport.Status.choices,
+        "report_type_choices": DailyReport.ReportType.choices,
+        "selected_status": selected_status,
+        "selected_type": selected_type,
+        "can_approve": can_approve_report(request.user),
+        "submitted_count": DailyReport.objects.filter(
+            status=DailyReport.Status.SUBMITTED
+        ).count(),
+    })
 
 
 @login_required
@@ -59,6 +80,9 @@ def report_edit(request, pk):
 
 @login_required
 def report_approve(request, pk):
+    if not can_approve_report(request.user):
+        raise PermissionDenied("日報を承認できるのは社長とITのみです。")
+
     report = get_object_or_404(DailyReport, pk=pk)
     if report.status == DailyReport.Status.SUBMITTED:
         approve_report(report, approved_by=request.user)
@@ -66,6 +90,34 @@ def report_approve(request, pk):
             request,
             f"{report.worker} の日報を承認し、労務費を計上しました。",
         )
+    else:
+        messages.info(request, "提出済の日報のみ承認できます。")
+    return redirect("reports:list")
+
+
+@login_required
+def report_approve_bulk(request):
+    """提出済の日報をまとめて承認する。"""
+    if not can_approve_report(request.user):
+        raise PermissionDenied("日報を承認できるのは社長とITのみです。")
+
+    if request.method != "POST":
+        return redirect("reports:list")
+
+    pks = request.POST.getlist("report_ids")
+    reports = DailyReport.objects.filter(
+        pk__in=pks, status=DailyReport.Status.SUBMITTED,
+    )
+
+    approved = 0
+    for report in reports:
+        approve_report(report, approved_by=request.user)
+        approved += 1
+
+    if approved:
+        messages.success(request, f"{approved}件の日報を承認し、労務費を計上しました。")
+    else:
+        messages.info(request, "承認できる日報が選択されていません。")
     return redirect("reports:list")
 
 
@@ -76,7 +128,11 @@ def safety_check(request):
 
     from apps.sites.models import Site
 
-    sites = Site.objects.filter(status="active")
+    # "active" という状態は Site.Status に存在せず、常に空になっていた。
+    # 稼働中とみなせる状態（受注済・施工中）を対象にする。
+    sites = Site.objects.filter(
+        status__in=[Site.Status.ORDERED, Site.Status.IN_PROGRESS]
+    ).order_by("name")
     selected_site_id = request.GET.get("site")
     check_date = request.GET.get("date", str(date.today()))
 

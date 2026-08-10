@@ -243,7 +243,11 @@ a:hover { color: var(--brand-dark); }
 }
 .hamburger:hover { background: rgba(255,255,255,.1); }
 
-.content { padding: 28px 32px; max-width: 1200px; }
+/* PC の広い画面でも画面全体を使う。以前は max-width:1200px 固定で、
+   ワイドモニタだと右側に大きな余白が残っていた。 */
+.content { padding: 28px 32px; max-width: none; }
+/* 読みやすさのために幅を絞りたい画面は content-narrow を付ける */
+.content.content-narrow { max-width: 1200px; }
 .content.content-wide { max-width: none; }
 
 /* ---- Cards ---- */
