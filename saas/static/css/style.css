@@ -293,6 +293,13 @@ a:hover { color: var(--brand-dark); }
 .table-wrap { overflow-x: auto; }
 table { width: 100%; border-collapse: collapse; }
 
+/* ダッシュボードのカード列。
+   grid item の既定は min-width:auto のため、中の横長テーブルがトラックを
+   押し広げてしまい、上の .stats と幅がずれる（かつ横スクロールも効かない）。
+   min-width:0 を与えて枠内に収め、はみ出しは .table-slide 側で処理する。 */
+.dash-cards { display: grid; grid-template-columns: 1fr; gap: 20px; }
+.dash-cards > .card { min-width: 0; }
+
 /* 1行表示 + 横スライド。
    table を width:auto にしないと枠幅に押し込められて折り返してしまい、
    overflow-x があってもスクロールが発生しない。 */
