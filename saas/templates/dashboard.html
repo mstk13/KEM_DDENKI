@@ -27,14 +27,14 @@
   </div>
 </div>
 
-<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+<div style="display:grid;grid-template-columns:1fr;gap:20px;">
 
   <div class="card">
     <div class="card-header">
       <h2>施工中の現場</h2>
       <a href="{% url 'sites:list' %}" class="btn btn-outline btn-sm">全て見る</a>
     </div>
-    <div class="table-wrap">
+    <div class="table-wrap table-slide">
       <table>
         <thead><tr><th>現場名</th><th>得意先</th><th>受注金額</th></tr></thead>
         <tbody>
@@ -57,7 +57,7 @@
       <h2>最近の日報</h2>
       <a href="{% url 'reports:list' %}" class="btn btn-outline btn-sm">全て見る</a>
     </div>
-    <div class="table-wrap">
+    <div class="table-wrap table-slide">
       <table>
         <thead><tr><th>日付</th><th>作業員</th><th>現場</th><th>状態</th></tr></thead>
         <tbody>

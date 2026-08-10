@@ -292,6 +292,14 @@ a:hover { color: var(--brand-dark); }
 /* ---- Tables ---- */
 .table-wrap { overflow-x: auto; }
 table { width: 100%; border-collapse: collapse; }
+
+/* 1行表示 + 横スライド。
+   table を width:auto にしないと枠幅に押し込められて折り返してしまい、
+   overflow-x があってもスクロールが発生しない。 */
+.table-wrap.table-slide { -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; }
+.table-wrap.table-slide table { width: auto; min-width: 100%; }
+.table-wrap.table-slide th,
+.table-wrap.table-slide td { white-space: nowrap; }
 thead th {
   text-align: left; padding: 12px 20px;
   font-size: .72rem; font-weight: 600; color: var(--white);
