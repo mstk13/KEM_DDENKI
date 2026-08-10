@@ -30,7 +30,7 @@
           <td>{{ q.grade|default:"-" }}</td>
           <td>{{ q.keisin_score|default:"-" }}</td>
           <td>
-            {{ q.valid_until|default:"-" }}
+            {{ q.valid_until|date:"Y/n/j"|default:"-" }}
             {% if q.valid_until and q.valid_until <= alert_date %}
               {% if q.valid_until < today %}
                 <span class="badge badge-red">期限切れ</span>
