@@ -111,6 +111,50 @@ def ai_dashboard(request):
 
 
 @login_required
+def cost_report(request):
+    """APIコスト詳細レポート。タスク別・モデル別・日別・ユーザー別のグラフ付き。"""
+    import json as json_mod
+    from apps.ai.services.cost_monitor import get_monthly_cost_jpy, get_monthly_cost_report
+
+    budget_summary = get_monthly_cost_jpy(request.user.company)
+    report = get_monthly_cost_report(request.user.company)
+
+    # Chart.js用のデータを構築
+    # 日別推移
+    daily_chart = {
+        "labels": [row["date"].strftime("%m/%d") for row in report["by_date"]],
+        "data": [row["total_jpy"] for row in report["by_date"]],
+    }
+
+    # タスク種別ドーナツチャート
+    task_chart = {
+        "labels": [row["task_display"] for row in report["by_task"]],
+        "data": [row["total_jpy"] for row in report["by_task"]],
+    }
+
+    # モデル別ドーナツチャート
+    model_chart = {
+        "labels": [row["model_display"] for row in report["by_model"]],
+        "data": [row["total_jpy"] for row in report["by_model"]],
+    }
+
+    # ユーザー別棒グラフ
+    user_chart = {
+        "labels": [row["user_display"] for row in report["by_user"]],
+        "data": [row["total_jpy"] for row in report["by_user"]],
+    }
+
+    return render(request, "ai/cost_report.html", {
+        "budget_summary": budget_summary,
+        "report": report,
+        "daily_chart_json": json_mod.dumps(daily_chart, ensure_ascii=False),
+        "task_chart_json": json_mod.dumps(task_chart, ensure_ascii=False),
+        "model_chart_json": json_mod.dumps(model_chart, ensure_ascii=False),
+        "user_chart_json": json_mod.dumps(user_chart, ensure_ascii=False),
+    })
+
+
+@login_required
 def cost_prediction(request, site_id):
     """現場のコスト予測結果を表示する。"""
     site = get_object_or_404(Site, pk=site_id)
