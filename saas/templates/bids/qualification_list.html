@@ -2,10 +2,36 @@
 {% block title %}入札参加資格一覧 — {{ APP_NAME }}{% endblock %}
 {% block topbar_title %}入札参加資格{% endblock %}
 
-{% block content %}
+{% block content %}<script>document.querySelector('.content').classList.add('content-wide');</script>
 <style>
 @media (max-width: 768px) {
   .issuer-cell .issuer-sub { display: block; }
+  .qual-table thead { display: none; }
+  .qual-table tbody tr {
+    display: block;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px 16px;
+    margin-bottom: 10px;
+  }
+  .qual-table tbody tr:hover { background: var(--surface-hover); }
+  .qual-table td {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 4px 0;
+    border-bottom: 1px solid var(--border-light);
+  }
+  .qual-table td:last-child { border-bottom: none; justify-content: flex-end; padding-top: 10px; }
+  .qual-table td::before {
+    content: attr(data-label);
+    font-weight: 600;
+    color: var(--text-muted);
+    font-size: .82rem;
+    flex-shrink: 0;
+    margin-right: 12px;
+  }
 }
 </style>
 <div class="page-header">
@@ -18,19 +44,19 @@
 
 <div class="card">
   <div class="table-wrap">
-    <table>
+    <table class="qual-table">
       <thead>
         <tr><th>発注機関</th><th>業種区分</th><th>等級</th><th>経審点</th><th>有効期限</th><th>更新済</th><th></th></tr>
       </thead>
       <tbody>
         {% for q in qualifications %}
         <tr>
-          <td class="issuer-cell">{{ q.issuer }}</td>
-          <td>{{ q.category|default:"-" }}</td>
-          <td>{{ q.grade|default:"-" }}</td>
-          <td>{{ q.keisin_score|default:"-" }}</td>
-          <td>
-            {{ q.valid_until|default:"-" }}
+          <td class="issuer-cell" data-label="発注機関">{{ q.issuer }}</td>
+          <td data-label="業種区分">{{ q.category|default:"-" }}</td>
+          <td data-label="等級">{{ q.grade|default:"-" }}</td>
+          <td data-label="経審点">{{ q.keisin_score|default:"-" }}</td>
+          <td data-label="有効期限">
+            {{ q.valid_until|date:"Y/n/j"|default:"-" }}
             {% if q.valid_until and q.valid_until <= alert_date %}
               {% if q.valid_until < today %}
                 <span class="badge badge-red">期限切れ</span>
@@ -39,7 +65,7 @@
               {% endif %}
             {% endif %}
           </td>
-          <td>{% if q.renewed %}<span class="badge badge-green">済</span>{% else %}-{% endif %}</td>
+          <td data-label="更新済">{% if q.renewed %}<span class="badge badge-green">済</span>{% else %}-{% endif %}</td>
           <td><a href="{% url 'bids:qualification_edit' q.pk %}" class="btn btn-outline btn-sm">編集</a></td>
         </tr>
         {% empty %}
