@@ -19,4 +19,11 @@ document.addEventListener('DOMContentLoaded', function() {
       this.closest('.nav-group').classList.toggle('open');
     });
   });
+
+  // Collapsible accordion (業種別一覧など)
+  document.querySelectorAll('.acc-group .acc-head').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      this.closest('.acc-group').classList.toggle('open');
+    });
+  });
 });
