@@ -444,8 +444,8 @@ textarea.form-control { min-height: 88px; resize: vertical; line-height: 1.6; }
   .stats { grid-template-columns: 1fr 1fr; }
   .detail-grid { grid-template-columns: 110px 1fr; }
   .page-header { flex-direction: column; align-items: flex-start; gap: 12px; }
-  thead th { padding: 8px 6px; font-size: .68rem; }
-  td { padding: 10px 6px; font-size: .82rem; }
+  thead th { padding: 8px 6px; font-size: .68rem; white-space: nowrap; }
+  td { padding: 10px 6px; font-size: .82rem; white-space: nowrap; }
   .btn-sm { padding: 4px 8px; font-size: .72rem; }
 }
 @media (max-width: 480px) { .stats { grid-template-columns: 1fr; } }
