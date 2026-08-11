@@ -37,6 +37,15 @@ jobs:
         run: |
           USE_SQLITE=true python manage.py makemigrations --check --dry-run
 
+      # STORAGES は CompressedManifestStaticFilesStorage を使っており、
+      # {% static %} は collectstatic が生成する manifest を必須とする。
+      # これが無いとテンプレートを描画するテストが
+      # 「Missing staticfiles manifest entry」で落ちる。
+      # 本番の entrypoint.sh も collectstatic を実行するため、CI でも同じ状態にする。
+      - name: Collect static files
+        run: |
+          USE_SQLITE=true python manage.py collectstatic --no-input
+
       - name: Run tests
         run: |
           USE_SQLITE=true python -m pytest tests/ -v
