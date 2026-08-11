@@ -9,6 +9,7 @@ class BidProjectForm(forms.ModelForm):
         fields = [
             "title", "client", "region", "category",
             "deadline", "budget", "source_url", "status",
+            "required_category", "required_grade", "required_issuer_type",
         ]
         widgets = {
             "deadline": forms.DateInput(attrs={"type": "date", "class": "form-control"}),

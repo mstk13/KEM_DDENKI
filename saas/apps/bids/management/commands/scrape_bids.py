@@ -101,6 +101,9 @@ class Command(BaseCommand):
                     budget=rec.get("budget", 0),
                     source_url=source_url,
                     status=BidProject.Status.NEW,
+                    required_grade=rec.get("required_grade", ""),
+                    required_category=rec.get("required_category", ""),
+                    required_issuer_type=rec.get("required_issuer_type", ""),
                 )
                 new_count += 1
 

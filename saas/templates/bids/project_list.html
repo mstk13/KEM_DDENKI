@@ -38,7 +38,7 @@
   <div class="table-wrap">
     <table>
       <thead>
-        <tr><th>案件名</th><th>発注者</th><th>地域</th><th>工事種別</th><th>状態</th><th>予算額</th><th>入札期限</th><th></th></tr>
+        <tr><th>案件名</th><th>発注者</th><th>地域</th><th>工事種別</th><th>状態</th><th>資格判定</th><th>予算額</th><th>入札期限</th><th></th></tr>
       </thead>
       <tbody>
         {% for p in projects %}
@@ -56,12 +56,18 @@
             {% elif p.status == 'skipped' %}<span class="badge badge-gray">見送り</span>
             {% endif %}
           </td>
+          <td>
+            {% if p.qual_check.eligible == True %}<span class="badge badge-green" title="{{ p.qual_check.reason }}">参加可</span>
+            {% elif p.qual_check.eligible == False %}<span class="badge badge-red" title="{{ p.qual_check.reason }}">資格不足</span>
+            {% else %}<span class="badge badge-gray" title="参加要件が未設定です">未判定</span>
+            {% endif %}
+          </td>
           <td>{{ p.budget|floatformat:0 }} 円</td>
           <td>{{ p.deadline|default:"-" }}</td>
           <td><a href="{% url 'bids:project_edit' p.pk %}" class="btn btn-outline btn-sm">編集</a></td>
         </tr>
         {% empty %}
-        <tr><td colspan="8"><div class="empty"><div class="empty-icon">&#x1f4cb;</div><p>入札案件が登録されていません</p></div></td></tr>
+        <tr><td colspan="9"><div class="empty"><div class="empty-icon">&#x1f4cb;</div><p>入札案件が登録されていません</p></div></td></tr>
         {% endfor %}
       </tbody>
     </table>

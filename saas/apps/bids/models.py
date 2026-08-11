@@ -61,12 +61,114 @@ class BidProject(TenantModel):
     )
     notes = models.TextField("備考", blank=True)
 
+    # --- 参加資格要件 ---
+    class GradeChoices(models.TextChoices):
+        A = "A", "A等級"
+        B = "B", "B等級"
+        C = "C", "C等級"
+        D = "D", "D等級"
+
+    required_category = models.CharField(
+        "必要業種区分",
+        max_length=100,
+        blank=True,
+        help_text="例: 役務の提供等, 電気, 建築, 土木",
+    )
+    required_grade = models.CharField(
+        "必要等級",
+        max_length=10,
+        blank=True,
+        choices=GradeChoices.choices,
+        help_text="この等級以上の資格が必要",
+    )
+    required_issuer_type = models.CharField(
+        "資格種別",
+        max_length=200,
+        blank=True,
+        help_text="例: 全省庁統一資格, 防衛省, 国土交通省, 千葉県",
+    )
+
     history = HistoricalRecords()
 
     class Meta:
         verbose_name = "入札案件"
         verbose_name_plural = "入札案件"
         ordering = ["-created_at"]
+
+    # 等級の序列（A が最上位）
+    GRADE_ORDER = {"A": 1, "B": 2, "C": 3, "D": 4}
+
+    def check_qualification(self, qualifications):
+        """自社の資格リストと照合して受注可否を判定する。
+
+        Args:
+            qualifications: Qualification の QuerySet またはリスト
+
+        Returns:
+            dict: {
+                "eligible": bool,        # 受注可能か
+                "reason": str,           # 判定理由
+                "matched_qual": obj|None # マッチした資格
+            }
+        """
+        import datetime
+
+        if not self.required_grade and not self.required_category:
+            return {
+                "eligible": None,
+                "reason": "参加要件が未設定です",
+                "matched_qual": None,
+            }
+
+        today = datetime.date.today()
+
+        for q in qualifications:
+            # 有効期限チェック
+            if q.valid_until and q.valid_until < today:
+                continue
+            if q.valid_from and q.valid_from > today:
+                continue
+
+            # 資格種別チェック（設定されている場合）
+            if self.required_issuer_type:
+                if self.required_issuer_type not in q.issuer:
+                    continue
+
+            # 業種区分チェック（設定されている場合）
+            if self.required_category:
+                if self.required_category not in q.category:
+                    continue
+
+            # 等級チェック
+            if self.required_grade:
+                if not q.grade:
+                    continue
+                req_order = self.GRADE_ORDER.get(self.required_grade, 99)
+                own_order = self.GRADE_ORDER.get(q.grade.upper().strip(), 99)
+                if own_order > req_order:
+                    # 自社の等級が要件より低い
+                    continue
+
+            return {
+                "eligible": True,
+                "reason": f"{q.issuer} / {q.category} / {q.grade}等級 で参加可能",
+                "matched_qual": q,
+            }
+
+        # マッチなし
+        missing = []
+        if self.required_issuer_type:
+            missing.append(f"資格種別: {self.required_issuer_type}")
+        if self.required_category:
+            missing.append(f"業種: {self.required_category}")
+        if self.required_grade:
+            missing.append(f"{self.required_grade}等級以上")
+
+        return {
+            "eligible": False,
+            "reason": f"要件を満たす資格がありません（{', '.join(missing)}）",
+            "matched_qual": None,
+        }
 
     def __str__(self):
         return self.title
