@@ -358,7 +358,12 @@ def scrape_target_run(request, pk):
                 title=title,
                 client=rec.get("client", ""),
                 region=rec.get("region", "") or target.region or "",
-                category=rec.get("category", "") or target.category or "",
+                category=(
+                    rec.get("category", "")
+                    or target.koji_kbn
+                    or target.koji_gyosyu
+                    or ""
+                ),
                 deadline=rec.get("deadline") or None,
                 budget=rec.get("budget", 0),
                 source_url=source_url,

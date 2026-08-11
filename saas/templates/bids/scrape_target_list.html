@@ -16,7 +16,8 @@
           <th>名称</th>
           <th>キーワード</th>
           <th>地域</th>
-          <th>工事種別</th>
+          <th>工事区分</th>
+          <th>業種</th>
           <th>有効</th>
           <th>前回取得</th>
           <th>前回件数</th>
@@ -29,7 +30,8 @@
           <td>{{ t.name }}</td>
           <td>{{ t.keyword|default:"-" }}</td>
           <td>{{ t.region|default:"-" }} {{ t.prefecture|default:"" }}</td>
-          <td>{{ t.category|default:"-" }}</td>
+          <td>{{ t.koji_kbn|default:"-" }}</td>
+          <td>{{ t.koji_gyosyu|default:"-" }}</td>
           <td>{% if t.is_active %}<span class="badge badge-green">有効</span>{% else %}<span class="badge badge-gray">無効</span>{% endif %}</td>
           <td>{{ t.last_scraped_at|default:"-" }}</td>
           <td>{{ t.last_result_count }}</td>
@@ -39,7 +41,7 @@
           </td>
         </tr>
         {% empty %}
-        <tr><td colspan="8"><div class="empty"><p>スクレイピング対象が登録されていません</p></div></td></tr>
+        <tr><td colspan="9"><div class="empty"><p>スクレイピング対象が登録されていません</p></div></td></tr>
         {% endfor %}
       </tbody>
     </table>

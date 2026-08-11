@@ -174,10 +174,14 @@ UNIT_PRICES = [
     ("労務", "電工（一般）", "人日", 26000),
 ]
 
+# 入札条件（i-ppi.jp の検索条件）。
+# 地域・工事区分・業種は i-ppi の選択肢そのままでないと検索に効かない。
+# URL は i-ppi の工事検索で固定のため ScrapeTarget の既定値を使う。
+# (名称, 地域, 工事区分, 業種)
 SCRAPE_TARGETS = [
-    ("政府電子調達（GEPS）", "https://www.geps.go.jp/", "全国"),
-    ("横浜市 入札情報サービス", "https://www.city.yokohama.lg.jp/", "横浜市"),
-    ("神奈川県 electronic bidding", "https://www.pref.kanagawa.jp/", "神奈川県"),
+    ("関東の電気設備工事", "関東", "電気設備工事", ""),
+    ("関東の受変電設備工事", "関東", "受変電設備工事", ""),
+    ("関東の電気工事（業種で検索）", "関東", "", "電気工事"),
 ]
 
 # --wipe の対象。このコマンドが作るレコードだけを消すための目印。
@@ -972,13 +976,14 @@ class Command(BaseCommand):
                 },
             )
 
-        for name, url, region in SCRAPE_TARGETS:
+        for name, region, koji_kbn, koji_gyosyu in SCRAPE_TARGETS:
             ScrapeTarget.unscoped.get_or_create(
                 company=self.company,
                 name=name,
                 defaults={
-                    "url": url,
                     "region": region,
+                    "koji_kbn": koji_kbn,
+                    "koji_gyosyu": koji_gyosyu,
                     "last_scraped_at": timezone.now() - timedelta(hours=6),
                     "created_by": self.admin,
                 },

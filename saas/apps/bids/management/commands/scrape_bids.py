@@ -55,7 +55,8 @@ class Command(BaseCommand):
             self.stdout.write(f"\n--- {target.name} ---")
             self.stdout.write(f"  キーワード: {target.keyword or '(なし)'}")
             self.stdout.write(f"  地域: {target.region or '(なし)'} {target.prefecture or ''}")
-            self.stdout.write(f"  工事種別: {target.category or '(なし)'}")
+            self.stdout.write(f"  工事区分: {target.koji_kbn or '(なし)'}")
+            self.stdout.write(f"  業種: {target.koji_gyosyu or '(なし)'}")
             self.stdout.write(f"  過去{target.days_back}日以内")
 
             try:
@@ -96,7 +97,12 @@ class Command(BaseCommand):
                     title=title,
                     client=rec.get("client", ""),
                     region=rec.get("region", "") or target.region or "",
-                    category=rec.get("category", "") or target.category or "",
+                    category=(
+                        rec.get("category", "")
+                        or target.koji_kbn
+                        or target.koji_gyosyu
+                        or ""
+                    ),
                     deadline=rec.get("deadline"),
                     budget=rec.get("budget", 0),
                     source_url=source_url,
