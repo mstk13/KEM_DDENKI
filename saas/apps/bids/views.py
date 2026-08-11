@@ -18,6 +18,7 @@ from apps.bids.forms import (
 from apps.bids.models import BidProject, Qualification, ScrapeTarget, UnitPrice
 from apps.bids.qualification import check_qualifications_for_projects
 from apps.bids.services import get_dashboard_stats, mark_as_won
+from apps.core.json_utils import json_for_script
 
 
 @login_required
@@ -271,7 +272,7 @@ def bid_dashboard(request):
     stats = get_dashboard_stats(request.user.company)
     return render(request, "bids/dashboard.html", {
         "stats": stats,
-        "by_month_json": json.dumps(stats["by_month"], ensure_ascii=False),
+        "by_month_json": json_for_script(stats["by_month"]),
     })
 
 

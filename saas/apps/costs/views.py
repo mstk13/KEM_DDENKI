@@ -1,10 +1,10 @@
-import json
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 
+from apps.core.json_utils import json_for_script
 from apps.costs.forms import BudgetItemForm, ManualCostForm
 from apps.costs.models import CostAccessGrant, CostTransaction
 from apps.costs.services import get_monthly_cost_trend, get_site_cost_summary
@@ -64,7 +64,7 @@ def cost_detail(request, site_id):
     return render(request, "costs/detail.html", {
         "site": site,
         "summary": summary,
-        "trend_json": json.dumps(trend, ensure_ascii=False),
+        "trend_json": json_for_script(trend),
         "transactions": transactions,
     })
 

@@ -1,10 +1,10 @@
-import json
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 
+from apps.core.json_utils import json_for_script
 from apps.schedules.forms import AssignmentForm, MilestoneForm, PhaseForm
 from apps.schedules.models import Assignment, Milestone, Phase, PhaseTemplate
 from apps.schedules.services import (
@@ -26,7 +26,7 @@ def schedule_detail(request, pk):
 
     # 工程別ガントチャート
     gantt_data = get_site_gantt_data(site)
-    gantt_json = json.dumps(gantt_data, ensure_ascii=False)
+    gantt_json = json_for_script(gantt_data)
 
     return render(request, "schedules/detail.html", {
         "site": site,
@@ -64,7 +64,7 @@ def schedule_compare(request):
         "selected_ids": selected_set,
         "mode": mode,
         "legend": data["legend"],
-        "gantt_json": json.dumps(data["tasks"], ensure_ascii=False),
+        "gantt_json": json_for_script(data["tasks"]),
         "gantt_tasks_exist": len(data["tasks"]) > 0,
     })
 

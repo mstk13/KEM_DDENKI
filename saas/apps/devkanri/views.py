@@ -1,10 +1,10 @@
-import json
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db.models import Count, Q, Sum
 from django.shortcuts import get_object_or_404, redirect, render
 
+from apps.core.json_utils import json_for_script
 from apps.devkanri.forms import DevCommentForm, DevProjectForm, DevTaskForm, MeyasubakoForm
 from apps.devkanri.models import DevProject, DevTask, Meyasubako
 from apps.devkanri.notifications import notify_task_assigned, notify_task_status_changed
@@ -18,10 +18,6 @@ PROJECT_SCOPES = {
     "all": "すべて",
 }
 ACTIVE_STATUSES = ["planning", "in_progress"]
-
-# <script> の中へ JSON を直接書き出すため、タグを閉じられないようエスケープする。
-# プロジェクト名は利用者が入力する値なので、素通しにするとスクリプトを注入できる。
-_JSON_IN_SCRIPT = {ord("<"): "\\u003c", ord(">"): "\\u003e", ord("&"): "\\u0026"}
 
 
 @login_required
@@ -60,7 +56,7 @@ def project_list(request):
 
     return render(request, "devkanri/project_list.html", {
         "projects": ordered,
-        "gantt_json": json.dumps(gantt_rows, ensure_ascii=False).translate(_JSON_IN_SCRIPT),
+        "gantt_json": json_for_script(gantt_rows),
         "gantt_tasks_exist": len(gantt_rows) > 0,
         "scope": scope,
         "scopes": PROJECT_SCOPES,
