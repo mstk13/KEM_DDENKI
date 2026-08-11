@@ -130,14 +130,12 @@ class BidProject(TenantModel):
                 continue
 
             # 資格種別チェック（設定されている場合）
-            if self.required_issuer_type:
-                if self.required_issuer_type not in q.issuer:
-                    continue
+            if self.required_issuer_type and self.required_issuer_type not in q.issuer:
+                continue
 
             # 業種区分チェック（設定されている場合）
-            if self.required_category:
-                if self.required_category not in q.category:
-                    continue
+            if self.required_category and self.required_category not in q.category:
+                continue
 
             # 等級チェック
             if self.required_grade:

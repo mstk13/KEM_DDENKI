@@ -5,7 +5,6 @@
 """
 
 import base64
-import json
 import logging
 
 from django.db.models import Sum
@@ -159,10 +158,10 @@ def generate_quotation_pdf(output, quotation, items, user):
         items: QuotationItem queryset
         user: 出力実行ユーザー
     """
-    from decimal import Decimal
 
     from reportlab.lib import colors
     from reportlab.lib.pagesizes import A4
+    from reportlab.lib.styles import ParagraphStyle
     from reportlab.lib.units import mm
     from reportlab.pdfbase import pdfmetrics
     from reportlab.pdfbase.cidfonts import UnicodeCIDFont
@@ -173,7 +172,6 @@ def generate_quotation_pdf(output, quotation, items, user):
         Table,
         TableStyle,
     )
-    from reportlab.lib.styles import ParagraphStyle
 
     # 日本語フォント登録
     pdfmetrics.registerFont(UnicodeCIDFont("HeiseiKakuGo-W5"))
@@ -301,8 +299,8 @@ def extract_delivery_items_from_image(delivery, purchase_order, company):
     import os
     from decimal import Decimal
 
-    from apps.ai.services.llm_advisor import call_claude_with_log
     from apps.ai.models import AILog
+    from apps.ai.services.llm_advisor import call_claude_with_log
     from apps.materials.models import DeliveryItem, Material
 
     # 画像をbase64エンコード

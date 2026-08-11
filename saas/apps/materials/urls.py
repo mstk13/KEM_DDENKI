@@ -13,9 +13,17 @@ urlpatterns = [
     path("quotations/", views.quotation_list, name="quotation_list"),
     path("quotations/new/", views.quotation_create, name="quotation_create"),
     path("quotations/<int:pk>/", views.quotation_detail, name="quotation_detail"),
-    path("quotations/<int:quotation_pk>/item/add/", views.quotation_item_add, name="quotation_item_add"),
+    path(
+        "quotations/<int:quotation_pk>/item/add/",
+        views.quotation_item_add,
+        name="quotation_item_add",
+    ),
     path("quotations/item/<int:pk>/edit/", views.quotation_item_edit, name="quotation_item_edit"),
-    path("quotations/item/<int:pk>/delete/", views.quotation_item_delete, name="quotation_item_delete"),
+    path(
+        "quotations/item/<int:pk>/delete/",
+        views.quotation_item_delete,
+        name="quotation_item_delete",
+    ),
     path("quotations/<int:pk>/pdf/", views.quotation_pdf, name="quotation_pdf"),
     path("quotations/compare/", views.quotation_compare, name="quotation_compare"),
     # 発注

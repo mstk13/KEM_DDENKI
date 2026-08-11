@@ -1,6 +1,5 @@
-from django.contrib.auth import get_user_model
-
 from django import forms
+from django.contrib.auth import get_user_model
 
 from apps.masters.models import Supplier, WorkType
 from apps.materials.models import (
@@ -136,7 +135,9 @@ class DeliveryItemForm(forms.ModelForm):
         model = DeliveryItem
         fields = ["material", "ordered_qty", "delivered_qty", "is_ok"]
         widgets = {
-            "ordered_qty": forms.NumberInput(attrs={"class": "form-control", "step": "0.01", "readonly": "readonly"}),
+            "ordered_qty": forms.NumberInput(
+                attrs={"class": "form-control", "step": "0.01", "readonly": "readonly"}
+            ),
             "delivered_qty": forms.NumberInput(attrs={"class": "form-control", "step": "0.01"}),
         }
 

@@ -1,5 +1,5 @@
 """入札案件と自社資格の照合ユーティリティ。"""
-from apps.bids.models import BidProject, Qualification
+from apps.bids.models import Qualification
 
 
 def check_qualifications_for_projects(projects, company):

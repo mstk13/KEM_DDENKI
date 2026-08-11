@@ -14,8 +14,7 @@ from __future__ import annotations
 
 import logging
 import re
-from datetime import date, timedelta
-from typing import Optional
+from datetime import date
 
 logger = logging.getLogger(__name__)
 
@@ -144,22 +143,15 @@ def _fill_form(page, target) -> None:
     # 最終更新日（過去N日以内）
     if target.days_back:
         try:
-            # 「過去N日以内」のラジオボタンまたは入力欄を探す
-            radio_buttons = page.locator("input[type='radio']")
-            count = radio_buttons.count()
-            for i in range(count):
-                radio = radio_buttons.nth(i)
-                # ラジオボタンの隣接テキストを確認
-                parent = radio.locator("..")
-                text = parent.inner_text()
-                if "日以内" in text or "過去" in text:
-                    radio.check()
-                    # 日数入力欄があれば入力
-                    day_input = parent.locator("input[type='text']")
-                    if day_input.count() > 0:
-                        day_input.first.fill(str(target.days_back))
-                    logger.info(f"最終更新日: 過去{target.days_back}日以内")
-                    break
+            # 日数欄 tbxLastUpdate は既定で disabled。「過去N日以内」側のラジオ
+            # rbtLastUpdate2 を選択して初めて入力できるようになるため、順序が重要。
+            # 隣接テキストから探す方法は DOM 構造上ヒットしないので id で直接指定する。
+            page.check("#rbtLastUpdate2")
+            day_input = page.locator("#tbxLastUpdate")
+            day_input.wait_for(state="visible")
+            # maxlength=3 のため 3 桁までに丸める
+            day_input.fill(str(min(int(target.days_back), 999)))
+            logger.info(f"最終更新日: 過去{target.days_back}日以内")
         except Exception:
             logger.warning("最終更新日の設定に失敗しました")
 
@@ -300,7 +292,7 @@ def _parse_results_fallback(page) -> list[dict]:
 
 def _map_cells_to_record(
     headers: list[str], cells: list[str], detail_url: str
-) -> Optional[dict]:
+) -> dict | None:
     """ヘッダーとセルの値からレコード dict にマッピングする。"""
     if len(cells) == 0:
         return None
@@ -353,7 +345,7 @@ def _map_cells_to_record(
     return record
 
 
-def _parse_date(text: str) -> Optional[str]:
+def _parse_date(text: str) -> str | None:
     """日付文字列を ISO format に変換する。"""
     if not text:
         return None

@@ -2,7 +2,6 @@ import json
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.db.models import Avg, Count
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 
@@ -15,7 +14,6 @@ from apps.schedules.services import (
     get_site_gantt_data,
 )
 from apps.sites.models import Site
-
 
 
 @login_required
