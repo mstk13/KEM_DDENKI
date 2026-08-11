@@ -477,6 +477,36 @@ textarea.form-control { min-height: 88px; resize: vertical; line-height: 1.6; }
 .gantt .bar-milestone .bar-progress { fill: var(--warning); }
 .gantt .bar-blue .bar-progress { fill: var(--info); }
 
+/* ---- 開発管理ガント ---- */
+/* プロジェクトのステータスで色分けする。クラス名は
+   devkanri/services.get_project_gantt_data の custom_class と対応。 */
+.gantt-legend {
+  display: inline-flex; align-items: center; gap: 6px;
+  margin-left: auto; font-size: .8rem; color: var(--text-muted);
+}
+.gantt-legend .legend-swatch { margin-left: 6px; }
+
+.gantt .bar-dev-planning .bar { fill: #e5e7eb; }
+.gantt .bar-dev-planning .bar-progress { fill: #9ca3af; }
+.legend-swatch.bar-dev-planning { background: #9ca3af; }
+
+.gantt .bar-dev-in_progress .bar { fill: #dbeafe; }
+.gantt .bar-dev-in_progress .bar-progress { fill: #3b82f6; }
+.legend-swatch.bar-dev-in_progress { background: #3b82f6; }
+
+.gantt .bar-dev-completed .bar { fill: #d1fae5; }
+.gantt .bar-dev-completed .bar-progress { fill: #10b981; }
+.legend-swatch.bar-dev-completed { background: #10b981; }
+
+.gantt .bar-dev-suspended .bar { fill: #ffedd5; }
+.gantt .bar-dev-suspended .bar-progress { fill: #f97316; }
+.legend-swatch.bar-dev-suspended { background: #f97316; }
+
+/* 日付が未設定で推定表示しているバーは、確定した工期と見分けられるようにする */
+.gantt .bar-dev-inferred .bar {
+  stroke: var(--text-muted); stroke-width: 1; stroke-dasharray: 4 3;
+}
+
 /* ---- 工期比較ガント ---- */
 /* 現場ごとに色を割り当て、同じ現場の工程が同色でまとまるようにする。
    クラス名は services.COMPARISON_COLOR_COUNT（8色）と対応。 */

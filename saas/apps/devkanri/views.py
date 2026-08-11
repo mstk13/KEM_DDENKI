@@ -1,3 +1,5 @@
+import json
+
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db.models import Count, Q, Sum
@@ -6,10 +8,29 @@ from django.shortcuts import get_object_or_404, redirect, render
 from apps.devkanri.forms import DevCommentForm, DevProjectForm, DevTaskForm, MeyasubakoForm
 from apps.devkanri.models import DevProject, DevTask, Meyasubako
 from apps.devkanri.notifications import notify_task_assigned, notify_task_status_changed
+from apps.devkanri.services import get_project_gantt_data
+
+# 一覧の絞り込み。既定は動いているものだけを出す。
+# 完了・中断まで並べるとガントが埋まって「いま何が動いているか」が読めなくなる。
+PROJECT_SCOPES = {
+    "active": "稼働中",
+    "mine": "自分の担当",
+    "all": "すべて",
+}
+ACTIVE_STATUSES = ["planning", "in_progress"]
+
+# <script> の中へ JSON を直接書き出すため、タグを閉じられないようエスケープする。
+# プロジェクト名は利用者が入力する値なので、素通しにするとスクリプトを注入できる。
+_JSON_IN_SCRIPT = {ord("<"): "\\u003c", ord(">"): "\\u003e", ord("&"): "\\u0026"}
 
 
 @login_required
 def project_list(request):
+    """プロジェクト一覧。1ページ目はガントチャートで全体像を見せる。"""
+    scope = request.GET.get("scope", "active")
+    if scope not in PROJECT_SCOPES:
+        scope = "active"
+
     projects = DevProject.objects.annotate(
         task_count=Count("tasks"),
         done_count=Count("tasks", filter=Q(tasks__status__in=["done", "closed"])),
@@ -17,8 +38,34 @@ def project_list(request):
             "tasks",
             filter=Q(tasks__category="bug") & ~Q(tasks__status__in=["done", "closed"]),
         ),
-    ).order_by("-created_at")
-    return render(request, "devkanri/project_list.html", {"projects": projects})
+    ).select_related("assignee").prefetch_related("tasks")
+
+    if scope == "active":
+        projects = projects.filter(status__in=ACTIVE_STATUSES)
+    elif scope == "mine":
+        projects = projects.filter(assignee=request.user)
+
+    projects = projects.order_by("-created_at")
+
+    gantt_rows = get_project_gantt_data(projects)
+
+    # 表にも同じ期間を出せるよう、行をプロジェクトに持たせる。
+    # 並びもガント（期間の早い順）に合わせて、目で追えるようにする。
+    row_by_id = {row["id"]: row for row in gantt_rows}
+    ordered = []
+    for project in projects:
+        project.period = row_by_id.get(f"project-{project.pk}")
+        ordered.append(project)
+    ordered.sort(key=lambda p: (p.period["start"], p.period["end"]) if p.period else ("", ""))
+
+    return render(request, "devkanri/project_list.html", {
+        "projects": ordered,
+        "gantt_json": json.dumps(gantt_rows, ensure_ascii=False).translate(_JSON_IN_SCRIPT),
+        "gantt_tasks_exist": len(gantt_rows) > 0,
+        "scope": scope,
+        "scopes": PROJECT_SCOPES,
+        "inferred_count": sum(1 for row in gantt_rows if row["inferred"]),
+    })
 
 
 @login_required
