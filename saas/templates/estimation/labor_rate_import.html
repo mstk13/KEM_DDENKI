@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}労務単価インポート — {{ APP_NAME }}{% endblock %}
+{% block topbar_title %}積算{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>設計労務単価 Excel インポート</h1>
+</div>
+
+<div class="card" style="margin-bottom:20px;">
+  <div class="card-body">
+    <p style="color:var(--text-secondary);">
+      国交省が公表する「公共工事設計労務単価」の Excel ファイルをアップロードしてください。<br>
+      都道府県別・職種別の単価を自動で読み取り、データベースに投入します。<br>
+      同じ年度・都道府県・職種の既存データは上書きされます。
+    </p>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-body">
+    <form method="post" enctype="multipart/form-data">
+      {% csrf_token %}
+      <div class="form-group">
+        <label for="id_file">{{ form.file.label }}</label>
+        {{ form.file }}
+        {{ form.file.errors }}
+        <small>{{ form.file.help_text }}</small>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="id_fiscal_year">{{ form.fiscal_year.label }}</label>
+          {{ form.fiscal_year }}
+          {{ form.fiscal_year.errors }}
+          <small>{{ form.fiscal_year.help_text }}</small>
+        </div>
+        <div class="form-group">
+          <label for="id_source_url">{{ form.source_url.label }}</label>
+          {{ form.source_url }}
+          {{ form.source_url.errors }}
+        </div>
+      </div>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">インポート実行</button>
+        <a href="{% url 'estimation:labor_rate_list' %}" class="btn btn-outline">キャンセル</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

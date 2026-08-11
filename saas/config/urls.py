@@ -63,6 +63,7 @@ urlpatterns = [
     path("attendance/", include("apps.attendance.urls")),
     path("evaluation/", include("apps.evaluation.urls")),
     path("ai/", include("apps.ai.urls")),
+    path("estimation/", include("apps.estimation.urls")),
     path("audit-log/", audit_log, name="audit_log"),
 ]
 

@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% block title %}{{ standard.name }} — {{ APP_NAME }}{% endblock %}
+{% block topbar_title %}積算基準{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>{{ standard.name }}</h1>
+  <div style="display:flex;gap:8px;">
+    <a href="{% url 'estimation:standard_edit' standard.pk %}" class="btn btn-outline">編集</a>
+    <a href="{% url 'estimation:workrate_create' standard.pk %}" class="btn btn-primary">+ 歩掛を追加</a>
+  </div>
+</div>
+
+<div class="card" style="margin-bottom:20px;">
+  <div class="card-body">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;">
+      <div>
+        <div style="color:var(--text-secondary);font-size:13px;">発注機関</div>
+        <div>{{ standard.orderer.name }}</div>
+      </div>
+      <div>
+        <div style="color:var(--text-secondary);font-size:13px;">年度</div>
+        <div>{{ standard.fiscal_year }}</div>
+      </div>
+      <div>
+        <div style="color:var(--text-secondary);font-size:13px;">適用期間</div>
+        <div>{{ standard.effective_from|default:"-" }} 〜 {{ standard.effective_to|default:"" }}</div>
+      </div>
+      <div>
+        <div style="color:var(--text-secondary);font-size:13px;">状態</div>
+        <div>
+          {% if standard.status == 'draft' %}<span class="badge badge-gray">下書き</span>
+          {% elif standard.status == 'reviewed' %}<span class="badge badge-orange">レビュー済</span>
+          {% elif standard.status == 'approved' %}<span class="badge badge-green">承認済</span>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    {% if standard.source_url %}
+    <div style="margin-top:12px;">
+      <div style="color:var(--text-secondary);font-size:13px;">出典URL</div>
+      <a href="{{ standard.source_url }}" target="_blank" rel="noopener">{{ standard.source_url }}</a>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+{# --- 歩掛一覧 --- #}
+<h2>歩掛</h2>
+<div class="card" style="margin-bottom:20px;">
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>コード</th><th>作業名</th><th>単位</th><th>労務</th><th>抽出方法</th><th>状態</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for wr in work_rates %}
+        <tr>
+          <td>{{ wr.work_code|default:"-" }}</td>
+          <td>{{ wr.work_name }}</td>
+          <td>{{ wr.unit }}</td>
+          <td style="font-size:13px;">
+            {% for l in wr.labor %}{{ l.trade }} {{ l.qty }}人{% if not forloop.last %}, {% endif %}{% endfor %}
+          </td>
+          <td>
+            {% if wr.extracted_by == 'ai' %}<span class="badge badge-blue">AI</span>
+            {% else %}<span class="badge badge-gray">手入力</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if wr.status == 'draft' %}<span class="badge badge-gray">下書き</span>
+            {% elif wr.status == 'reviewed' %}<span class="badge badge-orange">レビュー済</span>
+            {% elif wr.status == 'approved' %}<span class="badge badge-green">承認済</span>
+            {% endif %}
+          </td>
+          <td><a href="{% url 'estimation:workrate_edit' wr.pk %}" class="btn btn-outline btn-sm">編集</a></td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="7"><div class="empty"><p>歩掛が登録されていません。<a href="{% url 'estimation:workrate_create' standard.pk %}">追加</a>してください。</p></div></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{# --- 共通費率 --- #}
+<h2>共通費率</h2>
+<div class="card">
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>費目</th><th>工事種別</th><th>計算式</th><th>状態</th></tr>
+      </thead>
+      <tbody>
+        {% for oh in overhead_rules %}
+        <tr>
+          <td>{{ oh.get_category_display }}</td>
+          <td>{{ oh.work_type_label }}</td>
+          <td style="font-size:13px;"><code>{{ oh.formula|truncatechars:80 }}</code></td>
+          <td>
+            {% if oh.status == 'draft' %}<span class="badge badge-gray">下書き</span>
+            {% elif oh.status == 'reviewed' %}<span class="badge badge-orange">レビュー済</span>
+            {% elif oh.status == 'approved' %}<span class="badge badge-green">承認済</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="4"><div class="empty"><p>共通費率が登録されていません</p></div></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div style="margin-top:20px;">
+  <a href="{% url 'estimation:standard_list' %}" class="btn btn-outline">積算基準一覧に戻る</a>
+</div>
+{% endblock %}
