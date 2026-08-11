@@ -12,9 +12,10 @@ from apps.bids.forms import (
     BidCostForm,
     BidProjectForm,
     QualificationForm,
+    ScrapeTargetForm,
     UnitPriceForm,
 )
-from apps.bids.models import BidProject, Qualification, UnitPrice
+from apps.bids.models import BidProject, Qualification, ScrapeTarget, UnitPrice
 from apps.bids.services import get_dashboard_stats, mark_as_won
 
 
@@ -275,3 +276,103 @@ def bid_mark_won(request, pk):
     site = mark_as_won(project, created_by=request.user)
     messages.success(request, f"落札しました。現場「{site.name}」を自動作成しました。")
     return redirect("bids:project_detail", pk=pk)
+
+
+# --- スクレイピング対象 ---
+
+
+@login_required
+def scrape_target_list(request):
+    targets = ScrapeTarget.objects.all()
+    return render(request, "bids/scrape_target_list.html", {"targets": targets})
+
+
+@login_required
+def scrape_target_create(request):
+    if request.method == "POST":
+        form = ScrapeTargetForm(request.POST)
+        if form.is_valid():
+            obj = form.save(commit=False)
+            obj.company = request.user.company
+            obj.created_by = request.user
+            obj.url = "https://www.i-ppi.jp/IPPI/SearchServices/Web/Search/Search/Search.aspx?tab=3"
+            obj.save()
+            return redirect("bids:scrape_target_list")
+    else:
+        form = ScrapeTargetForm()
+    return render(request, "bids/scrape_target_form.html", {"form": form})
+
+
+@login_required
+def scrape_target_edit(request, pk):
+    obj = get_object_or_404(ScrapeTarget, pk=pk)
+    if request.method == "POST":
+        form = ScrapeTargetForm(request.POST, instance=obj)
+        if form.is_valid():
+            form.save()
+            return redirect("bids:scrape_target_list")
+    else:
+        form = ScrapeTargetForm(instance=obj)
+    return render(request, "bids/scrape_target_form.html", {"form": form, "object": obj})
+
+
+@login_required
+def scrape_target_run(request, pk):
+    """スクレイピングを実行して結果をプレビュー/インポートする。"""
+    import logging
+
+    from django.utils import timezone
+
+    from apps.bids.scraper import scrape_ippi
+
+    logger = logging.getLogger(__name__)
+    target = get_object_or_404(ScrapeTarget, pk=pk)
+    records = []
+    error_msg = ""
+
+    if request.method == "POST" and "confirm_import" in request.POST:
+        # 確定インポート
+        records_json = json.loads(request.POST.get("records_json", "[]"))
+        new_count = 0
+        for rec in records_json:
+            title = rec.get("title", "").strip()
+            if not title:
+                continue
+            source_url = rec.get("source_url", "")
+            if source_url and BidProject.objects.filter(source_url=source_url).exists():
+                continue
+            if BidProject.objects.filter(title=title).exists():
+                continue
+            BidProject(
+                company=request.user.company,
+                created_by=request.user,
+                title=title,
+                client=rec.get("client", ""),
+                region=rec.get("region", "") or target.region or "",
+                category=rec.get("category", "") or target.category or "",
+                deadline=rec.get("deadline") or None,
+                budget=rec.get("budget", 0),
+                source_url=source_url,
+                status=BidProject.Status.NEW,
+            ).save()
+            new_count += 1
+        target.last_scraped_at = timezone.now()
+        target.last_result_count = len(records_json)
+        target.save(update_fields=["last_scraped_at", "last_result_count"])
+        messages.success(request, f"{new_count} 件の新規案件を登録しました。")
+        return redirect("bids:project_list")
+
+    # スクレイピング実行
+    try:
+        records = scrape_ippi(target, headless=True)
+    except Exception as e:
+        logger.exception("スクレイピングエラー")
+        error_msg = str(e)
+
+    return render(request, "bids/scrape_target_run.html", {
+        "target": target,
+        "records": records,
+        "records_json": json.dumps(records, ensure_ascii=False, default=str) if records else "[]",
+        "error_msg": error_msg,
+        "count": len(records),
+    })

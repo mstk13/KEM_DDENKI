@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}スクレイピング対象一覧 — 建設SaaS{% endblock %}
+{% block topbar_title %}入札管理{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>スクレイピング対象一覧</h1>
+  <a href="{% url 'bids:scrape_target_create' %}" class="btn btn-primary">+ 対象を追加</a>
+</div>
+
+<div class="card">
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>名称</th>
+          <th>キーワード</th>
+          <th>地域</th>
+          <th>工事種別</th>
+          <th>有効</th>
+          <th>前回取得</th>
+          <th>前回件数</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for t in targets %}
+        <tr>
+          <td>{{ t.name }}</td>
+          <td>{{ t.keyword|default:"-" }}</td>
+          <td>{{ t.region|default:"-" }} {{ t.prefecture|default:"" }}</td>
+          <td>{{ t.category|default:"-" }}</td>
+          <td>{% if t.is_active %}<span class="badge badge-green">有効</span>{% else %}<span class="badge badge-gray">無効</span>{% endif %}</td>
+          <td>{{ t.last_scraped_at|default:"-" }}</td>
+          <td>{{ t.last_result_count }}</td>
+          <td>
+            <a href="{% url 'bids:scrape_target_run' t.pk %}" class="btn btn-primary btn-sm">実行</a>
+            <a href="{% url 'bids:scrape_target_edit' t.pk %}" class="btn btn-outline btn-sm">編集</a>
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="8"><div class="empty"><p>スクレイピング対象が登録されていません</p></div></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

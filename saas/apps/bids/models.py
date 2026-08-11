@@ -164,13 +164,44 @@ class BidDocument(TenantModel):
 
 
 class ScrapeTarget(TenantModel):
-    """スクレイピング対象。"""
+    """スクレイピング対象（入札情報サービス i-ppi.jp）。"""
+
+    class Region(models.TextChoices):
+        HOKKAIDO = "北海道", "北海道"
+        TOHOKU = "東北", "東北"
+        KANTO = "関東", "関東"
+        HOKURIKU = "北陸", "北陸"
+        CHUBU = "中部", "中部"
+        KINKI = "近畿", "近畿"
+        CHUGOKU = "中国", "中国"
+        SHIKOKU = "四国", "四国"
+        KYUSHU = "九州", "九州"
+        OKINAWA = "沖縄", "沖縄"
 
     name = models.CharField("名称", max_length=200)
-    url = models.URLField("URL")
-    region = models.CharField("地域", max_length=100, blank=True)
+    url = models.URLField(
+        "URL",
+        default="https://www.i-ppi.jp/IPPI/SearchServices/Web/Search/Search/Search.aspx?tab=3",
+    )
+    keyword = models.CharField("工事名キーワード", max_length=200, blank=True)
+    region = models.CharField(
+        "地域（地方）", max_length=100, blank=True, choices=Region.choices
+    )
+    prefecture = models.CharField("都道府県", max_length=50, blank=True)
+    category = models.CharField(
+        "工事種別",
+        max_length=100,
+        blank=True,
+        help_text="例: 電気, 建築, 土木",
+    )
+    days_back = models.PositiveIntegerField(
+        "過去N日以内の更新",
+        default=30,
+        help_text="最終更新日の検索範囲（日数）",
+    )
     is_active = models.BooleanField("有効", default=True)
     last_scraped_at = models.DateTimeField("最終取得日時", null=True, blank=True)
+    last_result_count = models.PositiveIntegerField("前回取得件数", default=0)
 
     history = HistoricalRecords()
 

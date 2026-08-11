@@ -18,4 +18,8 @@ urlpatterns = [
     path("unit-prices/<int:pk>/edit/", views.unit_price_edit, name="unit_price_edit"),
     path("dashboard/", views.bid_dashboard, name="dashboard"),
     path("<int:pk>/mark-won/", views.bid_mark_won, name="mark_won"),
+    path("scrape/", views.scrape_target_list, name="scrape_target_list"),
+    path("scrape/new/", views.scrape_target_create, name="scrape_target_create"),
+    path("scrape/<int:pk>/edit/", views.scrape_target_edit, name="scrape_target_edit"),
+    path("scrape/<int:pk>/run/", views.scrape_target_run, name="scrape_target_run"),
 ]
