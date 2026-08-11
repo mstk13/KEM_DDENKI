@@ -16,6 +16,7 @@ from apps.bids.forms import (
     UnitPriceForm,
 )
 from apps.bids.models import BidProject, Qualification, ScrapeTarget, UnitPrice
+from apps.bids.qualification import check_qualifications_for_projects
 from apps.bids.services import get_dashboard_stats, mark_as_won
 
 
@@ -34,8 +35,13 @@ def project_list(request):
     if region:
         qs = qs.filter(region__icontains=region)
 
+    projects = list(qs)
+    qual_results = check_qualifications_for_projects(projects, request.user.company)
+    for p in projects:
+        p.qual_check = qual_results.get(p.pk, {})
+
     return render(request, "bids/project_list.html", {
-        "projects": qs,
+        "projects": projects,
         "q": q,
         "status": status,
         "region": region,
@@ -48,10 +54,13 @@ def project_detail(request, pk):
     project = get_object_or_404(BidProject, pk=pk)
     cost = getattr(project, "cost", None)
     competitors = project.competitors.all()
+    qual_results = check_qualifications_for_projects([project], request.user.company)
+    qual_check = qual_results.get(project.pk, {})
     return render(request, "bids/project_detail.html", {
         "project": project,
         "cost": cost,
         "competitors": competitors,
+        "qual_check": qual_check,
     })
 
 
@@ -354,6 +363,9 @@ def scrape_target_run(request, pk):
                 budget=rec.get("budget", 0),
                 source_url=source_url,
                 status=BidProject.Status.NEW,
+                required_grade=rec.get("required_grade", ""),
+                required_category=rec.get("required_category", ""),
+                required_issuer_type=rec.get("required_issuer_type", ""),
             ).save()
             new_count += 1
         target.last_scraped_at = timezone.now()

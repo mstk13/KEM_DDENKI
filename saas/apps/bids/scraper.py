@@ -313,6 +313,9 @@ def _map_cells_to_record(
         "deadline": None,
         "budget": 0,
         "source_url": detail_url,
+        "required_grade": "",
+        "required_category": "",
+        "required_issuer_type": "",
     }
 
     for idx, header in enumerate(headers):
@@ -332,6 +335,8 @@ def _map_cells_to_record(
             record["deadline"] = _parse_date(val)
         elif "予定価格" in header or "金額" in header:
             record["budget"] = _parse_amount(val)
+        elif "等級" in header or "格付" in header:
+            record["required_grade"] = _extract_grade(val)
 
     # タイトルが空なら最初の長いセルをタイトルにする
     if not record["title"]:
@@ -339,6 +344,11 @@ def _map_cells_to_record(
             if len(cell) > 5:
                 record["title"] = cell
                 break
+
+    # 全セルのテキストから等級を推測（ヘッダーで取れなかった場合）
+    if not record["required_grade"]:
+        all_text = " ".join(cells)
+        record["required_grade"] = _extract_grade(all_text)
 
     return record
 
@@ -372,3 +382,78 @@ def _parse_amount(text: str) -> int:
         return 0
     cleaned = re.sub(r"[^\d]", "", text)
     return int(cleaned) if cleaned else 0
+
+
+def _extract_grade(text: str) -> str:
+    """テキストから等級（A/B/C/D）を抽出する。
+
+    対応パターン:
+      - 「Ａ等級」「A等級」「Ａ級」
+      - 「Ｄ等級以上」「D等級以上」
+      - 「格付：A」
+    """
+    if not text:
+        return ""
+    # 全角→半角変換
+    normalized = text.translate(str.maketrans("ＡＢＣＤ", "ABCD"))
+    # 「X等級以上」→ 最低等級 X を返す
+    m = re.search(r"([A-D])\s*等?級?\s*以上", normalized)
+    if m:
+        return m.group(1)
+    # 「X等級」単独
+    m = re.search(r"([A-D])\s*等?級", normalized)
+    if m:
+        return m.group(1)
+    # 「格付：A」
+    m = re.search(r"格付[：:]?\s*([A-D])", normalized)
+    if m:
+        return m.group(1)
+    return ""
+
+
+def extract_requirements_from_text(text: str) -> dict:
+    """入札公告テキスト（PDF等）から参加資格要件を抽出する。
+
+    Args:
+        text: 入札公告の全文テキスト
+
+    Returns:
+        dict: {"required_grade", "required_category", "required_issuer_type"}
+    """
+    result = {
+        "required_grade": "",
+        "required_category": "",
+        "required_issuer_type": "",
+    }
+
+    if not text:
+        return result
+
+    # 全角→半角
+    normalized = text.translate(str.maketrans("ＡＢＣＤ", "ABCD"))
+
+    # 等級抽出
+    # パターン: 「○○のD等級以上」「○○のA等級」
+    m = re.search(r"「([^」]+)」の([A-D])\s*等?級?\s*以上", normalized)
+    if m:
+        result["required_category"] = m.group(1)
+        result["required_grade"] = m.group(2)
+    else:
+        result["required_grade"] = _extract_grade(normalized)
+
+    # 資格種別抽出
+    if "全省庁統一資格" in text:
+        result["required_issuer_type"] = "全省庁統一資格"
+    elif "防衛省" in text and "競争参加資格" in text:
+        result["required_issuer_type"] = "防衛省"
+
+    # 業種区分（まだ取れていない場合）
+    if not result["required_category"]:
+        # 「役務の提供等」「物品の製造」「物品の販売」「工事」等
+        categories = ["役務の提供等", "物品の製造", "物品の販売", "工事"]
+        for cat in categories:
+            if cat in text:
+                result["required_category"] = cat
+                break
+
+    return result
