@@ -237,42 +237,14 @@
 </div>
 {% endfor %}
 
+{# 総合所見（A-1〜）と総合評点（5段階）は廃止。総合コメントの記入欄のみ残す #}
 <div class="eval-section">
   <div class="eval-section-header">
-    <h2><span class="badge badge-blue">総合</span> 総合所見</h2>
+    <h2><span class="badge badge-green">総合</span> 総合コメント</h2>
   </div>
   <div class="eval-section-body">
-    {% for o in overall %}
     <div class="form-group">
-      <label style="display:flex;align-items:center;gap:8px;">
-        {{ o.qnum }}. {{ o.text }}
-        {% if o.by_self %}<span class="badge badge-orange" style="font-size:.68rem;">本人記入</span>{% endif %}
-      </label>
-      <textarea name="overall_{{ o.qnum }}" class="form-control" rows="3" placeholder="具体的に記入してください"></textarea>
-    </div>
-    {% endfor %}
-  </div>
-</div>
-
-<div class="eval-section">
-  <div class="eval-section-header">
-    <h2><span class="badge badge-green">最終</span> 総合評点</h2>
-  </div>
-  <div class="eval-section-body">
-    <div style="margin-bottom:20px;">
-      <label style="font-size:.82rem;font-weight:600;color:var(--text-primary);display:block;margin-bottom:8px;">総合評点</label>
-      <div class="score-selector">
-        {% for s in scale %}
-        <label class="score-option">
-          <input type="radio" name="total_score" value="{{ s.value }}">
-          <span class="score-num">{{ s.value }}</span> {{ s.label }}
-        </label>
-        {% endfor %}
-      </div>
-    </div>
-    <div class="form-group">
-      <label>総合コメント</label>
-      <textarea name="total_comment" class="form-control" rows="4" placeholder="全体を通しての所見を記入してください"></textarea>
+      <textarea name="total_comment" class="form-control" rows="6" placeholder="全体を通しての所見を記入してください"></textarea>
     </div>
   </div>
 </div>

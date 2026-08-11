@@ -73,9 +73,7 @@
       {{ evaluation.period }} ｜ {{ evaluation.worker.job_title|default:"-" }} ｜ 評価者: {{ evaluation.evaluated_by|default:"-" }}
     </div>
   </div>
-  {% if evaluation.score %}
-  <div class="score-big">{{ evaluation.score }}</div>
-  {% endif %}
+  {# 総合評点は廃止 #}
 </div>
 
 <div style="display:flex;gap:8px;margin-bottom:20px;">
@@ -131,18 +129,6 @@
 </div>
 {% endif %}
 
-{% if evaluation.overall_responses %}
-<div class="result-section">
-  <div class="result-section-header">
-    <h2>総合所見</h2>
-  </div>
-  {% for qnum, text in evaluation.overall_responses.items %}
-  <div class="overall-item">
-    <div class="q-label">{{ qnum }}</div>
-    <p>{{ text|linebreaksbr }}</p>
-  </div>
-  {% endfor %}
-</div>
-{% endif %}
+{# 総合所見は廃止。総合コメントのみ上部に表示する #}
 
 {% endblock %}
