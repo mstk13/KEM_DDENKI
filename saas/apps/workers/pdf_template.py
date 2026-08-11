@@ -636,13 +636,22 @@ def generate_evaluator_pdf(template, evaluator_name, targets_with_data, period="
         job_title = target.get("job_title", "")
         survey_items = target.get("survey_items") or []
 
-        # 対象者ヘッダー
-        elements.append(
-            _p(
-                f"対象者 {idx + 1}: {worker_name}　（{job_title}）",
-                STYLE_EVAL_TARGET,
+        # 対象者ヘッダー。氏名が空の場合は役職別の白紙シートとして扱い、
+        # 氏名・評価者は手書きできるよう記入欄にする。
+        if worker_name:
+            elements.append(
+                _p(
+                    f"対象者 {idx + 1}: {worker_name}　（{job_title}）",
+                    STYLE_EVAL_TARGET,
+                )
             )
-        )
+        else:
+            elements.append(_p(f"【{job_title}】評価シート", STYLE_EVAL_TARGET))
+            elements.append(Spacer(1, 2))
+            elements.append(
+                _p("被評価者：＿＿＿＿＿＿＿＿＿＿　　評価者：＿＿＿＿＿＿＿＿＿＿",
+                   STYLE_EVAL_SUB)
+            )
         elements.append(Spacer(1, 6))
 
         # セクション別にグループ化
