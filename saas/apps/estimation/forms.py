@@ -135,22 +135,26 @@ class OrdererDataSourceForm(forms.ModelForm):
 
 
 class LaborRateImportForm(forms.Form):
-    """労務単価 Excel インポートフォーム。"""
+    """労務単価 Excel インポートフォーム。
+
+    注意: 国交省はPDFのみ配布。このフォームは社内整形済みExcel用。
+    """
 
     file = forms.FileField(
         label="Excelファイル",
-        help_text="国交省公表の公共工事設計労務単価 Excel ファイル",
+        help_text="社内整形済みの労務単価 Excel（公式PDFからの取込は別機能）",
         widget=forms.FileInput(attrs={"class": "form-control", "accept": ".xlsx,.xls"}),
     )
-    fiscal_year = forms.IntegerField(
-        label="年度（西暦）",
-        help_text="例: 2026",
-        widget=forms.NumberInput(attrs={"class": "form-control"}),
+    valid_from = forms.DateField(
+        label="適用開始日",
+        help_text="例: 2026-03-01",
+        widget=forms.DateInput(attrs={"class": "form-control", "type": "date"}),
     )
-    source_url = forms.URLField(
-        label="出典URL",
+    fiscal_year_label = forms.CharField(
+        label="年度表記",
         required=False,
-        widget=forms.URLInput(attrs={"class": "form-control"}),
+        help_text="例: 令和8年3月適用",
+        widget=forms.TextInput(attrs={"class": "form-control"}),
     )
 
 
@@ -160,20 +164,21 @@ class EstimationStandardForm(forms.ModelForm):
         fields = [
             "orderer",
             "name",
-            "fiscal_year",
+            "valid_from",
+            "valid_to",
+            "applies_by",
+            "fiscal_year_label",
             "source_url",
             "source_file",
-            "effective_from",
-            "effective_to",
             "status",
             "notes",
         ]
         widgets = {
             "notes": forms.Textarea(attrs={"class": "form-control", "rows": 3}),
-            "effective_from": forms.DateInput(
+            "valid_from": forms.DateInput(
                 attrs={"class": "form-control", "type": "date"},
             ),
-            "effective_to": forms.DateInput(
+            "valid_to": forms.DateInput(
                 attrs={"class": "form-control", "type": "date"},
             ),
         }

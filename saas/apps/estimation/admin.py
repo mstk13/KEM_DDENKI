@@ -9,6 +9,7 @@ from apps.estimation.models import (
     Orderer,
     OrdererDataSource,
     OverheadRule,
+    WageFloor,
     WorkRate,
 )
 
@@ -36,9 +37,10 @@ class EstimationItemAdmin(SimpleHistoryAdmin):
         "unit",
         "standard_price",
         "status",
+        "data_scope",
         "company",
     )
-    list_filter = ("category", "status", "company")
+    list_filter = ("category", "status", "data_scope", "company")
     search_fields = ("code", "canonical_name")
     inlines = [ItemAliasInline]
 
@@ -53,9 +55,10 @@ class ItemAliasAdmin(SimpleHistoryAdmin):
         "confidence",
         "matched_by",
         "status",
+        "data_scope",
         "company",
     )
-    list_filter = ("source_type", "status", "matched_by", "company")
+    list_filter = ("source_type", "status", "matched_by", "data_scope", "company")
     search_fields = ("raw_name", "normalized_name")
 
 
@@ -85,15 +88,8 @@ class OrdererAdmin(SimpleHistoryAdmin):
 @admin.register(OrdererDataSource)
 class OrdererDataSourceAdmin(SimpleHistoryAdmin):
     list_display = (
-        "orderer",
-        "category",
-        "scope",
-        "name",
-        "update_cycle",
-        "data_format",
-        "is_free",
-        "last_checked_at",
-        "company",
+        "orderer", "category", "scope", "name",
+        "update_cycle", "data_format", "is_free", "last_checked_at", "company",
     )
     list_filter = ("category", "scope", "data_format", "is_free", "company")
     search_fields = ("name", "orderer__name")
@@ -101,9 +97,12 @@ class OrdererDataSourceAdmin(SimpleHistoryAdmin):
 
 @admin.register(LaborRate)
 class LaborRateAdmin(SimpleHistoryAdmin):
-    list_display = ("fiscal_year", "prefecture", "trade", "amount", "company")
-    list_filter = ("fiscal_year", "prefecture", "company")
-    search_fields = ("trade", "prefecture")
+    list_display = (
+        "valid_from", "prefecture", "occupation_name",
+        "unit_price", "status", "data_scope", "company",
+    )
+    list_filter = ("status", "data_scope", "prefecture", "company")
+    search_fields = ("occupation_name", "occupation_code", "prefecture")
 
 
 class WorkRateInline(admin.TabularInline):
@@ -115,26 +114,45 @@ class WorkRateInline(admin.TabularInline):
 class OverheadRuleInline(admin.TabularInline):
     model = OverheadRule
     extra = 0
-    fields = ("category", "work_type_label", "status")
+    fields = ("work_category", "cost_type", "status")
 
 
 @admin.register(EstimationStandard)
 class EstimationStandardAdmin(SimpleHistoryAdmin):
-    list_display = ("name", "orderer", "fiscal_year", "status", "company")
-    list_filter = ("fiscal_year", "status", "company")
+    list_display = (
+        "name", "orderer", "valid_from", "applies_by",
+        "status", "data_scope", "company",
+    )
+    list_filter = ("status", "applies_by", "data_scope", "company")
     search_fields = ("name", "orderer__name")
     inlines = [WorkRateInline, OverheadRuleInline]
 
 
 @admin.register(WorkRate)
 class WorkRateAdmin(SimpleHistoryAdmin):
-    list_display = ("work_name", "unit", "standard", "status", "extracted_by", "company")
-    list_filter = ("status", "extracted_by", "company")
+    list_display = (
+        "work_name", "unit", "standard",
+        "status", "extracted_by", "data_scope", "company",
+    )
+    list_filter = ("status", "extracted_by", "data_scope", "company")
     search_fields = ("work_name", "work_code")
 
 
 @admin.register(OverheadRule)
 class OverheadRuleAdmin(SimpleHistoryAdmin):
-    list_display = ("category", "work_type_label", "standard", "status", "company")
-    list_filter = ("category", "status", "company")
-    search_fields = ("work_type_label",)
+    list_display = (
+        "cost_type", "work_category", "standard",
+        "status", "data_scope", "company",
+    )
+    list_filter = ("cost_type", "work_category", "status", "data_scope", "company")
+    search_fields = ("work_category",)
+
+
+@admin.register(WageFloor)
+class WageFloorAdmin(SimpleHistoryAdmin):
+    list_display = (
+        "municipality", "occupation_name", "hourly_floor",
+        "worker_type", "valid_from", "company",
+    )
+    list_filter = ("municipality", "worker_type", "company")
+    search_fields = ("municipality", "occupation_name")

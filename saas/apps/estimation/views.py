@@ -445,8 +445,8 @@ def labor_rate_import(request):
         form = LaborRateImportForm(request.POST, request.FILES)
         if form.is_valid():
             uploaded = request.FILES["file"]
-            fiscal_year = form.cleaned_data["fiscal_year"]
-            source_url = form.cleaned_data.get("source_url", "")
+            valid_from = form.cleaned_data["valid_from"]
+            fiscal_year_label = form.cleaned_data.get("fiscal_year_label", "")
 
             # 一時ファイルに保存して解析
             with tempfile.NamedTemporaryFile(
@@ -457,13 +457,13 @@ def labor_rate_import(request):
                 tmp_path = tmp.name
 
             try:
-                from apps.estimation.services.labor_import import import_labor_rates
+                from apps.estimation.services.labor_import import import_labor_rates_from_excel
 
-                result = import_labor_rates(
+                result = import_labor_rates_from_excel(
                     file_path=tmp_path,
-                    fiscal_year=fiscal_year,
+                    valid_from=valid_from,
                     company=request.user.company,
-                    source_url=source_url,
+                    fiscal_year_label=fiscal_year_label,
                 )
                 messages.success(
                     request,

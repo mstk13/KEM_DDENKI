@@ -1,19 +1,12 @@
-"""公共工事設計労務単価の Excel インポートサービス。
+"""社内整形済み Excel からの労務単価取込サービス。
 
-国交省が毎年3月に公表する「公共工事設計労務単価」の Excel ファイルを
-解析し、LaborRate テーブルに投入する。
+注意: 国土交通省は公共工事設計労務単価を **PDFのみ** で配布しており、
+公式Excelは存在しない。公式PDFからの取込は services/labor_pdf.py を使うこと。
 
-Excel の構造（国交省の標準的な形式）:
-- シートごとに職種が分かれている場合と、1シートに全職種がある場合がある
-- 行: 都道府県（47都道府県）
-- 列: 職種ごとの単価
-
-実際の Excel 構造はファイルによって異なるため、
-このモジュールは柔軟に対応できるよう設計する。
-ヘッダー行の自動検出と、都道府県名のマッチングで位置を特定する。
+このモジュールは、社内で手整形したExcel（神奈川県分など少数職種を
+先行投入する運用）の取込口として使う。
 """
 
-import hashlib
 from datetime import date
 from decimal import Decimal, InvalidOperation
 
@@ -37,7 +30,6 @@ PREFECTURES = [
 _PREF_LOOKUP = {}
 for p in PREFECTURES:
     _PREF_LOOKUP[p] = p
-    # "県"/"都"/"府"/"道" を除いた短縮形も対応
     if p.endswith(("県", "都", "府")):
         _PREF_LOOKUP[p[:-1]] = p
     elif p == "北海道":
@@ -64,22 +56,20 @@ def _is_number(value) -> bool:
 
 
 def _detect_header_row(ws):
-    """ヘッダー行（職種名が並んでいる行）を検出する。
-
-    都道府県名が最初に出現する行の1つ上をヘッダーとみなす。
-    """
+    """ヘッダー行（職種名が並んでいる行）を検出する。"""
     for row_idx, row in enumerate(ws.iter_rows(min_row=1, max_row=20, values_only=False), 1):
         for cell in row:
             if cell.value and _normalize_prefecture(str(cell.value)):
-                return row_idx - 1, cell.column - 1  # header_row, pref_col_idx
+                return row_idx - 1, cell.column - 1
     return None, None
 
 
-def parse_labor_rate_excel(file_path: str, fiscal_year: int) -> list[dict]:
-    """労務単価 Excel を解析し、レコードのリストを返す。
+def parse_labor_rate_excel(file_path: str) -> list[dict]:
+    """社内整形済み Excel を解析し、レコードのリストを返す。
 
     Returns:
         [{"prefecture": "神奈川県", "trade": "電工", "amount": 25600}, ...]
+        未設定職種（空セルや非数値セル）はスキップされる。
     """
     wb = openpyxl.load_workbook(file_path, read_only=True, data_only=True)
     records = []
@@ -89,25 +79,22 @@ def parse_labor_rate_excel(file_path: str, fiscal_year: int) -> list[dict]:
         if header_row_idx is None:
             continue
 
-        # ヘッダー行から職種名を取得
         header_row = list(ws.iter_rows(
             min_row=header_row_idx, max_row=header_row_idx, values_only=True,
         ))[0]
 
-        trades = {}  # col_idx -> trade_name
+        trades = {}
         for col_idx, cell_value in enumerate(header_row):
             if col_idx == pref_col_idx:
                 continue
             if cell_value and str(cell_value).strip():
                 trade_name = str(cell_value).strip()
-                # 明らかにヘッダーでないもの（番号等）を除外
                 if len(trade_name) >= 2 and not trade_name.isdigit():
                     trades[col_idx] = trade_name
 
         if not trades:
             continue
 
-        # データ行を読み取る
         for row in ws.iter_rows(min_row=header_row_idx + 1, values_only=True):
             if not row or pref_col_idx >= len(row):
                 continue
@@ -120,6 +107,7 @@ def parse_labor_rate_excel(file_path: str, fiscal_year: int) -> list[dict]:
                     continue
                 value = row[col_idx]
                 if not _is_number(value):
+                    # 未設定職種: スキップ（NULLとして扱う）
                     continue
                 amount = int(Decimal(str(value)))
                 if amount <= 0:
@@ -127,7 +115,6 @@ def parse_labor_rate_excel(file_path: str, fiscal_year: int) -> list[dict]:
                 records.append({
                     "prefecture": pref,
                     "trade": trade_name,
-                    "fiscal_year": fiscal_year,
                     "amount": amount,
                 })
 
@@ -135,23 +122,24 @@ def parse_labor_rate_excel(file_path: str, fiscal_year: int) -> list[dict]:
     return records
 
 
-def import_labor_rates(
+def import_labor_rates_from_excel(
     file_path: str,
-    fiscal_year: int,
+    valid_from,
     company,
-    source_url: str = "",
+    *,
+    source_label: str = "",
+    fiscal_year_label: str = "",
 ) -> dict:
-    """労務単価を Excel からインポートして LaborRate に投入する。
+    """社内整形済みExcelから労務単価を取り込む。
 
-    既存データがある場合は上書き（同一 company/prefecture/trade/fiscal_year）。
+    注意: 国土交通省はPDFのみ配布しており、公式Excelは存在しない。
+    公式PDFからの取込は services/labor_pdf.py を使うこと。
 
     Returns:
         {"created": int, "updated": int, "total": int, "batch_id": str}
     """
-    # バッチID生成（ファイル名+日時）
-    batch_id = f"labor_{fiscal_year}_{date.today().isoformat()}"
-
-    records = parse_labor_rate_excel(file_path, fiscal_year)
+    batch_id = f"excel_{valid_from}_{date.today().isoformat()}"
+    records = parse_labor_rate_excel(file_path)
 
     created = 0
     updated = 0
@@ -160,11 +148,13 @@ def import_labor_rates(
         _, was_created = LaborRate.unscoped.update_or_create(  # unscoped: company を明示指定
             company=company,
             prefecture=rec["prefecture"],
-            trade=rec["trade"],
-            fiscal_year=rec["fiscal_year"],
+            occupation_code="",
+            valid_from=valid_from,
             defaults={
-                "amount": Decimal(str(rec["amount"])),
-                "source_url": source_url,
+                "occupation_name": rec["trade"],
+                "unit_price": Decimal(str(rec["amount"])),
+                "fiscal_year_label": fiscal_year_label,
+                "status": "draft",
                 "import_batch": batch_id,
             },
         )
