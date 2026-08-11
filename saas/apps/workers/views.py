@@ -346,7 +346,8 @@ def evaluation_create(request):
         period = request.POST.get("period", "")
 
         # ステップ3: アンケート回答を保存
-        if worker_id and "total_score" in request.POST:
+        # 総合評点は廃止したため、必ず送信される総合コメント欄の有無で判定する
+        if worker_id and "total_comment" in request.POST:
             worker = get_object_or_404(Worker, pk=worker_id)
             responses = {}
             overall_responses = {}
