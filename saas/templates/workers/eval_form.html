@@ -206,40 +206,8 @@
   </div>
   <div class="eval-section-body">
 
-    {% if item.anchor_5 or item.anchor_3 or item.anchor_1 %}
-    <div class="anchor-box">
-      {% if item.anchor_5 %}
-      <div class="anchor-row">
-        <span class="anchor-label a5">5</span>
-        <span class="anchor-text">{{ item.anchor_5 }}</span>
-      </div>
-      {% endif %}
-      {% if item.anchor_3 %}
-      <div class="anchor-row">
-        <span class="anchor-label a3">3</span>
-        <span class="anchor-text">{{ item.anchor_3 }}</span>
-      </div>
-      {% endif %}
-      {% if item.anchor_1 %}
-      <div class="anchor-row">
-        <span class="anchor-label a1">1</span>
-        <span class="anchor-text">{{ item.anchor_1 }}</span>
-      </div>
-      {% endif %}
-    </div>
-    {% endif %}
-
-    <div style="margin-bottom:8px;">
-      <label style="font-size:.82rem;font-weight:600;color:var(--text-primary);display:block;margin-bottom:6px;">この項目の評価</label>
-      <div class="score-selector">
-        {% for s in scale %}
-        <label class="score-option">
-          <input type="radio" name="score_{{ item.section }}_{{ item.num }}" value="{{ s.value }}">
-          <span class="score-num">{{ s.value }}</span> {{ s.label }}
-        </label>
-        {% endfor %}
-      </div>
-    </div>
+    {# 5段階の行動基準（アンカー）と項目単位の5段階評価は廃止。
+       評価は設問ごとの「はい/いいえ」と自由記述で行う。 #}
 
     {% for q in item.questions %}
     <div class="question-item">

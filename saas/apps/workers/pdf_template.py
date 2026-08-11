@@ -118,33 +118,7 @@ def generate_template_pdf(template):
             num = item.get("num", "")
             elements.append(_p(f"{num}. {name}", STYLE_H3))
 
-            # アンカー（基準）
-            anchor_5 = item.get("anchor_5", "")
-            anchor_3 = item.get("anchor_3", "")
-            anchor_1 = item.get("anchor_1", "")
-            if anchor_5 or anchor_3 or anchor_1:
-                anchor_data = [[
-                    _p("評点", STYLE_LABEL),
-                    _p("行動基準", STYLE_LABEL),
-                ]]
-                if anchor_5:
-                    anchor_data.append([_p("5 (最高)", STYLE_SMALL), _p(anchor_5, STYLE_SMALL)])
-                if anchor_3:
-                    anchor_data.append([_p("3 (標準)", STYLE_SMALL), _p(anchor_3, STYLE_SMALL)])
-                if anchor_1:
-                    anchor_data.append([_p("1 (要改善)", STYLE_SMALL), _p(anchor_1, STYLE_SMALL)])
-                t = Table(anchor_data, colWidths=[60, None])
-                t.setStyle(TableStyle([
-                    ("FONTNAME", (0, 0), (-1, -1), _FONT),
-                    ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#e2e8f0")),
-                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#f0f4f8")),
-                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                    ("TOPPADDING", (0, 0), (-1, -1), 3),
-                    ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
-                    ("LEFTPADDING", (0, 0), (-1, -1), 6),
-                ]))
-                elements.append(t)
-                elements.append(Spacer(1, 4))
+            # 5段階の行動基準（アンカー）は廃止したため出力しない
 
             # 個別質問
             questions = item.get("questions", [])
@@ -759,42 +733,7 @@ def generate_evaluator_pdf(template, evaluator_name, targets_with_data, period="
                        STYLE_EVAL_ITEM)
                 )
 
-                # アンカー（基準）
-                anchor_5 = item.get("anchor_5", "")
-                anchor_3 = item.get("anchor_3", "")
-                anchor_1 = item.get("anchor_1", "")
-                if anchor_5 or anchor_3 or anchor_1:
-                    anchor_rows = [[
-                        _p("評点", STYLE_LABEL),
-                        _p("行動基準", STYLE_LABEL),
-                    ]]
-                    if anchor_5:
-                        anchor_rows.append([
-                            _p("5 (最高)", STYLE_EVAL_ANCHOR),
-                            _p(anchor_5, STYLE_EVAL_ANCHOR),
-                        ])
-                    if anchor_3:
-                        anchor_rows.append([
-                            _p("3 (標準)", STYLE_EVAL_ANCHOR),
-                            _p(anchor_3, STYLE_EVAL_ANCHOR),
-                        ])
-                    if anchor_1:
-                        anchor_rows.append([
-                            _p("1 (要改善)", STYLE_EVAL_ANCHOR),
-                            _p(anchor_1, STYLE_EVAL_ANCHOR),
-                        ])
-                    t = Table(anchor_rows, colWidths=[60, None])
-                    t.setStyle(TableStyle([
-                        ("FONTNAME", (0, 0), (-1, -1), _FONT),
-                        ("GRID", (0, 0), (-1, -1), 0.5, _GRID_COLOR),
-                        ("BACKGROUND", (0, 0), (-1, 0), _HEADER_BG),
-                        ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                        ("TOPPADDING", (0, 0), (-1, -1), 3),
-                        ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
-                        ("LEFTPADDING", (0, 0), (-1, -1), 6),
-                    ]))
-                    elements.append(t)
-                    elements.append(Spacer(1, 3))
+                # 5段階の行動基準（アンカー）は廃止したため出力しない
 
                 # 個別質問 + スコアボックス
                 questions = item.get("questions", [])
