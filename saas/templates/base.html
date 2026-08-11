@@ -103,6 +103,9 @@
       <div class="nav-group {% if 'estimation:' in request.resolver_match.view_name %}open{% endif %}">
         <button class="nav-section" type="button">積算<span class="nav-chevron"></span></button>
         <div class="nav-group-items">
+          <a href="{% url 'estimation:project_list' %}" class="{% if 'project' in request.resolver_match.url_name and 'estimation:' in request.resolver_match.view_name %}active{% endif %}">
+            <span class="nav-icon">&#x1f4c1;</span> 積算案件
+          </a>
           <a href="{% url 'estimation:item_list' %}" class="{% if 'item' in request.resolver_match.url_name and 'estimation:' in request.resolver_match.view_name %}active{% endif %}">
             <span class="nav-icon">&#x1f4d0;</span> 積算品目
           </a>
@@ -117,6 +120,9 @@
           </a>
           <a href="{% url 'estimation:standard_list' %}" class="{% if 'standard' in request.resolver_match.url_name and 'estimation:' in request.resolver_match.view_name %}active{% endif %}">
             <span class="nav-icon">&#x1f4d6;</span> 積算基準・歩掛
+          </a>
+          <a href="{% url 'estimation:purchase_list' %}" class="{% if 'purchase' in request.resolver_match.url_name and 'estimation:' in request.resolver_match.view_name %}active{% endif %}">
+            <span class="nav-icon">&#x1f4e6;</span> 仕入実績
           </a>
           <a href="{% url 'estimation:datasource_matrix' %}" class="{% if 'datasource' in request.resolver_match.url_name and 'estimation:' in request.resolver_match.view_name %}active{% endif %}">
             <span class="nav-icon">&#x1f4cb;</span> データソース一覧

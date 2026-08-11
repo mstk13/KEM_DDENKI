@@ -2,13 +2,17 @@ from django.contrib import admin
 from simple_history.admin import SimpleHistoryAdmin
 
 from apps.estimation.models import (
+    BoqLine,
+    CostComparison,
     EstimationItem,
+    EstimationProject,
     EstimationStandard,
     ItemAlias,
     LaborRate,
     Orderer,
     OrdererDataSource,
     OverheadRule,
+    PurchaseRecord,
     WageFloor,
     WorkRate,
 )
@@ -156,3 +160,47 @@ class WageFloorAdmin(SimpleHistoryAdmin):
     )
     list_filter = ("municipality", "worker_type", "company")
     search_fields = ("municipality", "occupation_name")
+
+
+# --- M3/M4 ---
+
+
+class BoqLineInline(admin.TabularInline):
+    model = BoqLine
+    extra = 0
+    fields = ("level", "sort_order", "name", "unit", "quantity", "unit_price", "amount")
+
+
+@admin.register(EstimationProject)
+class EstimationProjectAdmin(SimpleHistoryAdmin):
+    list_display = ("name", "orderer", "primary_work_category", "status", "company")
+    list_filter = ("status", "primary_work_category", "company")
+    search_fields = ("name", "orderer__name")
+    inlines = [BoqLineInline]
+
+
+@admin.register(BoqLine)
+class BoqLineAdmin(SimpleHistoryAdmin):
+    list_display = ("name", "level", "project", "unit", "quantity", "amount", "company")
+    list_filter = ("level", "company")
+    search_fields = ("name",)
+
+
+@admin.register(PurchaseRecord)
+class PurchaseRecordAdmin(SimpleHistoryAdmin):
+    list_display = (
+        "raw_name", "purchase_date", "quantity", "unit_price",
+        "supplier", "import_source", "data_scope", "company",
+    )
+    list_filter = ("import_source", "data_scope", "company")
+    search_fields = ("raw_name", "raw_code")
+
+
+@admin.register(CostComparison)
+class CostComparisonAdmin(SimpleHistoryAdmin):
+    list_display = (
+        "project", "estimation_item", "standard_price",
+        "own_price", "diff_amount", "diff_ratio", "company",
+    )
+    list_filter = ("company",)
+    search_fields = ("estimation_item__canonical_name",)

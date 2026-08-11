@@ -696,3 +696,282 @@ class WageFloor(TenantModel):
 
     def __str__(self):
         return f"{self.municipality} {self.occupation_name} {self.hourly_floor}円/h"
+
+
+# ===================================================================
+# M3: 積算案件・内訳書
+# ===================================================================
+
+
+class EstimationProject(TenantModel):
+    """積算案件。sites.Site のラッパーで積算固有の属性を持つ。
+
+    Site は施工管理の視点、EstimationProject は積算の視点。
+    落札前は Site が存在しない場合もある。
+    """
+
+    class Status(models.TextChoices):
+        PLANNING = "planning", "検討中"
+        ESTIMATING = "estimating", "積算中"
+        BID = "bid", "応札済"
+        WON = "won", "落札"
+        LOST = "lost", "失注"
+        SKIPPED = "skipped", "見送り"
+
+    class PrimaryWorkCategory(models.TextChoices):
+        BUILDING = "building", "建築工事"
+        ELECTRICAL = "electrical", "電気設備工事"
+        MECHANICAL = "mechanical", "機械設備工事"
+        ELEVATOR = "elevator", "昇降機設備工事"
+
+    name = models.CharField("案件名", max_length=200)
+    orderer = models.ForeignKey(
+        Orderer, on_delete=models.PROTECT,
+        related_name="estimation_projects", verbose_name="発注機関",
+    )
+    standard = models.ForeignKey(
+        EstimationStandard, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="projects",
+        verbose_name="適用積算基準",
+    )
+    site = models.ForeignKey(
+        "sites.Site", on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="estimation_projects",
+        verbose_name="現場",
+    )
+    bid_project = models.ForeignKey(
+        "bids.BidProject", on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="estimation_projects",
+        verbose_name="入札案件",
+    )
+    primary_work_category = models.CharField(
+        "主たる工事種別",
+        max_length=16,
+        choices=PrimaryWorkCategory.choices,
+        default=PrimaryWorkCategory.ELECTRICAL,
+    )
+    status = models.CharField(
+        "状態", max_length=20, choices=Status.choices, default=Status.PLANNING,
+    )
+    bid_announcement_date = models.DateField("入札公告日", null=True, blank=True)
+    bid_opening_date = models.DateField(
+        "開札予定日", null=True, blank=True,
+        help_text="現場管理費率算定のT（工期）の起点",
+    )
+    construction_period_days = models.IntegerField(
+        "工期（日）", null=True, blank=True,
+    )
+    bid_amount = models.DecimalField(
+        "応札額", max_digits=14, decimal_places=0, null=True, blank=True,
+    )
+    award_amount = models.DecimalField(
+        "落札額", max_digits=14, decimal_places=0, null=True, blank=True,
+    )
+    notes = models.TextField("備考", blank=True)
+
+    history = HistoricalRecords()
+
+    class Meta:
+        verbose_name = "積算案件"
+        verbose_name_plural = "積算案件"
+
+    def __str__(self):
+        return self.name
+
+
+class BoqLine(TenantModel):
+    """内訳書明細。公共建築工事内訳書標準書式の階層構造。
+
+    S5: 階層名は標準書式に準拠（種目別→科目別→中科目別→細目別）。
+    parent FK による自己参照ツリー。
+    """
+
+    class Level(models.TextChoices):
+        SHUMOKU = "shumoku", "種目別内訳書"
+        KAMOKU = "kamoku", "科目別内訳書"
+        CHUKAMOKU = "chukamoku", "中科目別内訳書"
+        SAIMOKU = "saimoku", "細目別内訳書"
+
+    project = models.ForeignKey(
+        EstimationProject, on_delete=models.CASCADE,
+        related_name="boq_lines", verbose_name="積算案件",
+    )
+    parent = models.ForeignKey(
+        "self", on_delete=models.CASCADE,
+        null=True, blank=True, related_name="children",
+        verbose_name="親明細",
+    )
+    level = models.CharField(
+        "階層", max_length=16, choices=Level.choices,
+    )
+    sort_order = models.IntegerField("表示順", default=0)
+    name = models.CharField("名称", max_length=200)
+    spec = models.CharField("仕様", max_length=300, blank=True)
+    unit = models.CharField("単位", max_length=50, blank=True)
+    quantity = models.DecimalField(
+        "数量", max_digits=14, decimal_places=3, null=True, blank=True,
+    )
+    unit_price = models.DecimalField(
+        "単価", max_digits=14, decimal_places=0, null=True, blank=True,
+    )
+    amount = models.DecimalField(
+        "金額", max_digits=14, decimal_places=0, null=True, blank=True,
+    )
+    estimation_item = models.ForeignKey(
+        EstimationItem, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="boq_lines",
+        verbose_name="積算品目",
+    )
+    work_rate = models.ForeignKey(
+        WorkRate, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="boq_lines",
+        verbose_name="歩掛",
+    )
+    remarks = models.TextField("備考", blank=True)
+
+    history = HistoricalRecords()
+
+    class Meta:
+        verbose_name = "内訳書明細"
+        verbose_name_plural = "内訳書明細"
+        ordering = ["project", "sort_order"]
+
+    def __str__(self):
+        return f"[{self.get_level_display()}] {self.name}"
+
+    def calc_amount(self):
+        """数量×単価で金額を計算する。"""
+        if self.quantity is not None and self.unit_price is not None:
+            self.amount = self.quantity * self.unit_price
+        return self.amount
+
+
+# ===================================================================
+# M4: 差分分析
+# ===================================================================
+
+
+class PurchaseRecord(DataScopeMixin, TenantModel):
+    """仕入実績。問屋の請求書・納品書から投入する。
+
+    raw_name と raw_code は必ず保持する。
+    名寄せは後から何度でもやり直せる必要がある。
+    """
+
+    class ImportSource(models.TextChoices):
+        MANUAL = "manual", "手入力"
+        CSV = "csv", "CSV"
+        OCR = "ocr", "OCR"
+        EDI = "edi", "EDI"
+
+    supplier = models.ForeignKey(
+        "masters.Supplier", on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="estimation_purchases",
+        verbose_name="仕入先",
+    )
+    estimation_item = models.ForeignKey(
+        EstimationItem, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="purchase_records",
+        verbose_name="積算品目（名寄せ後）",
+    )
+    raw_name = models.CharField(
+        "伝票上の表記", max_length=500,
+        help_text="必ず保持。名寄せは後からやり直せる必要がある",
+    )
+    raw_code = models.CharField("問屋品番", max_length=200, blank=True)
+    purchase_date = models.DateField("仕入日")
+    quantity = models.DecimalField("数量", max_digits=14, decimal_places=3)
+    unit = models.CharField("単位", max_length=50, blank=True)
+    unit_price = models.DecimalField(
+        "仕入単価（円）", max_digits=14, decimal_places=0,
+    )
+    amount = models.DecimalField(
+        "金額（円）", max_digits=14, decimal_places=0,
+        null=True, blank=True,
+    )
+    project = models.ForeignKey(
+        EstimationProject, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="purchase_records",
+        verbose_name="案件",
+    )
+    import_source = models.CharField(
+        "投入方法", max_length=10, choices=ImportSource.choices,
+        default=ImportSource.MANUAL,
+    )
+    import_batch = models.CharField("インポートバッチ", max_length=100, blank=True)
+    notes = models.TextField("備考", blank=True)
+
+    history = HistoricalRecords()
+
+    class Meta:
+        verbose_name = "仕入実績"
+        verbose_name_plural = "仕入実績"
+        indexes = [
+            models.Index(fields=["company", "purchase_date"]),
+            models.Index(fields=["company", "estimation_item"]),
+        ]
+
+    def __str__(self):
+        return f"{self.purchase_date} {self.raw_name} {self.unit_price}円"
+
+
+class CostComparison(TenantModel):
+    """差分分析。発注者基準単価 vs 自社仕入単価。
+
+    このシステムの最終出力。
+    「いくら安くできるか」ではなく「この案件の想定粗利」として設計。
+    """
+
+    project = models.ForeignKey(
+        EstimationProject, on_delete=models.CASCADE,
+        related_name="cost_comparisons", verbose_name="積算案件",
+    )
+    estimation_item = models.ForeignKey(
+        EstimationItem, on_delete=models.CASCADE,
+        related_name="cost_comparisons", verbose_name="積算品目",
+    )
+    quantity = models.DecimalField(
+        "数量", max_digits=14, decimal_places=3, null=True, blank=True,
+    )
+    standard_price = models.DecimalField(
+        "発注者基準単価（円）", max_digits=14, decimal_places=0,
+        null=True, blank=True,
+    )
+    own_price = models.DecimalField(
+        "自社仕入単価（円）", max_digits=14, decimal_places=0,
+        null=True, blank=True,
+    )
+    own_price_basis = models.CharField(
+        "算出根拠", max_length=200, blank=True,
+        help_text="例: 直近6件の中央値、○○電材見積",
+    )
+    diff_amount = models.DecimalField(
+        "差額（円）", max_digits=14, decimal_places=0,
+        null=True, blank=True,
+    )
+    diff_ratio = models.DecimalField(
+        "差率（%）", max_digits=7, decimal_places=2,
+        null=True, blank=True,
+    )
+    calculated_at = models.DateTimeField("算出日時", auto_now=True)
+    notes = models.TextField("備考", blank=True)
+
+    history = HistoricalRecords()
+
+    class Meta:
+        verbose_name = "差分分析"
+        verbose_name_plural = "差分分析"
+        unique_together = [("company", "project", "estimation_item")]
+
+    def __str__(self):
+        return f"{self.project.name} / {self.estimation_item.canonical_name}"
+
+    def calc_diff(self):
+        """差額・差率を計算する。"""
+        if self.standard_price and self.own_price:
+            self.diff_amount = self.standard_price - self.own_price
+            if self.standard_price > 0:
+                self.diff_ratio = (
+                    self.diff_amount * 100 / self.standard_price
+                )
+        return self

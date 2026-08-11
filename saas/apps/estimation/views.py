@@ -12,21 +12,29 @@ from django.urls import reverse
 from django.utils import timezone
 
 from apps.estimation.forms import (
+    BoqLineForm,
     EstimationItemForm,
+    EstimationProjectForm,
     EstimationStandardForm,
     ItemAliasReviewForm,
     LaborRateImportForm,
     OrdererDataSourceForm,
     OrdererForm,
+    PurchaseCSVImportForm,
+    PurchaseRecordForm,
     WorkRateForm,
 )
 from apps.estimation.models import (
+    BoqLine,
+    CostComparison,
     EstimationItem,
+    EstimationProject,
     EstimationStandard,
     ItemAlias,
     LaborRate,
     Orderer,
     OrdererDataSource,
+    PurchaseRecord,
     WorkRate,
 )
 from apps.estimation.services import approve_alias, reject_alias
@@ -599,4 +607,253 @@ def workrate_edit(request, pk):
         "standard": wr.standard,
         "is_new": False,
         "workrate": wr,
+    })
+
+
+# ---------------------------------------------------------------------------
+# M3: 積算案件
+# ---------------------------------------------------------------------------
+
+
+@login_required
+def project_list(request):
+    """積算案件の一覧。"""
+    projects = EstimationProject.objects.select_related(
+        "orderer", "standard",
+    ).order_by("-updated_at")
+
+    status = request.GET.get("status", "")
+    if status:
+        projects = projects.filter(status=status)
+
+    q = request.GET.get("q", "").strip()
+    if q:
+        projects = projects.filter(name__icontains=q)
+
+    return render(request, "estimation/project_list.html", {
+        "projects": projects,
+        "status": status,
+        "q": q,
+        "statuses": EstimationProject.Status.choices,
+    })
+
+
+@login_required
+def project_create(request):
+    """積算案件の新規作成。"""
+    if request.method == "POST":
+        form = EstimationProjectForm(request.POST, company=request.user.company)
+        if form.is_valid():
+            proj = form.save(commit=False)
+            proj.company = request.user.company
+            proj.created_by = request.user
+            proj.save()
+            return redirect("estimation:project_detail", pk=proj.pk)
+    else:
+        form = EstimationProjectForm(company=request.user.company)
+    return render(request, "estimation/project_form.html", {
+        "form": form, "is_new": True,
+    })
+
+
+@login_required
+def project_detail(request, pk):
+    """積算案件の詳細。内訳書・差分分析を含む。"""
+    proj = get_object_or_404(EstimationProject, pk=pk)
+    boq_lines = BoqLine.objects.filter(project=proj).order_by("sort_order")
+    comparisons = CostComparison.objects.filter(project=proj).select_related(
+        "estimation_item",
+    ).order_by("-diff_amount")
+
+    # 粗利サマリ
+    from decimal import Decimal
+    total_standard = sum(
+        (c.standard_price or 0) * (c.quantity or 1) for c in comparisons
+    )
+    total_own = sum(
+        (c.own_price or 0) * (c.quantity or 1) for c in comparisons
+    )
+    total_diff = total_standard - total_own if total_standard and total_own else Decimal("0")
+
+    return render(request, "estimation/project_detail.html", {
+        "project": proj,
+        "boq_lines": boq_lines,
+        "comparisons": comparisons,
+        "total_standard": total_standard,
+        "total_own": total_own,
+        "total_diff": total_diff,
+    })
+
+
+@login_required
+def project_edit(request, pk):
+    """積算案件の編集。"""
+    proj = get_object_or_404(EstimationProject, pk=pk)
+    if request.method == "POST":
+        form = EstimationProjectForm(
+            request.POST, instance=proj, company=request.user.company,
+        )
+        if form.is_valid():
+            form.save()
+            return redirect("estimation:project_detail", pk=proj.pk)
+    else:
+        form = EstimationProjectForm(instance=proj, company=request.user.company)
+    return render(request, "estimation/project_form.html", {
+        "form": form, "is_new": False, "project": proj,
+    })
+
+
+@login_required
+def boq_export(request, pk):
+    """内訳書 Excel ダウンロード。"""
+    from django.http import HttpResponse
+    from apps.estimation.services.boq_export import export_boq_to_excel
+
+    proj = get_object_or_404(EstimationProject, pk=pk)
+    excel_bytes = export_boq_to_excel(proj)
+    response = HttpResponse(
+        excel_bytes,
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+    response["Content-Disposition"] = f'attachment; filename="boq_{proj.pk}.xlsx"'
+    return response
+
+
+@login_required
+def boqline_create(request, project_pk):
+    """内訳書明細の追加。"""
+    proj = get_object_or_404(EstimationProject, pk=project_pk)
+    if request.method == "POST":
+        form = BoqLineForm(request.POST, company=request.user.company, project=proj)
+        if form.is_valid():
+            line = form.save(commit=False)
+            line.project = proj
+            line.company = request.user.company
+            line.created_by = request.user
+            line.calc_amount()
+            line.save()
+            return redirect("estimation:project_detail", pk=proj.pk)
+    else:
+        parent_pk = request.GET.get("parent")
+        initial = {}
+        if parent_pk:
+            initial["parent"] = parent_pk
+        form = BoqLineForm(
+            initial=initial, company=request.user.company, project=proj,
+        )
+    return render(request, "estimation/boqline_form.html", {
+        "form": form, "project": proj, "is_new": True,
+    })
+
+
+@login_required
+def boqline_edit(request, pk):
+    """内訳書明細の編集。"""
+    line = get_object_or_404(BoqLine, pk=pk)
+    if request.method == "POST":
+        form = BoqLineForm(
+            request.POST, instance=line,
+            company=request.user.company, project=line.project,
+        )
+        if form.is_valid():
+            line = form.save(commit=False)
+            line.calc_amount()
+            line.save()
+            return redirect("estimation:project_detail", pk=line.project.pk)
+    else:
+        form = BoqLineForm(
+            instance=line, company=request.user.company, project=line.project,
+        )
+    return render(request, "estimation/boqline_form.html", {
+        "form": form, "project": line.project, "is_new": False, "line": line,
+    })
+
+
+# ---------------------------------------------------------------------------
+# M4: 差分分析
+# ---------------------------------------------------------------------------
+
+
+@login_required
+def generate_comparison(request, pk):
+    """差分分析を生成する。"""
+    from apps.estimation.services.comparison import generate_comparisons
+
+    proj = get_object_or_404(EstimationProject, pk=pk)
+    if request.method == "POST":
+        result = generate_comparisons(proj)
+        messages.success(
+            request,
+            f"差分分析完了: {result['created']}件作成, "
+            f"{result['updated']}件更新, 差額合計 {result['total_diff']:,.0f}円",
+        )
+    return redirect("estimation:project_detail", pk=proj.pk)
+
+
+@login_required
+def purchase_list(request):
+    """仕入実績の一覧。"""
+    records = PurchaseRecord.objects.select_related(
+        "estimation_item", "supplier",
+    ).order_by("-purchase_date")
+
+    q = request.GET.get("q", "").strip()
+    if q:
+        records = records.filter(raw_name__icontains=q)
+
+    return render(request, "estimation/purchase_list.html", {
+        "records": records[:500], "q": q,
+    })
+
+
+@login_required
+def purchase_create(request):
+    """仕入実績の手入力。"""
+    if request.method == "POST":
+        form = PurchaseRecordForm(request.POST, company=request.user.company)
+        if form.is_valid():
+            rec = form.save(commit=False)
+            rec.company = request.user.company
+            rec.created_by = request.user
+            rec.import_source = PurchaseRecord.ImportSource.MANUAL
+            rec.data_scope = "tenant"
+            rec.save()
+            return redirect("estimation:purchase_list")
+    else:
+        form = PurchaseRecordForm(company=request.user.company)
+    return render(request, "estimation/purchase_form.html", {
+        "form": form, "is_new": True,
+    })
+
+
+@login_required
+def purchase_csv_import(request):
+    """仕入実績 CSV インポート。"""
+    if request.method == "POST":
+        form = PurchaseCSVImportForm(request.POST, request.FILES)
+        if form.is_valid():
+            uploaded = request.FILES["file"]
+            content = uploaded.read().decode("utf-8-sig")
+            auto_match = form.cleaned_data.get("auto_match", True)
+
+            try:
+                from apps.estimation.services.purchase_import import import_purchase_records
+
+                result = import_purchase_records(
+                    file_content=content,
+                    company=request.user.company,
+                    auto_match=auto_match,
+                )
+                messages.success(
+                    request,
+                    f"インポート完了: {result['created']}件作成, "
+                    f"{result['matched']}件名寄せ成功",
+                )
+                return redirect("estimation:purchase_list")
+            except Exception as e:
+                messages.error(request, f"インポートエラー: {e}")
+    else:
+        form = PurchaseCSVImportForm()
+    return render(request, "estimation/purchase_csv_import.html", {
+        "form": form,
     })

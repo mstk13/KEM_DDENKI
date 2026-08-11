@@ -34,4 +34,17 @@ urlpatterns = [
     # M2: 歩掛
     path("standards/<int:standard_pk>/workrates/new/", views.workrate_create, name="workrate_create"),
     path("workrates/<int:pk>/edit/", views.workrate_edit, name="workrate_edit"),
+    # M3: 積算案件・内訳書
+    path("projects/", views.project_list, name="project_list"),
+    path("projects/new/", views.project_create, name="project_create"),
+    path("projects/<int:pk>/", views.project_detail, name="project_detail"),
+    path("projects/<int:pk>/edit/", views.project_edit, name="project_edit"),
+    path("projects/<int:pk>/boq-export/", views.boq_export, name="boq_export"),
+    path("projects/<int:project_pk>/boqlines/new/", views.boqline_create, name="boqline_create"),
+    path("boqlines/<int:pk>/edit/", views.boqline_edit, name="boqline_edit"),
+    # M4: 差分分析・仕入実績
+    path("projects/<int:pk>/compare/", views.generate_comparison, name="generate_comparison"),
+    path("purchases/", views.purchase_list, name="purchase_list"),
+    path("purchases/new/", views.purchase_create, name="purchase_create"),
+    path("purchases/csv-import/", views.purchase_csv_import, name="purchase_csv_import"),
 ]

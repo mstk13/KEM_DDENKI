@@ -3,11 +3,14 @@
 from django import forms
 
 from apps.estimation.models import (
+    BoqLine,
     EstimationItem,
+    EstimationProject,
     EstimationStandard,
     ItemAlias,
     Orderer,
     OrdererDataSource,
+    PurchaseRecord,
     WorkRate,
 )
 
@@ -222,3 +225,113 @@ class WorkRateForm(forms.ModelForm):
         for name, field in self.fields.items():
             if not isinstance(field.widget, forms.Textarea):
                 field.widget.attrs.setdefault("class", "form-control")
+
+
+# ===================================================================
+# M3: 積算案件・内訳書
+# ===================================================================
+
+
+class EstimationProjectForm(forms.ModelForm):
+    class Meta:
+        model = EstimationProject
+        fields = [
+            "name", "orderer", "standard", "site", "bid_project",
+            "primary_work_category", "status",
+            "bid_announcement_date", "bid_opening_date",
+            "construction_period_days", "bid_amount", "award_amount", "notes",
+        ]
+        widgets = {
+            "notes": forms.Textarea(attrs={"class": "form-control", "rows": 3}),
+            "bid_announcement_date": forms.DateInput(attrs={"class": "form-control", "type": "date"}),
+            "bid_opening_date": forms.DateInput(attrs={"class": "form-control", "type": "date"}),
+        }
+
+    def __init__(self, *args, company=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        if company:
+            from apps.bids.models import BidProject
+            from apps.sites.models import Site
+
+            # unscoped: フォーム初期化時に会社を明示フィルタするため
+            self.fields["orderer"].queryset = Orderer.unscoped.filter(company=company, is_active=True)
+            self.fields["standard"].queryset = EstimationStandard.unscoped.filter(company=company)
+            self.fields["site"].queryset = Site.unscoped.filter(company=company)
+            self.fields["bid_project"].queryset = BidProject.unscoped.filter(company=company)
+        for name, field in self.fields.items():
+            if not isinstance(field.widget, forms.Textarea):
+                field.widget.attrs.setdefault("class", "form-control")
+
+
+class BoqLineForm(forms.ModelForm):
+    class Meta:
+        model = BoqLine
+        fields = [
+            "level", "sort_order", "name", "spec", "unit",
+            "quantity", "unit_price", "amount",
+            "estimation_item", "work_rate", "remarks",
+        ]
+        widgets = {
+            "remarks": forms.Textarea(attrs={"class": "form-control", "rows": 2}),
+        }
+
+    def __init__(self, *args, company=None, project=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        if company:
+            # unscoped: フォーム初期化時に会社を明示フィルタするため
+            self.fields["estimation_item"].queryset = EstimationItem.unscoped.filter(
+                company=company, is_active=True,
+            )
+        if project:
+            self.fields["work_rate"].queryset = WorkRate.unscoped.filter(
+                company=project.company, standard=project.standard,
+            ) if project.standard else WorkRate.objects.none()
+        for name, field in self.fields.items():
+            if not isinstance(field.widget, forms.Textarea):
+                field.widget.attrs.setdefault("class", "form-control")
+
+
+# ===================================================================
+# M4: 仕入実績
+# ===================================================================
+
+
+class PurchaseRecordForm(forms.ModelForm):
+    class Meta:
+        model = PurchaseRecord
+        fields = [
+            "raw_name", "raw_code", "purchase_date", "quantity",
+            "unit", "unit_price", "amount", "supplier", "notes",
+        ]
+        widgets = {
+            "purchase_date": forms.DateInput(attrs={"class": "form-control", "type": "date"}),
+            "notes": forms.Textarea(attrs={"class": "form-control", "rows": 2}),
+        }
+
+    def __init__(self, *args, company=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        if company:
+            from apps.masters.models import Supplier
+
+            # unscoped: フォーム初期化時に会社を明示フィルタするため
+            self.fields["supplier"].queryset = Supplier.unscoped.filter(
+                company=company, is_active=True,
+            )
+        for name, field in self.fields.items():
+            if not isinstance(field.widget, forms.Textarea):
+                field.widget.attrs.setdefault("class", "form-control")
+
+
+class PurchaseCSVImportForm(forms.Form):
+    """仕入実績 CSV インポートフォーム。"""
+
+    file = forms.FileField(
+        label="CSVファイル",
+        help_text="ヘッダー: 仕入日,品名,品番,数量,単位,単価,金額,仕入先名,備考",
+        widget=forms.FileInput(attrs={"class": "form-control", "accept": ".csv"}),
+    )
+    auto_match = forms.BooleanField(
+        label="名寄せを同時実行",
+        required=False,
+        initial=True,
+    )

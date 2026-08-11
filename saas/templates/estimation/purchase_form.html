@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}仕入実績を登録 — {{ APP_NAME }}{% endblock %}
+{% block topbar_title %}仕入実績{% endblock %}
+
+{% block content %}
+<div class="page-header"><h1>仕入実績を登録</h1></div>
+<div class="card"><div class="card-body">
+  <form method="post">{% csrf_token %}
+    <div class="form-group"><label>品名（伝票上の表記）</label>{{ form.raw_name }}{{ form.raw_name.errors }}</div>
+    <div class="form-row">
+      <div class="form-group"><label>品番</label>{{ form.raw_code }}{{ form.raw_code.errors }}</div>
+      <div class="form-group"><label>仕入日</label>{{ form.purchase_date }}{{ form.purchase_date.errors }}</div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>数量</label>{{ form.quantity }}{{ form.quantity.errors }}</div>
+      <div class="form-group"><label>単位</label>{{ form.unit }}{{ form.unit.errors }}</div>
+      <div class="form-group"><label>単価</label>{{ form.unit_price }}{{ form.unit_price.errors }}</div>
+      <div class="form-group"><label>金額</label>{{ form.amount }}{{ form.amount.errors }}</div>
+    </div>
+    <div class="form-group"><label>仕入先</label>{{ form.supplier }}{{ form.supplier.errors }}</div>
+    <div class="form-group"><label>備考</label>{{ form.notes }}{{ form.notes.errors }}</div>
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">保存</button>
+      <a href="{% url 'estimation:purchase_list' %}" class="btn btn-outline">キャンセル</a>
+    </div>
+  </form>
+</div></div>
+{% endblock %}
