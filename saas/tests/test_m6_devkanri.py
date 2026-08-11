@@ -124,7 +124,7 @@ class TestProjectGanttData:
         )
         start, end, inferred = resolve_project_period(project, [])
         assert start == project.created_at.date()
-        # 0日幅のバーは描画されないので最低限の幅を持たせる
+        # 1日の点にせず、期間が分かっていないことが見て取れる幅を持たせる
         assert end > start
         assert inferred is True
 

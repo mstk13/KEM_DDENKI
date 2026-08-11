@@ -13,8 +13,9 @@ from django.urls import reverse
 
 logger = logging.getLogger(__name__)
 
-# 日付が何も分からないプロジェクトのバーの長さ（日）。
-# 0日だと frappe-gantt が描画しないため、最低限の幅を与える。
+# 日付の材料が何も無いプロジェクトのバーの長さ（日）。
+# frappe-gantt は終了日に時刻が無いと24時間を足すので0日でも描画自体はされるが、
+# 1日の点では「いつからいつまでか分かっていない」ことが伝わらないため幅を持たせる。
 DEFAULT_SPAN_DAYS = 7
 
 DONE_STATUSES = ("done", "closed")
