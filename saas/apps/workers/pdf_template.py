@@ -18,6 +18,8 @@ from reportlab.platypus import (
     TableStyle,
 )
 
+from apps.workers.eval_data import QUESTION_SCALE
+
 # 日本語フォント登録
 pdfmetrics.registerFont(UnicodeCIDFont("HeiseiKakuGo-W5"))
 _FONT = "HeiseiKakuGo-W5"
@@ -612,6 +614,23 @@ def _score_boxes_table(max_value=5):
     return t
 
 
+def _choice_boxes_table(labels):
+    """任意のラベルの空ボックス行を返す（設問の「はい/いいえ」用）。"""
+    cells = [Paragraph(str(label), STYLE_EVAL_SCORE_NUM) for label in labels]
+    t = Table([cells], colWidths=[48] * len(cells), rowHeights=[22])
+    t.setStyle(TableStyle([
+        ("FONTNAME", (0, 0), (-1, -1), _FONT),
+        ("BOX", (0, 0), (-1, -1), 1, _SCORE_BOX_BORDER),
+        ("INNERGRID", (0, 0), (-1, -1), 0.8, _SCORE_BOX_BORDER),
+        ("BACKGROUND", (0, 0), (-1, -1), _SCORE_BOX_BG),
+        ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("TOPPADDING", (0, 0), (-1, -1), 2),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
+    ]))
+    return t
+
+
 def _writein_area(num_lines=3, width=None):
     """空の罫線付き記入エリアを返す。"""
     if width is None:
@@ -706,12 +725,7 @@ def generate_evaluator_pdf(template, evaluator_name, targets_with_data, period="
         worker_name = target.get("worker_name", "")
         job_title = target.get("job_title", "")
         survey_items = target.get("survey_items") or []
-        scale = target.get("scale") or legend_scale or []
         overall = target.get("overall") or []
-
-        max_scale_value = max(
-            (int(s.get("value", 5)) for s in scale), default=5
-        )
 
         # 対象者ヘッダー
         elements.append(
@@ -792,7 +806,10 @@ def generate_evaluator_pdf(template, evaluator_name, targets_with_data, period="
                         _p(f"Q{qnum}. {qtext}", STYLE_EVAL_Q)
                     )
                     elements.append(Spacer(1, 2))
-                    elements.append(_score_boxes_table(max_scale_value))
+                    # 設問は「はい/いいえ」の2択。項目全体・総合は5段階のまま。
+                    elements.append(
+                        _choice_boxes_table([s["label"] for s in QUESTION_SCALE])
+                    )
                     elements.append(Spacer(1, 4))
 
                 # 自由記述エリア

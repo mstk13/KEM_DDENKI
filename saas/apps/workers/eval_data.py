@@ -12,6 +12,14 @@ from pathlib import Path
 
 _DATA_DIR = Path(__file__).resolve().parent.parent.parent / "static" / "data"
 
+# 設問1問ごとの回答は「はい/いいえ」の2択。
+# 項目全体の評価と総合評点は従来どおり scale（5段階）を使うため、
+# こちらはテナントのテンプレートに関わらず固定とする。
+QUESTION_SCALE = [
+    {"value": 1, "label": "はい"},
+    {"value": 0, "label": "いいえ"},
+]
+
 
 def _load_json(filename):
     with open(_DATA_DIR / filename, encoding="utf-8") as f:
@@ -79,6 +87,7 @@ def get_sections_for_worker(worker, company=None):
         "items": items,
         "survey_items": survey_items,
         "scale": scale,
+        "question_scale": QUESTION_SCALE,
         "overall": overall,
         "sections": applicable_sections,
         "template": template,
