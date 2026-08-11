@@ -202,7 +202,7 @@
       <span class="badge badge-{% if item.section == '共通' %}gray{% elif item.section == '電工' %}blue{% elif item.section == '事務' %}green{% else %}orange{% endif %}">{{ item.section }}</span>
       {{ item.name }}
     </h2>
-    <span class="points">{{ item.max_score }}点</span>
+    {# 項目単位の5段階評価を廃止したため、配点表示はしない #}
   </div>
   <div class="eval-section-body">
 
