@@ -140,15 +140,18 @@
     gap: 4px;
     margin-left: 46px;
   }
+  /* 「はい」「いいえ」が入るよう幅は固定せず、文字数に合わせて広がるようにする */
   .q-score-option {
     cursor: pointer;
-    width: 36px; height: 30px;
+    min-width: 64px; height: 32px;
+    padding: 0 14px;
     border: 1.5px solid var(--border);
     border-radius: 6px;
     display: flex; align-items: center; justify-content: center;
-    font-size: .78rem; font-weight: 600; color: var(--text-muted);
+    font-size: .85rem; font-weight: 600; color: var(--text-muted);
     transition: var(--transition);
     background: var(--white);
+    white-space: nowrap;
   }
   .q-score-option:hover { border-color: var(--accent); color: var(--accent); }
   .q-score-option input[type=radio] { display: none; }
@@ -245,10 +248,10 @@
         <span>{{ q.text }}</span>
       </div>
       <div class="question-scores">
-        {% for s in scale %}
+        {% for s in question_scale %}
         <label class="q-score-option">
           <input type="radio" name="q_{{ item.section }}_{{ q.qnum }}" value="{{ s.value }}">
-          {{ s.value }}
+          {{ s.label }}
         </label>
         {% endfor %}
       </div>

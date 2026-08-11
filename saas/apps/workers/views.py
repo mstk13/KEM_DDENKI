@@ -399,6 +399,7 @@ def evaluation_create(request):
                 "period": period,
                 "survey_items": eval_items,
                 "scale": data["scale"],
+                "question_scale": data["question_scale"],
                 "overall": data["overall"],
                 "sections": data["sections"],
             })
@@ -730,6 +731,7 @@ def eval_survey_pdf(request):
                 "job_title": str(w.job_title) if w.job_title else "-",
                 "survey_items": eval_items,
                 "scale": data["scale"],
+                "question_scale": data["question_scale"],
                 "overall": data["overall"],
             })
         pdf_bytes = generate_evaluator_pdf(
@@ -820,6 +822,7 @@ def evaluation_edit(request, pk):
         "worker": worker,
         "survey_items": eval_items,
         "scale": data["scale"],
+        "question_scale": data["question_scale"],
         "overall": overall_with_saved,
         "sections": data["sections"],
     })
