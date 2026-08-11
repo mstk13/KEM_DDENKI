@@ -51,6 +51,26 @@ def get_sections_for_worker(worker, company=None):
     テナントにテンプレートがあればそれを使い、なければ JSON フォールバック。
     """
     company = company or worker.company
+    job_name = str(worker.job_title) if worker.job_title else ""
+    return get_sections_for_role(job_name, company)
+
+
+def get_available_roles(company):
+    """評価シートを作成できる職種名の一覧を返す（共通を除く）。"""
+    template = get_template_for_company(company)
+    items = template.survey_items if template else _fallback_survey()["items"]
+    sections = {i.get("section") for i in items if i.get("section") != "共通"}
+    # 表示順は固定（一覧に無いものは末尾へ）
+    order = ["電工", "事務", "役員", "社長"]
+    return sorted(sections, key=lambda s: (order.index(s) if s in order else 99, s))
+
+
+def get_sections_for_role(job_name, company):
+    """職種名に基づき、該当する評価データを返す。
+
+    特定の作業員に紐づかない「役職別の白紙シート」でも使えるよう、
+    Worker ではなく職種名を受け取る。
+    """
     template = get_template_for_company(company)
 
     if template:
@@ -64,8 +84,6 @@ def get_sections_for_worker(worker, company=None):
         survey_data_items = survey["items"]
         scale = survey["scale"]
         overall = survey["overall"]
-
-    job_name = str(worker.job_title) if worker.job_title else ""
 
     # 該当セクション判定
     applicable_sections = ["共通"]
