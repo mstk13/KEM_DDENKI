@@ -94,6 +94,9 @@
           <a href="{% url 'bids:unit_price_list' %}" class="{% if 'unit_price' in request.resolver_match.url_name and 'bids:' in request.resolver_match.view_name %}active{% endif %}">
             <span class="nav-icon">&#x1f4b4;</span> 単価マスタ
           </a>
+          <a href="{% url 'bids:scrape_target_list' %}" class="{% if 'scrape_target' in request.resolver_match.url_name and 'bids:' in request.resolver_match.view_name %}active{% endif %}">
+            <span class="nav-icon">&#x1f310;</span> 案件取得
+          </a>
         </div>
       </div>
 

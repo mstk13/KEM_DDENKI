@@ -1,6 +1,6 @@
 from django import forms
 
-from apps.bids.models import BidCompetitor, BidCost, BidProject, Qualification, UnitPrice
+from apps.bids.models import BidCompetitor, BidCost, BidProject, Qualification, ScrapeTarget, UnitPrice
 
 
 class BidProjectForm(forms.ModelForm):
@@ -70,6 +70,21 @@ class QualificationForm(forms.ModelForm):
         for _name, field in self.fields.items():
             plain_widgets = (forms.Textarea, forms.DateInput, forms.CheckboxInput)
             if not isinstance(field.widget, plain_widgets):
+                field.widget.attrs.setdefault("class", "form-control")
+
+
+class ScrapeTargetForm(forms.ModelForm):
+    class Meta:
+        model = ScrapeTarget
+        fields = [
+            "name", "keyword", "region", "prefecture",
+            "category", "days_back", "is_active",
+        ]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for _name, field in self.fields.items():
+            if not isinstance(field.widget, forms.CheckboxInput):
                 field.widget.attrs.setdefault("class", "form-control")
 
 

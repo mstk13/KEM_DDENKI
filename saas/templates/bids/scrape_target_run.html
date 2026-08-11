@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}スクレイピング結果 — {{ target.name }}{% endblock %}
+{% block topbar_title %}入札管理{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>スクレイピング結果: {{ target.name }}</h1>
+</div>
+
+{% if error_msg %}
+<div class="card" style="margin-bottom:20px;border-left:4px solid #e74c3c;">
+  <div class="card-body">
+    <strong>エラーが発生しました:</strong> {{ error_msg }}
+    <p style="margin-top:10px;">Playwright がインストールされていない可能性があります。<br>
+    <code>pip install playwright && playwright install chromium</code> を実行してください。</p>
+  </div>
+</div>
+{% endif %}
+
+{% if records %}
+<div class="card" style="margin-bottom:20px;">
+  <div class="card-body">
+    <strong>{{ count }} 件</strong>の案件が見つかりました。インポートする場合は下のボタンを押してください。
+  </div>
+</div>
+
+<div class="card">
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>案件名</th>
+          <th>発注者</th>
+          <th>地域</th>
+          <th>工事種別</th>
+          <th>入札期限</th>
+          <th>予定価格</th>
+          <th>URL</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in records %}
+        <tr>
+          <td>{{ r.title|truncatechars:60 }}</td>
+          <td>{{ r.client|default:"-" }}</td>
+          <td>{{ r.region|default:"-" }}</td>
+          <td>{{ r.category|default:"-" }}</td>
+          <td>{{ r.deadline|default:"-" }}</td>
+          <td>{% if r.budget %}{{ r.budget|floatformat:0 }} 円{% else %}-{% endif %}</td>
+          <td>{% if r.source_url %}<a href="{{ r.source_url }}" target="_blank" rel="noopener">詳細</a>{% else %}-{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div style="margin-top:20px;">
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="records_json" value="{{ records_json }}">
+    <input type="hidden" name="confirm_import" value="1">
+    <button type="submit" class="btn btn-primary">全件インポート</button>
+    <a href="{% url 'bids:scrape_target_list' %}" class="btn btn-outline">戻る</a>
+  </form>
+</div>
+{% elif not error_msg %}
+<div class="card">
+  <div class="card-body">
+    <div class="empty">
+      <p>検索条件に一致する案件が見つかりませんでした。</p>
+    </div>
+  </div>
+</div>
+<a href="{% url 'bids:scrape_target_list' %}" class="btn btn-outline" style="margin-top:10px;">戻る</a>
+{% else %}
+<a href="{% url 'bids:scrape_target_list' %}" class="btn btn-outline" style="margin-top:10px;">戻る</a>
+{% endif %}
+{% endblock %}

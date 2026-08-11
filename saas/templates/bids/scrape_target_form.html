@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}スクレイピング対象{% if object %}編集{% else %}登録{% endif %} — 建設SaaS{% endblock %}
+{% block topbar_title %}入札管理{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>スクレイピング対象 {% if object %}編集{% else %}登録{% endif %}</h1>
+</div>
+
+<div class="card">
+  <div class="card-body">
+    <form method="post">
+      {% csrf_token %}
+      {% for field in form %}
+      <div class="form-group">
+        <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+        {{ field }}
+        {% if field.help_text %}<small class="form-text">{{ field.help_text }}</small>{% endif %}
+        {% for error in field.errors %}<div class="text-danger">{{ error }}</div>{% endfor %}
+      </div>
+      {% endfor %}
+      <div style="margin-top:20px;">
+        <button type="submit" class="btn btn-primary">保存</button>
+        <a href="{% url 'bids:scrape_target_list' %}" class="btn btn-outline">戻る</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
