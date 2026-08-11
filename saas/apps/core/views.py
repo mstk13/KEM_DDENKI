@@ -57,7 +57,7 @@ def audit_log(request):
     else:
         target_models = historical_models
 
-    for label, info in target_models.items():
+    for info in target_models.values():
         qs = info["model"].objects.all()
 
         # テナント分離: company フィールドがある場合

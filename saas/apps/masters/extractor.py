@@ -63,8 +63,8 @@ def extract_from_file(file_path, company=None, user=None):
     Returns:
         list[dict]: 抽出された取引先情報のリスト。
     """
-    from apps.ai.services.llm_advisor import call_claude_with_log
     from apps.ai.models import AILog
+    from apps.ai.services.llm_advisor import call_claude_with_log
 
     media_type = _get_media_type(file_path)
     data = _encode_image(file_path)

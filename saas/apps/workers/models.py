@@ -1,5 +1,7 @@
 from django.conf import settings
 from django.db import models
+from django.db.models.signals import post_save
+from django.dispatch import receiver
 from simple_history.models import HistoricalRecords
 
 from apps.core.models import TenantModel
@@ -313,9 +315,6 @@ class WorkerEvaluation(TenantModel):
 
 
 # ---- シグナル: 書類添付時にアラート履歴をクリア ----
-
-from django.db.models.signals import post_save
-from django.dispatch import receiver
 
 
 @receiver(post_save, sender=WorkerQualification)

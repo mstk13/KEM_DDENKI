@@ -157,7 +157,10 @@ def setup_pin(request):
             worker.pin = _hash_pin(pin1)
             worker.pin_set = True
             worker.save(update_fields=["pin", "pin_set"])
-            messages.success(request, "暗証番号を設定しました。次回から社員番号と暗証番号でログインしてください。")
+            messages.success(
+                request,
+                "暗証番号を設定しました。次回から社員番号と暗証番号でログインしてください。",
+            )
             return redirect("dashboard")
 
     return render(request, "registration/setup_pin.html", {

@@ -114,6 +114,7 @@ def ai_dashboard(request):
 def cost_report(request):
     """APIコスト詳細レポート。タスク別・モデル別・日別・ユーザー別のグラフ付き。"""
     import json as json_mod
+
     from apps.ai.services.cost_monitor import get_monthly_cost_jpy, get_monthly_cost_report
 
     budget_summary = get_monthly_cost_jpy(request.user.company)
@@ -381,7 +382,10 @@ def schedule_suggestion(request, site_id):
                 request.user.company, site, "schedule_suggest",
                 request.POST.get("model", "haiku"), request.user,
             )
-            messages.success(request, f"バッチ処理を予約しました（{batch.scheduled_for:%m/%d %H:%M} 実行予定）。")
+            messages.success(
+                request,
+                f"バッチ処理を予約しました（{batch.scheduled_for:%m/%d %H:%M} 実行予定）。",
+            )
             return redirect("ai:batch_list")
 
         if not available:
@@ -437,7 +441,10 @@ def schedule_risk(request, site_id):
                 request.user.company, site, "schedule_risk",
                 request.POST.get("model", "haiku"), request.user,
             )
-            messages.success(request, f"バッチ処理を予約しました（{batch.scheduled_for:%m/%d %H:%M} 実行予定）。")
+            messages.success(
+                request,
+                f"バッチ処理を予約しました（{batch.scheduled_for:%m/%d %H:%M} 実行予定）。",
+            )
             return redirect("ai:batch_list")
 
         if not available:

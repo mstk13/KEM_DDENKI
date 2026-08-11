@@ -53,7 +53,7 @@ def create_batch_request(company, site, task_type, model_key, user):
     Notification.unscoped.create(
         company=company,
         recipient=user,
-        title=f"AI分析をバッチ予約しました",
+        title="AI分析をバッチ予約しました",
         body=(
             f"{site.name} の{batch.get_task_type_display()}を "
             f"{scheduled:%m/%d %H:%M} に実行予定です。"
