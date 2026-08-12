@@ -4,8 +4,12 @@
 
 {% block content %}
 <div class="page-header">
-  <h1>PO-{{ po.pk }} {{ po.site.name }}</h1>
-  <span class="badge badge-gray">{{ po.get_status_display }}</span>
+  <h1>PO-{{ po.pk|stringformat:"05d" }} {{ po.site.name }}</h1>
+  <div style="display:flex;gap:8px;align-items:center;">
+    <span class="badge badge-gray">{{ po.get_status_display }}</span>
+    <a href="{% url 'materials:po_excel_order' po.pk %}" class="btn btn-primary btn-sm">発注書 Excel</a>
+    <a href="{% url 'materials:po_excel_acceptance' po.pk %}" class="btn btn-outline btn-sm">発注請書 Excel</a>
+  </div>
 </div>
 
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
@@ -14,9 +18,13 @@
     <div style="padding:16px;">
       <table style="width:100%;">
         <tr><th style="text-align:left;width:30%;">仕入先</th><td>{{ po.supplier }}</td></tr>
+        <tr><th style="text-align:left;">件名</th><td>{{ po.subject|default:"—" }}</td></tr>
         <tr><th style="text-align:left;">発注日</th><td>{{ po.order_date }}</td></tr>
+        <tr><th style="text-align:left;">納期</th><td>{{ po.delivery_date|default:"—" }}</td></tr>
+        <tr><th style="text-align:left;">支払条件</th><td>{{ po.payment_terms|default:"—" }}</td></tr>
         <tr><th style="text-align:left;">発注者</th><td>{{ po.ordered_by|default:"—" }}</td></tr>
         <tr><th style="text-align:left;">合計金額</th><td style="font-weight:600;">¥{{ po.total_amount|floatformat:0 }}</td></tr>
+        {% if po.notes %}<tr><th style="text-align:left;">特記事項</th><td>{{ po.notes }}</td></tr>{% endif %}
         {% if po.file %}<tr><th style="text-align:left;">発注書</th><td><a href="{{ po.file.url }}" target="_blank">ダウンロード</a></td></tr>{% endif %}
       </table>
     </div>
@@ -74,14 +82,16 @@
   <div class="card-header"><h2>発注明細</h2></div>
   <div class="table-wrap">
     <table>
-      <thead><tr><th>材料</th><th>工種</th><th style="text-align:right;">数量</th><th style="text-align:right;">単価</th><th style="text-align:right;">金額</th><th></th></tr></thead>
+      <thead><tr><th>摘要</th><th>工種</th><th style="text-align:right;">数量</th><th>単位</th><th style="text-align:right;">単価</th><th style="text-align:right;">税率</th><th style="text-align:right;">金額</th><th></th></tr></thead>
       <tbody>
         {% for item in items %}
         <tr>
-          <td>{{ item.material }}</td>
-          <td>{{ item.work_type }}</td>
+          <td>{{ item.display_name }}</td>
+          <td>{{ item.work_type|default:"—" }}</td>
           <td style="text-align:right;">{{ item.quantity }}</td>
+          <td>{{ item.unit|default:"" }}</td>
           <td style="text-align:right;">¥{{ item.unit_price|floatformat:0 }}</td>
+          <td style="text-align:right;">{{ item.tax_rate|floatformat:2 }}</td>
           <td style="text-align:right;font-weight:600;">¥{{ item.amount|floatformat:0 }}</td>
           <td>
             {% if po.status == 'draft' %}
@@ -94,7 +104,7 @@
           </td>
         </tr>
         {% empty %}
-        <tr><td colspan="6"><div class="empty"><p>明細がありません</p></div></td></tr>
+        <tr><td colspan="8"><div class="empty"><p>明細がありません</p></div></td></tr>
         {% endfor %}
       </tbody>
     </table>

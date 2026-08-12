@@ -44,10 +44,10 @@
       </div>
 
       <div class="nav-group {% if 'costs:' in request.resolver_match.view_name or 'materials:' in request.resolver_match.view_name %}open{% endif %}">
-        <button class="nav-section" type="button">原価・材料<span class="nav-chevron"></span></button>
+        <button class="nav-section" type="button">現場見積もり・材料<span class="nav-chevron"></span></button>
         <div class="nav-group-items">
           <a href="{% url 'costs:list' %}" class="{% if 'costs:' in request.resolver_match.view_name %}active{% endif %}">
-            <span class="nav-icon">&#x1f4b0;</span> 原価・予実
+            <span class="nav-icon">&#x1f4b0;</span> 現場見積もり/実経費
           </a>
           <a href="{% url 'materials:list' %}" class="{% if 'materials:' in request.resolver_match.view_name %}active{% endif %}">
             <span class="nav-icon">&#x1f4e6;</span> 材料・発注

@@ -5,7 +5,10 @@
 {% block content %}
 <div class="page-header">
   <h1>発注一覧</h1>
-  <a href="{% url 'materials:create_po' %}{% if selected_site %}?site={{ selected_site }}{% endif %}" class="btn btn-primary">+ 発注書を作成</a>
+  <div style="display:flex;gap:8px;">
+    <a href="{% url 'materials:csv_import' %}" class="btn btn-outline">CSV取込で作成</a>
+    <a href="{% url 'materials:create_po' %}{% if selected_site %}?site={{ selected_site }}{% endif %}" class="btn btn-primary">+ 発注書を作成</a>
+  </div>
 </div>
 
 <div class="card" style="margin-bottom:20px;">
