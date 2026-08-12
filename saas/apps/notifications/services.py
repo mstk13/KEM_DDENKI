@@ -23,6 +23,7 @@
     check_safety_incomplete_alerts(company, date.today())
 """
 
+import contextlib
 from datetime import date
 
 from django.db.models import Sum
@@ -415,7 +416,7 @@ def _send_email(notification):
     prefix = getattr(settings, "EMAIL_SUBJECT_PREFIX", "")
     subject = f"{prefix}{notification.title}"
 
-    try:
+    with contextlib.suppress(Exception):
         send_mail(
             subject=subject,
             message=notification.body or notification.title,
@@ -423,8 +424,6 @@ def _send_email(notification):
             recipient_list=[recipient_email],
             fail_silently=True,
         )
-    except Exception:
-        pass
 
 
 def check_certificate_missing_alerts(company):
@@ -585,7 +584,11 @@ def check_health_checkup_due_alerts(company):
         if _already_alerted(rule, ref_type, worker_id):
             continue
 
-        worker = Worker.unscoped.filter(pk=worker_id, company=company).select_related("user").first()
+        worker = (
+            Worker.unscoped.filter(pk=worker_id, company=company)
+            .select_related("user")
+            .first()
+        )
         if not worker or not worker.is_active:
             continue
 
