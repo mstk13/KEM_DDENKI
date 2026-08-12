@@ -453,26 +453,45 @@ def labor_rate_import(request):
         form = LaborRateImportForm(request.POST, request.FILES)
         if form.is_valid():
             uploaded = request.FILES["file"]
+            import_type = form.cleaned_data["import_type"]
             valid_from = form.cleaned_data["valid_from"]
             fiscal_year_label = form.cleaned_data.get("fiscal_year_label", "")
 
-            # 一時ファイルに保存して解析
+            suffix = ".pdf" if import_type == "pdf" else ".xlsx"
             with tempfile.NamedTemporaryFile(
-                suffix=".xlsx", delete=False,
+                suffix=suffix, delete=False,
             ) as tmp:
                 for chunk in uploaded.chunks():
                     tmp.write(chunk)
                 tmp_path = tmp.name
 
             try:
-                from apps.estimation.services.labor_import import import_labor_rates_from_excel
+                if import_type == "pdf":
+                    from apps.estimation.services.labor_pdf import import_labor_rates_from_pdf
 
-                result = import_labor_rates_from_excel(
-                    file_path=tmp_path,
-                    valid_from=valid_from,
-                    company=request.user.company,
-                    fiscal_year_label=fiscal_year_label,
-                )
+                    result_obj = import_labor_rates_from_pdf(
+                        file_path=tmp_path,
+                        valid_from=valid_from,
+                        company=request.user.company,
+                        fiscal_year_label=fiscal_year_label,
+                    )
+                    result = {
+                        "created": result_obj.created,
+                        "updated": result_obj.updated,
+                        "total": result_obj.total,
+                    }
+                    if result_obj.errors:
+                        for err in result_obj.errors[:5]:
+                            messages.warning(request, err)
+                else:
+                    from apps.estimation.services.labor_import import import_labor_rates_from_excel
+
+                    result = import_labor_rates_from_excel(
+                        file_path=tmp_path,
+                        valid_from=valid_from,
+                        company=request.user.company,
+                        fiscal_year_label=fiscal_year_label,
+                    )
                 messages.success(
                     request,
                     f"インポート完了: {result['created']}件作成, "

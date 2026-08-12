@@ -138,15 +138,23 @@ class OrdererDataSourceForm(forms.ModelForm):
 
 
 class LaborRateImportForm(forms.Form):
-    """労務単価 Excel インポートフォーム。
+    """労務単価インポートフォーム。Excel/PDF対応。"""
 
-    注意: 国交省はPDFのみ配布。このフォームは社内整形済みExcel用。
-    """
+    IMPORT_TYPE_CHOICES = [
+        ("excel", "社内整形済みExcel"),
+        ("pdf", "国交省PDF（AI構造化）"),
+    ]
 
+    import_type = forms.ChoiceField(
+        label="インポート種別",
+        choices=IMPORT_TYPE_CHOICES,
+        initial="excel",
+        widget=forms.RadioSelect,
+    )
     file = forms.FileField(
-        label="Excelファイル",
-        help_text="社内整形済みの労務単価 Excel（公式PDFからの取込は別機能）",
-        widget=forms.FileInput(attrs={"class": "form-control", "accept": ".xlsx,.xls"}),
+        label="ファイル",
+        help_text="Excel(.xlsx) または PDF(.pdf)",
+        widget=forms.FileInput(attrs={"class": "form-control", "accept": ".xlsx,.xls,.pdf"}),
     )
     valid_from = forms.DateField(
         label="適用開始日",
