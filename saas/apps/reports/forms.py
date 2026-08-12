@@ -59,7 +59,9 @@ class DailyReportForm(forms.ModelForm):
     # 複数選ばれたときは人数分の日報を作る。
     workers = forms.ModelMultipleChoiceField(
         label="作業員",
-        queryset=Worker.objects.none(),
+        # 読み込み時に評価されるため、テナント判定を通らない unscoped を使う。
+        # 実際の候補は __init__ で会社ごとに絞る。
+        queryset=Worker.unscoped.none(),
         widget=forms.CheckboxSelectMultiple,
     )
 
@@ -208,6 +210,18 @@ class DailyReportForm(forms.ModelForm):
         return Process.unscoped.create(
             company=self.company, site=site, work_type=work_type, name=name,
         )
+
+    def save(self, commit=True):
+        """保存は save_reports() を使う。
+
+        現場・工種・作業員は save_reports() で入れるため、ここで commit すると
+        必須項目が空のまま保存しようとして落ちる。取り違えを早く気づけるようにする。
+        """
+        if commit:
+            raise NotImplementedError(
+                "DailyReportForm の保存は save_reports() を使ってください。",
+            )
+        return super().save(commit=False)
 
     def save_reports(self, *, company, user, status=None):
         """選ばれた作業員の人数分の日報を保存する。
