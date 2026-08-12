@@ -18,7 +18,7 @@ from apps.sites.importer import (
     normalize_company_name,
     parse_estimate_file,
 )
-from apps.sites.models import Site
+from apps.sites.models import EstimateImport, Site
 from apps.sites.services import find_customer_by_name
 
 # 見出し部だけを持つ、ライデン出力を模した CSV。
@@ -26,11 +26,15 @@ ESTIMATE_CSV = """御見積書,,,,
 株式会社サンプル建設 御中,,,,
 ,,見積番号,Q-2026-0142,
 ,,見積日,2026/08/12,
-件名,○○ビル 電気設備改修工事,,,
-工事場所,山形県酒田市中町1-2-3,,,
+工事件名,○○ビル 電気設備改修工事,,,
+施工場所,山形県酒田市中町1-2-3,,,
 工期,2026/09/01～2026/11/30,,,
 支払条件,月末締め翌月末現金払い,,,
+見積有効期限,2026/09/30,,,
+備考,足場は別途,,,
 見積金額,"3,480,000円",,,
+担当者,剣持,,,
+工事区分,電気設備工事,,,
 ,,,,
 No,名称,数量,単位,金額
 1,電線管,120,m,240000
@@ -59,7 +63,39 @@ class TestParseCsv:
         assert data["contract_amount"] == 3480000
         assert data["start_date"] == "2026-09-01"
         assert data["end_date"] == "2026-11-30"
+        assert data["estimate_valid_until"] == "2026/09/30"
+        assert data["note"] == "足場は別途"
         assert data["missing"] == []
+
+    def test_collects_labels_it_was_not_told_about(self, tmp_path):
+        # 「担当者」「工事区分」は決め打ちのラベルに無い。取りこぼさず拾うこと。
+        data = parse_estimate_file(_write_csv(tmp_path, ESTIMATE_CSV), ".csv")
+        details = dict(data["details"])
+
+        assert details["担当者"] == "剣持"
+        assert details["工事区分"] == "電気設備工事"
+
+    def test_detail_rows_are_not_collected_as_pairs(self, tmp_path):
+        # 明細行（非空セルが多い行）まで拾うとノイズに埋もれる。
+        data = parse_estimate_file(_write_csv(tmp_path, ESTIMATE_CSV), ".csv")
+        labels = [label for label, _ in data["details"]]
+
+        assert "電線管" not in labels
+        assert "名称" not in labels
+
+    def test_values_already_stored_in_fields_are_not_repeated(self, tmp_path):
+        data = parse_estimate_file(_write_csv(tmp_path, ESTIMATE_CSV), ".csv")
+        values = [value for _, value in data["details"]]
+
+        assert "Q-2026-0142" not in values
+        assert "月末締め翌月末現金払い" not in values
+
+    def test_onchu_row_is_not_collected_as_a_pair(self, tmp_path):
+        csv_text = "株式会社北日本建設,御中\n担当,山田\n"
+        data = parse_estimate_file(_write_csv(tmp_path, csv_text), ".csv")
+
+        assert ("株式会社北日本建設", "御中") not in data["details"]
+        assert ("担当", "山田") in data["details"]
 
     def test_reads_utf8_as_well_as_cp932(self, tmp_path):
         # ライデンの書き出しは CP932 が多いが、版によって UTF-8 のこともある。
@@ -145,10 +181,12 @@ ESTIMATE_SHEET = [
     ["御見積書"],
     ["株式会社サンプル建設 御中"],
     [None, None, "見積番号", "Q-2026-0142"],
-    ["件名", "○○ビル 電気設備改修工事"],
-    ["工事場所", "山形県酒田市中町1-2-3"],
+    ["工事件名", "○○ビル 電気設備改修工事"],
+    ["施工場所", "山形県酒田市中町1-2-3"],
     ["工期", "2026/09/01～2026/11/30"],
     ["支払条件", "月末締め翌月末現金払い"],
+    ["見積有効期限", "発行後30日間"],
+    ["備考", "足場は別途"],
     ["見積金額", 3480000],
 ]
 
@@ -166,7 +204,20 @@ class TestParseExcel:
         assert data["contract_amount"] == 3480000
         assert data["start_date"] == "2026-09-01"
         assert data["end_date"] == "2026-11-30"
+        # 日付とは限らないので、書かれたまま残す。
+        assert data["estimate_valid_until"] == "発行後30日間"
+        assert data["note"] == "足場は別途"
         assert data["missing"] == []
+
+    def test_collects_unknown_labels_from_every_sheet(self, tmp_path):
+        path = _write_xlsx(tmp_path, {
+            "表紙": ESTIMATE_SHEET,
+            "条件": [["工事区分", "電気設備工事"], ["現場代理人", "剣持"]],
+        })
+        details = dict(parse_estimate_file(path, ".xlsx")["details"])
+
+        assert details["工事区分"] == "電気設備工事"
+        assert details["現場代理人"] == "剣持"
 
     def test_reads_the_header_sheet_even_when_details_follow(self, tmp_path):
         # 表紙に見出し、別シートに明細、という作りでも読めること。
@@ -441,6 +492,109 @@ class TestImportView:
         assert site.created_by == user_a
         set_current_company(None)
 
+    def test_confirming_records_an_import_history_entry(
+        self, client, company_a, user_a
+    ):
+        set_current_company(company_a)
+        customer = Customer.unscoped.create(
+            company=company_a, code="C001", name="株式会社サンプル建設",
+        )
+        client.force_login(user_a)
+
+        client.post(reverse("sites:import"), {
+            "step": "confirm",
+            "filename": "見積書_本厚木.xlsx",
+            "parsed_customer_name": "株式会社サンプル建設",
+            "code": "Q-2026-0142",
+            "name": "○○ビル 電気設備改修工事",
+            "customer": customer.pk,
+            "status": Site.Status.ESTIMATING,
+            "contract_amount": 3480000,
+            "payment_terms": "月末締め翌月末現金払い",
+        })
+
+        record = EstimateImport.unscoped.get(company=company_a)
+        assert record.customer == customer
+        assert record.customer_name_raw == "株式会社サンプル建設"
+        assert record.filename == "見積書_本厚木.xlsx"
+        assert record.estimate_number == "Q-2026-0142"
+        assert record.amount == 3480000
+        assert record.created_by == user_a
+        assert record.site.code == "Q-2026-0142"
+        assert record.is_unmatched is False
+        set_current_company(None)
+
+    def test_unmatched_company_name_is_kept_as_a_registration_candidate(
+        self, client, company_a, user_a
+    ):
+        set_current_company(company_a)
+        client.force_login(user_a)
+
+        client.post(reverse("sites:import"), {
+            "step": "confirm",
+            "filename": "見積書.csv",
+            "parsed_customer_name": "未登録工務店",
+            "code": "Q-0002",
+            "name": "宛名未登録の現場",
+            "status": Site.Status.ESTIMATING,
+            "contract_amount": 0,
+        })
+
+        record = EstimateImport.unscoped.get(company=company_a)
+        assert record.customer is None
+        assert record.customer_name_raw == "未登録工務店"
+        assert record.is_unmatched is True
+        set_current_company(None)
+
+    def test_preview_alone_does_not_record_history(
+        self, client, tmp_path, company_a, user_a
+    ):
+        # 読み取りを試しただけの操作は業務上の出来事ではないので残さない。
+        set_current_company(company_a)
+        client.force_login(user_a)
+
+        self._upload(client, tmp_path)
+
+        assert not EstimateImport.unscoped.filter(company=company_a).exists()
+        set_current_company(None)
+
+    def test_import_history_does_not_leak_across_tenants(
+        self, client, company_a, company_b, user_a, user_b
+    ):
+        set_current_company(company_a)
+        client.force_login(user_a)
+        client.post(reverse("sites:import"), {
+            "step": "confirm", "filename": "a.csv", "parsed_customer_name": "A社取引先",
+            "code": "Q-A", "name": "A社の現場", "status": Site.Status.ESTIMATING,
+            "contract_amount": 0,
+        })
+        set_current_company(None)
+
+        set_current_company(company_b)
+        assert EstimateImport.objects.count() == 0
+        set_current_company(None)
+
+    def test_other_details_are_saved_on_the_site(self, client, company_a, user_a):
+        set_current_company(company_a)
+        client.force_login(user_a)
+
+        client.post(reverse("sites:import"), {
+            "step": "confirm",
+            "code": "Q-0003",
+            "name": "その他項目つき",
+            "status": Site.Status.ESTIMATING,
+            "contract_amount": 0,
+            "estimate_valid_until": "発行後30日間",
+            "note": "足場は別途",
+            "extracted_details": "工事区分: 電気設備工事\n現場代理人: 剣持",
+        })
+
+        site = Site.unscoped.get(company=company_a, code="Q-0003")
+        assert site.estimate_valid_until == "発行後30日間"
+        assert site.note == "足場は別途"
+        assert "工事区分: 電気設備工事" in site.extracted_details
+        set_current_company(None)
+
     def test_manual_entry_fills_in_what_the_file_did_not_have(
         self, client, company_a, user_a
     ):
@@ -459,4 +613,51 @@ class TestImportView:
 
         site = Site.unscoped.get(company=company_a, code="Q-0001")
         assert site.payment_terms == "検収後60日"
+        set_current_company(None)
+
+
+# ---------------------------------------------------------------------------
+# 取引先の詳細ページ（取込履歴の置き場所）
+# ---------------------------------------------------------------------------
+
+@pytest.mark.django_db
+class TestCustomerDetail:
+    def test_shows_the_import_history_for_that_customer(
+        self, client, company_a, user_a
+    ):
+        set_current_company(company_a)
+        customer = Customer.unscoped.create(
+            company=company_a, code="C001", name="株式会社サンプル建設",
+        )
+        site = Site.unscoped.create(
+            company=company_a, code="Q-1", name="取込で作った現場", customer=customer,
+        )
+        EstimateImport.unscoped.create(
+            company=company_a, customer=customer, site=site,
+            customer_name_raw="株式会社サンプル建設",
+            filename="見積書_本厚木.xlsx", estimate_number="Q-1", amount=1000000,
+        )
+        client.force_login(user_a)
+
+        body = client.get(
+            reverse("masters:customer_detail", args=[customer.pk])
+        ).content.decode("utf-8")
+
+        assert "見積ファイルの取込履歴" in body
+        assert "見積書_本厚木.xlsx" in body
+        assert "取込で作った現場" in body     # 取引履歴（現場）にも出る
+        set_current_company(None)
+
+    def test_does_not_expose_another_companys_customer(
+        self, client, company_a, company_b, user_a
+    ):
+        set_current_company(company_a)
+        other = Customer.unscoped.create(
+            company=company_b, code="C001", name="B社の得意先",
+        )
+        client.force_login(user_a)
+
+        res = client.get(reverse("masters:customer_detail", args=[other.pk]))
+
+        assert res.status_code == 404
         set_current_company(None)

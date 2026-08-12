@@ -12,13 +12,16 @@ class SiteForm(forms.ModelForm):
         model = Site
         fields = [
             "code", "name", "customer", "status",
-            "contract_amount", "payment_terms", "start_date", "end_date",
-            "manager", "estimator", "address",
+            "contract_amount", "payment_terms", "estimate_valid_until",
+            "start_date", "end_date",
+            "manager", "estimator", "address", "note", "extracted_details",
         ]
         widgets = {
             "start_date": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
             "end_date": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
             "address": forms.Textarea(attrs={"class": "form-control", "rows": 2}),
+            "note": forms.Textarea(attrs={"class": "form-control", "rows": 3}),
+            "extracted_details": forms.Textarea(attrs={"class": "form-control", "rows": 6}),
         }
 
     def __init__(self, *args, company=None, **kwargs):

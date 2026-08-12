@@ -43,10 +43,16 @@
           <tr><td>現場コード</td><td>見積番号 / 見積No / 見積書番号</td></tr>
           <tr><td>得意先</td><td><b>「○○ 御中」</b>の会社名</td></tr>
           <tr><td>支払条件</td><td>支払条件 / お支払い条件 / 支払方法</td></tr>
-          <tr><td>現場名</td><td>件名 / 工事名 / 工事名称</td></tr>
+          <tr><td>現場名</td><td>工事件名 / 件名 / 工事名 / 工事名称</td></tr>
           <tr><td>受注金額</td><td>見積金額 / 合計金額</td></tr>
-          <tr><td>住所</td><td>工事場所 / 施工場所</td></tr>
+          <tr><td>住所</td><td>施工場所 / 工事場所 / 所在地</td></tr>
           <tr><td>工期</td><td>工期 / 工事期間</td></tr>
+          <tr><td>見積有効期限</td><td>見積有効期限 / 有効期限 / 有効期間</td></tr>
+          <tr><td>備考</td><td>備考 / 摘要 / 特記事項</td></tr>
+          <tr>
+            <td><b>その他の読み取り項目</b></td>
+            <td>上記以外で「項目名と値」に見える記載を<b>全シートから</b>すべて拾います</td>
+          </tr>
         </tbody>
       </table>
     </div>
@@ -58,6 +64,40 @@
     </p>
   </div>
 </div>
+
+{% if recent_imports %}
+<div class="card" style="margin-top:20px;">
+  <div class="card-header"><h2>最近の取込</h2></div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>取込日時</th><th>ファイル名</th><th>見積番号</th><th>得意先</th><th>登録した現場</th></tr></thead>
+      <tbody>
+        {% for imp in recent_imports %}
+        <tr>
+          <td>{{ imp.created_at|date:"Y-m-d H:i" }}</td>
+          <td>{{ imp.filename|default:"-" }}</td>
+          <td>{{ imp.estimate_number|default:"-" }}</td>
+          <td>
+            {% if imp.customer %}
+              <a href="{% url 'masters:customer_detail' imp.customer.pk %}">{{ imp.customer.name }}</a>
+            {% elif imp.is_unmatched %}
+              <span style="color:var(--danger);">{{ imp.customer_name_raw }}</span>
+              <a href="{% url 'masters:customer_create' %}" class="btn btn-outline btn-sm">得意先に登録</a>
+            {% else %}-{% endif %}
+          </td>
+          <td>{% if imp.site %}<a href="{% url 'sites:detail' imp.site.pk %}">{{ imp.site.name }}</a>{% else %}-{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="card-body" style="padding-top:0;">
+    <p style="font-size:.8rem;color:var(--text-muted);margin:0;">
+      赤い宛名は得意先マスタに引き当てられなかったものです。登録すると次回から自動で紐づきます。
+    </p>
+  </div>
+</div>
+{% endif %}
 
 {% else %}
 {# ---- ステップ2: 内容を確認して登録 ---- #}
@@ -217,10 +257,39 @@
         </div>
       </div>
 
+      <div class="form-row">
+        <div class="form-group">
+          <label for="id_estimate_valid_until">見積有効期限</label>
+          <input type="text" name="estimate_valid_until" id="id_estimate_valid_until"
+                 class="form-control" value="{{ form.estimate_valid_until.value|default:'' }}"
+                 placeholder="例: 2026/09/30、発行後30日間">
+          {{ form.estimate_valid_until.errors }}
+        </div>
+        <div class="form-group">
+          <label for="id_address">施工場所</label>
+          <textarea name="address" id="id_address" class="form-control" rows="2">{{ form.address.value|default:'' }}</textarea>
+          {{ form.address.errors }}
+        </div>
+      </div>
+
       <div class="form-group">
-        <label for="id_address">住所（工事場所）</label>
-        <textarea name="address" id="id_address" class="form-control" rows="2">{{ form.address.value|default:'' }}</textarea>
-        {{ form.address.errors }}
+        <label for="id_note">備考</label>
+        <textarea name="note" id="id_note" class="form-control" rows="3">{{ form.note.value|default:'' }}</textarea>
+        {{ form.note.errors }}
+      </div>
+
+      <div class="form-group">
+        <label for="id_extracted_details">その他の読み取り項目</label>
+        <textarea name="extracted_details" id="id_extracted_details" class="form-control" rows="8">{{ form.extracted_details.value|default:'' }}</textarea>
+        <p style="font-size:.78rem;color:var(--text-muted);margin:4px 0 0;">
+          {% if detail_rows %}
+            上の項目に当てはまらない記載を全シートから {{ detail_rows|length }} 件拾いました。
+            不要な行は消してから登録してください。
+          {% else %}
+            上の項目に当てはまる以外の記載は見つかりませんでした。必要なら追記できます。
+          {% endif %}
+        </p>
+        {{ form.extracted_details.errors }}
       </div>
 
       <div class="form-actions">

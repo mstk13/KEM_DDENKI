@@ -7,7 +7,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 
 from apps.sites.forms import EstimateUploadForm, ProcessForm, SiteForm
 from apps.sites.importer import FIELD_LABELS, parse_estimate_file
-from apps.sites.models import Process, Site
+from apps.sites.models import EstimateImport, Process, Site
 from apps.sites.services import find_customer_by_name, get_site_summary
 
 
@@ -96,6 +96,19 @@ def site_import(request):
             site.company = company
             site.created_by = request.user
             site.save()
+            # 取込履歴は確定時だけ残す。読み取りを試しただけの操作は業務上の
+            # 出来事ではないので、履歴に混ぜるとノイズになる。
+            EstimateImport.objects.create(
+                company=company,
+                created_by=request.user,
+                customer=site.customer,
+                customer_name_raw=parsed_customer_name,
+                site=site,
+                filename=filename,
+                estimate_number=site.code,
+                amount=site.contract_amount,
+                payment_terms=site.payment_terms,
+            )
             messages.success(
                 request, f"見積ファイルから現場「{site.name}」を登録しました。"
             )
@@ -119,8 +132,13 @@ def site_import(request):
                     "name": parsed.get("name") or "",
                     "customer": matched.pk if matched else None,
                     "payment_terms": parsed.get("payment_terms") or "",
+                    "estimate_valid_until": parsed.get("estimate_valid_until") or "",
                     "contract_amount": parsed.get("contract_amount") or 0,
                     "address": parsed.get("address") or "",
+                    "note": parsed.get("note") or "",
+                    "extracted_details": "\n".join(
+                        f"{label}: {value}" for label, value in parsed.get("details", [])
+                    ),
                     "start_date": parsed.get("start_date") or "",
                     "end_date": parsed.get("end_date") or "",
                     "status": Site.Status.ESTIMATING,
@@ -144,6 +162,12 @@ def site_import(request):
         ),
         "missing_labels": (
             [FIELD_LABELS[k] for k in parsed["missing"]] if parsed else []
+        ),
+        "detail_rows": parsed.get("details", []) if parsed else [],
+        "recent_imports": (
+            EstimateImport.objects.select_related("customer", "site")[:10]
+            if site_form is None
+            else []
         ),
     })
 

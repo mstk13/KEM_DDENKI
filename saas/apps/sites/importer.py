@@ -43,18 +43,27 @@ LABELS: dict[str, tuple[str, ...]] = {
     "period": (
         "工期", "工事期間", "施工期間", "工事工期",
     ),
+    "valid_until": (
+        "見積有効期限", "御見積有効期限", "お見積有効期限", "見積の有効期限",
+        "有効期限", "有効期間",
+    ),
+    "note": (
+        "備考", "摘要", "特記事項", "注記", "コメント", "その他",
+    ),
 }
 
 # 画面に出すときの日本語名。並び順もこの通りに表示する。
 FIELD_LABELS: dict[str, str] = {
     "code": "見積番号（現場コード）",
-    "name": "件名（現場名）",
+    "name": "工事件名（現場名）",
     "customer_name": "取引先（御中）",
     "payment_terms": "支払条件",
     "contract_amount": "見積金額",
-    "address": "工事場所",
+    "address": "施工場所",
     "start_date": "工期開始",
     "end_date": "工期終了",
+    "estimate_valid_until": "見積有効期限",
+    "note": "備考",
 }
 
 # 値として長すぎるものは拾い間違い（明細行を掴んだ等）とみなして捨てる。
@@ -63,6 +72,15 @@ MAX_VALUE_LENGTH = 200
 # Excel の1シートあたり読む行数の上限。見出しは表紙の先頭にあるので、
 # 数万行の明細シートを最後まで舐めないための歯止め。
 EXCEL_MAX_ROWS = 2000
+
+# 決め打ちのラベル以外も拾う「その他の読み取り項目」の制限。
+MAX_DETAIL_PAIRS = 40
+MAX_LABEL_LENGTH = 30
+# 非空セルがこれ以上ある行は明細行とみなし、ラベル/値の組としては拾わない。
+# 数量・単価まで拾うとノイズに埋もれて読めなくなる。
+DETAIL_ROW_MIN_CELLS = 4
+# 値の側に来たら組として意味を成さない語。
+_VALUE_STOPWORDS = frozenset({"御中", "様", "殿"})
 
 _SEPARATORS = " \t：:＝=｜|・"
 # 「見積No.」の末尾のようにラベル側に付く記号。値と一緒に拾わないよう落とす。
@@ -231,6 +249,56 @@ def _find_labeled_value(rows: list[list[str]], variants: tuple[str, ...]) -> str
     return None
 
 
+def _extract_all_pairs(
+    rows: list[list[str]], exclude: set[str]
+) -> list[tuple[str, str]]:
+    """「ラベル, 値」に見える組をすべて拾う。
+
+    見出し部には工事区分・担当者・電話番号・値引きなど、こちらが名前を
+    知らない項目も並ぶ。決め打ちのラベルだけでは取りこぼすため、
+    「非空セルが2〜3個の行」を見出し行とみなし、先頭を項目名・次を値として
+    機械的に集める。1セルに「項目：値」と入っている形も拾う。
+
+    明細行（非空セルが多い行）は対象外。数量や単価まで集めるとノイズに
+    埋もれる。exclude には既に現場の項目へ入れた値を渡して重複を防ぐ。
+    """
+    pairs: list[tuple[str, str]] = []
+    seen: set[str] = set()
+
+    for row in rows:
+        filled = [c for c in (_nfkc(cell) for cell in row) if c]
+        if not filled or len(filled) >= DETAIL_ROW_MIN_CELLS:
+            continue
+
+        if len(filled) == 1:
+            label, sep, value = filled[0].partition("：")
+            if not sep:
+                label, sep, value = filled[0].partition(":")
+            if not sep:
+                continue
+        else:
+            label, value = filled[0], filled[1]
+
+        label = label.strip(_TRIMMABLE)
+        value = value.strip(_TRIMMABLE)
+        if not label or not value or label.isdigit():
+            continue
+        if len(label) > MAX_LABEL_LENGTH or len(value) > MAX_VALUE_LENGTH:
+            continue
+        if value in _VALUE_STOPWORDS or value in exclude:
+            continue
+
+        key = _key(label)
+        if key in seen:
+            continue
+        seen.add(key)
+        pairs.append((label, value))
+        if len(pairs) >= MAX_DETAIL_PAIRS:
+            break
+
+    return pairs
+
+
 def clean_company_name(raw: str) -> str:
     """「株式会社○○ 御中」から会社名だけを取り出す。"""
     name = _nfkc(raw)
@@ -356,7 +424,13 @@ def parse_estimate_file(filepath: str | Path, suffix: str) -> dict:
         "address": _find_labeled_value(rows, LABELS["address"]),
         "start_date": start_date,
         "end_date": end_date,
+        "estimate_valid_until": _find_labeled_value(rows, LABELS["valid_until"]),
+        "note": _find_labeled_value(rows, LABELS["note"]),
     }
     data["found"] = [k for k in FIELD_LABELS if data.get(k) not in (None, "")]
     data["missing"] = [k for k in FIELD_LABELS if data.get(k) in (None, "")]
+
+    # 決め打ちのラベル以外も取りこぼさない。既に項目へ入れた値は除く。
+    captured = {str(data[k]) for k in FIELD_LABELS if data.get(k) not in (None, "")}
+    data["details"] = _extract_all_pairs(rows, captured)
     return data

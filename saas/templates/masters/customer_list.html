@@ -16,7 +16,7 @@
         {% for c in customers %}
         <tr>
           <td>{{ c.code }}</td>
-          <td>{{ c.name }}</td>
+          <td><a href="{% url 'masters:customer_detail' c.pk %}">{{ c.name }}</a></td>
           <td style="font-size:.82rem;">{{ c.contact_person|default:"-" }}</td>
           <td style="font-size:.82rem;">{{ c.phone|default:"-" }}</td>
           <td style="font-size:.82rem;color:var(--text-muted);">{{ c.address|truncatewords:8|default:"-" }}</td>

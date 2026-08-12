@@ -31,7 +31,9 @@
       <dt>工期</dt><dd>{{ site.start_date|default:"-" }} 〜 {{ site.end_date|default:"" }}</dd>
       <dt>現場担当者</dt><dd>{{ site.manager|default:"-" }}</dd>
       <dt>見積担当者</dt><dd>{{ site.estimator|default:"-" }}</dd>
+      <dt>見積有効期限</dt><dd>{{ site.estimate_valid_until|default:"-" }}</dd>
       <dt>住所</dt><dd>{{ site.address|default:"-" }}</dd>
+      <dt>備考</dt><dd style="white-space:pre-wrap;">{{ site.note|default:"-" }}</dd>
     </dl>
   </div>
 
@@ -55,6 +57,24 @@
     </div>
   </div>
 </div>
+
+{% if site.extracted_details or site.estimate_imports.exists %}
+<div class="card" style="margin-top:20px;">
+  <div class="card-header"><h2>見積ファイルからの取り込み</h2></div>
+  <div class="card-body">
+    {% for imp in site.estimate_imports.all %}
+    <p style="font-size:.85rem;color:var(--text-muted);margin:0 0 10px;">
+      {{ imp.created_at|date:"Y-m-d H:i" }} に <b>{{ imp.filename }}</b> から取り込み
+      （宛名「{{ imp.customer_name_raw|default:"不明" }}」／取込者 {{ imp.created_by|default:"-" }}）
+    </p>
+    {% endfor %}
+    {% if site.extracted_details %}
+    <h3 style="font-size:.9rem;margin:0 0 6px;">その他の読み取り項目</h3>
+    <pre style="white-space:pre-wrap;font-size:.85rem;margin:0;background:var(--gray-50,#f7fafc);padding:10px;border-radius:4px;">{{ site.extracted_details }}</pre>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
 
 <div class="card" style="margin-top:20px;">
   <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;">
