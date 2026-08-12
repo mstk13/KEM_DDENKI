@@ -242,23 +242,28 @@ class TestMultipleWorkers:
 
 @pytest.mark.django_db
 class TestWorkerChoices:
-    def test_only_e_prefixed_workers_are_selectable(self, company_a):
-        """社員番号が E で始まる作業員だけが候補に出る。"""
-        e = Worker.unscoped.create(
-            company=company_a, employee_code="E001", name="田中", hourly_cost=3000,
+    def test_only_field_workers_are_selectable(self, company_a):
+        """現場作業の区分（E・T）の作業員だけが候補に出る。"""
+        Worker.unscoped.create(
+            company=company_a, employee_code="E001", name="田中",
+            name_kana="タナカ", hourly_cost=3000,
         )
         Worker.unscoped.create(
-            company=company_a, employee_code="G001", name="鈴木", hourly_cost=3000,
+            company=company_a, employee_code="T001", name="佐藤",
+            name_kana="サトウ", hourly_cost=3000,
         )
-        Worker.unscoped.create(
-            company=company_a, employee_code="T001", name="佐藤", hourly_cost=3000,
-        )
+        # 事務の区分は出さない
+        for code, name in [("G001", "鈴木"), ("S001", "高橋"),
+                           ("A001", "伊藤"), ("P001", "渡辺")]:
+            Worker.unscoped.create(
+                company=company_a, employee_code=code, name=name, hourly_cost=3000,
+            )
 
         form = DailyReportForm(company=company_a)
-        codes = list(
+        codes = sorted(
             form.fields["workers"].queryset.values_list("employee_code", flat=True)
         )
-        assert codes == [e.employee_code]
+        assert codes == ["E001", "T001"]
 
     def test_inactive_workers_are_excluded(self, company_a):
         Worker.unscoped.create(
