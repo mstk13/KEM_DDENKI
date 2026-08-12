@@ -112,6 +112,17 @@ class Worker(TenantModel):
         blank=True,
         help_text="アクセスを許可するアプリコードのリスト",
     )
+    pin = models.CharField(
+        "暗証番号",
+        max_length=128,
+        blank=True,
+        help_text="4桁の暗証番号（ハッシュ化して保存）",
+    )
+    pin_set = models.BooleanField(
+        "暗証番号設定済み",
+        default=False,
+        help_text="初回ログイン後に暗証番号を設定したかどうか",
+    )
 
     history = HistoricalRecords()
 
