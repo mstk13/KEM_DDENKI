@@ -55,17 +55,26 @@
         </div>
       </div>
 
-      <div class="nav-group {% if 'workers:' in request.resolver_match.view_name %}open{% endif %}">
+      <div class="nav-group {% if 'workers:' in request.resolver_match.view_name or 'evaluation:' in request.resolver_match.view_name %}open{% endif %}">
         <button class="nav-section" type="button">人材<span class="nav-chevron"></span></button>
         <div class="nav-group-items">
           <a href="{% url 'workers:list' %}" class="{% if request.resolver_match.url_name == 'list' and 'workers:' in request.resolver_match.view_name %}active{% endif %}">
             <span class="nav-icon">&#x1f465;</span> 作業員
           </a>
-          <a href="{% url 'workers:evaluations' %}" class="{% if 'eval' in request.resolver_match.url_name %}active{% endif %}">
+          <a href="{% url 'workers:evaluations' %}" class="{% if 'eval' in request.resolver_match.url_name and 'workers:' in request.resolver_match.view_name %}active{% endif %}">
             <span class="nav-icon">&#x1f4cb;</span> 人材評価
           </a>
           <a href="{% url 'workers:document_alerts' %}" class="{% if request.resolver_match.url_name == 'document_alerts' %}active{% endif %}">
             <span class="nav-icon">&#x26a0;&#xfe0f;</span> 書類アラート
+          </a>
+          <a href="{% url 'evaluation:eval_list' %}" class="{% if request.resolver_match.url_name == 'eval_list' and 'evaluation:' in request.resolver_match.view_name %}active{% endif %}">
+            <span class="nav-icon">&#x1f4cf;</span> 人事評価一覧
+          </a>
+          <a href="{% url 'evaluation:criteria_list' %}" class="{% if 'criteria' in request.resolver_match.url_name and 'evaluation:' in request.resolver_match.view_name %}active{% endif %}">
+            <span class="nav-icon">&#x1f4d0;</span> 評価基準
+          </a>
+          <a href="{% url 'evaluation:assignment_list' %}" class="{% if 'assignment' in request.resolver_match.url_name and 'evaluation:' in request.resolver_match.view_name %}active{% endif %}">
+            <span class="nav-icon">&#x1f517;</span> 評価対象設定
           </a>
         </div>
       </div>
@@ -159,21 +168,6 @@
           </a>
           <a href="{% url 'attendance:settings' %}" class="{% if request.resolver_match.url_name == 'settings' and 'attendance:' in request.resolver_match.view_name %}active{% endif %}">
             <span class="nav-icon">&#x2699;&#xfe0f;</span> 勤怠設定
-          </a>
-        </div>
-      </div>
-
-      <div class="nav-group {% if 'evaluation:' in request.resolver_match.view_name %}open{% endif %}">
-        <button class="nav-section" type="button">人事評価<span class="nav-chevron"></span></button>
-        <div class="nav-group-items">
-          <a href="{% url 'evaluation:eval_list' %}" class="{% if request.resolver_match.url_name == 'eval_list' and 'evaluation:' in request.resolver_match.view_name %}active{% endif %}">
-            <span class="nav-icon">&#x1f4cb;</span> 評価一覧
-          </a>
-          <a href="{% url 'evaluation:criteria_list' %}" class="{% if 'criteria' in request.resolver_match.url_name and 'evaluation:' in request.resolver_match.view_name %}active{% endif %}">
-            <span class="nav-icon">&#x1f4cf;</span> 評価基準
-          </a>
-          <a href="{% url 'evaluation:assignment_list' %}" class="{% if 'assignment' in request.resolver_match.url_name and 'evaluation:' in request.resolver_match.view_name %}active{% endif %}">
-            <span class="nav-icon">&#x1f517;</span> 評価対象設定
           </a>
         </div>
       </div>
