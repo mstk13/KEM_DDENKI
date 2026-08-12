@@ -115,7 +115,20 @@ class TestFreeTextFields:
             company=company_a,
         )
         assert form.is_valid(), form.errors
-        assert form.cleaned_data["weather"] == "みぞれ"
+        saved, _ = form.save_reports(company=company_a, user=None)
+        assert saved[0].weather == "みぞれ"
+
+    def test_weather_label_is_stored_as_value(
+        self, company_a, site, worker, work_type,
+    ):
+        """候補から「晴」を選んだら、保存値 sunny に寄せる。"""
+        form = DailyReportForm(
+            data=_post(site.name, worker, work_type.name, weather="晴"),
+            company=company_a,
+        )
+        assert form.is_valid(), form.errors
+        saved, _ = form.save_reports(company=company_a, user=None)
+        assert saved[0].weather == "sunny"
 
 
 @pytest.mark.django_db
