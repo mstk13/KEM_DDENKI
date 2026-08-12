@@ -11,7 +11,7 @@ import pytest
 from apps.masters.models import WorkType
 from apps.reports.forms import DailyReportForm
 from apps.reports.models import DailyReport
-from apps.sites.models import Process, Site
+from apps.sites.models import Site
 from apps.workers.models import Worker
 
 
