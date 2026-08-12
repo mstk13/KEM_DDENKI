@@ -18,6 +18,11 @@
         {% if field.name == "site" or field.name == "process" or field.name == "work_type" %}
         <div class="form-hint">一覧から選ぶか、直接入力できます。新しい名前はそのまま登録されます。</div>
         {% endif %}
+        {% if field.name == "workers" %}
+        <div class="form-hint">
+          {% if form.instance.pk %}編集では1人だけ選べます。{% else %}複数選べます。選んだ人数分の日報ができます。{% endif %}
+        </div>
+        {% endif %}
         {% if field.name == "work_hours" %}
         <div class="form-hint">開始時間と終了時間を入れると自動で計算されます（8時間を超える場合は休憩1時間を差し引きます）。</div>
         {% endif %}
