@@ -98,8 +98,21 @@ def get_sections_for_role(job_name, company):
         if job_name in all_sections and job_name not in applicable_sections:
             applicable_sections.append(job_name)
 
-    items = [i for i in eval_items if i.get("section") in applicable_sections]
-    survey_items = [i for i in survey_data_items if i.get("section") in applicable_sections]
+    # 並び順は「共通 → 職種別」で固定する。
+    # データ側の並びに任せると、職種別が先に来る職種（事務）だけ
+    # 共通の設問が下に埋もれて見落とされる。
+    def _order(entry):
+        section = entry.get("section")
+        return (applicable_sections.index(section), entry.get("num") or 0)
+
+    items = sorted(
+        (i for i in eval_items if i.get("section") in applicable_sections),
+        key=_order,
+    )
+    survey_items = sorted(
+        (i for i in survey_data_items if i.get("section") in applicable_sections),
+        key=_order,
+    )
 
     return {
         "items": items,
