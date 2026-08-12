@@ -15,6 +15,18 @@
       <div class="form-group">
         <label for="{{ field.id_for_label }}">{{ field.label }}</label>
         {{ field }}
+        {% if field.name == "site" or field.name == "process" or field.name == "work_type" %}
+        <div class="form-hint">一覧から選ぶか、直接入力できます。新しい名前はそのまま登録されます。</div>
+        {% endif %}
+        {% if field.name == "workers" %}
+        <div class="form-hint">
+          社員番号が G で始まる方のみ表示しています（フリガナの50音順）。
+          {% if form.instance.pk %}編集では1人だけ選べます。{% else %}複数選べます。選んだ人数分の日報ができます。{% endif %}
+        </div>
+        {% endif %}
+        {% if field.name == "work_hours" %}
+        <div class="form-hint">開始時間と終了時間を入れると自動で計算されます（8時間を超える場合は休憩1時間を差し引きます）。</div>
+        {% endif %}
         {{ field.errors }}
       </div>
       {% endfor %}
@@ -26,4 +38,61 @@
     </form>
   </div>
 </div>
+
+{# 入力欄の候補。手入力もできるよう select ではなく datalist を使う #}
+<datalist id="site-list">
+  {% for name in site_names %}<option value="{{ name }}"></option>{% endfor %}
+</datalist>
+<datalist id="weather-list">
+  {% for name in weather_choices %}<option value="{{ name }}"></option>{% endfor %}
+</datalist>
+<datalist id="process-list">
+  {% for name in process_names %}<option value="{{ name }}"></option>{% endfor %}
+</datalist>
+<datalist id="worktype-list">
+  {% for name in worktype_names %}<option value="{{ name }}"></option>{% endfor %}
+</datalist>
+
+<script>
+(function () {
+  // ---- 現場を入れたら発注先を自動で埋める ----
+  var ORDERER_BY_SITE = {{ site_orderer_json|safe }};
+  var site = document.getElementById('id_site');
+  var orderer = document.getElementById('id_orderer');
+  function fillOrderer() {
+    if (!site || !orderer) return;
+    orderer.value = ORDERER_BY_SITE[site.value.trim()] || '';
+  }
+  if (site) {
+    site.addEventListener('input', fillOrderer);
+    site.addEventListener('change', fillOrderer);
+    if (!orderer.value) fillOrderer();
+  }
+
+  // ---- 開始・終了時間から作業時間を自動計算 ----
+  // 計算式はサーバ側 DailyReport.calculate_hours と同じにする。
+  // 日をまたぐ場合は翌日扱い、8時間を超えたら休憩1時間を差し引く。
+  var start = document.getElementById('id_start_time');
+  var end = document.getElementById('id_end_time');
+  var hours = document.getElementById('id_work_hours');
+  function toMinutes(v) {
+    var m = /^(\d{1,2}):(\d{2})/.exec(v || '');
+    return m ? parseInt(m[1], 10) * 60 + parseInt(m[2], 10) : null;
+  }
+  function calcHours() {
+    if (!start || !end || !hours) return;
+    var s = toMinutes(start.value);
+    var e = toMinutes(end.value);
+    if (s === null || e === null) return;
+    var total = e - s;
+    if (total <= 0) total += 24 * 60;
+    if (total > 480) total -= 60;
+    hours.value = (Math.round((total / 60) * 100) / 100).toFixed(2);
+  }
+  if (start && end) {
+    start.addEventListener('change', calcHours);
+    end.addEventListener('change', calcHours);
+  }
+})();
+</script>
 {% endblock %}

@@ -408,6 +408,21 @@ tbody tr:last-child td { border-bottom: none; }
   background: var(--white); color: var(--text-primary);
 }
 .form-control:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 3px rgba(26,39,68,.12); }
+.form-control[readonly] { background: var(--bg); color: var(--text-secondary); }
+.form-hint { margin-top: 5px; font-size: .78rem; color: var(--text-muted); line-height: 1.6; }
+/* チェックボックスで複数選ぶ欄（日報の作業員など）。指でも押しやすい間隔にする */
+.form-group ul { list-style: none; display: flex; flex-wrap: wrap; gap: 8px 16px; }
+.form-group ul li label {
+  display: flex; align-items: center; gap: 8px;
+  margin: 0; padding: 8px 14px;
+  border: 1.5px solid var(--border); border-radius: var(--radius-sm);
+  font-size: 15px; font-weight: 500; cursor: pointer;
+  background: var(--white); transition: var(--transition);
+}
+.form-group ul li label:hover { border-color: var(--accent); }
+.form-group ul li label:has(input:checked) {
+  border-color: var(--brand); background: var(--brand-light); color: var(--brand);
+}
 .form-control::placeholder { color: var(--text-muted); }
 select.form-control { appearance: auto; }
 textarea.form-control { min-height: 88px; resize: vertical; line-height: 1.6; }

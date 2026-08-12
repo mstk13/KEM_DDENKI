@@ -156,6 +156,12 @@ class PurchaseOrder(TenantModel):
         verbose_name="元見積",
     )
     order_date = models.DateField("発注日")
+    delivery_date = models.DateField("納期", null=True, blank=True)
+    subject = models.CharField("件名", max_length=300, blank=True)
+    payment_terms = models.CharField(
+        "支払条件", max_length=200, blank=True, default="月末締翌月末払",
+    )
+    notes = models.TextField("特記事項", blank=True)
     ordered_by = models.ForeignKey(
         "accounts.User",
         on_delete=models.SET_NULL,
@@ -212,14 +218,27 @@ class PurchaseOrderItem(TenantModel):
     material = models.ForeignKey(
         Material,
         on_delete=models.CASCADE,
+        null=True,
+        blank=True,
         related_name="order_items",
         verbose_name="材料",
     )
+    material_name = models.CharField(
+        "材料名（自由入力）", max_length=200, blank=True,
+        help_text="マスタにない場合の自由入力用",
+    )
     quantity = models.DecimalField("数量", max_digits=10, decimal_places=2)
+    unit = models.CharField("単位", max_length=50, blank=True)
     unit_price = models.DecimalField("単価", max_digits=12, decimal_places=2)
+    tax_rate = models.DecimalField(
+        "税率", max_digits=5, decimal_places=2, default=0.10,
+        help_text="例: 0.10 = 10%",
+    )
     work_type = models.ForeignKey(
         "masters.WorkType",
-        on_delete=models.CASCADE,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
         related_name="purchase_order_items",
         verbose_name="工種",
     )
@@ -234,8 +253,14 @@ class PurchaseOrderItem(TenantModel):
     def amount(self):
         return self.quantity * self.unit_price
 
+    @property
+    def display_name(self):
+        if self.material:
+            return self.material.name
+        return self.material_name
+
     def __str__(self):
-        return f"{self.purchase_order} - {self.material}"
+        return f"{self.purchase_order} - {self.display_name}"
 
 
 class Delivery(TenantModel):

@@ -1,15 +1,15 @@
 {% extends "base.html" %}
-{% block title %}原価アクセス管理 — {{ APP_NAME }}{% endblock %}
-{% block topbar_title %}原価・予実管理{% endblock %}
+{% block title %}アクセス管理 — {{ APP_NAME }}{% endblock %}
+{% block topbar_title %}現場見積もり/実経費{% endblock %}
 
 {% block content %}
 <div class="page-header">
-  <h1>原価・予実 アクセス管理</h1>
-  <a href="{% url 'costs:list' %}" class="btn btn-outline">← 原価一覧に戻る</a>
+  <h1>現場見積もり/実経費 アクセス管理</h1>
+  <a href="{% url 'costs:list' %}" class="btn btn-outline">← 一覧に戻る</a>
 </div>
 
 <p style="color:#666;margin-bottom:24px;">
-  原価・予実モジュールには <strong>社長ロール</strong> および <strong>社員番号が G で始まるユーザー</strong> が自動的にアクセスできます。<br>
+  現場見積もり/実経費モジュールには <strong>社長ロール</strong> および <strong>社員番号が G で始まるユーザー</strong> が自動的にアクセスできます。<br>
   それ以外のユーザーには下記から個別にアクセス権を付与できます。
 </p>
 

@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}仕入実績 — {{ APP_NAME }}{% endblock %}
+{% block topbar_title %}積算{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>仕入実績</h1>
+  <div style="display:flex;gap:8px;">
+    <a href="{% url 'estimation:purchase_create' %}" class="btn btn-outline">+ 手入力</a>
+    <a href="{% url 'estimation:purchase_csv_import' %}" class="btn btn-primary">CSVインポート</a>
+  </div>
+</div>
+
+<div class="card" style="margin-bottom:20px;">
+  <div class="card-body">
+    <form method="get" style="display:flex;gap:10px;align-items:flex-end;">
+      <div class="form-group" style="margin-bottom:0;">
+        <label>キーワード</label>
+        <input type="text" name="q" value="{{ q }}" class="form-control" placeholder="品名">
+      </div>
+      <button type="submit" class="btn btn-primary">検索</button>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>仕入日</th><th>品名</th><th>品番</th><th style="text-align:right;">数量</th><th style="text-align:right;">単価</th><th>仕入先</th><th>名寄せ</th></tr>
+      </thead>
+      <tbody>
+        {% for r in records %}
+        <tr>
+          <td>{{ r.purchase_date }}</td>
+          <td>{{ r.raw_name }}</td>
+          <td>{{ r.raw_code|default:"-" }}</td>
+          <td style="text-align:right;">{{ r.quantity|floatformat:1 }}</td>
+          <td style="text-align:right;">{{ r.unit_price|floatformat:0 }}</td>
+          <td>{{ r.supplier.name|default:"-" }}</td>
+          <td>{% if r.estimation_item %}<span class="badge badge-green">済</span>{% else %}<span class="badge badge-gray">未</span>{% endif %}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="7"><div class="empty"><div class="empty-icon">&#x1f4e6;</div><p>仕入実績がありません</p></div></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

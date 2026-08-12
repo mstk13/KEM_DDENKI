@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}{% if is_new %}積算案件を登録{% else %}積算案件を編集{% endif %} — {{ APP_NAME }}{% endblock %}
+{% block topbar_title %}{% if is_new %}積算案件を登録{% else %}積算案件を編集{% endif %}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>{% if is_new %}積算案件を登録{% else %}{{ project.name }} を編集{% endif %}</h1>
+</div>
+
+<div class="card">
+  <div class="card-body">
+    <form method="post">
+      {% csrf_token %}
+      <div class="form-group">
+        <label for="id_name">案件名</label>
+        {{ form.name }}{{ form.name.errors }}
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>発注機関</label>{{ form.orderer }}{{ form.orderer.errors }}</div>
+        <div class="form-group"><label>適用積算基準</label>{{ form.standard }}{{ form.standard.errors }}</div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>主たる工事種別</label>{{ form.primary_work_category }}{{ form.primary_work_category.errors }}</div>
+        <div class="form-group"><label>状態</label>{{ form.status }}{{ form.status.errors }}</div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>入札公告日</label>{{ form.bid_announcement_date }}{{ form.bid_announcement_date.errors }}</div>
+        <div class="form-group"><label>開札予定日</label>{{ form.bid_opening_date }}{{ form.bid_opening_date.errors }}</div>
+        <div class="form-group"><label>工期（日）</label>{{ form.construction_period_days }}{{ form.construction_period_days.errors }}</div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>現場</label>{{ form.site }}{{ form.site.errors }}</div>
+        <div class="form-group"><label>入札案件</label>{{ form.bid_project }}{{ form.bid_project.errors }}</div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>応札額</label>{{ form.bid_amount }}{{ form.bid_amount.errors }}</div>
+        <div class="form-group"><label>落札額</label>{{ form.award_amount }}{{ form.award_amount.errors }}</div>
+      </div>
+      <div class="form-group"><label>備考</label>{{ form.notes }}{{ form.notes.errors }}</div>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">保存</button>
+        <a href="{% url 'estimation:project_list' %}" class="btn btn-outline">キャンセル</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

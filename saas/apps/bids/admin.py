@@ -44,10 +44,10 @@ class BidCompetitorAdmin(SimpleHistoryAdmin):
 @admin.register(ScrapeTarget)
 class ScrapeTargetAdmin(SimpleHistoryAdmin):
     list_display = (
-        "name", "region", "koji_kbn", "koji_gyosyu",
+        "name", "region", "category_filter",
         "is_active", "last_scraped_at", "company",
     )
-    list_filter = ("is_active", "region", "koji_kbn", "koji_gyosyu", "company")
+    list_filter = ("is_active", "region", "company")
 
 
 @admin.register(UnitPrice)

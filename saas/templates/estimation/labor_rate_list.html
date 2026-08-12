@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}設計労務単価 — {{ APP_NAME }}{% endblock %}
+{% block topbar_title %}積算{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>設計労務単価</h1>
+  <a href="{% url 'estimation:labor_rate_import' %}" class="btn btn-primary">Excel インポート</a>
+</div>
+
+<div class="card" style="margin-bottom:20px;">
+  <div class="card-body">
+    <form method="get" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;">
+      <div class="form-group" style="margin-bottom:0;">
+        <label>年度</label>
+        <select name="fiscal_year" class="form-control">
+          <option value="">すべて</option>
+          {% for fy in fiscal_years %}
+          <option value="{{ fy }}" {% if fiscal_year == fy|stringformat:"d" %}selected{% endif %}>{{ fy }}年度</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group" style="margin-bottom:0;">
+        <label>都道府県</label>
+        <select name="prefecture" class="form-control">
+          <option value="">すべて</option>
+          {% for pref in prefectures %}
+          <option value="{{ pref }}" {% if prefecture == pref %}selected{% endif %}>{{ pref }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group" style="margin-bottom:0;">
+        <label>職種</label>
+        <input type="text" name="trade" value="{{ trade }}" class="form-control" placeholder="電工">
+      </div>
+      <button type="submit" class="btn btn-primary">検索</button>
+      <a href="{% url 'estimation:labor_rate_list' %}" class="btn btn-outline">リセット</a>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>年度</th><th>都道府県</th><th>職種</th><th style="text-align:right;">単価（円/人日）</th></tr>
+      </thead>
+      <tbody>
+        {% for r in rates %}
+        <tr>
+          <td>{{ r.fiscal_year }}</td>
+          <td>{{ r.prefecture }}</td>
+          <td>{{ r.trade }}</td>
+          <td style="text-align:right;font-weight:600;">{{ r.amount|floatformat:0 }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="4"><div class="empty"><div class="empty-icon">&#x1f4b4;</div><p>労務単価データがありません。<a href="{% url 'estimation:labor_rate_import' %}">Excel からインポート</a>してください。</p></div></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

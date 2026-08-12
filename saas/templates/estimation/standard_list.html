@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}積算基準一覧 — {{ APP_NAME }}{% endblock %}
+{% block topbar_title %}積算{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>積算基準・歩掛</h1>
+  <a href="{% url 'estimation:standard_create' %}" class="btn btn-primary">+ 積算基準を登録</a>
+</div>
+
+<div class="card">
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>基準名</th><th>発注機関</th><th>年度</th><th>適用期間</th><th>状態</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for s in standards %}
+        <tr>
+          <td><a href="{% url 'estimation:standard_detail' s.pk %}">{{ s.name }}</a></td>
+          <td>{{ s.orderer.name }}</td>
+          <td>{{ s.fiscal_year }}</td>
+          <td>{{ s.effective_from|default:"-" }} 〜 {{ s.effective_to|default:"" }}</td>
+          <td>
+            {% if s.status == 'draft' %}<span class="badge badge-gray">下書き</span>
+            {% elif s.status == 'reviewed' %}<span class="badge badge-orange">レビュー済</span>
+            {% elif s.status == 'approved' %}<span class="badge badge-green">承認済</span>
+            {% endif %}
+          </td>
+          <td><a href="{% url 'estimation:standard_edit' s.pk %}" class="btn btn-outline btn-sm">編集</a></td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="6"><div class="empty"><div class="empty-icon">&#x1f4d6;</div><p>積算基準が登録されていません</p></div></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

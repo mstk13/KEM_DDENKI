@@ -50,7 +50,11 @@ def cost_list(request):
 @login_required
 @module_permission_required("costs", "read")
 def cost_detail(request, site_id):
-    """現場別の原価ダッシュボード。グラフ・区分別消化率を表示。"""
+    """現場別の見積もり/実経費ダッシュボード。グラフ・区分別消化率を表示。"""
+    from django.db.models import Sum
+
+    from apps.materials.models import PurchaseOrder
+
     site = get_object_or_404(Site, pk=site_id)
     summary = get_site_cost_summary(site)
     trend = get_monthly_cost_trend(site)
@@ -61,11 +65,33 @@ def cost_detail(request, site_id):
         "work_type", "cost_category",
     ).order_by("-transaction_date")[:30]
 
+    # 発注（見積もり）vs 実経費
+    purchase_orders = PurchaseOrder.objects.filter(
+        site=site,
+    ).select_related("supplier").order_by("-order_date")
+
+    po_vs_actual = []
+    for po in purchase_orders:
+        estimate = po.total_amount or 0
+        # 実経費: この発注に紐づく CostTransaction の合計
+        actual = CostTransaction.unscoped.filter(
+            site=site,
+            source_type=CostTransaction.SourceType.PO_ITEM,
+            supplier=po.supplier,
+        ).aggregate(t=Sum("amount"))["t"] or 0
+        po_vs_actual.append({
+            "po": po,
+            "estimate": estimate,
+            "actual": actual,
+            "diff": estimate - actual,
+        })
+
     return render(request, "costs/detail.html", {
         "site": site,
         "summary": summary,
         "trend_json": json_for_script(trend),
         "transactions": transactions,
+        "po_vs_actual": po_vs_actual,
     })
 
 
