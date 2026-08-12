@@ -1,6 +1,7 @@
 """開発管理アプリ — テナント分離テスト、ガントチャートのデータ生成。"""
 
 import datetime
+import json
 
 import pytest
 from django.urls import reverse
@@ -239,6 +240,40 @@ class TestProjectListView:
         client.force_login(user_a)
         res = client.get(reverse("devkanri:project_list"), {"scope": "nonsense"})
         assert res.context["scope"] == "active"
+
+        set_current_company(None)
+
+    def test_newly_created_project_appears_in_the_chart(
+        self, client, company_a, user_a
+    ):
+        # 追加したばかりのプロジェクトがガントに出ないという指摘があったため、
+        # 作成直後のものが必ずデータに入ることを固定する。
+        set_current_company(company_a)
+        DevProject.objects.create(
+            name="追加したばかり",
+            status="planning",
+            start_date=datetime.date(2026, 8, 13),
+            due_date=datetime.date(2026, 8, 15),
+            company=company_a,
+            created_by=user_a,
+        )
+        client.force_login(user_a)
+        res = client.get(reverse("devkanri:project_list"))
+        names = [row["name"] for row in json.loads(res.context["gantt_json"])]
+        assert "追加したばかり" in names
+
+        set_current_company(None)
+
+    def test_list_offers_delete_for_each_project(self, client, company_a, user_a):
+        set_current_company(company_a)
+        project = DevProject.objects.create(
+            name="消したいもの", status="in_progress",
+            company=company_a, created_by=user_a,
+        )
+        client.force_login(user_a)
+        res = client.get(reverse("devkanri:project_list"))
+        delete_url = reverse("devkanri:project_delete", args=[project.pk])
+        assert delete_url in res.content.decode("utf-8")
 
         set_current_company(None)
 
