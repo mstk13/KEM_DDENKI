@@ -280,6 +280,336 @@ def generate_quotation_pdf(output, quotation, items, user):
     doc.build(elements)
 
 
+# ── 発注書・発注請書 PDF 出力 ──
+
+
+# 工事請負契約約款テキスト
+_YAKKAN_ARTICLES = [
+    ("第1条（総則）",
+     "発注者（以下「甲」という。）と、請負者（以下「乙」という。）は、互いに協力し、信義を守り、誠実に本契約を履行する。"),
+    ("第2条（契約の成立）",
+     "甲は、工事を発注するときは、乙に対し発注書を発行し、乙は甲に対し発注請書を提出することにより、契約が成立するものとする。"),
+    ("第3条（権利譲渡等の禁止）",
+     "乙は本契約によって生ずる権利、もしくは業務を第三者に譲渡し、又は承継させてはならない。"),
+    ("第4条（請負代金の内容）",
+     "請負代金には、甲の指定する場所において物件の引渡が完了するまでに要する荷造運賃、据付費等の諸掛一切を含むものとする。"),
+    ("第5条（製作完成及び搬入、据付完了の通知）",
+     "乙は本契約に基づく物件の製作完成及び搬入、据付完了のときは、其の旨を甲に通知するものとする。"),
+    ("第6条（履行完了の確認）",
+     "1. 甲は前条に定める通知を受けたときは、遅滞無く、乙の立会のもとに検査を行うものとする。但し、乙の都合により立会しない場合においても検査することができる。\n"
+     "2. 甲が前項に定める検査を行った結果、契約に違反し、あるいは不良箇所を発見したときは、乙に速やかにその是正、又は改善をしなければならない。"),
+    ("第7条（第三者障害）",
+     "1. 施工のため第三者に損害を及ぼしたときには、乙がその損害を賠償する。但し、其の損害の内甲の責に帰すべき事由により生じたものについては、甲の責任とする。\n"
+     "2. 前項の規定にかかわらず、施工については乙が善良な管理者としての注意を払っても避けることができない騒音・振動・地盤沈下・地下水の断絶等の事由により第三者に与えた損害を補償するときは、甲がこれを負担する。\n"
+     "3. 第2項の場合、其の他施工について第三者との間に紛争が生じたときは、乙が其の処理解決に当たる。但し、乙だけで解決し難いときは、甲は乙に協力する。"),
+    ("第8条（所有権の移転）",
+     "物件の所有権は、甲が第6条に定める検査を完了し、請負代金を完済した後に乙から甲に移るものとする。"),
+    ("第9条（不可抗力による損害）",
+     "物件引き渡し前に生じた物件の亡失、毀損は全て乙の負担とする。但し、天災地変其の他乙の責に帰し難い事由による場合並びに甲の責に帰すべき場合はこの限りではない。"),
+    ("第10条（物件の保証）",
+     "契約の目的物に施工、製作上の瑕疵があるときは引渡検査のとき甲が補修又は取替を求めたものに限り乙が責を負い、かくれた瑕疵については引渡の日より1年間補修の責を負う。"),
+    ("第11条（工事及び工期の変更）",
+     "1. 甲は必要によって工事の追加又は変更を求めることができる。\n"
+     "2. 甲は必要によって乙に工期の変更を求めることができる。\n"
+     "3. 不可抗力、其の他正当な理由があるときは、乙は速やかにその理由を示して甲に工期の変更を求めることができる。"),
+    ("第12条（請負代金の変更）",
+     "1. 次の各号の一にあたるときは、当事者は相手方に請負代金の変更を求めることができる。\n"
+     "  a. 工事の追加・変更があったとき。\n  b. 工期の変更があったとき。\n"
+     "  c. 支給材料・貸与品について品目、数量、受渡時期又は受渡場所の変更があったとき。\n"
+     "  d. 工期内に予期する事のできない経済事情の激変など異常な事態の発生によって請負代金が明らかに不適当であると認められたとき。\n"
+     "  e. 中止した工事又は災害を受けた工事を続行する場合、請負代金が不適当であると認められたとき。\n"
+     "2. 請負代金の変更をするときは、甲・乙が協議して其の金額を定める。"),
+    ("第13条（紛争の解決）",
+     "1. 本契約について甲乙間に紛争が生じたときは、建設業法による建設工事紛争審査会のあっせん又は調停によってその解決を図る。\n"
+     "2. 甲又は乙が前項により紛争を解決する見込みがないと認めたときは、仲裁合意書に基づいて審査会の仲裁に付することができる。"),
+    ("第14条（協議）",
+     "この契約書に定めていない事項については、必要に応じて甲・乙が協議して定めるものとする。"),
+    ("第15条（暴力団、妨害行為等の排除）",
+     "発注者は請負者（下請負者を含む）が反社会的勢力に属すると認められるとき、本契約を解除することができ、本解除により損害が生じた場合、請負者はその賠償の責めを負うものとする。"),
+]
+
+
+def _build_po_pdf_elements(po, items, user, *, is_acceptance=False):
+    """発注書/発注請書のPDF要素を組み立てる。"""
+    from decimal import Decimal
+
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.styles import ParagraphStyle
+    from reportlab.lib.units import mm
+    from reportlab.pdfbase import pdfmetrics
+    from reportlab.pdfbase.cidfonts import UnicodeCIDFont
+    from reportlab.platypus import (
+        Paragraph,
+        PageBreak,
+        Spacer,
+        Table,
+        TableStyle,
+    )
+
+    pdfmetrics.registerFont(UnicodeCIDFont("HeiseiKakuGo-W5"))
+    pdfmetrics.registerFont(UnicodeCIDFont("HeiseiMin-W3"))
+    FONT = "HeiseiKakuGo-W5"
+    FONT_MINCHO = "HeiseiMin-W3"
+
+    HEADER_BG = colors.HexColor("#8C8279")
+
+    style_title = ParagraphStyle(
+        "title", fontName=FONT, fontSize=20, alignment=1, spaceAfter=5 * mm,
+    )
+    style_normal = ParagraphStyle(
+        "normal", fontName=FONT, fontSize=10, leading=14,
+    )
+    style_right = ParagraphStyle(
+        "right", fontName=FONT, fontSize=10, alignment=2,
+    )
+    style_small = ParagraphStyle(
+        "small", fontName=FONT, fontSize=9,
+    )
+    style_company = ParagraphStyle(
+        "company", fontName=FONT, fontSize=12, alignment=2,
+    )
+    style_total_label = ParagraphStyle(
+        "total_label", fontName=FONT, fontSize=14, alignment=0,
+    )
+    style_yakkan_title = ParagraphStyle(
+        "yakkan_title", fontName=FONT_MINCHO, fontSize=14, alignment=1,
+        spaceBefore=8 * mm, spaceAfter=5 * mm,
+    )
+    style_article_title = ParagraphStyle(
+        "article_title", fontName=FONT_MINCHO, fontSize=9, leading=12,
+        spaceBefore=3 * mm,
+    )
+    style_article_body = ParagraphStyle(
+        "article_body", fontName=FONT_MINCHO, fontSize=8, leading=11,
+    )
+
+    elements = []
+
+    # === ページ1: 発注書 / 発注請書 ===
+    title_text = "発 注 請 書" if is_acceptance else "発 注 書"
+    elements.append(Paragraph(title_text, style_title))
+
+    if is_acceptance:
+        elements.append(Paragraph("収入印紙貼付欄", ParagraphStyle(
+            "stamp", fontName=FONT, fontSize=8, alignment=0,
+        )))
+        elements.append(Spacer(1, 3 * mm))
+
+    # ヘッダー: 宛先 + 会社情報
+    supplier_name = po.supplier.name if po.supplier else ""
+    company_name = str(user.company) if user.company else ""
+
+    po_no = f"PO-{po.pk:05d}"
+    date_label = "発行日" if is_acceptance else "発注日"
+
+    header_left = [
+        Paragraph(f"<b>{supplier_name}　御中</b>", ParagraphStyle(
+            "dest", fontName=FONT, fontSize=14, leading=18,
+        )),
+        Spacer(1, 3 * mm),
+        Paragraph(
+            "下記のとおり御注文をお請け致しました。" if is_acceptance
+            else "下記のとおり発注致します。",
+            style_normal,
+        ),
+    ]
+
+    header_right_data = [
+        ["No", po_no],
+        [date_label, str(po.order_date)],
+    ]
+    header_right_table = Table(header_right_data, colWidths=[18 * mm, 50 * mm])
+    header_right_table.setStyle(TableStyle([
+        ("FONTNAME", (0, 0), (-1, -1), FONT),
+        ("FONTSIZE", (0, 0), (-1, -1), 9),
+        ("BACKGROUND", (0, 0), (0, -1), HEADER_BG),
+        ("TEXTCOLOR", (0, 0), (0, -1), colors.white),
+        ("ALIGN", (0, 0), (0, -1), "CENTER"),
+        ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+    ]))
+
+    company_info = [
+        Paragraph(f"<b>{company_name}</b>", style_company),
+    ]
+    if not is_acceptance:
+        company_info.append(Paragraph(
+            f"代表取締役　釼持　陽子", style_right,
+        ))
+
+    # 2カラムヘッダーテーブル
+    from reportlab.platypus import TableStyle as TS
+    outer = Table(
+        [[header_left, [header_right_table, Spacer(1, 2 * mm)] + company_info]],
+        colWidths=[90 * mm, 80 * mm],
+    )
+    outer.setStyle(TS([("VALIGN", (0, 0), (-1, -1), "TOP")]))
+    elements.append(outer)
+    elements.append(Spacer(1, 5 * mm))
+
+    # 件名・納期・支払条件
+    subject = po.subject or (po.site.name if po.site else "")
+    info_data = [
+        ["件　名", subject],
+        ["納　期", str(po.delivery_date) if po.delivery_date else ""],
+        ["支払条件", po.payment_terms or "月末締翌月末払"],
+    ]
+    info_table = Table(info_data, colWidths=[25 * mm, 145 * mm])
+    info_table.setStyle(TableStyle([
+        ("FONTNAME", (0, 0), (-1, -1), FONT),
+        ("FONTSIZE", (0, 0), (-1, -1), 10),
+        ("BACKGROUND", (0, 0), (0, -1), HEADER_BG),
+        ("TEXTCOLOR", (0, 0), (0, -1), colors.white),
+        ("ALIGN", (0, 0), (0, -1), "CENTER"),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+        ("ROWBACKGROUNDS", (1, 0), (-1, -1), [colors.white]),
+    ]))
+    elements.append(info_table)
+    elements.append(Spacer(1, 5 * mm))
+
+    # 合計金額
+    subtotal = sum(int(item.quantity * item.unit_price) for item in items)
+    tax_total = sum(
+        int(item.quantity * item.unit_price * item.tax_rate)
+        for item in items
+    )
+    grand_total = subtotal + tax_total
+
+    total_data = [["合 計 金 額", f"¥{grand_total:,}"]]
+    total_table = Table(total_data, colWidths=[40 * mm, 130 * mm])
+    total_table.setStyle(TableStyle([
+        ("FONTNAME", (0, 0), (-1, -1), FONT),
+        ("FONTSIZE", (0, 0), (-1, -1), 14),
+        ("BACKGROUND", (0, 0), (0, 0), HEADER_BG),
+        ("TEXTCOLOR", (0, 0), (0, 0), colors.white),
+        ("ALIGN", (0, 0), (0, 0), "CENTER"),
+        ("ALIGN", (1, 0), (1, 0), "CENTER"),
+        ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+    ]))
+    elements.append(total_table)
+    elements.append(Spacer(1, 5 * mm))
+
+    # 明細テーブル
+    detail_header = ["摘　要", "税率", "数量", "単位", "単価", "金額"]
+    detail_data = [detail_header]
+    for item in items:
+        name = item.display_name
+        tax_str = f"{float(item.tax_rate):.0%}" if item.tax_rate else ""
+        qty = f"{item.quantity:,.2f}"
+        unit = item.unit or (item.material.unit if item.material else "")
+        price = f"¥{int(item.unit_price):,}"
+        amount = f"¥{int(item.quantity * item.unit_price):,}"
+        detail_data.append([name, tax_str, qty, unit, price, amount])
+
+    # 小計・消費税・合計行
+    detail_data.append(["", "", "", "", "小　計", f"¥{subtotal:,}"])
+    detail_data.append(["", "", "", "", "消費税等", f"¥{tax_total:,}"])
+    detail_data.append(["", "", "", "", "合計金額", f"¥{grand_total:,}"])
+
+    col_widths = [55 * mm, 15 * mm, 18 * mm, 15 * mm, 25 * mm, 30 * mm]
+    detail_table = Table(detail_data, colWidths=col_widths)
+    detail_table.setStyle(TableStyle([
+        ("FONTNAME", (0, 0), (-1, -1), FONT),
+        ("FONTSIZE", (0, 0), (-1, -1), 9),
+        ("BACKGROUND", (0, 0), (-1, 0), HEADER_BG),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+        ("ALIGN", (1, 0), (-1, -1), "RIGHT"),
+        ("ALIGN", (0, 0), (0, -1), "LEFT"),
+        ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+        ("ROWBACKGROUNDS", (0, 1), (-1, -4), [colors.white, colors.HexColor("#f8f9fa")]),
+        # 合計行
+        ("BACKGROUND", (4, -3), (-1, -1), HEADER_BG),
+        ("TEXTCOLOR", (4, -3), (-1, -1), colors.white),
+        ("FONTSIZE", (4, -1), (-1, -1), 11),
+    ]))
+    elements.append(detail_table)
+    elements.append(Spacer(1, 5 * mm))
+
+    # 仕様・特記事項
+    spec_data = [["仕　様　・　特　記　事　項"]]
+    spec_table = Table(spec_data, colWidths=[170 * mm])
+    spec_table.setStyle(TableStyle([
+        ("FONTNAME", (0, 0), (-1, -1), FONT),
+        ("FONTSIZE", (0, 0), (-1, -1), 11),
+        ("BACKGROUND", (0, 0), (-1, -1), HEADER_BG),
+        ("TEXTCOLOR", (0, 0), (-1, -1), colors.white),
+        ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+    ]))
+    elements.append(spec_table)
+
+    specs = []
+    if po.quotation:
+        specs.append(f"見積番号：{po.quotation.pk}")
+    if po.site:
+        specs.append(f"工事場所：{po.site.name}")
+        if hasattr(po.site, "address") and po.site.address:
+            specs.append(f"工事場所住所：{po.site.address}")
+    if po.delivery_date:
+        specs.append(f"工事予定日：{po.delivery_date}")
+    if po.notes:
+        specs.append(po.notes)
+
+    for spec in specs:
+        elements.append(Paragraph(spec, style_normal))
+    elements.append(Spacer(1, 5 * mm))
+
+    # === ページ2: 工事請負契約約款 ===
+    elements.append(PageBreak())
+    elements.append(Paragraph("工 事 請 負 契 約 約 款", style_yakkan_title))
+
+    for title, body in _YAKKAN_ARTICLES:
+        elements.append(Paragraph(f"<b>{title}</b>", style_article_title))
+        for line in body.split("\n"):
+            elements.append(Paragraph(line, style_article_body))
+
+    return elements
+
+
+def generate_purchase_order_pdf(output, po, items, user):
+    """発注書PDFを生成する。
+
+    Args:
+        output: HttpResponse or file-like object
+        po: PurchaseOrder instance
+        items: PurchaseOrderItem queryset
+        user: 出力実行ユーザー
+    """
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.units import mm
+    from reportlab.platypus import SimpleDocTemplate
+
+    doc = SimpleDocTemplate(
+        output, pagesize=A4,
+        leftMargin=15 * mm, rightMargin=15 * mm,
+        topMargin=15 * mm, bottomMargin=15 * mm,
+    )
+    elements = _build_po_pdf_elements(po, items, user, is_acceptance=False)
+    doc.build(elements)
+
+
+def generate_purchase_order_acceptance_pdf(output, po, items, user):
+    """発注請書PDFを生成する。
+
+    Args:
+        output: HttpResponse or file-like object
+        po: PurchaseOrder instance
+        items: PurchaseOrderItem queryset
+        user: 出力実行ユーザー
+    """
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.units import mm
+    from reportlab.platypus import SimpleDocTemplate
+
+    doc = SimpleDocTemplate(
+        output, pagesize=A4,
+        leftMargin=15 * mm, rightMargin=15 * mm,
+        topMargin=15 * mm, bottomMargin=15 * mm,
+    )
+    elements = _build_po_pdf_elements(po, items, user, is_acceptance=True)
+    doc.build(elements)
+
+
 # ── 納品書 画像OCR ──
 
 

@@ -340,6 +340,47 @@ def po_acceptance_excel_download(request, pk):
     return response
 
 
+# ── 発注書 PDF 出力 ──
+
+
+@login_required
+def po_pdf_download(request, pk):
+    """発注書 PDF ダウンロード。"""
+    from django.http import HttpResponse
+
+    from apps.materials.services import generate_purchase_order_pdf
+
+    po = get_object_or_404(
+        PurchaseOrder.objects.select_related("site", "supplier", "quotation"), pk=pk,
+    )
+    items = po.items.select_related("material", "work_type").all()
+
+    response = HttpResponse(content_type="application/pdf")
+    filename = f"発注書_PO-{po.pk:05d}_{po.order_date}.pdf"
+    response["Content-Disposition"] = f'inline; filename="{filename}"'
+    generate_purchase_order_pdf(response, po, items, request.user)
+    return response
+
+
+@login_required
+def po_acceptance_pdf_download(request, pk):
+    """発注請書 PDF ダウンロード。"""
+    from django.http import HttpResponse
+
+    from apps.materials.services import generate_purchase_order_acceptance_pdf
+
+    po = get_object_or_404(
+        PurchaseOrder.objects.select_related("site", "supplier", "quotation"), pk=pk,
+    )
+    items = po.items.select_related("material", "work_type").all()
+
+    response = HttpResponse(content_type="application/pdf")
+    filename = f"発注請書_PO-{po.pk:05d}_{po.order_date}.pdf"
+    response["Content-Disposition"] = f'inline; filename="{filename}"'
+    generate_purchase_order_acceptance_pdf(response, po, items, request.user)
+    return response
+
+
 # ── CSV インポート ──
 
 

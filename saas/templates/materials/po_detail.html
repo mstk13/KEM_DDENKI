@@ -8,7 +8,9 @@
   <div style="display:flex;gap:8px;align-items:center;">
     <span class="badge badge-gray">{{ po.get_status_display }}</span>
     <a href="{% url 'materials:po_excel_order' po.pk %}" class="btn btn-primary btn-sm">発注書 Excel</a>
+    <a href="{% url 'materials:po_pdf_order' po.pk %}" class="btn btn-primary btn-sm" target="_blank">発注書 PDF</a>
     <a href="{% url 'materials:po_excel_acceptance' po.pk %}" class="btn btn-outline btn-sm">発注請書 Excel</a>
+    <a href="{% url 'materials:po_pdf_acceptance' po.pk %}" class="btn btn-outline btn-sm" target="_blank">発注請書 PDF</a>
   </div>
 </div>
 
