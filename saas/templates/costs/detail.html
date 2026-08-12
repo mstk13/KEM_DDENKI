@@ -119,9 +119,10 @@
           </td>
           <td><span class="badge badge-gray">{{ po_data.po.get_status_display }}</span></td>
           <td>
-            <div style="display:flex;gap:4px;">
-              <a href="{% url 'materials:po_excel_order' po_data.po.pk %}" class="btn btn-outline btn-xs">発注書</a>
-              <a href="{% url 'materials:po_excel_acceptance' po_data.po.pk %}" class="btn btn-outline btn-xs">請書</a>
+            <div style="display:flex;gap:4px;flex-wrap:wrap;">
+              <a href="{% url 'materials:po_pdf_order' po_data.po.pk %}" class="btn btn-outline btn-xs" target="_blank">発注書PDF</a>
+              <a href="{% url 'materials:po_pdf_acceptance' po_data.po.pk %}" class="btn btn-outline btn-xs" target="_blank">請書PDF</a>
+              <a href="{% url 'materials:po_excel_order' po_data.po.pk %}" class="btn btn-outline btn-xs">Excel</a>
             </div>
           </td>
         </tr>
