@@ -102,13 +102,21 @@ def _has_cost_access(user, level: str = "read") -> bool:
     if is_president:
         return True
 
+    # 2. 役員・developer ロール → read/write OK
+    is_executive_or_dev = Role.unscoped.filter(
+        code__in=["executive", "developer"],
+        user_roles__user=user,
+    ).exists()
+    if is_executive_or_dev and level in ("read", "write"):
+        return True
+
     # read レベルのみ: 社員番号G始まり or 個別許可
     if level == "read":
-        # 2. 社員番号が G で始まる
+        # 3. 社員番号が G で始まる
         if user.employee_no and user.employee_no.upper().startswith("G"):
             return True
 
-        # 3. 管理者が個別に許可したユーザー
+        # 4. 管理者が個別に許可したユーザー
         if CostAccessGrant.unscoped.filter(user=user).exists():
             return True
 
