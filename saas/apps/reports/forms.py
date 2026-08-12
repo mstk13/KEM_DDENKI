@@ -1,4 +1,5 @@
 from django import forms
+from django.db.models import Case, IntegerField, Q, Value, When
 
 from apps.masters.models import Supplier, WorkType
 from apps.reports.models import DailyReport
@@ -113,9 +114,21 @@ class DailyReportForm(forms.ModelForm):
         self.fields["end_time"].required = False
 
         if company:
-            self.fields["workers"].queryset = Worker.unscoped.filter(
-                company=company, is_active=True,
-            ).order_by("name")
+            # 日報を書くのは社員番号が G で始まる作業員のみ。
+            # 並びはフリガナの50音順（未登録の人は氏名で並べ、後ろに回す）。
+            self.fields["workers"].queryset = (
+                Worker.unscoped.filter(
+                    company=company, is_active=True, employee_code__startswith="G",
+                )
+                .annotate(
+                    kana_missing=Case(
+                        When(Q(name_kana="") | Q(name_kana__isnull=True), then=Value(1)),
+                        default=Value(0),
+                        output_field=IntegerField(),
+                    ),
+                )
+                .order_by("kana_missing", "name_kana", "name")
+            )
             self.fields["partner"].queryset = Supplier.unscoped.filter(
                 company=company, is_active=True,
             )
