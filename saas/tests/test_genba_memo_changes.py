@@ -41,7 +41,7 @@ def site(company_a):
 @pytest.fixture
 def worker(company_a):
     return Worker.unscoped.create(
-        company=company_a, employee_code="G001", name="田中太郎",
+        company=company_a, employee_code="E001", name="田中太郎",
         name_kana="タナカタロウ", hourly_cost=3000,
     )
 
