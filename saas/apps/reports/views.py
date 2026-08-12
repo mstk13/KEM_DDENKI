@@ -41,7 +41,6 @@ def report_list(request):
     })
 
 
-@login_required
 def _report_form_context(company):
     """日報フォームの候補一覧と、現場→発注先の対応表を返す。"""
     from apps.core.json_utils import json_for_script
@@ -71,6 +70,7 @@ def _report_form_context(company):
     }
 
 
+@login_required
 def report_create(request):
     if request.method == "POST":
         form = DailyReportForm(request.POST, company=request.user.company)
