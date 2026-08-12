@@ -5,7 +5,10 @@
 {% block content %}
 <div class="page-header">
   <h1>現場一覧</h1>
-  <a href="{% url 'sites:create' %}" class="btn btn-primary">+ 現場を登録</a>
+  <div>
+    <a href="{% url 'sites:import' %}" class="btn btn-outline">見積ファイルから登録</a>
+    <a href="{% url 'sites:create' %}" class="btn btn-primary">+ 現場を登録</a>
+  </div>
 </div>
 
 <div class="card">

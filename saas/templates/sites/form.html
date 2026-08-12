@@ -35,6 +35,12 @@
           {{ form.contract_amount.errors }}
         </div>
       </div>
+      <div class="form-group">
+        <label for="id_payment_terms">支払条件</label>
+        <input type="text" name="payment_terms" id="id_payment_terms" class="form-control" value="{{ form.payment_terms.value|default:'' }}" placeholder="例: 月末締め翌月末現金払い">
+        <p style="font-size:.78rem;color:var(--text-muted);margin:4px 0 0;">空欄なら得意先の標準支払条件を使います。</p>
+        {{ form.payment_terms.errors }}
+      </div>
       <div class="form-row">
         <div class="form-group">
           <label for="id_customer">得意先</label>

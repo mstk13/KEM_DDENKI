@@ -45,6 +45,12 @@ class Site(TenantModel):
         decimal_places=0,
         default=0,
     )
+    payment_terms = models.CharField(
+        "支払条件",
+        max_length=200,
+        blank=True,
+        help_text="空欄なら得意先の標準支払条件を使う。",
+    )
     start_date = models.DateField("工期開始", null=True, blank=True)
     end_date = models.DateField("工期終了", null=True, blank=True)
     manager = models.ForeignKey(
@@ -73,6 +79,13 @@ class Site(TenantModel):
 
     def __str__(self):
         return self.name
+
+    @property
+    def effective_payment_terms(self) -> str:
+        """実際に適用される支払条件。現場に指定が無ければ得意先の標準を使う。"""
+        if self.payment_terms:
+            return self.payment_terms
+        return self.customer.payment_terms if self.customer else ""
 
 
 class Process(TenantModel):

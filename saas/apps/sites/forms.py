@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from django import forms
 
 from apps.accounts.models import User
@@ -10,7 +12,7 @@ class SiteForm(forms.ModelForm):
         model = Site
         fields = [
             "code", "name", "customer", "status",
-            "contract_amount", "start_date", "end_date",
+            "contract_amount", "payment_terms", "start_date", "end_date",
             "manager", "estimator", "address",
         ]
         widgets = {
@@ -30,6 +32,29 @@ class SiteForm(forms.ModelForm):
             )
             self.fields["manager"].queryset = User.objects.filter(company=company)
             self.fields["estimator"].queryset = User.objects.filter(company=company)
+
+
+class EstimateUploadForm(forms.Form):
+    """見積ファイル（ライデンの CSV / 見積書の PDF）を受け取るフォーム。"""
+
+    ALLOWED_SUFFIXES = (".csv", ".pdf")
+
+    file = forms.FileField(
+        label="見積ファイル",
+        widget=forms.ClearableFileInput(
+            attrs={"accept": ".csv,.pdf", "class": "form-control"}
+        ),
+    )
+
+    def clean_file(self):
+        uploaded = self.cleaned_data["file"]
+        suffix = Path(uploaded.name).suffix.lower()
+        if suffix not in self.ALLOWED_SUFFIXES:
+            raise forms.ValidationError(
+                "CSV(.csv) または PDF(.pdf) を選んでください。"
+                f"（選ばれたのは {suffix or '拡張子なし'} です）"
+            )
+        return uploaded
 
 
 class ProcessForm(forms.ModelForm):

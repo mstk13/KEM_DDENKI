@@ -68,6 +68,12 @@ class Customer(TenantModel):
     fax = models.CharField("FAX", max_length=30, blank=True)
     email = models.EmailField("メール", blank=True)
     address = models.TextField("住所", blank=True)
+    payment_terms = models.CharField(
+        "標準支払条件",
+        max_length=200,
+        blank=True,
+        help_text="例: 月末締め翌月末現金払い。現場ごとに違う場合は現場側で上書きする。",
+    )
     note = models.TextField("備考", blank=True)
     is_active = models.BooleanField("有効", default=True)
 
