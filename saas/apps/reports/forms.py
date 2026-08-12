@@ -63,6 +63,10 @@ class DailyReportForm(forms.ModelForm):
     現場・工程・工種は Meta.fields に含めず、save() で解決してから
     instance に入れている。検証中に登録すると、他の欄でエラーになったとき
     使われない現場や工種だけが残ってしまうため。
+
+    天候も Meta.fields に含めない。含めると ModelForm が保存前にモデルの
+    選択肢と突き合わせ、選択肢に無い言葉が「有効な選択肢ではありません」で
+    弾かれてしまう（自由入力にした意味が無くなる）。
     """
 
     # 現場から自動で引く発注先。表示専用で、日報には保存しない。
@@ -113,7 +117,7 @@ class DailyReportForm(forms.ModelForm):
         # site / process / work_type / worker は save 時に入れるため含めない。
         # 種別（report_type）は入力しない（モデルの既定値のまま）。
         fields = [
-            "report_date", "weather",
+            "report_date",
             "work_description",
             "start_time", "end_time", "work_hours",
             "is_partner_worker", "partner",
@@ -182,6 +186,7 @@ class DailyReportForm(forms.ModelForm):
             self.initial["process"] = obj.process.name if obj.process_id else ""
             self.initial["work_type"] = obj.work_type.name if obj.work_type_id else ""
             self.initial["workers"] = [obj.worker_id] if obj.worker_id else []
+            self.initial["weather"] = obj.weather
             if obj.site_id and obj.site.customer_id:
                 self.initial["orderer"] = str(obj.site.customer)
 
@@ -193,6 +198,21 @@ class DailyReportForm(forms.ModelForm):
                 "他の作業員の日報は、それぞれの日報から編集してください。",
             )
         return workers
+
+    def clean_weather(self):
+        """選択肢の表示名で入力されたら、保存値に直す。
+
+        候補には「晴」「曇」と出るが、モデルは "sunny" "cloudy" で持っている。
+        そのまま保存すると既存データと表記が混ざるため、既知のものは寄せる。
+        選択肢に無い言葉はそのまま保存する。
+        """
+        text = (self.cleaned_data.get("weather") or "").strip()
+        if not text:
+            return ""
+        for value, label in DailyReport.Weather.choices:
+            if text in (value, label):
+                return value
+        return text
 
     def clean_site(self):
         name = (self.cleaned_data.get("site") or "").strip()
@@ -289,6 +309,7 @@ class DailyReportForm(forms.ModelForm):
         proto.site = site
         proto.work_type = work_type
         proto.process = process
+        proto.weather = self.cleaned_data.get("weather", "")
         if status is not None:
             proto.status = status
 
