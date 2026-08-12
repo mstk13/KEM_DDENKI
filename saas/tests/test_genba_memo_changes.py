@@ -55,12 +55,13 @@ def supplier(company_a):
 def _report_post_data(site, worker, work_type, **overrides):
     data = {
         "report_type": DailyReport.ReportType.ELECTRICIAN,
-        "site": site.pk,
+        # 現場・工種・工程は名前で送る（一覧から選んでも手入力でも同じ）
+        "site": site.name,
         "worker": worker.pk,
         "report_date": "2026-08-01",
         "weather": "",
         "process": "",
-        "work_type": work_type.pk,
+        "work_type": work_type.name,
         "work_description": "配線作業",
         "start_time": "",
         "end_time": "",
