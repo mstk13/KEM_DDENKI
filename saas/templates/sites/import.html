@@ -14,14 +14,14 @@
   <div class="card-header"><h2>ファイルを選ぶ</h2></div>
   <div class="card-body">
     <p style="font-size:.88rem;color:var(--text-muted);margin-bottom:16px;">
-      ライデンから書き出した CSV、または見積書の PDF を読み込みます。
+      ライデンから書き出した CSV / Excel、または見積書の PDF を読み込みます。
       読み取れた項目は次の画面に入った状態で出ます。
       <b>読み取れなかった項目は、その画面で入力してください。</b>
     </p>
     <form method="post" enctype="multipart/form-data">
       {% csrf_token %}
       <div class="form-group">
-        <label for="id_file">見積ファイル（.csv / .pdf）</label>
+        <label for="id_file">見積ファイル（.csv / .xlsx / .pdf）</label>
         {{ upload_form.file }}
         {{ upload_form.file.errors }}
       </div>
@@ -53,6 +53,8 @@
     <p style="font-size:.82rem;color:var(--text-muted);margin-top:12px;">
       見出しの位置ではなく名前で探すため、列の並びが違っても読めます。
       表記がここに無い場合は読み飛ばして空欄にするので、確認画面で入力してください。
+      Excel は全シートを見ます（表紙に見出し、別シートに明細、という作りでも読めます）。
+      古い形式(.xls)は読めないので .xlsx で保存し直してください。
     </p>
   </div>
 </div>

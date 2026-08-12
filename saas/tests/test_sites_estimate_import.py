@@ -5,6 +5,8 @@
 空で返し、確認画面で人が入力できることも合わせて確かめる。
 """
 
+import datetime
+
 import pytest
 from django.urls import reverse
 
@@ -107,10 +109,102 @@ class TestParseCsv:
         assert data["payment_terms"] is None
 
     def test_rejects_unsupported_extension(self, tmp_path):
-        path = tmp_path / "estimate.xlsx"
+        path = tmp_path / "estimate.docx"
         path.write_text("dummy", encoding="utf-8")
         with pytest.raises(ValueError, match="CSV"):
-            parse_estimate_file(path, ".xlsx")
+            parse_estimate_file(path, ".docx")
+
+    def test_old_excel_format_explains_how_to_convert(self, tmp_path):
+        # openpyxl は .xls を読めない。黙って失敗させず直し方を伝える。
+        path = tmp_path / "estimate.xls"
+        path.write_bytes(b"dummy")
+        with pytest.raises(ValueError, match=r"\.xlsx で保存し直して"):
+            parse_estimate_file(path, ".xls")
+
+
+# ---------------------------------------------------------------------------
+# Excel の読み取り
+# ---------------------------------------------------------------------------
+
+def _write_xlsx(tmp_path, sheets, name="estimate.xlsx"):
+    """{シート名: 行のリスト} から xlsx を作る。"""
+    import openpyxl
+
+    workbook = openpyxl.Workbook()
+    workbook.remove(workbook.active)
+    for sheet_name, rows in sheets.items():
+        sheet = workbook.create_sheet(sheet_name)
+        for row in rows:
+            sheet.append(row)
+    path = tmp_path / name
+    workbook.save(path)
+    return path
+
+
+ESTIMATE_SHEET = [
+    ["御見積書"],
+    ["株式会社サンプル建設 御中"],
+    [None, None, "見積番号", "Q-2026-0142"],
+    ["件名", "○○ビル 電気設備改修工事"],
+    ["工事場所", "山形県酒田市中町1-2-3"],
+    ["工期", "2026/09/01～2026/11/30"],
+    ["支払条件", "月末締め翌月末現金払い"],
+    ["見積金額", 3480000],
+]
+
+
+class TestParseExcel:
+    def test_reads_every_header_field(self, tmp_path):
+        path = _write_xlsx(tmp_path, {"表紙": ESTIMATE_SHEET})
+        data = parse_estimate_file(path, ".xlsx")
+
+        assert data["code"] == "Q-2026-0142"
+        assert data["name"] == "○○ビル 電気設備改修工事"
+        assert data["customer_name"] == "株式会社サンプル建設"
+        assert data["payment_terms"] == "月末締め翌月末現金払い"
+        assert data["address"] == "山形県酒田市中町1-2-3"
+        assert data["contract_amount"] == 3480000
+        assert data["start_date"] == "2026-09-01"
+        assert data["end_date"] == "2026-11-30"
+        assert data["missing"] == []
+
+    def test_reads_the_header_sheet_even_when_details_follow(self, tmp_path):
+        # 表紙に見出し、別シートに明細、という作りでも読めること。
+        path = _write_xlsx(tmp_path, {
+            "表紙": ESTIMATE_SHEET,
+            "内訳": [["No", "名称", "数量", "単位", "金額"], [1, "電線管", 120, "m", 240000]],
+        })
+        data = parse_estimate_file(path, ".xlsx")
+
+        assert data["code"] == "Q-2026-0142"
+        assert data["payment_terms"] == "月末締め翌月末現金払い"
+
+    def test_date_cell_is_read_as_a_date(self, tmp_path):
+        # 工期が文字列ではなく日付セルで入っている場合。
+        path = _write_xlsx(tmp_path, {
+            "表紙": [["工期", datetime.datetime(2026, 9, 1)]],
+        })
+        data = parse_estimate_file(path, ".xlsx")
+
+        assert data["start_date"] == "2026-09-01"
+        assert data["end_date"] is None
+
+    def test_uncalculated_formula_is_left_empty(self, tmp_path):
+        # 数式のまま保存されたファイルは data_only では値が取れない。
+        # 誤った金額を入れるより空にして手入力してもらう。
+        import openpyxl
+
+        workbook = openpyxl.Workbook()
+        sheet = workbook.active
+        sheet.append(["見積金額", "=SUM(B2:B9)"])
+        path = tmp_path / "formula.xlsx"
+        workbook.save(path)
+
+        assert parse_estimate_file(path, ".xlsx")["contract_amount"] is None
+
+    def test_xlsm_is_accepted(self, tmp_path):
+        path = _write_xlsx(tmp_path, {"表紙": ESTIMATE_SHEET}, name="estimate.xlsm")
+        assert parse_estimate_file(path, ".xlsm")["code"] == "Q-2026-0142"
 
 
 # ---------------------------------------------------------------------------
@@ -275,19 +369,46 @@ class TestImportView:
         assert "支払条件" in body
         set_current_company(None)
 
-    def test_rejects_a_file_that_is_neither_csv_nor_pdf(
+    def test_accepts_an_excel_file(self, client, tmp_path, company_a, user_a):
+        set_current_company(company_a)
+        client.force_login(user_a)
+
+        path = _write_xlsx(tmp_path, {"表紙": ESTIMATE_SHEET})
+        with open(path, "rb") as f:
+            res = client.post(reverse("sites:import"), {"file": f})
+        body = res.content.decode("utf-8")
+
+        assert "Q-2026-0142" in body
+        assert "月末締め翌月末現金払い" in body
+        set_current_company(None)
+
+    def test_rejects_an_unsupported_file_type(
         self, client, tmp_path, company_a, user_a
     ):
         set_current_company(company_a)
         client.force_login(user_a)
 
-        path = tmp_path / "estimate.xlsx"
+        path = tmp_path / "estimate.docx"
         path.write_bytes(b"dummy")
         with open(path, "rb") as f:
             res = client.post(reverse("sites:import"), {"file": f})
 
-        assert "CSV(.csv) または PDF(.pdf) を選んでください。" in res.content.decode("utf-8")
+        assert "を選んでください。" in res.content.decode("utf-8")
         assert not Site.unscoped.filter(company=company_a).exists()
+        set_current_company(None)
+
+    def test_old_excel_format_is_rejected_with_guidance(
+        self, client, tmp_path, company_a, user_a
+    ):
+        set_current_company(company_a)
+        client.force_login(user_a)
+
+        path = tmp_path / "estimate.xls"
+        path.write_bytes(b"dummy")
+        with open(path, "rb") as f:
+            res = client.post(reverse("sites:import"), {"file": f})
+
+        assert ".xlsx で保存し直して" in res.content.decode("utf-8")
         set_current_company(None)
 
     def test_confirming_creates_the_site_with_estimate_number_as_code(

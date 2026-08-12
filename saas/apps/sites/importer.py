@@ -1,7 +1,8 @@
-"""見積ファイル（ライデンの CSV / 見積書の PDF）から現場の初期値を読み取る。
+"""見積ファイル（ライデンの CSV / Excel / 見積書の PDF）から現場の初期値を読み取る。
 
 CSV(.csv): cp932 → utf-8-sig → utf-8 の順に試す。ライデンの書き出しは CP932 の
 ことが多いが、版や書き出し方で変わるため決め打ちしない。
+Excel(.xlsx/.xlsm): openpyxl で全シートのセルを取り出す。
 PDF(.pdf): pdfplumber で表とテキスト行を取り出し、CSV と同じ走査をかける。
 
 見出し部は「ラベルのセル + 値のセル」で並ぶ。**列位置は版によって動くので
@@ -59,6 +60,10 @@ FIELD_LABELS: dict[str, str] = {
 # 値として長すぎるものは拾い間違い（明細行を掴んだ等）とみなして捨てる。
 MAX_VALUE_LENGTH = 200
 
+# Excel の1シートあたり読む行数の上限。見出しは表紙の先頭にあるので、
+# 数万行の明細シートを最後まで舐めないための歯止め。
+EXCEL_MAX_ROWS = 2000
+
 _SEPARATORS = " \t：:＝=｜|・"
 # 「見積No.」の末尾のようにラベル側に付く記号。値と一緒に拾わないよう落とす。
 _TRIMMABLE = _SEPARATORS + ".．,，、;；#＃"
@@ -106,6 +111,30 @@ def _read_csv_rows(filepath: str | Path) -> list[list[str]]:
     raise ValueError(
         "文字コードを判別できませんでした（CP932 / UTF-8 を試しました）。"
     ) from last_error
+
+
+def _read_excel_rows(filepath: str | Path) -> list[list[str]]:
+    """Excel の全シートをセルの二次元リストにする。
+
+    見出しが「表紙」シートにあり明細が別シート、という作りが多いので
+    シートを順につないで返す。ラベル走査は最初に当たった値を採るため、
+    先頭シートの見出しが優先される。
+
+    data_only=True で数式ではなく計算結果を読む。合計金額が数式のまま
+    保存されている（Excel で一度も開かれていない）ファイルでは値が空に
+    なるが、その場合は読めなかった項目として確認画面で入力してもらう。
+    """
+    import openpyxl
+
+    workbook = openpyxl.load_workbook(filepath, data_only=True, read_only=True)
+    rows: list[list[str]] = []
+    try:
+        for sheet in workbook.worksheets:
+            for row in sheet.iter_rows(max_row=EXCEL_MAX_ROWS, values_only=True):
+                rows.append(["" if v is None else str(v) for v in row])
+    finally:
+        workbook.close()
+    return rows
 
 
 def _read_pdf_rows(filepath: str | Path) -> list[list[str]]:
@@ -301,10 +330,20 @@ def parse_estimate_file(filepath: str | Path, suffix: str) -> dict:
     suffix = (suffix or "").lower()
     if suffix == ".csv":
         rows = _read_csv_rows(filepath)
+    elif suffix in (".xlsx", ".xlsm"):
+        rows = _read_excel_rows(filepath)
     elif suffix == ".pdf":
         rows = _read_pdf_rows(filepath)
+    elif suffix == ".xls":
+        # openpyxl は旧形式を読めない。変換してもらうほうが確実。
+        raise ValueError(
+            "古い Excel 形式(.xls)は読めません。"
+            "Excel で開いて .xlsx で保存し直してください。"
+        )
     else:
-        raise ValueError("CSV(.csv) または PDF(.pdf) のみ対応しています。")
+        raise ValueError(
+            "CSV(.csv) / Excel(.xlsx, .xlsm) / PDF(.pdf) のみ対応しています。"
+        )
 
     start_date, end_date = _parse_period(_find_labeled_value(rows, LABELS["period"]))
 

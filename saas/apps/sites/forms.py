@@ -35,23 +35,29 @@ class SiteForm(forms.ModelForm):
 
 
 class EstimateUploadForm(forms.Form):
-    """見積ファイル（ライデンの CSV / 見積書の PDF）を受け取るフォーム。"""
+    """見積ファイル（ライデンの CSV / Excel、見積書の PDF）を受け取るフォーム。"""
 
-    ALLOWED_SUFFIXES = (".csv", ".pdf")
+    ALLOWED_SUFFIXES = (".csv", ".xlsx", ".xlsm", ".pdf")
 
     file = forms.FileField(
         label="見積ファイル",
         widget=forms.ClearableFileInput(
-            attrs={"accept": ".csv,.pdf", "class": "form-control"}
+            attrs={"accept": ".csv,.xlsx,.xlsm,.pdf", "class": "form-control"}
         ),
     )
 
     def clean_file(self):
         uploaded = self.cleaned_data["file"]
         suffix = Path(uploaded.name).suffix.lower()
+        if suffix == ".xls":
+            # openpyxl は旧形式を読めないので、拡張子の時点で理由を伝える。
+            raise forms.ValidationError(
+                "古い Excel 形式(.xls)は読めません。"
+                "Excel で開いて .xlsx で保存し直してから選んでください。"
+            )
         if suffix not in self.ALLOWED_SUFFIXES:
             raise forms.ValidationError(
-                "CSV(.csv) または PDF(.pdf) を選んでください。"
+                "CSV(.csv) / Excel(.xlsx) / PDF(.pdf) を選んでください。"
                 f"（選ばれたのは {suffix or '拡張子なし'} です）"
             )
         return uploaded
