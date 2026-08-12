@@ -634,3 +634,110 @@ def inventory_list(request):
         "material", "site"
     ).order_by("material__name", "site__name")
     return render(request, "materials/inventory_list.html", {"inventories": inventories})
+
+
+# ── 材料仕入先 ──
+
+
+@login_required
+def material_supplier_list(request, material_pk):
+    """材料の仕入先一覧。"""
+    from apps.materials.models import MaterialSupplier
+
+    material = get_object_or_404(Material, pk=material_pk)
+    suppliers = MaterialSupplier.objects.filter(
+        material=material,
+    ).select_related("supplier").order_by("-is_preferred", "supplier__name")
+    return render(request, "materials/material_supplier_list.html", {
+        "material": material,
+        "suppliers": suppliers,
+    })
+
+
+@login_required
+def material_supplier_add(request, material_pk):
+    """材料に仕入先を追加。"""
+    from apps.materials.forms import MaterialSupplierForm
+
+    material = get_object_or_404(Material, pk=material_pk)
+    if request.method == "POST":
+        form = MaterialSupplierForm(request.POST, company=request.user.company)
+        if form.is_valid():
+            ms = form.save(commit=False)
+            ms.material = material
+            ms.company = request.user.company
+            ms.created_by = request.user
+            ms.save()
+            messages.success(request, f"{ms.supplier.name} を追加しました。")
+            return redirect("materials:material_supplier_list", material_pk=material.pk)
+    else:
+        form = MaterialSupplierForm(company=request.user.company)
+    return render(request, "materials/material_supplier_form.html", {
+        "form": form, "material": material, "is_new": True,
+    })
+
+
+@login_required
+def material_supplier_edit(request, pk):
+    """材料仕入先の編集。"""
+    from apps.materials.forms import MaterialSupplierForm
+    from apps.materials.models import MaterialSupplier
+
+    ms = get_object_or_404(MaterialSupplier, pk=pk)
+    if request.method == "POST":
+        form = MaterialSupplierForm(request.POST, instance=ms, company=request.user.company)
+        if form.is_valid():
+            form.save()
+            return redirect("materials:material_supplier_list", material_pk=ms.material.pk)
+    else:
+        form = MaterialSupplierForm(instance=ms, company=request.user.company)
+    return render(request, "materials/material_supplier_form.html", {
+        "form": form, "material": ms.material, "is_new": False, "ms": ms,
+    })
+
+
+# ── 調達実績 ──
+
+
+@login_required
+def procurement_list(request):
+    """調達実績の一覧。現場・材料・仕入先でフィルタ。"""
+    from apps.materials.models import ProcurementRecord
+
+    records = ProcurementRecord.objects.select_related(
+        "site", "material", "supplier",
+    ).order_by("-ordered_date")
+
+    site_id = request.GET.get("site", "")
+    if site_id:
+        records = records.filter(site_id=int(site_id))
+
+    q = request.GET.get("q", "").strip()
+    if q:
+        records = records.filter(material__name__icontains=q)
+
+    return render(request, "materials/procurement_list.html", {
+        "records": records[:500], "q": q, "site_id": site_id,
+    })
+
+
+@login_required
+def procurement_create(request):
+    """調達実績の手入力。"""
+    from apps.materials.forms import ProcurementRecordForm
+
+    if request.method == "POST":
+        form = ProcurementRecordForm(request.POST, company=request.user.company)
+        if form.is_valid():
+            rec = form.save(commit=False)
+            rec.company = request.user.company
+            rec.created_by = request.user
+            rec.calc_lead_days()
+            rec.save()
+            messages.success(request, "調達実績を登録しました。")
+            return redirect("materials:procurement_list")
+    else:
+        form = ProcurementRecordForm(company=request.user.company)
+    return render(request, "materials/procurement_form.html", {
+        "form": form, "is_new": True,
+    })

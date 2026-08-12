@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}{% if is_new %}仕入先を追加{% else %}仕入先を編集{% endif %} — {{ APP_NAME }}{% endblock %}
+{% block topbar_title %}材料仕入先{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>{{ material.name }} — {% if is_new %}仕入先を追加{% else %}仕入先を編集{% endif %}</h1>
+</div>
+<div class="card"><div class="card-body">
+  <form method="post">{% csrf_token %}
+    <div class="form-group"><label>仕入先</label>{{ form.supplier }}{{ form.supplier.errors }}</div>
+    <div class="form-row">
+      <div class="form-group"><label>仕入先品番</label>{{ form.supplier_code }}{{ form.supplier_code.errors }}</div>
+      <div class="form-group"><label>標準単価</label>{{ form.standard_unit_price }}{{ form.standard_unit_price.errors }}</div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>標準納期（日）</label>{{ form.lead_time_days }}{{ form.lead_time_days.errors }}</div>
+      <div class="form-group"><label>最小発注数量</label>{{ form.min_order_qty }}{{ form.min_order_qty.errors }}</div>
+    </div>
+    <div class="form-group"><label>{{ form.is_preferred }} 推奨仕入先</label></div>
+    <div class="form-group"><label>備考</label>{{ form.notes }}{{ form.notes.errors }}</div>
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">保存</button>
+      <a href="{% url 'materials:material_supplier_list' material.pk %}" class="btn btn-outline">キャンセル</a>
+    </div>
+  </form>
+</div></div>
+{% endblock %}

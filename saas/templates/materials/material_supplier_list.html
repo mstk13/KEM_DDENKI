@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}{{ material.name }} の仕入先 — {{ APP_NAME }}{% endblock %}
+{% block topbar_title %}材料仕入先{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>{{ material.name }} の仕入先</h1>
+  <a href="{% url 'materials:material_supplier_add' material.pk %}" class="btn btn-primary">+ 仕入先を追加</a>
+</div>
+
+<div class="card">
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>仕入先</th><th>品番</th><th style="text-align:right;">標準単価</th><th>標準納期</th><th>最小数量</th><th>推奨</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for ms in suppliers %}
+        <tr>
+          <td>{{ ms.supplier.name }}</td>
+          <td>{{ ms.supplier_code|default:"-" }}</td>
+          <td style="text-align:right;">{% if ms.standard_unit_price %}{{ ms.standard_unit_price|floatformat:0 }}円{% else %}-{% endif %}</td>
+          <td>{% if ms.lead_time_days %}{{ ms.lead_time_days }}日{% else %}-{% endif %}</td>
+          <td>{{ ms.min_order_qty|default:"-" }}</td>
+          <td>{% if ms.is_preferred %}<span class="badge badge-green">推奨</span>{% endif %}</td>
+          <td><a href="{% url 'materials:material_supplier_edit' ms.pk %}" class="btn btn-outline btn-sm">編集</a></td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="7"><div class="empty"><p>仕入先が登録されていません</p></div></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div style="margin-top:16px;">
+  <a href="{% url 'materials:list' %}" class="btn btn-outline">材料一覧に戻る</a>
+</div>
+{% endblock %}

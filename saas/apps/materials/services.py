@@ -77,8 +77,54 @@ def inspect_delivery(delivery, inspected_by):
     for po_item in po.items.all():
         create_material_cost_from_po_item(po_item)
 
+    # 調達実績を記録
+    _create_procurement_records(delivery)
+
     # 発注ステータス更新
     _update_po_status(po)
+
+
+def _create_procurement_records(delivery):
+    """検収完了時に調達実績を自動記録する。"""
+    from apps.materials.models import MaterialSupplier, ProcurementRecord
+
+    po = delivery.purchase_order
+    for item in delivery.items.select_related("material"):
+        if not item.material:
+            continue
+
+        # PO明細から単価を取得
+        po_item = po.items.filter(material=item.material).first()
+        unit_price = po_item.unit_price if po_item else 0
+
+        record, created = ProcurementRecord.unscoped.get_or_create(
+            company=po.company,
+            site=po.site,
+            material=item.material,
+            supplier=po.supplier,
+            purchase_order=po,
+            defaults={
+                "ordered_date": po.order_date,
+                "delivered_date": delivery.delivery_date,
+                "ordered_qty": item.ordered_qty,
+                "delivered_qty": item.delivered_qty,
+                "unit_price_paid": unit_price,
+            },
+        )
+        if created:
+            record.calc_lead_days()
+            record.save(update_fields=["actual_lead_days"])
+
+        # MaterialSupplier も自動登録（なければ作成）
+        MaterialSupplier.unscoped.get_or_create(
+            company=po.company,
+            material=item.material,
+            supplier=po.supplier,
+            defaults={
+                "standard_unit_price": unit_price,
+                "is_active": True,
+            },
+        )
 
 
 def _update_po_status(po):
