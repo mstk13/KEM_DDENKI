@@ -114,11 +114,11 @@ class DailyReportForm(forms.ModelForm):
         self.fields["end_time"].required = False
 
         if company:
-            # 日報を書くのは社員番号が G で始まる作業員のみ。
+            # 日報を書くのは社員番号が E で始まる作業員のみ。
             # 並びはフリガナの50音順（未登録の人は氏名で並べ、後ろに回す）。
             self.fields["workers"].queryset = (
                 Worker.unscoped.filter(
-                    company=company, is_active=True, employee_code__startswith="G",
+                    company=company, is_active=True, employee_code__startswith="E",
                 )
                 .annotate(
                     kana_missing=Case(

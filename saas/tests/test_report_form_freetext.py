@@ -31,7 +31,7 @@ def site(company_a):
 @pytest.fixture
 def worker(company_a):
     return Worker.unscoped.create(
-        company=company_a, employee_code="G001", name="田中太郎",
+        company=company_a, employee_code="E001", name="田中太郎",
         name_kana="タナカタロウ", hourly_cost=3000,
     )
 
@@ -163,13 +163,13 @@ class TestMultipleWorkers:
     def test_one_report_per_worker(self, company_a, site, work_type):
         """作業員を複数選んだら、人数分の日報ができる。"""
         a = Worker.unscoped.create(
-            company=company_a, employee_code="G001", name="田中", hourly_cost=3000,
+            company=company_a, employee_code="E001", name="田中", hourly_cost=3000,
         )
         b = Worker.unscoped.create(
-            company=company_a, employee_code="G002", name="鈴木", hourly_cost=3000,
+            company=company_a, employee_code="E002", name="鈴木", hourly_cost=3000,
         )
         c = Worker.unscoped.create(
-            company=company_a, employee_code="G003", name="佐藤", hourly_cost=3000,
+            company=company_a, employee_code="E003", name="佐藤", hourly_cost=3000,
         )
 
         form = DailyReportForm(
@@ -189,10 +189,10 @@ class TestMultipleWorkers:
     def test_existing_worker_is_skipped(self, company_a, site, work_type):
         """同じ現場・日付・工種の日報が既にある作業員は飛ばす。"""
         a = Worker.unscoped.create(
-            company=company_a, employee_code="G001", name="田中", hourly_cost=3000,
+            company=company_a, employee_code="E001", name="田中", hourly_cost=3000,
         )
         b = Worker.unscoped.create(
-            company=company_a, employee_code="G002", name="鈴木", hourly_cost=3000,
+            company=company_a, employee_code="E002", name="鈴木", hourly_cost=3000,
         )
         DailyReport.unscoped.create(
             company=company_a, site=site, worker=a,
@@ -221,10 +221,10 @@ class TestMultipleWorkers:
     def test_edit_allows_only_one_worker(self, company_a, site, work_type):
         """編集画面では作業員を複数選べない。"""
         a = Worker.unscoped.create(
-            company=company_a, employee_code="G001", name="田中", hourly_cost=3000,
+            company=company_a, employee_code="E001", name="田中", hourly_cost=3000,
         )
         b = Worker.unscoped.create(
-            company=company_a, employee_code="G002", name="鈴木", hourly_cost=3000,
+            company=company_a, employee_code="E002", name="鈴木", hourly_cost=3000,
         )
         report = DailyReport.unscoped.create(
             company=company_a, site=site, worker=a,
@@ -242,13 +242,13 @@ class TestMultipleWorkers:
 
 @pytest.mark.django_db
 class TestWorkerChoices:
-    def test_only_g_prefixed_workers_are_selectable(self, company_a):
-        """社員番号が G で始まる作業員だけが候補に出る。"""
-        g = Worker.unscoped.create(
-            company=company_a, employee_code="G001", name="田中", hourly_cost=3000,
+    def test_only_e_prefixed_workers_are_selectable(self, company_a):
+        """社員番号が E で始まる作業員だけが候補に出る。"""
+        e = Worker.unscoped.create(
+            company=company_a, employee_code="E001", name="田中", hourly_cost=3000,
         )
         Worker.unscoped.create(
-            company=company_a, employee_code="E001", name="鈴木", hourly_cost=3000,
+            company=company_a, employee_code="G001", name="鈴木", hourly_cost=3000,
         )
         Worker.unscoped.create(
             company=company_a, employee_code="T001", name="佐藤", hourly_cost=3000,
@@ -258,11 +258,11 @@ class TestWorkerChoices:
         codes = list(
             form.fields["workers"].queryset.values_list("employee_code", flat=True)
         )
-        assert codes == [g.employee_code]
+        assert codes == [e.employee_code]
 
     def test_inactive_workers_are_excluded(self, company_a):
         Worker.unscoped.create(
-            company=company_a, employee_code="G001", name="田中",
+            company=company_a, employee_code="E001", name="田中",
             hourly_cost=3000, is_active=False,
         )
         form = DailyReportForm(company=company_a)
@@ -271,15 +271,15 @@ class TestWorkerChoices:
     def test_sorted_by_kana(self, company_a):
         """フリガナの50音順に並ぶ。"""
         Worker.unscoped.create(
-            company=company_a, employee_code="G003", name="渡辺",
+            company=company_a, employee_code="E003", name="渡辺",
             name_kana="ワタナベ", hourly_cost=3000,
         )
         Worker.unscoped.create(
-            company=company_a, employee_code="G001", name="伊藤",
+            company=company_a, employee_code="E001", name="伊藤",
             name_kana="イトウ", hourly_cost=3000,
         )
         Worker.unscoped.create(
-            company=company_a, employee_code="G002", name="佐藤",
+            company=company_a, employee_code="E002", name="佐藤",
             name_kana="サトウ", hourly_cost=3000,
         )
 
@@ -290,11 +290,11 @@ class TestWorkerChoices:
     def test_workers_without_kana_go_last(self, company_a):
         """フリガナが未登録の人は後ろに回す（並びが崩れないように）。"""
         Worker.unscoped.create(
-            company=company_a, employee_code="G001", name="山田",
+            company=company_a, employee_code="E001", name="山田",
             name_kana="", hourly_cost=3000,
         )
         Worker.unscoped.create(
-            company=company_a, employee_code="G002", name="伊藤",
+            company=company_a, employee_code="E002", name="伊藤",
             name_kana="イトウ", hourly_cost=3000,
         )
 
