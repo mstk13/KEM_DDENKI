@@ -6,7 +6,6 @@ from apps.reports.models import DailyReport
 from apps.sites.models import Process, Site
 from apps.workers.models import Worker
 
-
 # 日報の書式は、ログインした人の社員番号の接頭辞で決まる。
 #   E（電工・事務の正社員）・T（試用期間） … 現場作業の日報
 #   G（Developer）・S（役員）・A（アルバイト）・P（パート） … 事務の日報
