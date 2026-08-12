@@ -150,11 +150,17 @@ class DailyReportForm(forms.ModelForm):
         self.fields["end_time"].required = False
 
         if company:
-            # 日報を書くのは社員番号が E で始まる作業員のみ。
+            # 候補は現場作業の日報を書く区分（E・T）に揃える。
+            # この画面が出るのも E・T の人なので、条件を分けると
+            # 試用期間（T）の人が自分の日報を作れなくなる。
             # 並びはフリガナの50音順（未登録の人は氏名で並べ、後ろに回す）。
+            code_filter = Q()
+            for prefix in FIELD_CODE_PREFIXES:
+                code_filter |= Q(employee_code__startswith=prefix)
+
             self.fields["workers"].queryset = (
                 Worker.unscoped.filter(
-                    company=company, is_active=True, employee_code__startswith="E",
+                    code_filter, company=company, is_active=True,
                 )
                 .annotate(
                     kana_missing=Case(
