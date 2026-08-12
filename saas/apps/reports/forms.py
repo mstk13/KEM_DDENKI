@@ -7,6 +7,24 @@ from apps.sites.models import Process, Site
 from apps.workers.models import Worker
 
 
+# 日報の書式は、ログインした人の社員番号の接頭辞で決まる。
+#   E（電工・事務の正社員）・T（試用期間） … 現場作業の日報
+#   G（Developer）・S（役員）・A（アルバイト）・P（パート） … 事務の日報
+# 上記以外（Y=社長 / W=その他 / 社員番号なし）は現場作業の日報を既定とする。
+OFFICE_CODE_PREFIXES = ("G", "S", "A", "P")
+FIELD_CODE_PREFIXES = ("E", "T")
+
+# 事務の日報に付ける工種。現場ごとの原価区分を保つため、無ければ作る。
+OFFICE_WORK_TYPE_NAME = "事務"
+
+
+def is_office_reporter(user):
+    """ログインした人が「事務の日報」を書く区分かどうか。"""
+    profile = getattr(user, "worker_profile", None)
+    code = getattr(profile, "employee_code", "") or ""
+    return code.startswith(OFFICE_CODE_PREFIXES)
+
+
 def _next_code(queryset, prefix):
     """手入力で新規登録するときのコードを採番する。
 
@@ -17,6 +35,24 @@ def _next_code(queryset, prefix):
     while f"{prefix}{n:04d}" in used:
         n += 1
     return f"{prefix}{n:04d}"
+
+
+def resolve_site(company, name):
+    """現場名から現場を引く。無ければ登録する（コードは自動採番）。"""
+    site = Site.unscoped.filter(company=company, name=name).first()
+    if site:
+        return site
+    code = _next_code(Site.unscoped.filter(company=company), "S")
+    return Site.unscoped.create(company=company, code=code, name=name)
+
+
+def resolve_work_type(company, name):
+    """工種名から工種を引く。無ければ登録する。"""
+    work_type = WorkType.unscoped.filter(company=company, name=name).first()
+    if work_type:
+        return work_type
+    code = _next_code(WorkType.unscoped.filter(company=company), "W")
+    return WorkType.unscoped.create(company=company, code=code, name=name)
 
 
 class DailyReportForm(forms.ModelForm):
@@ -199,18 +235,10 @@ class DailyReportForm(forms.ModelForm):
         return cleaned
 
     def _resolve_site(self, name):
-        site = Site.unscoped.filter(company=self.company, name=name).first()
-        if site:
-            return site
-        code = _next_code(Site.unscoped.filter(company=self.company), "S")
-        return Site.unscoped.create(company=self.company, code=code, name=name)
+        return resolve_site(self.company, name)
 
     def _resolve_work_type(self, name):
-        work_type = WorkType.unscoped.filter(company=self.company, name=name).first()
-        if work_type:
-            return work_type
-        code = _next_code(WorkType.unscoped.filter(company=self.company), "W")
-        return WorkType.unscoped.create(company=self.company, code=code, name=name)
+        return resolve_work_type(self.company, name)
 
     def _resolve_process(self, name, site, work_type):
         if not name:
@@ -292,6 +320,146 @@ class DailyReportForm(forms.ModelForm):
                     report.save()
             except IntegrityError:
                 skipped.append(worker)
+                continue
+            saved.append(report)
+
+        return saved, skipped
+
+
+class OfficeDailyReportForm(forms.Form):
+    """事務の日報（社員番号が G / S / A / P で始まる人向け）。
+
+    1日ぶんの勤務時間を1回だけ入力し、その日に携わった現場を必要な数だけ
+    「現場追加」ボタンで足していく。現場ごとに作業内容を書く。
+
+    保存すると現場1件につき日報1件をつくる（現場・作業員・日付・工種で一意）。
+    勤務時間は最初の現場にだけ計上する。全件に入れると勤怠が二重になるため。
+    """
+
+    report_date = forms.DateField(
+        label="日付",
+        widget=forms.DateInput(attrs={"type": "date", "class": "form-control"}),
+    )
+    start_time = forms.TimeField(
+        label="開始時間",
+        required=False,
+        widget=forms.TimeInput(attrs={"type": "time", "class": "form-control"}),
+    )
+    end_time = forms.TimeField(
+        label="終了時間",
+        required=False,
+        widget=forms.TimeInput(attrs={"type": "time", "class": "form-control"}),
+    )
+    work_hours = forms.DecimalField(
+        label="作業時間",
+        required=False,
+        max_digits=5,
+        decimal_places=2,
+        widget=forms.NumberInput(attrs={"class": "form-control", "step": "0.25"}),
+    )
+    memo = forms.CharField(
+        label="その他",
+        required=False,
+        widget=forms.Textarea(attrs={"class": "form-control", "rows": 2}),
+    )
+
+    def __init__(self, *args, company=None, worker=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.company = company
+        self.worker = worker
+        # clean() で組み立てた現場ごとの入力を保持する
+        self.entries = []
+
+    def clean(self):
+        cleaned = super().clean()
+
+        if not self.company:
+            raise forms.ValidationError(
+                "会社が特定できないため保存できません。管理者に連絡してください。",
+            )
+        if not self.worker:
+            raise forms.ValidationError(
+                "ログイン中のアカウントに作業員が紐づいていないため保存できません。"
+                "管理者に連絡してください。",
+            )
+
+        # 現場ブロックは site_1 / work_description_1 … の組で送られてくる。
+        # 画面で「現場追加」を押すたびに番号が増えるため、順番に拾う。
+        entries = []
+        for key in self.data:
+            if not key.startswith("site_"):
+                continue
+            suffix = key[len("site_"):]
+            name = (self.data.get(key) or "").strip()
+            if not name:
+                continue
+            entries.append({
+                "suffix": suffix,
+                "site_name": name,
+                "work_description": (
+                    self.data.get(f"work_description_{suffix}") or ""
+                ).strip(),
+            })
+        entries.sort(key=lambda e: e["suffix"])
+
+        if not entries:
+            raise forms.ValidationError("現場を1つ以上追加してください。")
+
+        # 同じ現場を2回書くと、日報が一意制約で作れない
+        names = [e["site_name"] for e in entries]
+        duplicated = {n for n in names if names.count(n) > 1}
+        if duplicated:
+            raise forms.ValidationError(
+                "同じ現場が複数あります: " + "、".join(sorted(duplicated)),
+            )
+
+        self.entries = entries
+
+        start = cleaned.get("start_time")
+        end = cleaned.get("end_time")
+        if not (start and end) and not cleaned.get("work_hours"):
+            self.add_error(
+                "work_hours",
+                "開始・終了時間を入力するか、作業時間を直接入力してください。",
+            )
+        return cleaned
+
+    def save_reports(self, *, user, status=None):
+        """現場ごとに日報をつくる。戻り値は (保存した日報, 飛ばした現場名)。"""
+        from django.db import IntegrityError, transaction
+
+        work_type = resolve_work_type(self.company, OFFICE_WORK_TYPE_NAME)
+        report_date = self.cleaned_data["report_date"]
+
+        saved, skipped = [], []
+        for index, entry in enumerate(self.entries):
+            site = resolve_site(self.company, entry["site_name"])
+            first = index == 0
+
+            report = DailyReport(
+                company=self.company,
+                created_by=user,
+                site=site,
+                worker=self.worker,
+                work_type=work_type,
+                report_date=report_date,
+                work_description=entry["work_description"],
+                memo=self.cleaned_data.get("memo", "") if first else "",
+                # 勤務時間は最初の現場にだけ計上する
+                start_time=self.cleaned_data.get("start_time") if first else None,
+                end_time=self.cleaned_data.get("end_time") if first else None,
+                work_hours=(
+                    self.cleaned_data.get("work_hours") or 0 if first else 0
+                ),
+            )
+            if status is not None:
+                report.status = status
+
+            try:
+                with transaction.atomic():
+                    report.save()
+            except IntegrityError:
+                skipped.append(entry["site_name"])
                 continue
             saved.append(report)
 
