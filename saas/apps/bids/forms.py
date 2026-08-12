@@ -86,7 +86,7 @@ class ScrapeTargetForm(forms.ModelForm):
         model = ScrapeTarget
         fields = [
             "name", "keyword", "region", "prefecture",
-            "category", "days_back", "is_active",
+            "koji_kbn", "koji_gyosyu", "days_back", "is_active",
         ]
 
     def __init__(self, *args, **kwargs):

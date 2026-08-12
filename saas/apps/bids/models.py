@@ -3,6 +3,87 @@ from simple_history.models import HistoricalRecords
 
 from apps.core.models import TenantModel
 
+# --- i-ppi.jp 検索フォームの選択肢 ---
+# scraper.py が select_option(label=...) でそのまま使うため、
+# 値は i-ppi の表記から1文字も変えないこと。変更が必要なときは実物を再取得する。
+
+# 地域（#drpKojiDistrict）。i-ppi では九州と沖縄が1項目にまとまっている。
+IPPI_DISTRICTS = [
+    "北海道",
+    "東北",
+    "関東",
+    "北陸",
+    "中部",
+    "近畿",
+    "中国",
+    "四国",
+    "九州・沖縄",
+]
+
+# 工事区分（#drpKojiKbn）。発注工事の区分。
+IPPI_KOJI_KBN = [
+    "一般土木工事",
+    "アスファルト舗装工事",
+    "鋼橋上部工事",
+    "造園工事",
+    "建築工事",
+    "木造建築工事",
+    "電気設備工事",
+    "暖冷房衛生設備工事",
+    "セメント・コンクリート舗装工事",
+    "プレストレスト・コンクリート工事",
+    "法面処理工事",
+    "塗装工事",
+    "維持修繕工事",
+    "浚渫工事",
+    "グラウト工事",
+    "杭打工事",
+    "さく井工事",
+    "プレハブ建築工事",
+    "機械設備工事",
+    "通信設備工事",
+    "受変電設備工事",
+    "港湾土木工事",
+    "農林土木工事",
+    "農林建築工事",
+    "橋梁補修工事",
+    "その他",
+]
+
+# 業種（#drpKojiGyosyu）。建設業許可の業種区分。
+IPPI_KOJI_GYOSYU = [
+    "土木一式工事",
+    "建築一式工事",
+    "大工工事",
+    "左官工事",
+    "とび・土工・コンクリート工事",
+    "石工事",
+    "屋根工事",
+    "電気工事",
+    "管工事",
+    "タイル・れんが・ブロック工事",
+    "鋼構造物工事",
+    "鉄筋工事",
+    "舗装工事",
+    "浚渫工事",
+    "板金工事",
+    "ガラス工事",
+    "塗装工事",
+    "防水工事",
+    "内装仕上工事",
+    "機械器具設置工事",
+    "熱絶縁工事",
+    "電気通信工事",
+    "造園工事",
+    "さく井工事",
+    "建具工事",
+    "水道施設工事",
+    "消防施設工事",
+    "清掃施設工事",
+    "解体工事",
+    "その他",
+]
+
 
 class BidProject(TenantModel):
     """入札案件。"""
@@ -266,17 +347,9 @@ class BidDocument(TenantModel):
 class ScrapeTarget(TenantModel):
     """スクレイピング対象（入札情報サービス i-ppi.jp）。"""
 
-    class Region(models.TextChoices):
-        HOKKAIDO = "北海道", "北海道"
-        TOHOKU = "東北", "東北"
-        KANTO = "関東", "関東"
-        HOKURIKU = "北陸", "北陸"
-        CHUBU = "中部", "中部"
-        KINKI = "近畿", "近畿"
-        CHUGOKU = "中国", "中国"
-        SHIKOKU = "四国", "四国"
-        KYUSHU = "九州", "九州"
-        OKINAWA = "沖縄", "沖縄"
+    REGION_CHOICES = [(v, v) for v in IPPI_DISTRICTS]
+    KOJI_KBN_CHOICES = [(v, v) for v in IPPI_KOJI_KBN]
+    KOJI_GYOSYU_CHOICES = [(v, v) for v in IPPI_KOJI_GYOSYU]
 
     name = models.CharField("名称", max_length=200)
     url = models.URLField(
@@ -285,14 +358,36 @@ class ScrapeTarget(TenantModel):
     )
     keyword = models.CharField("工事名キーワード", max_length=200, blank=True)
     region = models.CharField(
-        "地域（地方）", max_length=100, blank=True, choices=Region.choices
+        "地域（地方）", max_length=100, blank=True, choices=REGION_CHOICES
     )
-    prefecture = models.CharField("都道府県", max_length=50, blank=True)
+    prefecture = models.CharField(
+        "都道府県",
+        max_length=50,
+        blank=True,
+        help_text="地域を選んだときだけ有効",
+    )
+    # 非推奨。koji_kbn / koji_gyosyu へ移行済み。
+    # 自由入力のため i-ppi のどちらのセレクトを指すか判別できなかった。
+    # expand/contract のため列は残す。次リリースで削除する。
     category = models.CharField(
-        "工事種別",
+        "工事種別（旧）",
         max_length=100,
         blank=True,
-        help_text="例: 電気, 建築, 土木",
+        help_text="非推奨。工事区分／業種を使う",
+    )
+    koji_kbn = models.CharField(
+        "工事区分",
+        max_length=50,
+        blank=True,
+        choices=KOJI_KBN_CHOICES,
+        help_text="発注工事の区分。例: 電気設備工事, 受変電設備工事",
+    )
+    koji_gyosyu = models.CharField(
+        "業種",
+        max_length=50,
+        blank=True,
+        choices=KOJI_GYOSYU_CHOICES,
+        help_text="建設業許可の業種区分。例: 電気工事, 電気通信工事",
     )
     days_back = models.PositiveIntegerField(
         "過去N日以内の更新",

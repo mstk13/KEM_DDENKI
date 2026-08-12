@@ -8,11 +8,72 @@
   <a href="{% url 'devkanri:project_create' %}" class="btn btn-primary">+ プロジェクト作成</a>
 </div>
 
+<!-- 表示条件 -->
+<div class="card" style="margin-bottom:16px;">
+  <div class="card-body">
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+      {% for key, label in scopes.items %}
+      <a href="?scope={{ key }}"
+         class="btn btn-sm {% if scope == key %}btn-primary{% else %}btn-outline{% endif %}">{{ label }}</a>
+      {% endfor %}
+      <span style="align-self:center;color:var(--text-muted);font-size:.82rem;">
+        {% if scope == 'active' %}計画中・進行中のプロジェクトを表示しています
+        {% elif scope == 'mine' %}自分が責任者のプロジェクトを表示しています
+        {% else %}完了・中断を含むすべてのプロジェクトを表示しています{% endif %}
+      </span>
+    </div>
+  </div>
+</div>
+
+<!-- ガントチャート -->
+<div class="card" style="margin-bottom:16px;">
+  <div class="card-body">
+    {% if gantt_tasks_exist %}
+      <div class="gantt-controls" style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center;">
+        <button class="btn btn-outline btn-sm gantt-mode" data-mode="Quarter Day">日</button>
+        <button class="btn btn-outline btn-sm gantt-mode active" data-mode="Week">週</button>
+        <button class="btn btn-outline btn-sm gantt-mode" data-mode="Month">月</button>
+        <span class="gantt-legend">
+          <span class="legend-swatch bar-dev-planning"></span>計画中
+          <span class="legend-swatch bar-dev-in_progress"></span>進行中
+          <span class="legend-swatch bar-dev-completed"></span>完了
+          <span class="legend-swatch bar-dev-suspended"></span>中断
+          <span class="legend-swatch bar-dev-inferred"></span>日程が推定
+        </span>
+      </div>
+      <div id="gantt-chart" style="overflow-x:auto;"></div>
+      <p style="margin:12px 0 0;font-size:.82rem;color:var(--text-muted);">
+        {{ projects|length }}件を表示しています。横スクロールで先の期間も見られます。
+      </p>
+      {% if inferred_count %}
+      <p style="margin:12px 0 0;font-size:.82rem;color:var(--text-muted);">
+        斜線のバー{{ inferred_count }}件は開始日・期限が未設定のため、
+        タスクの期限または作成日から推定して表示しています。
+        正しい工期はプロジェクトの編集画面で設定してください。
+      </p>
+      {% endif %}
+    {% else %}
+      <div class="empty">
+        <div class="empty-icon">&#x1f4c5;</div>
+        <p>
+          {% if scope == 'mine' %}自分が責任者のプロジェクトがありません
+          {% elif scope == 'active' %}稼働中のプロジェクトがありません
+          {% else %}プロジェクトがありません{% endif %}
+        </p>
+      </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- プロジェクト一覧 -->
 <div class="card">
+  <div class="page-header" style="padding:12px 16px;">
+    <h2 style="font-size:1.1rem;">一覧</h2>
+  </div>
   <div class="table-wrap">
     <table>
       <thead>
-        <tr><th>プロジェクト名</th><th>ステータス</th><th>責任者</th><th>進捗</th><th>未解決バグ</th><th>期限</th><th></th></tr>
+        <tr><th>プロジェクト名</th><th>ステータス</th><th>責任者</th><th>期間</th><th>進捗</th><th>未解決バグ</th><th></th></tr>
       </thead>
       <tbody>
         {% for p in projects %}
@@ -27,6 +88,15 @@
           </td>
           <td>{{ p.assignee|default:"-" }}</td>
           <td>
+            {% if p.start_date and p.due_date %}
+              {{ p.start_date }} ~ {{ p.due_date }}
+            {% elif p.period %}
+              <span style="color:var(--text-muted);">{{ p.period.start }} ~ {{ p.period.end }}（推定）</span>
+            {% else %}
+              -
+            {% endif %}
+          </td>
+          <td>
             {% if p.task_count > 0 %}
               {{ p.done_count }}/{{ p.task_count }}
             {% else %}
@@ -36,8 +106,11 @@
           <td>
             {% if p.bug_count > 0 %}<span class="badge badge-red">{{ p.bug_count }}</span>{% else %}-{% endif %}
           </td>
-          <td>{{ p.due_date|default:"-" }}</td>
-          <td><a href="{% url 'devkanri:project_edit' p.pk %}" class="btn btn-outline btn-sm">編集</a></td>
+          <td style="white-space:nowrap;">
+            <a href="{% url 'devkanri:project_edit' p.pk %}" class="btn btn-outline btn-sm">編集</a>
+            <a href="{% url 'devkanri:project_delete' p.pk %}" class="btn btn-outline btn-sm"
+               style="color:var(--danger);">削除</a>
+          </td>
         </tr>
         {% empty %}
         <tr><td colspan="7"><div class="empty"><div class="empty-icon">&#x1f4bb;</div><p>プロジェクトがありません</p></div></td></tr>
@@ -46,4 +119,48 @@
     </table>
   </div>
 </div>
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/frappe-gantt@0.6.1/dist/frappe-gantt.min.css">
+<script src="https://cdn.jsdelivr.net/npm/frappe-gantt@0.6.1/dist/frappe-gantt.min.js"></script>
+
+<script>
+{% if gantt_tasks_exist %}
+document.addEventListener('DOMContentLoaded', function() {
+  var tasks = {{ gantt_json|safe }};
+  var gantt = new Gantt('#gantt-chart', tasks, {
+    view_mode: 'Week',
+    // language は指定しない。frappe-gantt 0.6.1 は 'ja' の月名テーブルを持たず、
+    // 月ラベル生成時に例外を投げて描画が途中で止まる（バーが出ない）。
+    custom_popup_html: function(task) {
+      var days = Math.round((task.end - task.start) / 86400000) + 1;
+      return '<div class="details-container" style="padding:12px;min-width:220px;">'
+        + '<h5 style="margin:0 0 6px;font-size:.95rem;">' + task.name + '</h5>'
+        + '<p style="margin:0;font-size:.82rem;color:#666;">'
+        + task.status_label + ' / 責任者: ' + task.assignee + '</p>'
+        + '<p style="margin:4px 0 0;font-size:.82rem;">'
+        + task.start.toLocaleDateString('ja-JP') + ' ～ ' + task.end.toLocaleDateString('ja-JP')
+        + '（' + days + '日）' + (task.inferred ? ' ※推定' : '') + '</p>'
+        + '<p style="margin:4px 0 0;font-size:.82rem;">タスク: '
+        + task.task_done + '/' + task.task_total + '（' + task.progress + '%）</p>'
+        + '<p style="margin:8px 0 0;font-size:.82rem;">'
+        + '<a href="' + task.url + '">詳細を開く</a></p>'
+        + '</div>';
+    }
+  });
+
+  var chart = document.querySelector('#gantt-chart');
+  localizeGanttMonths(chart);
+
+  document.querySelectorAll('.gantt-mode').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      document.querySelectorAll('.gantt-mode').forEach(function(b) { b.classList.remove('active'); });
+      this.classList.add('active');
+      gantt.change_view_mode(this.dataset.mode);
+      // 表示切替で描き直されるため、月ラベルを付け直す
+      localizeGanttMonths(chart);
+    });
+  });
+});
+{% endif %}
+</script>
 {% endblock %}
