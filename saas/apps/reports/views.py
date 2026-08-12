@@ -42,6 +42,35 @@ def report_list(request):
 
 
 @login_required
+def _report_form_context(company):
+    """日報フォームの候補一覧と、現場→発注先の対応表を返す。"""
+    from apps.core.json_utils import json_for_script
+    from apps.masters.models import WorkType
+    from apps.sites.models import Process, Site
+
+    sites = list(
+        Site.unscoped.filter(company=company)
+        .select_related("customer")
+        .order_by("name")
+    )
+    return {
+        "site_names": [s.name for s in sites],
+        "weather_choices": [label for _v, label in DailyReport.Weather.choices],
+        "process_names": sorted({
+            p.name for p in Process.unscoped.filter(company=company)
+        }),
+        "worktype_names": list(
+            WorkType.unscoped.filter(company=company, is_active=True)
+            .order_by("name")
+            .values_list("name", flat=True)
+        ),
+        # 現場名を入れたら発注先を自動で埋めるための対応表
+        "site_orderer_json": json_for_script(
+            {s.name: (str(s.customer) if s.customer else "") for s in sites}
+        ),
+    }
+
+
 def report_create(request):
     if request.method == "POST":
         form = DailyReportForm(request.POST, company=request.user.company)
@@ -56,7 +85,8 @@ def report_create(request):
             return redirect("reports:list")
     else:
         form = DailyReportForm(company=request.user.company)
-    return render(request, "reports/form.html", {"form": form})
+    ctx = {"form": form, **_report_form_context(request.user.company)}
+    return render(request, "reports/form.html", ctx)
 
 
 @login_required
@@ -75,7 +105,8 @@ def report_edit(request, pk):
             return redirect("reports:list")
     else:
         form = DailyReportForm(instance=report, company=request.user.company)
-    return render(request, "reports/form.html", {"form": form})
+    ctx = {"form": form, **_report_form_context(request.user.company)}
+    return render(request, "reports/form.html", ctx)
 
 
 @login_required
