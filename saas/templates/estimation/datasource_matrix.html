@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% block title %}データソース一覧 — {{ APP_NAME }}{% endblock %}
+{% block topbar_title %}積算{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>官公庁別データソース一覧</h1>
+</div>
+
+<p style="color:var(--text-secondary);margin-bottom:20px;">
+  発注機関ごとに「どのデータが国共通で、どのデータが独自か」を一覧表示します。<br>
+  メンテナンス時に更新対象の把握に使ってください。
+</p>
+
+{# --- 凡例 --- #}
+<div class="card" style="margin-bottom:20px;">
+  <div class="card-body">
+    <h3 style="margin-top:0;">凡例</h3>
+    <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:12px;">
+      <span><span class="badge badge-green">国共通</span> 国交省基準に準拠</span>
+      <span><span class="badge badge-orange">一部独自</span> 国基準＋独自補足</span>
+      <span><span class="badge badge-red">独自基準</span> 発注者独自の基準</span>
+      <span><span class="badge" style="background:#e5e7eb;color:#6b7280;">未確認</span> まだ調査していない</span>
+      <span style="color:var(--text-secondary);">— 未登録</span>
+    </div>
+  </div>
+</div>
+
+{# --- マトリクス --- #}
+<div class="card" style="margin-bottom:30px;">
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th style="position:sticky;left:0;background:var(--bg-primary);z-index:2;">発注機関</th>
+          <th>体系</th>
+          {% for code, label in categories %}
+          <th style="white-space:nowrap;">{{ label }}</th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in matrix_rows %}
+        <tr>
+          <td style="position:sticky;left:0;background:var(--bg-primary);z-index:1;white-space:nowrap;">
+            <a href="{% url 'estimation:orderer_detail' row.orderer.pk %}">{{ row.orderer.name }}</a>
+          </td>
+          <td style="white-space:nowrap;">
+            <span class="badge badge-gray">{{ row.orderer.get_system_type_display }}</span>
+          </td>
+          {% for cell in row.cells %}
+          <td style="text-align:center;">
+            {% if cell.source %}
+              {% if cell.scope == 'common' %}
+                <a href="{% url 'estimation:datasource_edit' cell.source.pk %}" title="{{ cell.source.name }}">
+                  <span class="badge badge-green">国共通</span>
+                </a>
+              {% elif cell.scope == 'partial' %}
+                <a href="{% url 'estimation:datasource_edit' cell.source.pk %}" title="{{ cell.source.name }}&#10;{{ cell.source.diff_summary }}">
+                  <span class="badge badge-orange">一部独自</span>
+                </a>
+              {% elif cell.scope == 'orderer_own' %}
+                <a href="{% url 'estimation:datasource_edit' cell.source.pk %}" title="{{ cell.source.name }}&#10;{{ cell.source.diff_summary }}">
+                  <span class="badge badge-red">独自基準</span>
+                </a>
+              {% else %}
+                <a href="{% url 'estimation:datasource_edit' cell.source.pk %}" title="{{ cell.source.name }}">
+                  <span class="badge" style="background:#e5e7eb;color:#6b7280;">未確認</span>
+                </a>
+              {% endif %}
+            {% else %}
+              <a href="{% url 'estimation:datasource_create' row.orderer.pk %}?category={{ cell.category }}" style="color:var(--text-secondary);font-size:13px;text-decoration:none;" title="クリックして登録">—</a>
+            {% endif %}
+          </td>
+          {% endfor %}
+        </tr>
+        {% empty %}
+        <tr><td colspan="{{ categories|length|add:2 }}"><div class="empty"><p>発注機関が登録されていません。<a href="{% url 'estimation:orderer_create' %}">先に発注機関を登録</a>してください。</p></div></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{# --- 全発注者共通のデータソース（参考） --- #}
+<div class="card">
+  <div class="card-body">
+    <h3 style="margin-top:0;">全発注者共通のデータソース（参考）</h3>
+    <p style="color:var(--text-secondary);font-size:13px;margin-bottom:12px;">
+      以下のデータは発注者に関わらず同一です。マトリクスの「国共通」はこれらに準拠していることを意味します。
+    </p>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>データ</th><th>提供元</th><th>更新頻度</th><th>形式</th><th>備考</th></tr>
+        </thead>
+        <tbody>
+          {% for cs in common_sources %}
+          <tr>
+            <td style="font-weight:600;">{{ cs.category }}</td>
+            <td>{{ cs.source }}</td>
+            <td>{{ cs.update }}</td>
+            <td>{{ cs.format }}</td>
+            <td style="font-size:13px;">{{ cs.note }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}{% if is_new %}明細を追加{% else %}明細を編集{% endif %} — {{ APP_NAME }}{% endblock %}
+{% block topbar_title %}内訳書明細{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>{{ project.name }} — {% if is_new %}明細を追加{% else %}明細を編集{% endif %}</h1>
+</div>
+<div class="card"><div class="card-body">
+  <form method="post">{% csrf_token %}
+    <div class="form-row">
+      <div class="form-group"><label>階層</label>{{ form.level }}{{ form.level.errors }}</div>
+      <div class="form-group"><label>表示順</label>{{ form.sort_order }}{{ form.sort_order.errors }}</div>
+    </div>
+    <div class="form-group"><label>名称</label>{{ form.name }}{{ form.name.errors }}</div>
+    <div class="form-group"><label>仕様</label>{{ form.spec }}{{ form.spec.errors }}</div>
+    <div class="form-row">
+      <div class="form-group"><label>単位</label>{{ form.unit }}{{ form.unit.errors }}</div>
+      <div class="form-group"><label>数量</label>{{ form.quantity }}{{ form.quantity.errors }}</div>
+      <div class="form-group"><label>単価</label>{{ form.unit_price }}{{ form.unit_price.errors }}</div>
+      <div class="form-group"><label>金額</label>{{ form.amount }}{{ form.amount.errors }}<small>空欄なら数量×単価で自動計算</small></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>積算品目</label>{{ form.estimation_item }}{{ form.estimation_item.errors }}</div>
+      <div class="form-group"><label>歩掛</label>{{ form.work_rate }}{{ form.work_rate.errors }}</div>
+    </div>
+    <div class="form-group"><label>備考</label>{{ form.remarks }}{{ form.remarks.errors }}</div>
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">保存</button>
+      <a href="{% url 'estimation:project_detail' project.pk %}" class="btn btn-outline">キャンセル</a>
+    </div>
+  </form>
+</div></div>
+{% endblock %}

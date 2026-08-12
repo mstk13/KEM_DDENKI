@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}発注機関一覧 — {{ APP_NAME }}{% endblock %}
+{% block topbar_title %}積算{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>発注機関一覧</h1>
+  <a href="{% url 'estimation:orderer_create' %}" class="btn btn-primary">+ 発注機関を登録</a>
+</div>
+
+<div class="card" style="margin-bottom:20px;">
+  <div class="card-body">
+    <form method="get" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;">
+      <div class="form-group" style="margin-bottom:0;">
+        <label>キーワード</label>
+        <input type="text" name="q" value="{{ q }}" class="form-control" placeholder="機関名">
+      </div>
+      <button type="submit" class="btn btn-primary">検索</button>
+      <a href="{% url 'estimation:orderer_list' %}" class="btn btn-outline">リセット</a>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>発注機関名</th><th>機関種別</th><th>積算体系</th><th>都道府県</th><th>状態</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for o in orderers %}
+        <tr>
+          <td><a href="{% url 'estimation:orderer_detail' o.pk %}">{{ o.name }}</a></td>
+          <td>{{ o.get_kind_display }}</td>
+          <td>{{ o.get_system_type_display }}</td>
+          <td>{{ o.prefecture|default:"-" }}</td>
+          <td>
+            {% if o.is_active %}<span class="badge badge-green">有効</span>
+            {% else %}<span class="badge badge-gray">無効</span>
+            {% endif %}
+          </td>
+          <td><a href="{% url 'estimation:orderer_edit' o.pk %}" class="btn btn-outline btn-sm">編集</a></td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="6"><div class="empty"><div class="empty-icon">&#x1f3db;&#xfe0f;</div><p>発注機関が登録されていません</p></div></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

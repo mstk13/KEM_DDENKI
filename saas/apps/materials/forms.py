@@ -37,9 +37,14 @@ class MaterialForm(forms.ModelForm):
 class PurchaseOrderForm(forms.ModelForm):
     class Meta:
         model = PurchaseOrder
-        fields = ["site", "supplier", "quotation", "order_date", "ordered_by", "status", "file"]
+        fields = [
+            "site", "supplier", "quotation", "order_date", "delivery_date",
+            "subject", "payment_terms", "notes", "ordered_by", "status", "file",
+        ]
         widgets = {
             "order_date": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
+            "delivery_date": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
+            "notes": forms.Textarea(attrs={"class": "form-control", "rows": 2}),
         }
 
     def __init__(self, *args, company=None, **kwargs):
@@ -111,10 +116,11 @@ class QuotationItemForm(forms.ModelForm):
 class PurchaseOrderItemForm(forms.ModelForm):
     class Meta:
         model = PurchaseOrderItem
-        fields = ["material", "quantity", "unit_price", "work_type"]
+        fields = ["material", "material_name", "quantity", "unit", "unit_price", "tax_rate", "work_type"]
         widgets = {
             "quantity": forms.NumberInput(attrs={"class": "form-control", "step": "0.01"}),
             "unit_price": forms.NumberInput(attrs={"class": "form-control", "step": "0.01"}),
+            "tax_rate": forms.NumberInput(attrs={"class": "form-control", "step": "0.01", "value": "0.10"}),
         }
 
     def __init__(self, *args, company=None, **kwargs):
@@ -125,9 +131,12 @@ class PurchaseOrderItemForm(forms.ModelForm):
             self.fields["material"].queryset = Material.unscoped.filter(
                 company=company, is_active=True,
             )
+            self.fields["material"].required = False
             self.fields["work_type"].queryset = WorkType.unscoped.filter(
                 company=company, is_active=True,
             )
+            self.fields["work_type"].required = False
+        self.fields["material_name"].help_text = "マスタにない場合は自由入力"
 
 
 class DeliveryItemForm(forms.ModelForm):

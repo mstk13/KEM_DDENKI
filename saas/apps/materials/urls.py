@@ -32,6 +32,12 @@ urlpatterns = [
     path("po/<int:pk>/", views.po_detail, name="po_detail"),
     path("po/<int:po_pk>/item/add/", views.po_item_add, name="po_item_add"),
     path("po/item/<int:pk>/delete/", views.po_item_delete, name="po_item_delete"),
+    # 発注書 Excel 出力
+    path("po/<int:pk>/excel/order/", views.po_excel_download, name="po_excel_order"),
+    path("po/<int:pk>/excel/acceptance/", views.po_acceptance_excel_download, name="po_excel_acceptance"),
+    # CSV インポート
+    path("po/csv-import/", views.po_csv_import, name="csv_import"),
+    path("po/csv-import/<int:site_id>/", views.po_csv_import, name="csv_import_site"),
     # 納品・受領・検収
     path("po/<int:po_pk>/delivery/new/", views.delivery_create, name="delivery_create"),
     path("delivery/<int:pk>/", views.delivery_detail, name="delivery_detail"),

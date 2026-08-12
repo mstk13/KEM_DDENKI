@@ -293,6 +293,167 @@ def po_item_delete(request, pk):
     return redirect("materials:po_detail", pk=po.pk)
 
 
+# ── 発注書 Excel 出力 ──
+
+
+@login_required
+def po_excel_download(request, pk):
+    """発注書 Excel ダウンロード。"""
+    from django.http import HttpResponse
+
+    from apps.materials.excel_service import generate_purchase_order_excel
+
+    po = get_object_or_404(
+        PurchaseOrder.objects.select_related("site", "supplier", "quotation"), pk=pk,
+    )
+    items = po.items.select_related("material", "work_type").all()
+
+    buf = generate_purchase_order_excel(po, items)
+    filename = f"発注書_PO-{po.pk:05d}_{po.order_date}.xlsx"
+    response = HttpResponse(
+        buf.getvalue(),
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    return response
+
+
+@login_required
+def po_acceptance_excel_download(request, pk):
+    """発注請書 Excel ダウンロード。"""
+    from django.http import HttpResponse
+
+    from apps.materials.excel_service import generate_purchase_order_acceptance_excel
+
+    po = get_object_or_404(
+        PurchaseOrder.objects.select_related("site", "supplier", "quotation"), pk=pk,
+    )
+    items = po.items.select_related("material", "work_type").all()
+
+    buf = generate_purchase_order_acceptance_excel(po, items)
+    filename = f"発注請書_PO-{po.pk:05d}_{po.order_date}.xlsx"
+    response = HttpResponse(
+        buf.getvalue(),
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    return response
+
+
+# ── CSV インポート ──
+
+
+@login_required
+def po_csv_import(request, site_id=None):
+    """仕入先CSVから発注書を作成する。
+
+    Step 1: CSVアップロード + 仕入先選択
+    Step 2: パース結果を確認 → 発注書作成
+    """
+    from apps.materials.excel_service import parse_supplier_csv
+    from apps.sites.models import Site
+
+    sites = Site.objects.order_by("name")
+    suppliers = []
+    from apps.masters.models import Supplier
+    suppliers = Supplier.unscoped.filter(
+        company=request.user.company, is_active=True,
+    ).order_by("name")
+
+    if request.method == "POST" and "csv_file" in request.FILES:
+        # Step 1: Parse CSV
+        import json
+        from decimal import Decimal
+
+        csv_file = request.FILES["csv_file"]
+        supplier_id = request.POST.get("supplier")
+        selected_site_id = request.POST.get("site") or site_id
+
+        parsed_items = parse_supplier_csv(csv_file)
+
+        # 金額を計算して付与
+        for item in parsed_items:
+            item["amount"] = int(item["quantity"] * item["unit_price"])
+
+        subtotal = sum(item["amount"] for item in parsed_items)
+
+        # JSON シリアライズ用にDecimal→str変換
+        items_for_json = [
+            {
+                "name": it["name"],
+                "quantity": str(it["quantity"]),
+                "unit": it["unit"],
+                "unit_price": str(it["unit_price"]),
+                "tax_rate": str(it["tax_rate"]),
+            }
+            for it in parsed_items
+        ]
+
+        return render(request, "materials/csv_confirm.html", {
+            "parsed_items": parsed_items,
+            "supplier_id": supplier_id,
+            "site_id": selected_site_id,
+            "sites": sites,
+            "suppliers": suppliers,
+            "csv_filename": csv_file.name,
+            "subtotal": subtotal,
+            "items_json": json.dumps(items_for_json, ensure_ascii=False),
+        })
+
+    if request.method == "POST" and "confirm_import" in request.POST:
+        # Step 2: Create PO from parsed data
+        import json
+        from datetime import date
+        from decimal import Decimal
+
+        supplier_id = request.POST.get("supplier_id")
+        selected_site_id = request.POST.get("site_id")
+        items_json = request.POST.get("items_json", "[]")
+
+        supplier = get_object_or_404(Supplier, pk=supplier_id)
+        site = get_object_or_404(Site, pk=selected_site_id) if selected_site_id else None
+
+        if not site:
+            messages.error(request, "現場を選択してください。")
+            return redirect("materials:csv_import")
+
+        # Create PurchaseOrder
+        po = PurchaseOrder(
+            company=request.user.company,
+            created_by=request.user,
+            site=site,
+            supplier=supplier,
+            order_date=date.today(),
+            subject=site.name,
+            payment_terms="月末締翌月末払",
+        )
+        po.save()
+
+        # Create items
+        items_data = json.loads(items_json)
+        for item_data in items_data:
+            PurchaseOrderItem.objects.create(
+                company=request.user.company,
+                created_by=request.user,
+                purchase_order=po,
+                material_name=item_data.get("name", ""),
+                quantity=Decimal(str(item_data.get("quantity", 0))),
+                unit=item_data.get("unit", ""),
+                unit_price=Decimal(str(item_data.get("unit_price", 0))),
+                tax_rate=Decimal(str(item_data.get("tax_rate", "0.10"))),
+            )
+
+        po.recalculate_total()
+        messages.success(request, f"発注書 PO-{po.pk:05d} を作成しました（{len(items_data)}件）。")
+        return redirect("materials:po_detail", pk=po.pk)
+
+    return render(request, "materials/csv_upload.html", {
+        "sites": sites,
+        "suppliers": suppliers,
+        "selected_site_id": site_id,
+    })
+
+
 # ── 納品・受領・検収 ──
 
 

@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% block title %}{{ project.name }} — {{ APP_NAME }}{% endblock %}
+{% block topbar_title %}積算案件{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>{{ project.name }}</h1>
+  <div style="display:flex;gap:8px;">
+    <a href="{% url 'estimation:project_edit' project.pk %}" class="btn btn-outline">編集</a>
+    <a href="{% url 'estimation:boq_export' project.pk %}" class="btn btn-outline">Excel出力</a>
+    <form method="post" action="{% url 'estimation:generate_comparison' project.pk %}" style="display:inline;">
+      {% csrf_token %}
+      <button type="submit" class="btn btn-primary">差分分析を実行</button>
+    </form>
+  </div>
+</div>
+
+{# --- 基本情報 --- #}
+<div class="card" style="margin-bottom:20px;">
+  <div class="card-body">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px;">
+      <div><div style="color:var(--text-secondary);font-size:13px;">発注機関</div><div>{{ project.orderer.name }}</div></div>
+      <div><div style="color:var(--text-secondary);font-size:13px;">工事種別</div><div>{{ project.get_primary_work_category_display }}</div></div>
+      <div><div style="color:var(--text-secondary);font-size:13px;">状態</div><div>
+        {% if project.status == 'planning' %}<span class="badge badge-gray">検討中</span>
+        {% elif project.status == 'estimating' %}<span class="badge badge-blue">積算中</span>
+        {% elif project.status == 'won' %}<span class="badge badge-green">落札</span>
+        {% elif project.status == 'lost' %}<span class="badge badge-red">失注</span>
+        {% else %}<span class="badge badge-gray">{{ project.get_status_display }}</span>
+        {% endif %}
+      </div></div>
+      <div><div style="color:var(--text-secondary);font-size:13px;">入札公告日</div><div>{{ project.bid_announcement_date|default:"-" }}</div></div>
+      <div><div style="color:var(--text-secondary);font-size:13px;">工期</div><div>{% if project.construction_period_days %}{{ project.construction_period_days }}日{% else %}-{% endif %}</div></div>
+      <div><div style="color:var(--text-secondary);font-size:13px;">応札額</div><div>{% if project.bid_amount %}{{ project.bid_amount|floatformat:0 }}円{% else %}-{% endif %}</div></div>
+    </div>
+  </div>
+</div>
+
+{# --- 内訳書 --- #}
+<div class="page-header">
+  <h2>内訳書</h2>
+  <a href="{% url 'estimation:boqline_create' project.pk %}" class="btn btn-outline btn-sm">+ 明細追加</a>
+</div>
+<div class="card" style="margin-bottom:20px;">
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>階層</th><th>名称</th><th>仕様</th><th>単位</th><th style="text-align:right;">数量</th><th style="text-align:right;">単価</th><th style="text-align:right;">金額</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for line in boq_lines %}
+        <tr{% if line.level == 'shumoku' or line.level == 'kamoku' %} style="font-weight:600;background:var(--bg-secondary);"{% endif %}>
+          <td style="font-size:12px;">{{ line.get_level_display }}</td>
+          <td>{% if line.level == 'kamoku' %}&nbsp;&nbsp;{% elif line.level == 'chukamoku' %}&nbsp;&nbsp;&nbsp;&nbsp;{% elif line.level == 'saimoku' %}&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{% endif %}{{ line.name }}</td>
+          <td>{{ line.spec|default:"" }}</td>
+          <td>{{ line.unit|default:"" }}</td>
+          <td style="text-align:right;">{% if line.quantity %}{{ line.quantity|floatformat:3 }}{% endif %}</td>
+          <td style="text-align:right;">{% if line.unit_price %}{{ line.unit_price|floatformat:0 }}{% endif %}</td>
+          <td style="text-align:right;">{% if line.amount %}{{ line.amount|floatformat:0 }}{% endif %}</td>
+          <td><a href="{% url 'estimation:boqline_edit' line.pk %}" class="btn btn-outline btn-sm">編集</a></td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="8"><div class="empty"><p>内訳書明細がありません。<a href="{% url 'estimation:boqline_create' project.pk %}">追加</a>してください。</p></div></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{# --- 差分分析 --- #}
+{% if comparisons %}
+<div class="page-header">
+  <h2>差分分析（想定粗利）</h2>
+</div>
+
+<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:20px;">
+  <div class="card"><div class="card-body" style="text-align:center;">
+    <div style="color:var(--text-secondary);font-size:13px;">発注者基準合計</div>
+    <div style="font-size:20px;font-weight:700;">{{ total_standard|floatformat:0 }} 円</div>
+  </div></div>
+  <div class="card"><div class="card-body" style="text-align:center;">
+    <div style="color:var(--text-secondary);font-size:13px;">自社仕入合計</div>
+    <div style="font-size:20px;font-weight:700;">{{ total_own|floatformat:0 }} 円</div>
+  </div></div>
+  <div class="card"><div class="card-body" style="text-align:center;">
+    <div style="color:var(--text-secondary);font-size:13px;">想定差額</div>
+    <div style="font-size:20px;font-weight:700;color:{% if total_diff > 0 %}var(--green){% else %}var(--red){% endif %};">{{ total_diff|floatformat:0 }} 円</div>
+  </div></div>
+</div>
+
+<div class="card">
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>品目</th><th style="text-align:right;">数量</th><th style="text-align:right;">基準単価</th><th style="text-align:right;">仕入単価</th><th style="text-align:right;">差額</th><th style="text-align:right;">差率</th><th>根拠</th></tr>
+      </thead>
+      <tbody>
+        {% for c in comparisons %}
+        <tr>
+          <td>{{ c.estimation_item.canonical_name }}</td>
+          <td style="text-align:right;">{{ c.quantity|floatformat:3|default:"-" }}</td>
+          <td style="text-align:right;">{{ c.standard_price|floatformat:0|default:"-" }}</td>
+          <td style="text-align:right;">{{ c.own_price|floatformat:0|default:"-" }}</td>
+          <td style="text-align:right;{% if c.diff_amount > 0 %}color:var(--green);{% elif c.diff_amount < 0 %}color:var(--red);{% endif %}">{{ c.diff_amount|floatformat:0|default:"-" }}</td>
+          <td style="text-align:right;">{% if c.diff_ratio %}{{ c.diff_ratio|floatformat:1 }}%{% else %}-{% endif %}</td>
+          <td style="font-size:13px;">{{ c.own_price_basis }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+<div style="margin-top:20px;">
+  <a href="{% url 'estimation:project_list' %}" class="btn btn-outline">案件一覧に戻る</a>
+</div>
+{% endblock %}

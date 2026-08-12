@@ -12,13 +12,10 @@ from apps.bids.forms import (
     BidCostForm,
     BidProjectForm,
     QualificationForm,
-    ScrapeTargetForm,
     UnitPriceForm,
 )
-from apps.bids.models import BidProject, Qualification, ScrapeTarget, UnitPrice
-from apps.bids.qualification import check_qualifications_for_projects
+from apps.bids.models import BidProject, Qualification, UnitPrice
 from apps.bids.services import get_dashboard_stats, mark_as_won
-from apps.core.json_utils import json_for_script
 
 
 @login_required
@@ -36,13 +33,8 @@ def project_list(request):
     if region:
         qs = qs.filter(region__icontains=region)
 
-    projects = list(qs)
-    qual_results = check_qualifications_for_projects(projects, request.user.company)
-    for p in projects:
-        p.qual_check = qual_results.get(p.pk, {})
-
     return render(request, "bids/project_list.html", {
-        "projects": projects,
+        "projects": qs,
         "q": q,
         "status": status,
         "region": region,
@@ -55,13 +47,10 @@ def project_detail(request, pk):
     project = get_object_or_404(BidProject, pk=pk)
     cost = getattr(project, "cost", None)
     competitors = project.competitors.all()
-    qual_results = check_qualifications_for_projects([project], request.user.company)
-    qual_check = qual_results.get(project.pk, {})
     return render(request, "bids/project_detail.html", {
         "project": project,
         "cost": cost,
         "competitors": competitors,
-        "qual_check": qual_check,
     })
 
 
@@ -272,7 +261,7 @@ def bid_dashboard(request):
     stats = get_dashboard_stats(request.user.company)
     return render(request, "bids/dashboard.html", {
         "stats": stats,
-        "by_month_json": json_for_script(stats["by_month"]),
+        "by_month_json": json.dumps(stats["by_month"], ensure_ascii=False),
     })
 
 
@@ -288,109 +277,100 @@ def bid_mark_won(request, pk):
     return redirect("bids:project_detail", pk=pk)
 
 
-# --- スクレイピング対象 ---
+# ---------------------------------------------------------------------------
+# スクレイピングターゲット管理
+# ---------------------------------------------------------------------------
 
 
 @login_required
 def scrape_target_list(request):
-    targets = ScrapeTarget.objects.all()
-    return render(request, "bids/scrape_target_list.html", {"targets": targets})
+    """スクレイピング対象の一覧。"""
+    from apps.bids.models import ScrapeTarget
+
+    targets = ScrapeTarget.objects.order_by("-is_active", "name")
+    return render(request, "bids/scrape_target_list.html", {
+        "targets": targets,
+    })
 
 
 @login_required
 def scrape_target_create(request):
+    """スクレイピング対象の追加。"""
+    from apps.bids.forms import ScrapeTargetForm
+
     if request.method == "POST":
         form = ScrapeTargetForm(request.POST)
         if form.is_valid():
-            obj = form.save(commit=False)
-            obj.company = request.user.company
-            obj.created_by = request.user
-            obj.url = "https://www.i-ppi.jp/IPPI/SearchServices/Web/Search/Search/Search.aspx?tab=3"
-            obj.save()
+            target = form.save(commit=False)
+            target.company = request.user.company
+            target.created_by = request.user
+            target.save()
+            messages.success(request, f"スクレイピング対象「{target.name}」を追加しました。")
             return redirect("bids:scrape_target_list")
     else:
         form = ScrapeTargetForm()
-    return render(request, "bids/scrape_target_form.html", {"form": form})
+    return render(request, "bids/scrape_target_form.html", {
+        "form": form, "is_new": True,
+    })
 
 
 @login_required
 def scrape_target_edit(request, pk):
-    obj = get_object_or_404(ScrapeTarget, pk=pk)
+    """スクレイピング対象の編集。"""
+    from apps.bids.forms import ScrapeTargetForm
+    from apps.bids.models import ScrapeTarget
+
+    target = get_object_or_404(ScrapeTarget, pk=pk)
     if request.method == "POST":
-        form = ScrapeTargetForm(request.POST, instance=obj)
+        form = ScrapeTargetForm(request.POST, instance=target)
         if form.is_valid():
             form.save()
+            messages.success(request, f"「{target.name}」を更新しました。")
             return redirect("bids:scrape_target_list")
     else:
-        form = ScrapeTargetForm(instance=obj)
-    return render(request, "bids/scrape_target_form.html", {"form": form, "object": obj})
+        form = ScrapeTargetForm(instance=target)
+    return render(request, "bids/scrape_target_form.html", {
+        "form": form, "is_new": False, "target": target,
+    })
 
 
 @login_required
-def scrape_target_run(request, pk):
-    """スクレイピングを実行して結果をプレビュー/インポートする。"""
-    import logging
+def scrape_run(request, pk):
+    """手動でスクレイピングを実行する。"""
+    from apps.bids.models import ScrapeTarget
+    from apps.bids.services import run_scrape
 
-    from django.utils import timezone
+    if request.method != "POST":
+        return redirect("bids:scrape_target_list")
 
-    from apps.bids.scraper import scrape_ippi
-
-    logger = logging.getLogger(__name__)
     target = get_object_or_404(ScrapeTarget, pk=pk)
-    records = []
-    error_msg = ""
+    result = run_scrape(target, request.user.company)
 
-    if request.method == "POST" and "confirm_import" in request.POST:
-        # 確定インポート
-        records_json = json.loads(request.POST.get("records_json", "[]"))
-        new_count = 0
-        for rec in records_json:
-            title = rec.get("title", "").strip()
-            if not title:
-                continue
-            source_url = rec.get("source_url", "")
-            if source_url and BidProject.objects.filter(source_url=source_url).exists():
-                continue
-            if BidProject.objects.filter(title=title).exists():
-                continue
-            BidProject(
-                company=request.user.company,
-                created_by=request.user,
-                title=title,
-                client=rec.get("client", ""),
-                region=rec.get("region", "") or target.region or "",
-                category=(
-                    rec.get("category", "")
-                    or target.koji_kbn
-                    or target.koji_gyosyu
-                    or ""
-                ),
-                deadline=rec.get("deadline") or None,
-                budget=rec.get("budget", 0),
-                source_url=source_url,
-                status=BidProject.Status.NEW,
-                required_grade=rec.get("required_grade", ""),
-                required_category=rec.get("required_category", ""),
-                required_issuer_type=rec.get("required_issuer_type", ""),
-            ).save()
-            new_count += 1
-        target.last_scraped_at = timezone.now()
-        target.last_result_count = len(records_json)
-        target.save(update_fields=["last_scraped_at", "last_result_count"])
-        messages.success(request, f"{new_count} 件の新規案件を登録しました。")
-        return redirect("bids:project_list")
+    if result["errors"]:
+        messages.warning(
+            request,
+            f"「{target.name}」: 新規{result['new']}件, エラー{len(result['errors'])}件",
+        )
+    else:
+        messages.success(
+            request,
+            f"「{target.name}」: 新規{result['new']}件取得 (スキップ{result['skipped']}件)",
+        )
+    return redirect("bids:scrape_target_list")
 
-    # スクレイピング実行
-    try:
-        records = scrape_ippi(target, headless=True)
-    except Exception as e:
-        logger.exception("スクレイピングエラー")
-        error_msg = str(e)
 
-    return render(request, "bids/scrape_target_run.html", {
-        "target": target,
-        "records": records,
-        "records_json": json.dumps(records, ensure_ascii=False, default=str) if records else "[]",
-        "error_msg": error_msg,
-        "count": len(records),
-    })
+@login_required
+def scrape_run_all(request):
+    """全ターゲットを一括スクレイピング。"""
+    from apps.bids.services import run_all_scrapes
+
+    if request.method != "POST":
+        return redirect("bids:scrape_target_list")
+
+    result = run_all_scrapes(request.user.company)
+    messages.success(
+        request,
+        f"一括取得完了: {result['targets_processed']}サイト処理, "
+        f"新規{result['total_new']}件",
+    )
+    return redirect("bids:scrape_target_list")

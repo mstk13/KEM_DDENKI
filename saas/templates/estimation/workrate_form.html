@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}{% if is_new %}歩掛を追加{% else %}歩掛を編集{% endif %} — {{ APP_NAME }}{% endblock %}
+{% block topbar_title %}{% if is_new %}歩掛を追加{% else %}歩掛を編集{% endif %}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>{{ standard.name }} — {% if is_new %}歩掛を追加{% else %}歩掛を編集{% endif %}</h1>
+</div>
+
+<div class="card">
+  <div class="card-body">
+    <form method="post">
+      {% csrf_token %}
+      <div class="form-row">
+        <div class="form-group">
+          <label for="id_work_code">作業コード</label>
+          {{ form.work_code }}
+          {{ form.work_code.errors }}
+        </div>
+        <div class="form-group">
+          <label for="id_unit">単位</label>
+          {{ form.unit }}
+          {{ form.unit.errors }}
+        </div>
+      </div>
+      <div class="form-group">
+        <label for="id_work_name">作業名</label>
+        {{ form.work_name }}
+        {{ form.work_name.errors }}
+        <small>例: ケーブル配線 CV 38sq以下</small>
+      </div>
+      <div class="form-group">
+        <label for="id_labor">労務（JSON）</label>
+        {{ form.labor }}
+        {{ form.labor.errors }}
+        <small>例: [{"trade":"電工","qty":0.12},{"trade":"普通作業員","qty":0.05}]</small>
+      </div>
+      <div class="form-group">
+        <label for="id_material">材料（JSON）</label>
+        {{ form.material }}
+        {{ form.material.errors }}
+        <small>例: [{"name":"雑材料","rate":0.03}]</small>
+      </div>
+      <div class="form-group">
+        <label for="id_remarks">摘要</label>
+        {{ form.remarks }}
+        {{ form.remarks.errors }}
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="id_status">状態</label>
+          {{ form.status }}
+          {{ form.status.errors }}
+        </div>
+        <div class="form-group">
+          <label for="id_extracted_by">抽出方法</label>
+          {{ form.extracted_by }}
+          {{ form.extracted_by.errors }}
+        </div>
+        <div class="form-group">
+          <label for="id_source_page">出典ページ</label>
+          {{ form.source_page }}
+          {{ form.source_page.errors }}
+        </div>
+      </div>
+      <div class="form-group">
+        <label for="id_notes">備考</label>
+        {{ form.notes }}
+        {{ form.notes.errors }}
+      </div>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">保存</button>
+        <a href="{% url 'estimation:standard_detail' standard.pk %}" class="btn btn-outline">キャンセル</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

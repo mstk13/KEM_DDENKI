@@ -1,6 +1,6 @@
 {% extends "base.html" %}
-{% block title %}原価ダッシュボード {{ site.name }} — {{ APP_NAME }}{% endblock %}
-{% block topbar_title %}原価管理{% endblock %}
+{% block title %}現場見積もり/実経費 {{ site.name }} — {{ APP_NAME }}{% endblock %}
+{% block topbar_title %}現場見積もり/実経費{% endblock %}
 
 {% block content %}
 <div class="page-header">
@@ -15,11 +15,11 @@
 <!-- KPI カード -->
 <div class="stats">
   <div class="stat-card blue">
-    <div class="stat-label">予算合計</div>
+    <div class="stat-label">見積もり合計</div>
     <div class="stat-value blue">¥{{ summary.budget_total|floatformat:0 }}</div>
   </div>
   <div class="stat-card {% if summary.consumption_pct >= 100 %}red{% elif summary.consumption_pct >= 90 %}orange{% else %}default{% endif %}">
-    <div class="stat-label">実績合計</div>
+    <div class="stat-label">実経費合計</div>
     <div class="stat-value">¥{{ summary.cost_total|floatformat:0 }}</div>
   </div>
   <div class="stat-card {% if summary.consumption_pct >= 100 %}red{% elif summary.consumption_pct >= 90 %}orange{% else %}green{% endif %}">
@@ -36,14 +36,14 @@
 
   <!-- 区分別消化率 -->
   <div class="card">
-    <div class="card-header"><h2>原価区分別 予算vs実績</h2></div>
+    <div class="card-header"><h2>区分別 見積もり vs 実経費</h2></div>
     <div class="table-wrap">
       <table>
         <thead>
           <tr>
             <th>区分</th>
-            <th style="text-align:right;">予算</th>
-            <th style="text-align:right;">実績</th>
+            <th style="text-align:right;">見積もり</th>
+            <th style="text-align:right;">実経費</th>
             <th style="text-align:right;">消化率</th>
             <th>状態</th>
           </tr>
@@ -83,9 +83,59 @@
 
 </div>
 
-<!-- 最近の原価データ -->
+<!-- 発注（見積もり）一覧 -->
 <div class="card" style="margin-top:20px;">
-  <div class="card-header"><h2>最近の原価データ</h2></div>
+  <div class="card-header">
+    <h2>発注（見積もり）一覧</h2>
+    <div style="display:flex;gap:8px;">
+      <a href="{% url 'materials:csv_import_site' site.pk %}" class="btn btn-outline btn-sm">CSV取込</a>
+      <a href="{% url 'materials:create_po' %}?site={{ site.pk }}" class="btn btn-primary btn-sm">+ 発注書作成</a>
+    </div>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>発注No</th>
+          <th>仕入先</th>
+          <th>発注日</th>
+          <th style="text-align:right;">見積もり金額</th>
+          <th style="text-align:right;">実経費</th>
+          <th style="text-align:right;">差額</th>
+          <th>状態</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for po_data in po_vs_actual %}
+        <tr>
+          <td><a href="{% url 'materials:po_detail' po_data.po.pk %}">PO-{{ po_data.po.pk|stringformat:"05d" }}</a></td>
+          <td>{{ po_data.po.supplier }}</td>
+          <td>{{ po_data.po.order_date }}</td>
+          <td style="text-align:right;">¥{{ po_data.estimate|floatformat:0 }}</td>
+          <td style="text-align:right;">¥{{ po_data.actual|floatformat:0 }}</td>
+          <td style="text-align:right;font-weight:600;{% if po_data.diff < 0 %}color:#dc3545;{% elif po_data.diff > 0 %}color:#198754;{% endif %}">
+            {% if po_data.diff > 0 %}+{% endif %}¥{{ po_data.diff|floatformat:0 }}
+          </td>
+          <td><span class="badge badge-gray">{{ po_data.po.get_status_display }}</span></td>
+          <td>
+            <div style="display:flex;gap:4px;">
+              <a href="{% url 'materials:po_excel_order' po_data.po.pk %}" class="btn btn-outline btn-xs">発注書</a>
+              <a href="{% url 'materials:po_excel_acceptance' po_data.po.pk %}" class="btn btn-outline btn-xs">請書</a>
+            </div>
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="8"><div class="empty"><p>発注データなし</p></div></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- 最近の経費データ -->
+<div class="card" style="margin-top:20px;">
+  <div class="card-header"><h2>最近の経費データ</h2></div>
   <div class="table-wrap">
     <table>
       <thead>

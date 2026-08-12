@@ -1,124 +1,73 @@
-"""入札案件スクレイピング management command。
+"""入札案件の自動取得コマンド。
 
-使い方:
-    python manage.py scrape_bids              # 有効な全 ScrapeTarget を実行
-    python manage.py scrape_bids --target 1   # 特定の ScrapeTarget ID のみ
-    python manage.py scrape_bids --dry-run    # 取得のみ（DB保存しない）
-    python manage.py scrape_bids --visible    # ブラウザを表示して実行（デバッグ用）
+全テナントの有効な ScrapeTarget を巡回し、新着案件を BidProject に登録する。
+
+使用方法:
+    # 全テナント
+    python manage.py scrape_bids
+
+    # 特定テナント
+    python manage.py scrape_bids --company 1
+
+    # 巡回間隔を無視して即時実行
+    python manage.py scrape_bids --force
+
+推奨cron設定:
+    # 毎日朝8時に実行
+    0 8 * * * docker compose exec web python manage.py scrape_bids
 """
-from django.core.management.base import BaseCommand
-from django.utils import timezone
 
-from apps.bids.models import BidProject, ScrapeTarget
-from apps.bids.scraper import scrape_ippi
+from django.core.management.base import BaseCommand
+
+from apps.bids.services import run_all_scrapes
+from apps.core.tenant_context import set_current_company
+from apps.tenants.models import Company
 
 
 class Command(BaseCommand):
-    help = "入札情報サービス (i-ppi.jp) から入札案件をスクレイピングする"
+    help = "入札案件を官公庁サイトから自動取得する"
 
     def add_arguments(self, parser):
         parser.add_argument(
-            "--target",
+            "--company",
             type=int,
-            help="特定の ScrapeTarget ID のみ実行",
+            help="特定テナントのみ実行（company PK）",
         )
         parser.add_argument(
-            "--dry-run",
+            "--force",
             action="store_true",
-            help="取得のみ（DB に保存しない）",
-        )
-        parser.add_argument(
-            "--visible",
-            action="store_true",
-            help="ヘッドレスモードを無効化（ブラウザを表示）",
+            help="巡回間隔を無視して即時実行",
         )
 
     def handle(self, *args, **options):
-        target_id = options.get("target")
-        dry_run = options.get("dry_run", False)
-        headless = not options.get("visible", False)
+        company_pk = options.get("company")
+        force = options.get("force", False)
 
-        # unscoped: management command はテナント横断で実行
-        # テナント分離は ScrapeTarget.company で保持される
-        if target_id:
-            targets = ScrapeTarget.unscoped.filter(pk=target_id, is_active=True)
+        if company_pk:
+            companies = Company.objects.filter(pk=company_pk, is_active=True)
         else:
-            targets = ScrapeTarget.unscoped.filter(is_active=True)
+            companies = Company.objects.filter(is_active=True)
 
-        if not targets.exists():
-            self.stderr.write(self.style.WARNING("有効なスクレイピング対象がありません。"))
-            return
+        for company in companies:
+            set_current_company(company)
+            self.stdout.write(f"\n--- {company.name} ---")
 
-        total_new = 0
+            if force:
+                # 巡回間隔をリセット
+                from apps.bids.models import ScrapeTarget
+                ScrapeTarget.unscoped.filter(
+                    company=company, is_active=True,
+                ).update(last_scraped_at=None)
 
-        for target in targets:
-            self.stdout.write(f"\n--- {target.name} ---")
-            self.stdout.write(f"  キーワード: {target.keyword or '(なし)'}")
-            self.stdout.write(f"  地域: {target.region or '(なし)'} {target.prefecture or ''}")
-            self.stdout.write(f"  工事区分: {target.koji_kbn or '(なし)'}")
-            self.stdout.write(f"  業種: {target.koji_gyosyu or '(なし)'}")
-            self.stdout.write(f"  過去{target.days_back}日以内")
+            result = run_all_scrapes(company)
 
-            try:
-                records = scrape_ippi(target, headless=headless)
-            except Exception as e:
-                self.stderr.write(self.style.ERROR(f"  エラー: {e}"))
-                continue
+            self.stdout.write(
+                f"  処理: {result['targets_processed']}ターゲット, "
+                f"新規: {result['total_new']}件"
+            )
+            if result["errors"]:
+                for err in result["errors"][:5]:
+                    self.stderr.write(f"  エラー: {err}")
 
-            self.stdout.write(f"  取得件数: {len(records)}")
-
-            if dry_run:
-                for rec in records:
-                    self.stdout.write(f"    [DRY] {rec.get('title', '(無題)')}")
-                continue
-
-            new_count = 0
-            for rec in records:
-                title = rec.get("title", "").strip()
-                if not title:
-                    continue
-
-                # source_url で重複チェック（同一テナント内）
-                source_url = rec.get("source_url", "")
-                if source_url and BidProject.unscoped.filter(
-                    company=target.company, source_url=source_url
-                ).exists():
-                    continue
-
-                # タイトル完全一致でも重複チェック
-                if BidProject.unscoped.filter(
-                    company=target.company, title=title
-                ).exists():
-                    continue
-
-                BidProject.unscoped.create(
-                    company=target.company,
-                    created_by=target.created_by,
-                    title=title,
-                    client=rec.get("client", ""),
-                    region=rec.get("region", "") or target.region or "",
-                    category=(
-                        rec.get("category", "")
-                        or target.koji_kbn
-                        or target.koji_gyosyu
-                        or ""
-                    ),
-                    deadline=rec.get("deadline"),
-                    budget=rec.get("budget", 0),
-                    source_url=source_url,
-                    status=BidProject.Status.NEW,
-                    required_grade=rec.get("required_grade", ""),
-                    required_category=rec.get("required_category", ""),
-                    required_issuer_type=rec.get("required_issuer_type", ""),
-                )
-                new_count += 1
-
-            # ScrapeTarget のメタ情報を更新
-            target.last_scraped_at = timezone.now()
-            target.last_result_count = len(records)
-            target.save(update_fields=["last_scraped_at", "last_result_count"])
-
-            self.stdout.write(self.style.SUCCESS(f"  新規登録: {new_count} 件"))
-            total_new += new_count
-
-        self.stdout.write(self.style.SUCCESS(f"\n合計 {total_new} 件の新規案件を登録しました。"))
+        set_current_company(None)
+        self.stdout.write(self.style.SUCCESS("\n完了"))
