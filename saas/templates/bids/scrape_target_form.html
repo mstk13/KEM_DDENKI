@@ -1,27 +1,52 @@
 {% extends "base.html" %}
-{% block title %}スクレイピング対象{% if object %}編集{% else %}登録{% endif %} — 建設SaaS{% endblock %}
-{% block topbar_title %}入札管理{% endblock %}
+{% block title %}{% if is_new %}自動取得対象を追加{% else %}自動取得対象を編集{% endif %} — {{ APP_NAME }}{% endblock %}
+{% block topbar_title %}自動取得設定{% endblock %}
 
 {% block content %}
 <div class="page-header">
-  <h1>スクレイピング対象 {% if object %}編集{% else %}登録{% endif %}</h1>
+  <h1>{% if is_new %}自動取得対象を追加{% else %}{{ target.name }} を編集{% endif %}</h1>
 </div>
 
 <div class="card">
   <div class="card-body">
     <form method="post">
       {% csrf_token %}
-      {% for field in form %}
       <div class="form-group">
-        <label for="{{ field.id_for_label }}">{{ field.label }}</label>
-        {{ field }}
-        {% if field.help_text %}<small class="form-text">{{ field.help_text }}</small>{% endif %}
-        {% for error in field.errors %}<div class="text-danger">{{ error }}</div>{% endfor %}
+        <label for="id_name">サイト名</label>
+        {{ form.name }}{{ form.name.errors }}
       </div>
-      {% endfor %}
-      <div style="margin-top:20px;">
+      <div class="form-group">
+        <label for="id_url">URL</label>
+        {{ form.url }}{{ form.url.errors }}
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="id_site_key">サイト種別</label>
+          {{ form.site_key }}{{ form.site_key.errors }}
+          <small>対応するスクレイパーを選択</small>
+        </div>
+        <div class="form-group">
+          <label for="id_region">地域</label>
+          {{ form.region }}{{ form.region.errors }}
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="id_category_filter">工事種別フィルタ</label>
+          {{ form.category_filter }}{{ form.category_filter.errors }}
+          <small>カンマ区切り。空欄=全件取得</small>
+        </div>
+        <div class="form-group">
+          <label for="id_scrape_interval_hours">巡回間隔（時間）</label>
+          {{ form.scrape_interval_hours }}{{ form.scrape_interval_hours.errors }}
+        </div>
+      </div>
+      <div class="form-group">
+        <label>{{ form.is_active }} 有効</label>
+      </div>
+      <div class="form-actions">
         <button type="submit" class="btn btn-primary">保存</button>
-        <a href="{% url 'bids:scrape_target_list' %}" class="btn btn-outline">戻る</a>
+        <a href="{% url 'bids:scrape_target_list' %}" class="btn btn-outline">キャンセル</a>
       </div>
     </form>
   </div>

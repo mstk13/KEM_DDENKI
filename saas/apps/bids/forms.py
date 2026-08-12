@@ -1,12 +1,7 @@
 from django import forms
 
 from apps.bids.models import (
-    BidCompetitor,
-    BidCost,
-    BidProject,
-    Qualification,
-    ScrapeTarget,
-    UnitPrice,
+    BidCompetitor, BidCost, BidProject, Qualification, ScrapeTarget, UnitPrice,
 )
 
 
@@ -16,7 +11,6 @@ class BidProjectForm(forms.ModelForm):
         fields = [
             "title", "client", "region", "category",
             "deadline", "budget", "source_url", "status",
-            "required_category", "required_grade", "required_issuer_type",
         ]
         widgets = {
             "deadline": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
@@ -81,21 +75,6 @@ class QualificationForm(forms.ModelForm):
                 field.widget.attrs.setdefault("class", "form-control")
 
 
-class ScrapeTargetForm(forms.ModelForm):
-    class Meta:
-        model = ScrapeTarget
-        fields = [
-            "name", "keyword", "region", "prefecture",
-            "koji_kbn", "koji_gyosyu", "days_back", "is_active",
-        ]
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        for _name, field in self.fields.items():
-            if not isinstance(field.widget, forms.CheckboxInput):
-                field.widget.attrs.setdefault("class", "form-control")
-
-
 class UnitPriceForm(forms.ModelForm):
     class Meta:
         model = UnitPrice
@@ -108,4 +87,19 @@ class UnitPriceForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         for _name, field in self.fields.items():
             if not isinstance(field.widget, forms.Textarea):
+                field.widget.attrs.setdefault("class", "form-control")
+
+
+class ScrapeTargetForm(forms.ModelForm):
+    class Meta:
+        model = ScrapeTarget
+        fields = [
+            "name", "url", "site_key", "region", "category_filter",
+            "is_active", "scrape_interval_hours",
+        ]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for _name, field in self.fields.items():
+            if not isinstance(field.widget, forms.CheckboxInput):
                 field.widget.attrs.setdefault("class", "form-control")

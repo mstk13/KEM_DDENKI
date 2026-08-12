@@ -3,87 +3,6 @@ from simple_history.models import HistoricalRecords
 
 from apps.core.models import TenantModel
 
-# --- i-ppi.jp 検索フォームの選択肢 ---
-# scraper.py が select_option(label=...) でそのまま使うため、
-# 値は i-ppi の表記から1文字も変えないこと。変更が必要なときは実物を再取得する。
-
-# 地域（#drpKojiDistrict）。i-ppi では九州と沖縄が1項目にまとまっている。
-IPPI_DISTRICTS = [
-    "北海道",
-    "東北",
-    "関東",
-    "北陸",
-    "中部",
-    "近畿",
-    "中国",
-    "四国",
-    "九州・沖縄",
-]
-
-# 工事区分（#drpKojiKbn）。発注工事の区分。
-IPPI_KOJI_KBN = [
-    "一般土木工事",
-    "アスファルト舗装工事",
-    "鋼橋上部工事",
-    "造園工事",
-    "建築工事",
-    "木造建築工事",
-    "電気設備工事",
-    "暖冷房衛生設備工事",
-    "セメント・コンクリート舗装工事",
-    "プレストレスト・コンクリート工事",
-    "法面処理工事",
-    "塗装工事",
-    "維持修繕工事",
-    "浚渫工事",
-    "グラウト工事",
-    "杭打工事",
-    "さく井工事",
-    "プレハブ建築工事",
-    "機械設備工事",
-    "通信設備工事",
-    "受変電設備工事",
-    "港湾土木工事",
-    "農林土木工事",
-    "農林建築工事",
-    "橋梁補修工事",
-    "その他",
-]
-
-# 業種（#drpKojiGyosyu）。建設業許可の業種区分。
-IPPI_KOJI_GYOSYU = [
-    "土木一式工事",
-    "建築一式工事",
-    "大工工事",
-    "左官工事",
-    "とび・土工・コンクリート工事",
-    "石工事",
-    "屋根工事",
-    "電気工事",
-    "管工事",
-    "タイル・れんが・ブロック工事",
-    "鋼構造物工事",
-    "鉄筋工事",
-    "舗装工事",
-    "浚渫工事",
-    "板金工事",
-    "ガラス工事",
-    "塗装工事",
-    "防水工事",
-    "内装仕上工事",
-    "機械器具設置工事",
-    "熱絶縁工事",
-    "電気通信工事",
-    "造園工事",
-    "さく井工事",
-    "建具工事",
-    "水道施設工事",
-    "消防施設工事",
-    "清掃施設工事",
-    "解体工事",
-    "その他",
-]
-
 
 class BidProject(TenantModel):
     """入札案件。"""
@@ -142,112 +61,12 @@ class BidProject(TenantModel):
     )
     notes = models.TextField("備考", blank=True)
 
-    # --- 参加資格要件 ---
-    class GradeChoices(models.TextChoices):
-        A = "A", "A等級"
-        B = "B", "B等級"
-        C = "C", "C等級"
-        D = "D", "D等級"
-
-    required_category = models.CharField(
-        "必要業種区分",
-        max_length=100,
-        blank=True,
-        help_text="例: 役務の提供等, 電気, 建築, 土木",
-    )
-    required_grade = models.CharField(
-        "必要等級",
-        max_length=10,
-        blank=True,
-        choices=GradeChoices.choices,
-        help_text="この等級以上の資格が必要",
-    )
-    required_issuer_type = models.CharField(
-        "資格種別",
-        max_length=200,
-        blank=True,
-        help_text="例: 全省庁統一資格, 防衛省, 国土交通省, 千葉県",
-    )
-
     history = HistoricalRecords()
 
     class Meta:
         verbose_name = "入札案件"
         verbose_name_plural = "入札案件"
         ordering = ["-created_at"]
-
-    # 等級の序列（A が最上位）
-    GRADE_ORDER = {"A": 1, "B": 2, "C": 3, "D": 4}
-
-    def check_qualification(self, qualifications):
-        """自社の資格リストと照合して受注可否を判定する。
-
-        Args:
-            qualifications: Qualification の QuerySet またはリスト
-
-        Returns:
-            dict: {
-                "eligible": bool,        # 受注可能か
-                "reason": str,           # 判定理由
-                "matched_qual": obj|None # マッチした資格
-            }
-        """
-        import datetime
-
-        if not self.required_grade and not self.required_category:
-            return {
-                "eligible": None,
-                "reason": "参加要件が未設定です",
-                "matched_qual": None,
-            }
-
-        today = datetime.date.today()
-
-        for q in qualifications:
-            # 有効期限チェック
-            if q.valid_until and q.valid_until < today:
-                continue
-            if q.valid_from and q.valid_from > today:
-                continue
-
-            # 資格種別チェック（設定されている場合）
-            if self.required_issuer_type and self.required_issuer_type not in q.issuer:
-                continue
-
-            # 業種区分チェック（設定されている場合）
-            if self.required_category and self.required_category not in q.category:
-                continue
-
-            # 等級チェック
-            if self.required_grade:
-                if not q.grade:
-                    continue
-                req_order = self.GRADE_ORDER.get(self.required_grade, 99)
-                own_order = self.GRADE_ORDER.get(q.grade.upper().strip(), 99)
-                if own_order > req_order:
-                    # 自社の等級が要件より低い
-                    continue
-
-            return {
-                "eligible": True,
-                "reason": f"{q.issuer} / {q.category} / {q.grade}等級 で参加可能",
-                "matched_qual": q,
-            }
-
-        # マッチなし
-        missing = []
-        if self.required_issuer_type:
-            missing.append(f"資格種別: {self.required_issuer_type}")
-        if self.required_category:
-            missing.append(f"業種: {self.required_category}")
-        if self.required_grade:
-            missing.append(f"{self.required_grade}等級以上")
-
-        return {
-            "eligible": False,
-            "reason": f"要件を満たす資格がありません（{', '.join(missing)}）",
-            "matched_qual": None,
-        }
 
     def __str__(self):
         return self.title
@@ -345,58 +164,47 @@ class BidDocument(TenantModel):
 
 
 class ScrapeTarget(TenantModel):
-    """スクレイピング対象（入札情報サービス i-ppi.jp）。"""
+    """スクレイピング対象。官公庁の入札情報公開ページ。"""
 
-    REGION_CHOICES = [(v, v) for v in IPPI_DISTRICTS]
-    KOJI_KBN_CHOICES = [(v, v) for v in IPPI_KOJI_KBN]
-    KOJI_GYOSYU_CHOICES = [(v, v) for v in IPPI_KOJI_GYOSYU]
+    SITE_KEY_CHOICES = [
+        ("shigaku", "私学事業団"),
+        ("mod_msdf", "海上自衛隊"),
+        ("mod_gsdf", "陸上自衛隊"),
+        ("mod_asdf", "航空自衛隊"),
+        ("kanagawa_thk", "かながわ土地建物"),
+        ("kanagawa_ebid", "神奈川電子入札共同システム"),
+        ("kanagawa_swf", "神奈川県下水道公社"),
+        ("npb", "国立印刷局"),
+        ("geps", "政府電子調達(GEPS)"),
+    ]
 
     name = models.CharField("名称", max_length=200)
-    url = models.URLField(
-        "URL",
-        default="https://www.i-ppi.jp/IPPI/SearchServices/Web/Search/Search/Search.aspx?tab=3",
-    )
-    keyword = models.CharField("工事名キーワード", max_length=200, blank=True)
-    region = models.CharField(
-        "地域（地方）", max_length=100, blank=True, choices=REGION_CHOICES
-    )
-    prefecture = models.CharField(
-        "都道府県",
-        max_length=50,
+    url = models.URLField("URL", max_length=500)
+    site_key = models.CharField(
+        "サイト識別子",
+        max_length=30,
+        choices=SITE_KEY_CHOICES,
         blank=True,
-        help_text="地域を選んだときだけ有効",
+        help_text="スクレイパーの選択に使用",
     )
-    # 非推奨。koji_kbn / koji_gyosyu へ移行済み。
-    # 自由入力のため i-ppi のどちらのセレクトを指すか判別できなかった。
-    # expand/contract のため列は残す。次リリースで削除する。
-    category = models.CharField(
-        "工事種別（旧）",
-        max_length=100,
+    region = models.CharField("地域", max_length=100, blank=True)
+    category_filter = models.CharField(
+        "工事種別フィルタ",
+        max_length=200,
         blank=True,
-        help_text="非推奨。工事区分／業種を使う",
-    )
-    koji_kbn = models.CharField(
-        "工事区分",
-        max_length=50,
-        blank=True,
-        choices=KOJI_KBN_CHOICES,
-        help_text="発注工事の区分。例: 電気設備工事, 受変電設備工事",
-    )
-    koji_gyosyu = models.CharField(
-        "業種",
-        max_length=50,
-        blank=True,
-        choices=KOJI_GYOSYU_CHOICES,
-        help_text="建設業許可の業種区分。例: 電気工事, 電気通信工事",
-    )
-    days_back = models.PositiveIntegerField(
-        "過去N日以内の更新",
-        default=30,
-        help_text="最終更新日の検索範囲（日数）",
+        help_text="取得対象の工事種別（空欄=全件）。例: 電気,設備",
     )
     is_active = models.BooleanField("有効", default=True)
+    scrape_interval_hours = models.IntegerField(
+        "巡回間隔（時間）", default=24,
+    )
     last_scraped_at = models.DateTimeField("最終取得日時", null=True, blank=True)
-    last_result_count = models.PositiveIntegerField("前回取得件数", default=0)
+    last_result = models.CharField(
+        "最終結果", max_length=200, blank=True,
+        help_text="例: 新規3件取得、エラーなし",
+    )
+    error_count = models.IntegerField("連続エラー回数", default=0)
+    last_error = models.TextField("最後のエラー", blank=True)
 
     history = HistoricalRecords()
 
