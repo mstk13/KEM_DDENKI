@@ -21,6 +21,13 @@
       <dt>得意先</dt><dd>{{ site.customer|default:"-" }}</dd>
       <dt>状態</dt><dd>{{ site.get_status_display }}</dd>
       <dt>受注金額</dt><dd>{{ site.contract_amount|floatformat:0 }} 円</dd>
+      <dt>支払条件</dt>
+      <dd>
+        {% if site.payment_terms %}{{ site.payment_terms }}
+        {% elif site.effective_payment_terms %}{{ site.effective_payment_terms }}
+          <span class="badge badge-gray">得意先の標準</span>
+        {% else %}-{% endif %}
+      </dd>
       <dt>工期</dt><dd>{{ site.start_date|default:"-" }} 〜 {{ site.end_date|default:"" }}</dd>
       <dt>現場担当者</dt><dd>{{ site.manager|default:"-" }}</dd>
       <dt>見積担当者</dt><dd>{{ site.estimator|default:"-" }}</dd>

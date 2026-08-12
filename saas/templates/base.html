@@ -205,13 +205,12 @@
         </div>
       </div>
 
-      <a href="{% url 'notification_list' %}" class="{% if 'notification' in request.resolver_match.url_name %}active{% endif %}">
-        <span class="nav-icon">&#x1f514;</span> 通知
-      </a>
-
-      <div class="nav-group {% if 'masters:' in request.resolver_match.view_name or 'permissions:' in request.resolver_match.view_name %}open{% endif %}">
+      <div class="nav-group {% if 'masters:' in request.resolver_match.view_name or 'permissions:' in request.resolver_match.view_name or 'notification' in request.resolver_match.url_name %}open{% endif %}">
         <button class="nav-section" type="button">設定<span class="nav-chevron"></span></button>
         <div class="nav-group-items">
+          <a href="{% url 'notification_list' %}" class="{% if 'notification' in request.resolver_match.url_name %}active{% endif %}">
+            <span class="nav-icon">&#x1f514;</span> 通知・アラート
+          </a>
           <a href="{% url 'masters:worktypes' %}" class="{% if 'masters:' in request.resolver_match.view_name %}active{% endif %}">
             <span class="nav-icon">&#x2699;&#xfe0f;</span> マスタ管理
           </a>

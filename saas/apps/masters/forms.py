@@ -8,7 +8,7 @@ class CustomerForm(forms.ModelForm):
         model = Customer
         fields = [
             "code", "name", "representative", "contact_person",
-            "phone", "fax", "email", "address", "note", "is_active",
+            "phone", "fax", "email", "address", "payment_terms", "note", "is_active",
         ]
         widgets = {
             "address": forms.Textarea(attrs={"class": "form-control", "rows": 2}),
