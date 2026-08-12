@@ -37,9 +37,8 @@ def worker(company_a):
 
 def _post(site_name, worker, work_type_name, **overrides):
     data = {
-        "report_type": DailyReport.ReportType.ELECTRICIAN,
         "site": site_name,
-        "worker": worker.pk,
+        "workers": [worker.pk] if worker else [],
         "report_date": "2026-08-01",
         "weather": "",
         "process": "",
@@ -63,9 +62,8 @@ class TestFreeTextFields:
             data=_post(site.name, worker, work_type.name), company=company_a,
         )
         assert form.is_valid(), form.errors
-        report = form.save(commit=False)
-        report.company = company_a
-        report.save()
+        saved, _skipped = form.save_reports(company=company_a, user=None)
+        report = saved[0]
 
         assert report.site_id == site.pk
         assert report.work_type_id == work_type.pk
@@ -79,9 +77,8 @@ class TestFreeTextFields:
             company=company_a,
         )
         assert form.is_valid(), form.errors
-        report = form.save(commit=False)
-        report.company = company_a
-        report.save()
+        saved, _skipped = form.save_reports(company=company_a, user=None)
+        report = saved[0]
 
         assert report.site.name == "B社倉庫改修"
         assert report.work_type.name == "弱電"
@@ -134,9 +131,8 @@ class TestWorkHoursCalculation:
             company=company_a,
         )
         assert form.is_valid(), form.errors
-        report = form.save(commit=False)
-        report.company = company_a
-        report.save()
+        saved, _skipped = form.save_reports(company=company_a, user=None)
+        report = saved[0]
 
         # 10時間 - 休憩1時間 = 9時間。8時間を超えた1時間が残業。
         assert report.work_hours == Decimal("9.00")
@@ -154,12 +150,79 @@ class TestWorkHoursCalculation:
             company=company_a,
         )
         assert form.is_valid(), form.errors
-        report = form.save(commit=False)
-        report.company = company_a
-        report.save()
+        saved, _skipped = form.save_reports(company=company_a, user=None)
+        report = saved[0]
 
         assert report.work_hours == Decimal("6.00")
         assert report.overtime_hours == Decimal("0.00")
+
+
+@pytest.mark.django_db
+class TestMultipleWorkers:
+    def test_one_report_per_worker(self, company_a, site, work_type):
+        """作業員を複数選んだら、人数分の日報ができる。"""
+        a = Worker.unscoped.create(company=company_a, name="田中", hourly_cost=3000)
+        b = Worker.unscoped.create(company=company_a, name="鈴木", hourly_cost=3000)
+        c = Worker.unscoped.create(company=company_a, name="佐藤", hourly_cost=3000)
+
+        form = DailyReportForm(
+            data=_post(site.name, a, work_type.name, workers=[a.pk, b.pk, c.pk]),
+            company=company_a,
+        )
+        assert form.is_valid(), form.errors
+        saved, skipped = form.save_reports(company=company_a, user=None)
+
+        assert len(saved) == 3
+        assert skipped == []
+        assert {r.worker_id for r in saved} == {a.pk, b.pk, c.pk}
+        # 内容は全員同じ
+        assert {r.site_id for r in saved} == {site.pk}
+        assert {str(r.work_hours) for r in saved} == {"8.00"}
+
+    def test_existing_worker_is_skipped(self, company_a, site, work_type):
+        """同じ現場・日付・工種の日報が既にある作業員は飛ばす。"""
+        a = Worker.unscoped.create(company=company_a, name="田中", hourly_cost=3000)
+        b = Worker.unscoped.create(company=company_a, name="鈴木", hourly_cost=3000)
+        DailyReport.unscoped.create(
+            company=company_a, site=site, worker=a,
+            report_date="2026-08-01", work_type=work_type,
+            work_hours=Decimal("8.00"),
+        )
+
+        form = DailyReportForm(
+            data=_post(site.name, a, work_type.name, workers=[a.pk, b.pk]),
+            company=company_a,
+        )
+        assert form.is_valid(), form.errors
+        saved, skipped = form.save_reports(company=company_a, user=None)
+
+        assert [r.worker_id for r in saved] == [b.pk]
+        assert [w.pk for w in skipped] == [a.pk]
+
+    def test_worker_is_required(self, company_a, site, work_type):
+        form = DailyReportForm(
+            data=_post(site.name, None, work_type.name, workers=[]),
+            company=company_a,
+        )
+        assert not form.is_valid()
+        assert "workers" in form.errors
+
+    def test_edit_allows_only_one_worker(self, company_a, site, work_type):
+        """編集画面では作業員を複数選べない。"""
+        a = Worker.unscoped.create(company=company_a, name="田中", hourly_cost=3000)
+        b = Worker.unscoped.create(company=company_a, name="鈴木", hourly_cost=3000)
+        report = DailyReport.unscoped.create(
+            company=company_a, site=site, worker=a,
+            report_date="2026-08-01", work_type=work_type,
+            work_hours=Decimal("8.00"),
+        )
+
+        form = DailyReportForm(
+            data=_post(site.name, a, work_type.name, workers=[a.pk, b.pk]),
+            instance=report, company=company_a,
+        )
+        assert not form.is_valid()
+        assert "workers" in form.errors
 
 
 @pytest.mark.django_db

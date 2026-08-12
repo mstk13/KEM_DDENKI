@@ -2,7 +2,7 @@
 
 対象:
 - 現場の見積担当者
-- 日報の種別（管理/事務/電工/IT）
+- 日報の種別（モデルには残すが、入力画面からは外した）
 - 協力会社欄は「協力会社の作業員」の場合のみ
 - 日報の承認は社長とITのみ
 - 工程の手入力（Process の作成・編集・削除）
@@ -54,10 +54,10 @@ def supplier(company_a):
 
 def _report_post_data(site, worker, work_type, **overrides):
     data = {
-        "report_type": DailyReport.ReportType.ELECTRICIAN,
         # 現場・工種・工程は名前で送る（一覧から選んでも手入力でも同じ）
         "site": site.name,
-        "worker": worker.pk,
+        # 作業員は複数選べる
+        "workers": [worker.pk],
         "report_date": "2026-08-01",
         "weather": "",
         "process": "",
@@ -115,16 +115,10 @@ class TestDailyReportType:
         )
         assert report.report_type == DailyReport.ReportType.ELECTRICIAN
 
-    def test_form_accepts_report_type(self, company_a, site, worker, work_type):
-        form = DailyReportForm(
-            data=_report_post_data(
-                site, worker, work_type,
-                report_type=DailyReport.ReportType.IT,
-            ),
-            company=company_a,
-        )
-        assert form.is_valid(), form.errors
-        assert form.cleaned_data["report_type"] == DailyReport.ReportType.IT
+    def test_form_has_no_report_type(self, company_a):
+        """種別は入力しない（モデルの既定値のまま保存される）。"""
+        form = DailyReportForm(company=company_a)
+        assert "report_type" not in form.fields
 
 
 # ---------------------------------------------------------------------------

@@ -24,16 +24,10 @@ def report_list(request):
     if selected_status:
         reports = reports.filter(status=selected_status)
 
-    selected_type = request.GET.get("report_type", "")
-    if selected_type:
-        reports = reports.filter(report_type=selected_type)
-
     return render(request, "reports/list.html", {
         "reports": reports,
         "status_choices": DailyReport.Status.choices,
-        "report_type_choices": DailyReport.ReportType.choices,
         "selected_status": selected_status,
-        "selected_type": selected_type,
         "can_approve": can_approve_report(request.user),
         "submitted_count": DailyReport.objects.filter(
             status=DailyReport.Status.SUBMITTED
@@ -75,13 +69,21 @@ def report_create(request):
     if request.method == "POST":
         form = DailyReportForm(request.POST, company=request.user.company)
         if form.is_valid():
-            report = form.save(commit=False)
-            report.company = request.user.company
-            report.created_by = request.user
-            if request.POST.get("action") == "submit":
-                report.status = DailyReport.Status.SUBMITTED
-            report.save()
-            messages.success(request, "日報を保存しました。")
+            status = (
+                DailyReport.Status.SUBMITTED
+                if request.POST.get("action") == "submit"
+                else None
+            )
+            saved, skipped = form.save_reports(
+                company=request.user.company, user=request.user, status=status,
+            )
+            messages.success(request, f"{len(saved)}件の日報を保存しました。")
+            if skipped:
+                names = "、".join(str(w) for w in skipped)
+                messages.warning(
+                    request,
+                    f"{names} は同じ現場・日付・工種の日報が既にあるため作成しませんでした。",
+                )
             return redirect("reports:list")
     else:
         form = DailyReportForm(company=request.user.company)
@@ -97,10 +99,14 @@ def report_edit(request, pk):
             request.POST, instance=report, company=request.user.company,
         )
         if form.is_valid():
-            report = form.save(commit=False)
-            if request.POST.get("action") == "submit":
-                report.status = DailyReport.Status.SUBMITTED
-            report.save()
+            status = (
+                DailyReport.Status.SUBMITTED
+                if request.POST.get("action") == "submit"
+                else None
+            )
+            form.save_reports(
+                company=request.user.company, user=request.user, status=status,
+            )
             messages.success(request, "日報を更新しました。")
             return redirect("reports:list")
     else:
