@@ -85,6 +85,9 @@ def scrape_ippi(
             results = _parse_results(page)
             logger.info(f"{len(results)} 件の案件を取得しました")
 
+            # --- 詳細ページから締切日等を取得 ---
+            _enrich_from_detail_pages(page, results)
+
         except Exception:
             logger.exception("スクレイピング中にエラーが発生しました")
             raise
@@ -397,6 +400,179 @@ def _log_table_candidates(page, tables, count: int) -> None:
                 logger.warning("テーブル候補[%d] 1行目: %s", i, cells)
         except Exception:
             continue
+
+
+def _enrich_from_detail_pages(page, results: list[dict]) -> None:
+    """検索結果の各案件の詳細ページを開き、締切日等を補完する。
+
+    i-ppi の一覧リンクは javascript:__doPostBack('dgrSearchList','$N') 形式。
+    各行をクリック → 詳細ページから情報を取得 → ブラウザバック を繰り返す。
+    """
+    if not results:
+        return
+
+    # deadline が既に取れている案件はスキップ対象
+    indices_to_visit = [
+        i for i, r in enumerate(results) if not r.get("deadline")
+    ]
+    if not indices_to_visit:
+        logger.info("全案件に締切日があるため詳細ページの巡回をスキップします")
+        return
+
+    logger.info(f"{len(indices_to_visit)}件の詳細ページから締切日を取得します...")
+
+    for row_index in indices_to_visit:
+        try:
+            # 一覧ページの N 番目の案件リンクをクリック
+            # __doPostBack で遷移するため、テーブル内の a タグを直接クリック
+            table = _find_result_table(page)
+            if not table:
+                logger.warning("結果テーブルが見つからず詳細巡回を中断します")
+                break
+
+            rows = table.locator("tr")
+            # ヘッダー行を除いたデータ行のインデックスを算出
+            data_row_index = _data_row_offset(rows) + row_index
+            if data_row_index >= rows.count():
+                break
+
+            row = rows.nth(data_row_index)
+            link = row.locator("a").first
+            if link.count() == 0:
+                continue
+
+            link.click()
+            page.wait_for_load_state("networkidle")
+            page.wait_for_timeout(1500)
+
+            # 詳細ページから情報を抽出
+            detail = _parse_detail_page(page)
+            if detail.get("deadline"):
+                results[row_index]["deadline"] = detail["deadline"]
+                logger.info(
+                    f"  [{row_index}] {results[row_index]['title'][:30]}... "
+                    f"→ 締切: {detail['deadline']}"
+                )
+            if detail.get("budget") and not results[row_index].get("budget"):
+                results[row_index]["budget"] = detail["budget"]
+
+            # 一覧に戻る
+            page.go_back()
+            page.wait_for_load_state("networkidle")
+            page.wait_for_timeout(1000)
+
+        except Exception as e:
+            logger.warning(f"詳細ページ取得エラー (行{row_index}): {e}")
+            # エラーが起きても一覧に戻れるよう試みる
+            try:
+                page.go_back()
+                page.wait_for_load_state("networkidle")
+                page.wait_for_timeout(1000)
+            except Exception:
+                logger.warning("一覧ページへの復帰に失敗。詳細巡回を中断します")
+                break
+
+    filled = sum(1 for r in results if r.get("deadline"))
+    logger.info(f"締切日を取得済み: {filled}/{len(results)}件")
+
+
+def _find_result_table(page):
+    """結果テーブルを再取得する（ページ遷移後に参照が無効になるため）。"""
+    tables = page.locator("table")
+    for i in range(tables.count()):
+        table = tables.nth(i)
+        try:
+            text = table.inner_text()
+            if "案件名" in text or "工事名" in text or "件名" in text:
+                return table
+        except Exception:
+            continue
+    return None
+
+
+def _data_row_offset(rows) -> int:
+    """テーブルのデータ行開始位置を返す（ヘッダー行を飛ばす）。"""
+    for i in range(min(rows.count(), 3)):
+        row = rows.nth(i)
+        if row.locator("th").count() > 0:
+            return i + 1
+    return 1
+
+
+def _parse_detail_page(page) -> dict:
+    """詳細ページから締切日・予定価格等を抽出する。
+
+    i-ppi の詳細ページは定義リスト風のテーブル（ラベル＋値）で構成される。
+    開札日時、入札書提出期限、質問受付期限などの日付フィールドを探す。
+    """
+    result = {"deadline": None, "budget": 0}
+
+    try:
+        body_text = page.inner_text("body")
+    except Exception:
+        return result
+
+    # 日付抽出の優先順位:
+    # 1. 開札日時（入札の結果が決まる日）
+    # 2. 入札書提出期限 / 申請書提出期限
+    # 3. 参加申込期限
+    deadline_patterns = [
+        r"開札日[時\s]*[：:]\s*(.+?)(?:\n|$)",
+        r"開札予定日[時\s]*[：:]\s*(.+?)(?:\n|$)",
+        r"入札書提出期限[：:]\s*(.+?)(?:\n|$)",
+        r"入札書の提出期限[：:]\s*(.+?)(?:\n|$)",
+        r"申[請込]書[等の]*提出期限[：:]\s*(.+?)(?:\n|$)",
+        r"申[請込][書の]*受[付領]期限[：:]\s*(.+?)(?:\n|$)",
+        r"参加申[込請]期限[：:]\s*(.+?)(?:\n|$)",
+        r"提出期限[：:]\s*(.+?)(?:\n|$)",
+    ]
+
+    for pattern in deadline_patterns:
+        m = re.search(pattern, body_text)
+        if m:
+            parsed = _parse_date(m.group(1).strip())
+            if parsed:
+                result["deadline"] = parsed
+                break
+
+    # テーブルのラベル→値パターンでも探す
+    if not result["deadline"]:
+        try:
+            # th/td ペアのテーブルから日付を探す
+            all_tables = page.locator("table")
+            for t_idx in range(all_tables.count()):
+                table = all_tables.nth(t_idx)
+                trs = table.locator("tr")
+                for r_idx in range(trs.count()):
+                    tr = trs.nth(r_idx)
+                    ths = tr.locator("th")
+                    tds = tr.locator("td")
+                    if ths.count() == 0 or tds.count() == 0:
+                        continue
+                    label = ths.first.inner_text().strip()
+                    value = tds.first.inner_text().strip()
+                    if any(k in label for k in ("開札", "提出期限", "申込期限", "入札期日")):
+                        parsed = _parse_date(value)
+                        if parsed:
+                            result["deadline"] = parsed
+                            break
+                if result["deadline"]:
+                    break
+        except Exception:
+            pass
+
+    # 予定価格
+    budget_patterns = [
+        r"予定価格[（\(税抜き\)）]*[：:]\s*([\d,]+)",
+        r"設計金額[：:]\s*([\d,]+)",
+    ]
+    for pattern in budget_patterns:
+        m = re.search(pattern, body_text)
+        if m:
+            result["budget"] = _parse_amount(m.group(1))
+            break
+
+    return result
 
 
 def _parse_results_fallback(page) -> list[dict]:
