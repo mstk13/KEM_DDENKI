@@ -176,6 +176,7 @@ class TestScrapeTargetChoices:
                 "koji_kbn": "電気設備工事",
                 "koji_gyosyu": "電気工事",
                 "days_back": 30,
+                "scrape_interval_hours": 24,
             }
         )
         assert form.is_valid(), form.errors

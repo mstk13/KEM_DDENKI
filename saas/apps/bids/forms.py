@@ -94,7 +94,9 @@ class ScrapeTargetForm(forms.ModelForm):
     class Meta:
         model = ScrapeTarget
         fields = [
-            "name", "url", "site_key", "region", "category_filter",
+            "name", "url", "site_key",
+            "keyword", "region", "prefecture", "koji_kbn", "koji_gyosyu",
+            "days_back", "category_filter",
             "is_active", "scrape_interval_hours",
         ]
 

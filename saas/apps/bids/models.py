@@ -61,6 +61,21 @@ class BidProject(TenantModel):
     )
     notes = models.TextField("備考", blank=True)
 
+    # 入札参加資格の要件（i-ppi 連携で自動取得）
+    required_category = models.CharField(
+        "必要業種区分", max_length=100, blank=True,
+        help_text="例: 役務の提供等, 電気, 建築, 土木",
+    )
+    required_grade = models.CharField(
+        "必要等級", max_length=10, blank=True,
+        choices=[("A", "A等級"), ("B", "B等級"), ("C", "C等級"), ("D", "D等級")],
+        help_text="この等級以上の資格が必要",
+    )
+    required_issuer_type = models.CharField(
+        "資格種別", max_length=200, blank=True,
+        help_text="例: 全省庁統一資格, 防衛省, 国土交通省, 千葉県",
+    )
+
     history = HistoricalRecords()
 
     class Meta:
@@ -164,30 +179,131 @@ class BidDocument(TenantModel):
 
 
 class ScrapeTarget(TenantModel):
-    """スクレイピング対象。官公庁の入札情報公開ページ。"""
+    """スクレイピング対象。i-ppi.jp または個別官公庁サイト。"""
 
     SITE_KEY_CHOICES = [
+        ("ippi", "i-ppi.jp（入札情報サービス）"),
         ("shigaku", "私学事業団"),
-        ("mod_msdf", "海上自衛隊"),
-        ("mod_gsdf", "陸上自衛隊"),
-        ("mod_asdf", "航空自衛隊"),
-        ("kanagawa_thk", "かながわ土地建物"),
-        ("kanagawa_ebid", "神奈川電子入札共同システム"),
         ("kanagawa_swf", "神奈川県下水道公社"),
-        ("npb", "国立印刷局"),
-        ("geps", "政府電子調達(GEPS)"),
+        ("kanagawa_thk", "かながわ土地建物"),
+    ]
+
+    REGION_CHOICES = [
+        ("北海道", "北海道"),
+        ("東北", "東北"),
+        ("関東", "関東"),
+        ("北陸", "北陸"),
+        ("中部", "中部"),
+        ("近畿", "近畿"),
+        ("中国", "中国"),
+        ("四国", "四国"),
+        ("九州・沖縄", "九州・沖縄"),
+    ]
+
+    KOJI_KBN_CHOICES = [
+        ("一般土木工事", "一般土木工事"),
+        ("アスファルト舗装工事", "アスファルト舗装工事"),
+        ("鋼橋上部工事", "鋼橋上部工事"),
+        ("造園工事", "造園工事"),
+        ("建築工事", "建築工事"),
+        ("木造建築工事", "木造建築工事"),
+        ("電気設備工事", "電気設備工事"),
+        ("暖冷房衛生設備工事", "暖冷房衛生設備工事"),
+        ("セメント・コンクリート舗装工事", "セメント・コンクリート舗装工事"),
+        ("プレストレスト・コンクリート工事", "プレストレスト・コンクリート工事"),
+        ("法面処理工事", "法面処理工事"),
+        ("塗装工事", "塗装工事"),
+        ("維持修繕工事", "維持修繕工事"),
+        ("浚渫工事", "浚渫工事"),
+        ("グラウト工事", "グラウト工事"),
+        ("杭打工事", "杭打工事"),
+        ("さく井工事", "さく井工事"),
+        ("プレハブ建築工事", "プレハブ建築工事"),
+        ("機械設備工事", "機械設備工事"),
+        ("通信設備工事", "通信設備工事"),
+        ("受変電設備工事", "受変電設備工事"),
+        ("港湾土木工事", "港湾土木工事"),
+        ("農林土木工事", "農林土木工事"),
+        ("農林建築工事", "農林建築工事"),
+        ("橋梁補修工事", "橋梁補修工事"),
+        ("その他", "その他"),
+    ]
+
+    KOJI_GYOSYU_CHOICES = [
+        ("土木一式工事", "土木一式工事"),
+        ("建築一式工事", "建築一式工事"),
+        ("大工工事", "大工工事"),
+        ("左官工事", "左官工事"),
+        ("とび・土工・コンクリート工事", "とび・土工・コンクリート工事"),
+        ("石工事", "石工事"),
+        ("屋根工事", "屋根工事"),
+        ("電気工事", "電気工事"),
+        ("管工事", "管工事"),
+        ("タイル・れんが・ブロック工事", "タイル・れんが・ブロック工事"),
+        ("鋼構造物工事", "鋼構造物工事"),
+        ("鉄筋工事", "鉄筋工事"),
+        ("舗装工事", "舗装工事"),
+        ("浚渫工事", "浚渫工事"),
+        ("板金工事", "板金工事"),
+        ("ガラス工事", "ガラス工事"),
+        ("塗装工事", "塗装工事"),
+        ("防水工事", "防水工事"),
+        ("内装仕上工事", "内装仕上工事"),
+        ("機械器具設置工事", "機械器具設置工事"),
+        ("熱絶縁工事", "熱絶縁工事"),
+        ("電気通信工事", "電気通信工事"),
+        ("造園工事", "造園工事"),
+        ("さく井工事", "さく井工事"),
+        ("建具工事", "建具工事"),
+        ("水道施設工事", "水道施設工事"),
+        ("消防施設工事", "消防施設工事"),
+        ("清掃施設工事", "清掃施設工事"),
+        ("解体工事", "解体工事"),
+        ("その他", "その他"),
     ]
 
     name = models.CharField("名称", max_length=200)
-    url = models.URLField("URL", max_length=500)
+    url = models.URLField("URL", max_length=500, blank=True)
     site_key = models.CharField(
         "サイト識別子",
         max_length=30,
         choices=SITE_KEY_CHOICES,
         blank=True,
-        help_text="スクレイパーの選択に使用",
+        help_text="スクレイパーの選択に使用。i-ppi が基本",
     )
-    region = models.CharField("地域", max_length=100, blank=True)
+
+    # i-ppi 検索条件
+    keyword = models.CharField(
+        "工事名キーワード", max_length=200, blank=True,
+    )
+    region = models.CharField(
+        "地域（地方）", max_length=100, blank=True,
+        choices=REGION_CHOICES,
+    )
+    prefecture = models.CharField(
+        "都道府県", max_length=50, blank=True,
+        help_text="地域を選んだときだけ有効",
+    )
+    koji_kbn = models.CharField(
+        "工事区分", max_length=50, blank=True,
+        choices=KOJI_KBN_CHOICES,
+        help_text="発注工事の区分。例: 電気設備工事, 受変電設備工事",
+    )
+    koji_gyosyu = models.CharField(
+        "業種", max_length=50, blank=True,
+        choices=KOJI_GYOSYU_CHOICES,
+        help_text="建設業許可の業種区分。例: 電気工事, 電気通信工事",
+    )
+    days_back = models.IntegerField(
+        "過去N日以内", default=30,
+        help_text="最終更新日が過去N日以内の案件を検索",
+    )
+
+    # 汎用フィールド
+    category = models.CharField(
+        "工事種別（旧）", max_length=100, blank=True,
+        help_text="非推奨。工事区分／業種を使う",
+    )
     category_filter = models.CharField(
         "工事種別フィルタ",
         max_length=200,
@@ -201,7 +317,6 @@ class ScrapeTarget(TenantModel):
     last_scraped_at = models.DateTimeField("最終取得日時", null=True, blank=True)
     last_result = models.CharField(
         "最終結果", max_length=200, blank=True,
-        help_text="例: 新規3件取得、エラーなし",
     )
     error_count = models.IntegerField("連続エラー回数", default=0)
     last_error = models.TextField("最後のエラー", blank=True)
