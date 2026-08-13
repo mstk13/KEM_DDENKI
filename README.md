@@ -5,15 +5,18 @@
 <h1 align="center">KEM_DDENKI — ケンモチ電機 業務管理システム</h1>
 
 電気工事の業務フローを一気通貫でカバーする統合Webアプリケーション。  
-日報・原価・材料・入札・工期・人材・営業・取引先・開発管理の **15モジュール** を1つのプラットフォームで提供します。
+日報・原価・材料・入札・積算・工期・人材・営業・取引先・開発管理の **17モジュール** を1つのプラットフォームで提供します。
 
 **まず読むページ**
 
 | 立場 | ページ |
 |------|--------|
 | 現場・事務で**使う**人 | この下の [アクセス方法](#アクセス方法) |
-| **開発する**人 | [開発者ガイド](docs/developer_guide.md) |
+| **開発する**人 | [開発者マップ](index.html)（全体像を図で1枚） → [開発者ガイド](docs/developer_guide.md)（手順） |
 | サーバーを**管理する**人 | [サーバー運用ガイド](docs/server_operations.md) |
+
+> **開発者マップ** は `index.html` をブラウザで開いてください。GitHub 上ではHTMLのソースが表示されるだけなので、
+> `python -m http.server` でリポジトリ直下を配信して `http://localhost:8000/index.html` を開くのが確実です。
 
 ---
 
@@ -72,9 +75,13 @@
 | 原価管理 | `/costs/` | 予算vs実績ダッシュボード・消化率グラフ・75/80/90/100%アラート |
 | 材料管理 | `/materials/` | 材料マスタ・見積比較・発注・納品検収・在庫 |
 | 入札管理 | `/bids/` | 案件管理・競合情報・落札→現場自動登録・受注率ダッシュボード |
+| 積算 | `/estimation/` | 品目マスタ・名寄せ・労務単価取込・歩掛/積算基準・内訳書Excel出力・差分分析 |
 | 営業管理 | `/sales/` | 営業来訪記録・業界別ブラウズ・ステータス管理 |
 | 工期管理 | `/schedules/` | ガントチャート・配置カレンダー・マイルストーン・工程テンプレート |
-| 人材管理 | `/workers/` | 作業員・資格(5段階アラート)・スキルマップ・評価・健康診断・勤怠集計 |
+| 人材管理 | `/workers/` | 作業員・資格(5段階アラート)・スキルマップ・健康診断 |
+| 勤怠管理 | `/attendance/` | 出勤簿・打刻明細・従業員別記録・月次集計 |
+| 人材評価 | `/evaluation/` | 評価基準・評価入力・評価者割当・従業員別サマリ |
+| AI支援 | `/ai/` | コスト予測/最適化・工程提案・工程リスク・呼び出しログ・フィードバック |
 | 開発管理 | `/dev/` | カンバンボード・Discord webhook通知・GitHub PR/Issue連携 |
 | 取引先管理 | `/masters/` | 得意先・仕入先CRUD・5段階評価・名刺管理 |
 | 通知 | `/notifications/` | 全モジュール共通の通知センター・アラートルール管理 |
@@ -312,8 +319,13 @@ GitHub からサーバーへ届く必要がないため（サーバー→GitHub 
 ```bash
 cd KEM_DDENKI/saas
 
-# テスト実行（SQLiteモード、高速）
+# テスト実行（SQLiteモード、高速）※ dev依存を入れた仮想環境が前提
+# 事前に collectstatic を流さないと「Missing staticfiles manifest entry」で落ちます
+python manage.py collectstatic --noinput
 USE_SQLITE=true DJANGO_SETTINGS_MODULE=config.settings python -m pytest tests/ -v
+
+# Docker で回す場合（web コンテナに pytest は入っていません）
+# → docs/developer_guide.md の「テスト」を参照
 
 # マイグレーション作成
 python manage.py makemigrations
@@ -334,7 +346,9 @@ LEGACY_DB_URL="postgresql://kem:kem@localhost:5433/kem_main" \
 ```
 KEM_DDENKI/
 ├── README.md
+├── index.html                  開発者マップ（全体像を図10枚で / ブラウザで開く）
 ├── .github/workflows/          CI/CD（テスト自動実行・リリース）
+├── tools/autodeploy/           自動デプロイスクリプトの正本
 ├── docs/
 │   ├── design/                 設計資料（7点）
 │   │   ├── 要件定義書.md         全モジュールの機能仕様
@@ -344,40 +358,52 @@ KEM_DDENKI/
 │   │   ├── 設計判断の根拠書.md   全ての「なぜ」を解説
 │   │   ├── TM向けQ&A集.md       想定質問20問と回答
 │   │   └── 技術用語集.md         50以上の用語解説
+│   ├── developer_guide.md      編集→確認→承認→本番反映の1枚まとめ
+│   ├── server_operations.md    サーバーPCの運用（自動起動・デプロイ・バックアップ）
 │   ├── git_workflow.md         Git運用ルール
+│   ├── branch_protection_setup.md  main保護（PM承認の強制）
 │   ├── geps_setup.md           GEPSメール連携
 │   └── tailscale_setup.md      外部アクセス（VPN）
 │
 └── saas/                       Django SaaS版（本体）
     ├── config/                 Django設定（settings / urls / wsgi）
-    ├── apps/                   15アプリ
+    ├── apps/                   19アプリ
     │   │
     │   │── 基盤レイヤー
     │   ├── core/               テナント基盤（TenantModel, ミドルウェア）
     │   ├── tenants/            マルチテナント（Company, CompanyApp）
-    │   ├── accounts/           ユーザー・部署・認証
+    │   ├── accounts/           ユーザー・部署・社員番号ログイン
     │   ├── permissions/        ロール権限（Role × Module の R/W/A マトリクス）
-    │   ├── notifications/      通知基盤（5種アラート: 原価/資格/工期/入札/KY）
+    │   ├── masters/            全社マスタ（工種/原価区分/得意先/仕入先/名刺）
     │   │
-    │   │── 業務アプリ
-    │   ├── sites/              現場管理
+    │   │── 業務の背骨
+    │   ├── bids/               入札（案件・競合・書類・落札→現場自動登録）
+    │   ├── estimation/         積算（品目・労務単価・歩掛・内訳書・差分分析）
+    │   ├── sites/              現場管理（現場・工程・見積ファイル取込）
     │   ├── reports/            日報（開始終了時間・残業自動計算・KY管理）
     │   ├── costs/              原価（予算vs実績・Chart.jsグラフ・閾値アラート）
-    │   ├── materials/          材料（見積比較・発注・納品検収・在庫）
-    │   ├── bids/               入札（案件・競合・書類・落札→現場自動登録）
-    │   ├── sales/              営業（来訪記録・業界別ブラウズ）
+    │   │
+    │   │── 現場にぶら下がるもの
+    │   ├── materials/          材料（見積比較・発注・納品検収・在庫・調達実績）
     │   ├── schedules/          工期（ガントチャート・配置カレンダー・テンプレート）
-    │   ├── workers/            人材（資格・スキル・評価・健診・勤怠）
-    │   ├── masters/            取引先（得意先/仕入先CRUD・評価・名刺）
+    │   ├── workers/            人材（作業員・資格・スキル・健診）
+    │   ├── attendance/         勤怠（出勤簿・打刻明細・月次集計）
+    │   ├── evaluation/         人材評価（評価基準・評価入力・評価者割当）
+    │   │
+    │   │── 横断・支援
+    │   ├── notifications/      通知基盤（原価/資格/工期/入札/証明書/健診アラート）
+    │   ├── ai/                 AI（Claude によるコスト分析・工程提案 / LightGBM 予測）
+    │   ├── sales/              営業（来訪記録・業界別ブラウズ）
     │   └── devkanri/           開発（カンバン・Discord webhook・GitHub連携）
     │
-    ├── templates/              HTMLテンプレート（79ファイル）
+    ├── templates/              HTMLテンプレート（158ファイル）
     │   ├── base.html           共通レイアウト（サイドバー + 通知バッジ）
     │   └── [各アプリ]/
     │
     ├── static/                 CSS / JavaScript
     ├── scripts/                データ移行スクリプト
-    ├── tests/                  テスト（72件）
+    ├── tests/                  テスト（281件）
+    ├── CLAUDE.md               実装時の開発規律（絶対ルール9項目）
     │
     ├── docker-compose.yml      開発用（db + redis + web）
     ├── docker-compose.prod.yml 本番用
@@ -412,7 +438,7 @@ KEM_DDENKI/
 | **マルチテナント** | TenantModel ベースで会社単位のデータ分離。全テーブルに `company_id` |
 | **監査証跡** | django-simple-history で全モデルの変更履歴を自動記録 |
 | **ロールベース権限** | 社長/役員/現場担当/事務/協力会社/開発者の6ロール × モジュール別 R/W/A |
-| **テスト駆動** | 72件のテストでテナント分離・自動仕訳・権限を検証 |
+| **テスト駆動** | 281件のテストでテナント分離・自動仕訳・権限を検証 |
 
 ---
 
@@ -420,14 +446,19 @@ KEM_DDENKI/
 
 | 項目 | 数 |
 |------|-----|
-| Django アプリ | 15 |
-| ビュー関数 | 約120 |
-| URL パターン | 約100 |
-| HTML テンプレート | 79 |
-| テスト | 72 |
-| services.py（ロジック層） | 12 |
-| マイグレーション | 25 |
+| Django アプリ | 19 |
+| モデル | 82 |
+| ビュー関数 | 244 |
+| URL パターン | 243 |
+| HTML テンプレート | 158 |
+| テスト | 281 |
+| services.py（ロジック層） | 12 + パッケージ2 |
+| マイグレーション | 68 |
+| Python 行数（migrations 除く） | 26,483 |
 | 設計資料 | 7 |
+
+> 上の数値は `cab9609`（`developer`）時点の実測値です。アプリやモデルを足したら
+> [開発者マップ](index.html) の「30秒で掴む」と合わせて更新してください。
 
 ---
 
@@ -435,6 +466,7 @@ KEM_DDENKI/
 
 | ドキュメント | 内容 |
 |-------------|------|
+| **[index.html](index.html)** | **開発者マップ — 全体像・モジュール地図・業務フロー・落とし穴を図10枚で** |
 | **[docs/developer_guide.md](docs/developer_guide.md)** | **開発者向け1枚まとめ（編集→確認→承認→本番反映）** |
 | **[docs/server_operations.md](docs/server_operations.md)** | **サーバーPCの運用（自動起動・自動デプロイ・バックアップ）** |
 | [docs/design/](docs/design/) | 設計資料一式（7点） |
