@@ -81,6 +81,52 @@ services:
       - media_data:/app/media
     command: ["gunicorn", "config.wsgi:application", "--bind", "0.0.0.0:8000", "--workers", "4", "--threads", "2"]
 
+  # --- 定期タスク（入札案件取得・アラート送信） ---
+  cron:
+    build: .
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:-change-me-in-production}
+      DJANGO_DEBUG: "False"
+      DB_NAME: kensetsu_saas
+      DB_USER: postgres
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      DB_HOST: db
+      DB_PORT: "5432"
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      EMAIL_BACKEND: ${EMAIL_BACKEND:-django.core.mail.backends.console.EmailBackend}
+      EMAIL_HOST: ${EMAIL_HOST:-}
+      EMAIL_PORT: ${EMAIL_PORT:-587}
+      EMAIL_USE_TLS: ${EMAIL_USE_TLS:-False}
+      EMAIL_USE_SSL: ${EMAIL_USE_SSL:-False}
+      EMAIL_HOST_USER: ${EMAIL_HOST_USER:-}
+      EMAIL_HOST_PASSWORD: ${EMAIL_HOST_PASSWORD:-}
+      DEFAULT_FROM_EMAIL: ${DEFAULT_FROM_EMAIL:-noreply@kem-ddenki.com}
+    volumes:
+      - .:/app
+      - media_data:/app/media
+    entrypoint: ["sh", "-c"]
+    command:
+      - |
+        echo "=== cron サービス起動 ==="
+        # crontab を設定
+        cat > /tmp/crontab <<'CRON'
+        # 2日に1回 朝7時: 入札案件の自動取得（i-ppi + 個別サイト）
+        0 7 */2 * * cd /app && python manage.py scrape_bids --force >> /proc/1/fd/1 2>&1
+        # 毎朝8時: 書類アラート（資格期限・健診期限等）
+        0 8 * * * cd /app && python manage.py send_document_alerts >> /proc/1/fd/1 2>&1
+        CRON
+        crontab /tmp/crontab
+        echo "cron 設定完了:"
+        crontab -l
+        # cron をフォアグラウンドで実行
+        exec crond -f -l 2
+
   # --- Cloudflare Tunnel（社外アクセス用・任意） ---
   # 使用する場合は .env に CLOUDFLARE_TUNNEL_TOKEN を設定してください。
   # トークン未設定時はこのコンテナは起動しません。

@@ -65,6 +65,10 @@ class Command(BaseCommand):
                 f"  処理: {result['targets_processed']}ターゲット, "
                 f"新規: {result['total_new']}件"
             )
+            if result["total_new"] > 0:
+                self.stdout.write(
+                    self.style.SUCCESS(f"  → {result['total_new']}件の新着を通知しました")
+                )
             if result["errors"]:
                 for err in result["errors"][:5]:
                     self.stderr.write(f"  エラー: {err}")

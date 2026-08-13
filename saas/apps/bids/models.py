@@ -312,7 +312,8 @@ class ScrapeTarget(TenantModel):
     )
     is_active = models.BooleanField("有効", default=True)
     scrape_interval_hours = models.IntegerField(
-        "巡回間隔（時間）", default=24,
+        "巡回間隔（時間）", default=48,
+        help_text="2日=48時間。cron は2日に1回実行",
     )
     last_scraped_at = models.DateTimeField("最終取得日時", null=True, blank=True)
     last_result = models.CharField(
