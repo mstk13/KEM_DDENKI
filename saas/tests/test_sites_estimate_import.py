@@ -661,3 +661,258 @@ class TestCustomerDetail:
 
         assert res.status_code == 404
         set_current_company(None)
+
+
+# ---------------------------------------------------------------------------
+# 既にある現場への取り込み
+#
+# 落札・受注のフェーズ移行で自動作成された現場は、件名と概算金額しか持たない。
+# そこへ後からライデンの Excel を入れて数字を埋める経路。新規登録と違い
+# 「項目ごとに反映するかを人が選ぶ」ことが要件なので、既定のチェック状態と、
+# 選ばなかった項目が変わらないことを固定する。
+# ---------------------------------------------------------------------------
+
+@pytest.mark.django_db
+class TestExistingSiteImport:
+    def _site(self, company, **kwargs):
+        fields = {
+            "code": "BID-1",
+            "name": "落札で自動作成された現場",
+            "status": Site.Status.ORDERED,
+            "contract_amount": 0,
+        }
+        fields.update(kwargs)
+        return Site.unscoped.create(company=company, **fields)
+
+    def _upload(self, client, tmp_path, site, sheets=None):
+        path = _write_xlsx(tmp_path, sheets or {"表紙": ESTIMATE_SHEET})
+        with open(path, "rb") as f:
+            return client.post(
+                reverse("sites:estimate_import", args=[site.pk]), {"file": f}
+            )
+
+    def test_upload_shows_current_and_file_values_side_by_side(
+        self, client, tmp_path, company_a, user_a
+    ):
+        set_current_company(company_a)
+        site = self._site(company_a)
+        client.force_login(user_a)
+
+        body = self._upload(client, tmp_path, site).content.decode("utf-8")
+
+        assert "落札で自動作成された現場" in body       # 今の値
+        assert "○○ビル 電気設備改修工事" in body       # ファイルの値
+        assert "3480000" in body
+        set_current_company(None)
+
+    def test_empty_fields_are_checked_and_filled_fields_are_not(
+        self, client, tmp_path, company_a, user_a
+    ):
+        # 空欄だけ既定でチェック。人が入れた現場名を黙って書き換えない。
+        set_current_company(company_a)
+        site = self._site(company_a)
+        client.force_login(user_a)
+
+        rows = {
+            row["field"]: row
+            for row in self._upload(client, tmp_path, site).context["diff_rows"]
+        }
+
+        assert rows["contract_amount"]["checked"] is True    # 0円なので空扱い
+        assert rows["address"]["checked"] is True
+        assert rows["start_date"]["checked"] is True
+        assert rows["name"]["checked"] is False              # 既に件名がある
+        assert rows["name"]["current"] == "落札で自動作成された現場"
+        set_current_company(None)
+
+    def test_only_the_checked_fields_are_applied(self, client, company_a, user_a):
+        set_current_company(company_a)
+        site = self._site(company_a)
+        client.force_login(user_a)
+
+        res = client.post(reverse("sites:estimate_import", args=[site.pk]), {
+            "step": "confirm",
+            "filename": "ライデン見積.xlsx",
+            "apply": ["contract_amount", "start_date", "end_date", "address"],
+            "value_contract_amount": "3480000",
+            "value_start_date": "2026-09-01",
+            "value_end_date": "2026-11-30",
+            "value_address": "山形県酒田市中町1-2-3",
+            "value_name": "○○ビル 電気設備改修工事",
+            "value_payment_terms": "月末締め翌月末現金払い",
+        })
+
+        site.refresh_from_db()
+        assert res.status_code == 302
+        assert site.contract_amount == 3480000
+        assert site.start_date == datetime.date(2026, 9, 1)
+        assert site.end_date == datetime.date(2026, 11, 30)
+        assert site.address == "山形県酒田市中町1-2-3"
+        # チェックを外した項目は今の値のまま
+        assert site.name == "落札で自動作成された現場"
+        assert site.payment_terms == ""
+        set_current_company(None)
+
+    def test_a_too_long_value_is_truncated_instead_of_failing_to_save(
+        self, client, company_a, user_a
+    ):
+        # 明細行を掴む等で長い値が来ても、保存時に落とさず切って入れる。
+        set_current_company(company_a)
+        site = self._site(company_a, code="")
+        client.force_login(user_a)
+
+        client.post(reverse("sites:estimate_import", args=[site.pk]), {
+            "step": "confirm",
+            "apply": ["code"],
+            "value_code": "Q" * 80,
+        })
+
+        site.refresh_from_db()
+        assert len(site.code) == 50
+        set_current_company(None)
+
+    def test_note_is_appended_so_site_side_remarks_survive(
+        self, client, company_a, user_a
+    ):
+        set_current_company(company_a)
+        site = self._site(company_a, note="鍵は警備室で受け取ること")
+        client.force_login(user_a)
+
+        client.post(reverse("sites:estimate_import", args=[site.pk]), {
+            "step": "confirm",
+            "apply": ["note"],
+            "value_note": "足場は別途",
+        })
+
+        site.refresh_from_db()
+        assert "鍵は警備室で受け取ること" in site.note
+        assert "足場は別途" in site.note
+        set_current_company(None)
+
+    def test_importing_the_same_file_twice_does_not_duplicate_lines(
+        self, client, company_a, user_a
+    ):
+        set_current_company(company_a)
+        site = self._site(company_a)
+        client.force_login(user_a)
+        payload = {
+            "step": "confirm",
+            "apply": ["extracted_details"],
+            "value_extracted_details": "工事区分: 電気設備工事",
+        }
+
+        client.post(reverse("sites:estimate_import", args=[site.pk]), payload)
+        client.post(reverse("sites:estimate_import", args=[site.pk]), payload)
+
+        site.refresh_from_db()
+        assert site.extracted_details.count("工事区分: 電気設備工事") == 1
+        set_current_company(None)
+
+    def test_applying_records_an_import_history_entry_on_the_site(
+        self, client, company_a, user_a
+    ):
+        set_current_company(company_a)
+        site = self._site(company_a)
+        client.force_login(user_a)
+
+        client.post(reverse("sites:estimate_import", args=[site.pk]), {
+            "step": "confirm",
+            "filename": "ライデン見積.xlsx",
+            "parsed_customer_name": "株式会社サンプル建設",
+            "apply": ["contract_amount"],
+            "value_contract_amount": "3480000",
+        })
+
+        record = EstimateImport.unscoped.get(company=company_a)
+        assert record.site == site
+        assert record.filename == "ライデン見積.xlsx"
+        assert record.customer_name_raw == "株式会社サンプル建設"
+        assert record.amount == 3480000
+        assert record.created_by == user_a
+        set_current_company(None)
+
+    def test_selecting_nothing_changes_nothing_and_leaves_no_history(
+        self, client, company_a, user_a
+    ):
+        set_current_company(company_a)
+        site = self._site(company_a)
+        client.force_login(user_a)
+
+        client.post(reverse("sites:estimate_import", args=[site.pk]), {
+            "step": "confirm",
+            "filename": "ライデン見積.xlsx",
+            "value_contract_amount": "3480000",
+        })
+
+        site.refresh_from_db()
+        assert site.contract_amount == 0
+        assert not EstimateImport.unscoped.filter(company=company_a).exists()
+        set_current_company(None)
+
+    def test_preview_alone_does_not_change_the_site(
+        self, client, tmp_path, company_a, user_a
+    ):
+        set_current_company(company_a)
+        site = self._site(company_a)
+        client.force_login(user_a)
+
+        self._upload(client, tmp_path, site)
+
+        site.refresh_from_db()
+        assert site.contract_amount == 0
+        assert not EstimateImport.unscoped.filter(company=company_a).exists()
+        set_current_company(None)
+
+    def test_matched_customer_can_be_applied_to_the_site(
+        self, client, tmp_path, company_a, user_a
+    ):
+        set_current_company(company_a)
+        customer = Customer.unscoped.create(
+            company=company_a, code="C001", name="㈱サンプル建設",
+        )
+        site = self._site(company_a)
+        client.force_login(user_a)
+
+        self._upload(client, tmp_path, site)
+        client.post(reverse("sites:estimate_import", args=[site.pk]), {
+            "step": "confirm",
+            "apply": ["customer"],
+            "value_customer": str(customer.pk),
+        })
+
+        site.refresh_from_db()
+        assert site.customer == customer
+        set_current_company(None)
+
+    def test_another_companys_customer_cannot_be_applied(
+        self, client, company_a, company_b, user_a
+    ):
+        # value_customer は画面から往復する値なので、他社の pk は弾く。
+        set_current_company(company_a)
+        other = Customer.unscoped.create(
+            company=company_b, code="C001", name="B社の得意先",
+        )
+        site = self._site(company_a)
+        client.force_login(user_a)
+
+        client.post(reverse("sites:estimate_import", args=[site.pk]), {
+            "step": "confirm",
+            "apply": ["customer"],
+            "value_customer": str(other.pk),
+        })
+
+        site.refresh_from_db()
+        assert site.customer is None
+        set_current_company(None)
+
+    def test_another_companys_site_is_not_reachable(
+        self, client, company_a, company_b, user_a
+    ):
+        set_current_company(company_a)
+        other_site = self._site(company_b, code="BID-B")
+        client.force_login(user_a)
+
+        res = client.get(reverse("sites:estimate_import", args=[other_site.pk]))
+
+        assert res.status_code == 404
+        set_current_company(None)

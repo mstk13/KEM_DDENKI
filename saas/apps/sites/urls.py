@@ -9,6 +9,7 @@ urlpatterns = [
     path("new/", views.site_create, name="create"),
     path("import/", views.site_import, name="import"),
     path("<int:pk>/", views.site_detail, name="detail"),
+    path("<int:pk>/estimate-import/", views.site_estimate_import, name="estimate_import"),
     path("<int:pk>/edit/", views.site_edit, name="edit"),
     path("<int:pk>/delete/", views.site_delete, name="delete"),
     # 工程（手入力）
