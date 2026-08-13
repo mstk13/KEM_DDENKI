@@ -83,11 +83,31 @@ git pull origin developer     # 他の人の変更を取り込む
 cd saas
 docker compose restart web    # → http://localhost:8000/ で確認
 
-# テスト（マージ前に必ず通す。CI でも同じものが走ります）
-docker compose exec web sh -c "USE_SQLITE=true python -m pytest tests/ -v"
-docker compose exec web ruff check .
+# マイグレーションの同梱漏れチェック（モデルを変えたら必ず）
 docker compose exec web sh -c "USE_SQLITE=true python manage.py makemigrations --check --dry-run"
 ```
+
+**テスト（マージ前に必ず通す。CI でも同じものが走ります）**
+
+pytest と ruff は `pyproject.toml` の `[project.optional-dependencies] dev` にあり、
+Dockerfile は本体依存しか入れないため **web コンテナには入っていません**。
+`docker compose exec web python -m pytest` は `No module named pytest` になります。
+使い捨てコンテナに入れて回してください。
+
+```bash
+cd saas
+docker compose run --rm --entrypoint sh web -c "\
+  pip install -q pytest pytest-django ruff && \
+  ruff check . && \
+  python manage.py collectstatic --no-input >/dev/null && \
+  USE_SQLITE=true python -m pytest tests/ -q"
+```
+
+- `--entrypoint sh` は必須。付けないと `entrypoint.sh` が migrate と collectstatic を
+  流してからサーバーを起動してしまい、テストまで進みません。
+- `collectstatic` を先に流さないと、テンプレートを描画するテストが
+  「Missing staticfiles manifest entry」で落ちます（CI も同じ順番で流しています）。
+- 全体で2分ほどかかります。
 
 ### 3-4. 開発環境に反映する
 
