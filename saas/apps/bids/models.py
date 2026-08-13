@@ -182,7 +182,7 @@ class ScrapeTarget(TenantModel):
     """スクレイピング対象。i-ppi.jp または個別官公庁サイト。"""
 
     SITE_KEY_CHOICES = [
-        ("ippi", "i-ppi.jp（入札情報サービス）"),
+        ("ippi", "i-ppi.jp（全国入札情報）"),
         ("shigaku", "私学事業団"),
         ("kanagawa_swf", "神奈川県下水道公社"),
         ("kanagawa_thk", "かながわ土地建物"),

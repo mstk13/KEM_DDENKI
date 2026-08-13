@@ -162,8 +162,7 @@ def run_scrape(target, company):
         else:
             # 個別サイトスクレイパー（requests + BS4）
             from apps.bids.scrapers import get_scraper
-            # 各モジュールを import してレジストリに登録
-            from apps.bids.scrapers import shigaku, kanagawa_thk, kanagawa_swf  # noqa: F401
+            from apps.bids.scrapers import shigaku, kanagawa_thk, kanagawa_swf  # noqa: F401 レジストリ登録
 
             scraper = get_scraper(target.site_key)
             if not scraper:
