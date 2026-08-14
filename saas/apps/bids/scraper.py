@@ -117,6 +117,7 @@ def _empty_record() -> dict:
         "deadline": None,
         "budget": 0,
         "source_url": "",
+        "document_urls": [],
         "summary": "",
         "required_grade": "",
         "required_category": "",
@@ -674,7 +675,9 @@ def _parse_detail_page(page) -> dict:
     ラベルが取れない発注機関のために、本文テキストからの抽出も残す。
     """
     result = _parse_detail_table(page)
-    result["source_url"] = _find_document_url(page)
+    documents = _find_document_urls(page)
+    result["document_urls"] = documents
+    result["source_url"] = documents[0] if documents else ""
     result["summary"] = _detail_summary(page)
 
     try:
@@ -810,27 +813,58 @@ def _parse_detail_table(page) -> dict:
     return result
 
 
-def _find_document_url(page) -> str:
-    """公開文書（入札公告等）のリンクURLを返す。
+def _find_document_urls(page) -> list[str]:
+    """公開文書のリンクURLを、公告らしいものから順に返す。
 
     案件詳細そのものは Koji/Kokoku/List.aspx?tab=3 という全案件共通のURLで、
     セッションに依存するため情報源URLとして保存できない。
     公開文書のリンクは発注機関のページや e-bisc の公開文書サーブレットへの
     絶対URLで、案件ごとに変わるのでこれを情報源URLとして使う。
+
+    1案件に複数の文書がぶら下がる（「入札公告」「指名結果書」「入札調書」
+    「積算内訳書」…）。先頭を無条件に採ると、公告ではない文書を情報源に
+    してしまう。文書名称で並べ替え、後段で読めるものを順に試せるよう
+    全部返す。
     """
-    for selector in (f"{GRID_KOKOKU} a", "#tblDataDtl a"):
+    urls: list[tuple[int, str]] = []
+    seen = set()
+    for selector in (f"{GRID_KOKOKU} tr", "#tblDataDtl tr"):
         try:
-            links = page.locator(selector).all()
+            rows = page.locator(selector).all()
         except Exception:
             continue
-        for link in links:
+        for row in rows:
             try:
+                link = row.locator("a").first
+                if link.count() == 0:
+                    continue
                 url = _absolute_url(link.get_attribute("href"))
+                cells = [c.inner_text().strip() for c in row.locator("td, th").all()]
             except Exception:
                 continue
-            if url:
-                return url[:500]
-    return ""
+            if not url or url in seen:
+                continue
+            seen.add(url)
+            name = cells[0] if cells else ""
+            urls.append((_document_priority(name), url[:500]))
+
+    urls.sort(key=lambda pair: pair[0])
+    return [url for _, url in urls]
+
+
+def _document_priority(name: str) -> int:
+    """文書名称から、公告として読む優先順位を返す。小さいほど先。"""
+    for rank, words in enumerate((
+        ("入札公告", "公告"),
+        ("公示", "掲示"),
+        ("入札説明書", "説明書"),
+    )):
+        if any(w in name for w in words):
+            return rank
+    # 結果・調書・内訳書は要件が書かれていないので後回し
+    if any(w in name for w in ("結果", "調書", "内訳", "契約")):
+        return 9
+    return 5
 
 
 def _detail_summary(page) -> str:
