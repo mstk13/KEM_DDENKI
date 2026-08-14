@@ -225,6 +225,70 @@ def fill_missing_fields(project, rec, default_region=""):
     return True
 
 
+def fill_announcement(project) -> bool:
+    """1案件の情報源URLから工事概要・参加要件を取り込む。
+
+    画面で書き換えた内容を消さないよう、空いている項目だけを埋める。
+    埋まれば True。
+    """
+    import logging
+
+    from apps.bids.announcement import extract_from_url
+
+    logger = logging.getLogger(__name__)
+
+    if not project.source_url:
+        return False
+    if project.work_outline and project.requirements:
+        return False
+
+    result = extract_from_url(project.source_url)
+    changed = []
+    if result["work_outline"] and not project.work_outline:
+        project.work_outline = result["work_outline"]
+        changed.append("work_outline")
+    if result["requirements"] and not project.requirements:
+        project.requirements = result["requirements"]
+        changed.append("requirements")
+    if result["required_grade"] and not project.required_grade:
+        project.required_grade = result["required_grade"]
+        changed.append("required_grade")
+
+    if not changed:
+        if result["garbled"]:
+            logger.info(
+                "公告PDFの文字が読めないため取り込めません: %s (%s)",
+                project.title, project.source_url,
+            )
+        return False
+
+    project.save(update_fields=[*changed, "updated_at"])
+    logger.info("公告から取り込み: %s → %s", project.title[:30], ", ".join(changed))
+    return True
+
+
+def fill_announcements(projects, limit=None) -> int:
+    """複数案件の公告を順に取り込む。埋まった件数を返す。
+
+    公告を取れなくても取り込み自体は成功として扱う。相手は官公庁サイトで、
+    落ちていたり証明書が古かったりするのを案件取得の失敗にはしない。
+    """
+    import logging
+
+    logger = logging.getLogger(__name__)
+
+    filled = 0
+    for i, project in enumerate(projects):
+        if limit is not None and i >= limit:
+            logger.info("公告の取り込みを%d件で打ち切りました", limit)
+            break
+        try:
+            filled += bool(fill_announcement(project))
+        except Exception as e:
+            logger.warning("公告の取り込みに失敗: %s (%s)", project.title[:30], e)
+    return filled
+
+
 def run_scrape(target, company):
     """1つの ScrapeTarget に対してスクレイピングを実行する。
 
@@ -258,7 +322,7 @@ def run_scrape(target, company):
             scraper = get_scraper(target.site_key)
             if not scraper:
                 return {
-                    "new": 0, "updated": 0, "skipped": 0, "excluded": 0,
+                    "new": 0, "updated": 0, "skipped": 0, "excluded": 0, "outlined": 0,
                     "errors": [f"未対応: {target.site_key}"],
                 }
             bid_infos = scraper.scrape()
@@ -284,7 +348,8 @@ def run_scrape(target, company):
             "error_count", "last_error", "last_scraped_at", "updated_at",
         ])
         return {
-            "new": 0, "updated": 0, "skipped": 0, "excluded": 0, "errors": [str(e)],
+            "new": 0, "updated": 0, "skipped": 0,
+            "excluded": 0, "outlined": 0, "errors": [str(e)],
         }
 
     # --- 結果をBidProjectに登録 ---
@@ -293,6 +358,7 @@ def run_scrape(target, company):
     skipped = 0
     excluded = 0
     errors = []
+    touched = []  # 公告PDFを見に行く対象（このターゲットで新規・更新した案件）
 
     for rec in raw_results:
         title = rec.get("title", "")
@@ -324,10 +390,11 @@ def run_scrape(target, company):
                 updated += 1
             else:
                 skipped += 1
+            touched.append(existing)
             continue
 
         try:
-            BidProject.unscoped.create(  # unscoped: company を明示指定
+            project = BidProject.unscoped.create(  # unscoped: company を明示指定
                 company=company,
                 title=title[:300],
                 client=client[:200],
@@ -351,14 +418,20 @@ def run_scrape(target, company):
                 required_issuer_type=rec.get("required_issuer_type", ""),
             )
             new_count += 1
+            touched.append(project)
         except Exception as e:
             errors.append(f"{title}: {e}")
+
+    # 公告PDFから工事概要・参加要件を取り込む（取れなくても取り込み自体は成功扱い）
+    outlined = fill_announcements(touched)
 
     # ターゲットの状態更新
     target.last_scraped_at = timezone.now()
     target.error_count = 0
     target.last_error = ""
     target.last_result = f"新規{new_count}件, 更新{updated}件, スキップ{skipped}件"
+    if outlined:
+        target.last_result += f", 公告{outlined}件"
     if excluded:
         target.last_result += f", 対象外{excluded}件"
     if errors:
@@ -373,6 +446,7 @@ def run_scrape(target, company):
         "updated": updated,
         "skipped": skipped,
         "excluded": excluded,
+        "outlined": outlined,
         "errors": errors,
     }
 
