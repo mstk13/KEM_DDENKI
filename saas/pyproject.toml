@@ -54,6 +54,7 @@ select = ["E", "F", "I", "UP", "B", "SIM"]
 "apps/materials/services.py" = ["E501"]
 # LLM に渡すプロンプトの本文。折り返すと改行が増えて指示が変わるため同上。
 "apps/estimation/services/labor_pdf.py" = ["E501"]
+"apps/bids/announcement_llm.py" = ["E501"]
 
 [tool.mypy]
 python_version = "3.12"
