@@ -4,7 +4,7 @@
 この機能より前に取り込んだ案件を後から埋めるために使う。
 
     python manage.py fetch_announcements
-    python manage.py fetch_announcements --company KEMMOCHI_DENKI --limit 20
+    python manage.py fetch_announcements --company ケンモチ電機 --limit 20
 """
 from django.core.management.base import BaseCommand
 
@@ -17,7 +17,7 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument(
-            "--company", help="会社コード。省略時は全テナント",
+            "--company", help="会社名（部分一致）。省略時は全テナント",
         )
         parser.add_argument(
             "--limit", type=int, help="取りに行く件数の上限",
@@ -31,7 +31,7 @@ class Command(BaseCommand):
         # unscoped: 会社を跨いで一括処理するコマンドのため
         qs = BidProject.unscoped.exclude(source_url="")
         if options["company"]:
-            qs = qs.filter(company__code=options["company"])
+            qs = qs.filter(company__name__icontains=options["company"])
         if not options["force"]:
             qs = qs.filter(work_outline="") | qs.filter(requirements="")
         qs = qs.distinct().order_by("-announced_on", "pk")
