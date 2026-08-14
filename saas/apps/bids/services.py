@@ -147,6 +147,7 @@ _IMPORT_FIELDS = [
     ("design_no", 100),
     ("electronic_bid", 50),
     ("source_url", 500),
+    ("document_urls", None),
     ("summary", None),
     ("required_grade", None),
     ("required_category", None),
@@ -209,6 +210,9 @@ def fill_missing_fields(project, rec, default_region=""):
         value = rec.get(name)
         if name == "region":
             value = value or default_region
+        if isinstance(value, list):
+            # document_urls はスクレイパーがリストで返す。1行1URLで持つ
+            value = "\n".join(value)
         if value in (None, "", 0):
             continue
         if getattr(project, name) not in (None, "", 0):
@@ -225,9 +229,23 @@ def fill_missing_fields(project, rec, default_region=""):
     return True
 
 
-def fill_announcement(project) -> bool:
-    """1案件の情報源URLから工事概要・参加要件を取り込む。
+def announcement_candidates(project) -> list[str]:
+    """公告として読みに行くURLを、公告らしい順に返す。
 
+    1案件に複数の公開文書がぶら下がり、先頭が公告とは限らない。
+    実際「立川防災合同庁舎（２６）電気設備改修工事」は先頭が
+    「技術資料収集に係る掲示」で、しかも文字が読めないPDFだった。
+    """
+    urls = [u.strip() for u in (project.document_urls or "").splitlines() if u.strip()]
+    if project.source_url and project.source_url not in urls:
+        urls.insert(0, project.source_url)
+    return urls
+
+
+def fill_announcement(project) -> bool:
+    """1案件の公開文書から工事概要・参加要件を取り込む。
+
+    候補URLを順に試し、要件が読めたものを情報源URLにする。
     画面で書き換えた内容を消さないよう、空いている項目だけを埋める。
     埋まれば True。
     """
@@ -237,13 +255,35 @@ def fill_announcement(project) -> bool:
 
     logger = logging.getLogger(__name__)
 
-    if not project.source_url:
-        return False
     if project.work_outline and project.requirements:
         return False
 
-    result = extract_from_url(project.source_url)
+    candidates = announcement_candidates(project)
+    if not candidates:
+        return False
+
+    result = None
+    used_url = ""
+    garbled_seen = False
+    for url in candidates:
+        candidate = extract_from_url(url)
+        garbled_seen = garbled_seen or candidate["garbled"]
+        if candidate["work_outline"] or candidate["requirements"]:
+            result, used_url = candidate, url
+            break
+    if result is None:
+        if garbled_seen:
+            logger.info(
+                "公告PDFの文字が読めないため取り込めません: %s (%s)",
+                project.title, candidates[0],
+            )
+        return False
+
     changed = []
+    if used_url and project.source_url != used_url:
+        # 実際に要件が読めた文書を情報源として残す
+        project.source_url = used_url[:500]
+        changed.append("source_url")
     if result["work_outline"] and not project.work_outline:
         project.work_outline = result["work_outline"]
         changed.append("work_outline")
@@ -261,11 +301,6 @@ def fill_announcement(project) -> bool:
         changed.append("required_score")
 
     if not changed:
-        if result["garbled"]:
-            logger.info(
-                "公告PDFの文字が読めないため取り込めません: %s (%s)",
-                project.title, project.source_url,
-            )
         return False
 
     project.save(update_fields=[*changed, "updated_at"])
@@ -417,6 +452,7 @@ def run_scrape(target, company):
                 budget=rec.get("budget") or 0,
                 source_type=BidProject.SourceType.SCRAPING,
                 source_url=source_url[:500],
+                document_urls="\n".join(rec.get("document_urls") or []),
                 summary=rec.get("summary", ""),
                 status=BidProject.Status.NEW,
                 required_grade=rec.get("required_grade", ""),

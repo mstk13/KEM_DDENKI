@@ -137,6 +137,70 @@ class EstimationItem(DataScopeMixin, TenantModel):
         return f"{self.code} {self.canonical_name}"
 
 
+class ItemEmbedding(TenantModel):
+    """積算品目の埋め込みベクトル（ADR-0010 層A）。
+
+    EstimationItem 本体ではなく別テーブルに置く。
+    EstimationItem は simple-history 対象なので、1,024次元のベクトルを
+    直接持たせると品目を編集するたび履歴行にベクトルが複製され、
+    履歴テーブルが不必要に肥大するため。
+
+    再生成可能な派生データであり、業務データではない。
+    そのため history からは vector を除外している（規律4の趣旨に沿って
+    履歴自体は残し、監査に意味のあるメタ情報だけを追跡する）。
+
+    DataScopeMixin は付けない。所有区分は親の EstimationItem に従う。
+    """
+
+    estimation_item = models.OneToOneField(
+        EstimationItem,
+        on_delete=models.CASCADE,
+        related_name="embedding",
+        verbose_name="積算品目",
+    )
+    vector = models.JSONField(
+        "埋め込みベクトル",
+        default=list,
+        help_text="float のリスト。bge-m3 は 1,024 次元。",
+    )
+    model_tag = models.CharField(
+        "生成モデル",
+        max_length=100,
+        help_text="例: bge-m3。モデルを変えたら再生成が必要。",
+    )
+    dim = models.PositiveIntegerField("次元数", default=0)
+    source_text = models.CharField(
+        "埋め込み対象テキスト",
+        max_length=500,
+        help_text="実際にベクトル化した文字列。canonical_name とは限らない。",
+    )
+    source_hash = models.CharField(
+        "対象テキストのハッシュ",
+        max_length=64,
+        db_index=True,
+        help_text="sha256。品目名が変わったことを検知して再生成するために使う。",
+    )
+
+    history = HistoricalRecords(excluded_fields=["vector"])
+
+    class Meta:
+        verbose_name = "品目埋め込み"
+        verbose_name_plural = "品目埋め込み"
+        indexes = [
+            models.Index(fields=["company", "model_tag"]),
+        ]
+
+    def __str__(self):
+        return f"{self.estimation_item_id} ({self.model_tag}, {self.dim}d)"
+
+    def is_stale(self, source_text: str, model_tag: str) -> bool:
+        """対象テキストまたはモデルが変わっていれば True。"""
+        import hashlib
+
+        current = hashlib.sha256(source_text.encode("utf-8")).hexdigest()
+        return self.source_hash != current or self.model_tag != model_tag
+
+
 class ItemAlias(DataScopeMixin, TenantModel):
     """名寄せテーブル。異なるデータソースの品名を正規品目に紐付ける。
 
@@ -154,6 +218,7 @@ class ItemAlias(DataScopeMixin, TenantModel):
         EXACT_CODE = "exact_code", "コード完全一致"
         NORMALIZED = "normalized", "正規化一致"
         SPEC_MATCH = "spec_match", "仕様一致"
+        EMBEDDING = "embedding", "類似度一致"
         LLM = "llm", "AI推定"
         MANUAL = "manual", "手動"
 

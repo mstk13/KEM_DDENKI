@@ -16,7 +16,7 @@ from apps.bids.announcement import (
     split_sections,
 )
 from apps.bids.models import BidProject
-from apps.bids.services import fill_announcement
+from apps.bids.services import announcement_candidates, fill_announcement
 
 # 「入札公告」形式。見出しは「番号 + 空白 + 見出し語」。
 KOUKOKU = """\
@@ -253,6 +253,68 @@ class TestFillAnnouncement:
         self._stub(monkeypatch)
         project = self._project(company_a, user_a, source_url="")
         assert fill_announcement(project) is False
+
+    def test_falls_back_to_next_document(self, monkeypatch, company_a, user_a):
+        """先頭の公開文書が読めなくても、次の文書で取り込む。
+
+        1案件に複数の文書がぶら下がり、先頭が公告とは限らない。
+        「立川防災合同庁舎（２６）電気設備改修工事」は先頭が
+        「技術資料収集に係る掲示」で、しかも文字が読めないPDFだった。
+        """
+        from apps.bids import announcement
+
+        garbled = {
+            "work_outline": "", "requirements": "", "required_grade": "",
+            "required_grades": "", "required_score": None,
+            "headings": [], "garbled": True,
+        }
+        good = {
+            "work_outline": "工事内容：電気設備改修 一式",
+            "requirements": "電気設備工事Ｂ等級に認定されている者であること",
+            "required_grade": "", "required_grades": "B", "required_score": None,
+            "headings": [], "garbled": False,
+        }
+        monkeypatch.setattr(
+            announcement, "extract_from_url",
+            lambda url: good if url.endswith("2") else garbled,
+        )
+        project = self._project(
+            company_a, user_a,
+            source_url="https://example.go.jp/doc1",
+            document_urls="https://example.go.jp/doc1\nhttps://example.go.jp/doc2",
+        )
+        assert fill_announcement(project) is True
+
+        project.refresh_from_db()
+        assert "電気設備改修" in project.work_outline
+        assert project.required_grades == "B"
+        # 実際に読めた文書を情報源として残す
+        assert project.source_url == "https://example.go.jp/doc2"
+
+    def test_all_documents_unreadable(self, monkeypatch, company_a, user_a):
+        self._stub(
+            monkeypatch,
+            work_outline="", requirements="", required_grade="",
+            required_grades="", required_score=None, garbled=True,
+        )
+        project = self._project(
+            company_a, user_a,
+            document_urls="https://example.go.jp/a\nhttps://example.go.jp/b",
+        )
+        assert fill_announcement(project) is False
+        project.refresh_from_db()
+        assert project.work_outline == ""
+
+    def test_candidates_order(self, company_a, user_a):
+        project = self._project(
+            company_a, user_a,
+            source_url="https://example.go.jp/first",
+            document_urls="https://example.go.jp/first\nhttps://example.go.jp/second",
+        )
+        assert announcement_candidates(project) == [
+            "https://example.go.jp/first",
+            "https://example.go.jp/second",
+        ]
 
     def test_garbled_pdf_leaves_fields_empty(self, monkeypatch, company_a, user_a):
         self._stub(

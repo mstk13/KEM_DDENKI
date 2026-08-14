@@ -8,6 +8,7 @@ from apps.estimation.models import (
     EstimationProject,
     EstimationStandard,
     ItemAlias,
+    ItemEmbedding,
     LaborRate,
     Orderer,
     OrdererDataSource,
@@ -47,6 +48,27 @@ class EstimationItemAdmin(SimpleHistoryAdmin):
     list_filter = ("category", "status", "data_scope", "company")
     search_fields = ("code", "canonical_name")
     inlines = [ItemAliasInline]
+
+
+@admin.register(ItemEmbedding)
+class ItemEmbeddingAdmin(SimpleHistoryAdmin):
+    """埋め込みは再生成可能な派生データ。管理画面では中身を確認するだけ。
+
+    vector（1,024次元）は画面に出さない。読めないうえに表示が重くなる。
+    """
+
+    list_display = (
+        "estimation_item",
+        "model_tag",
+        "dim",
+        "source_text",
+        "updated_at",
+        "company",
+    )
+    list_filter = ("model_tag", "company")
+    search_fields = ("estimation_item__code", "estimation_item__canonical_name")
+    readonly_fields = ("dim", "source_hash")
+    exclude = ("vector",)
 
 
 @admin.register(ItemAlias)

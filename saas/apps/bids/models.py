@@ -93,6 +93,13 @@ class BidProject(TenantModel):
         default=SourceType.MANUAL,
     )
     source_url = models.URLField("情報源URL", max_length=500, blank=True)
+    # 1案件に複数の公開文書がぶら下がる（公告・指名結果書・入札調書・積算内訳書…）。
+    # 先頭が公告とは限らず、読めないこともあるので候補を全部持っておき、
+    # 順に試して要件が読めたものを source_url にする。
+    document_urls = models.TextField(
+        "公開文書URL（候補）", blank=True,
+        help_text="1行1URL。公告らしい順に並べる",
+    )
     status = models.CharField(
         "状態",
         max_length=20,
