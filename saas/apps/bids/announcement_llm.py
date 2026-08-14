@@ -35,7 +35,10 @@ MAX_PDF_PAGES = 100
 # 参加要件の読み違いは入札可否の判断を誤らせるので、
 # OCR相当とはいえ Haiku ではなく Sonnet を既定にしている。
 MODEL_KEY = "sonnet"
-MAX_TOKENS = 4000
+# Claude Sonnet 5 は thinking を指定しないと adaptive thinking が既定で有効になり、
+# max_tokens は thinking と本文の合計に効く。参加要件は原文をそのまま返させるので
+# 2,000字を超えることがあり、4,000 では本文が切れる余地があった。
+MAX_TOKENS = 12000
 
 SYSTEM_PROMPT = (
     "あなたは日本の公共工事の入札公告を読む担当者です。"
