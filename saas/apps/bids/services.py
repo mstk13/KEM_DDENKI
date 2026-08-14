@@ -242,6 +242,34 @@ def announcement_candidates(project) -> list[str]:
     return urls
 
 
+def _extract_garbled_with_llm(project, garbled_urls):
+    """(cid) 化して読めない公告PDFを Claude に読ませる。
+
+    Returns:
+        (result, used_url)。読めなければ (None, "")。
+    """
+    import logging
+
+    from apps.bids.announcement import fetch_document
+    from apps.bids.announcement_llm import extract_with_llm, is_available
+
+    logger = logging.getLogger(__name__)
+
+    if not is_available():
+        return None, ""
+
+    for url in garbled_urls:
+        data = fetch_document(url)
+        result = extract_with_llm(data, company=project.company)
+        if result and (result["work_outline"] or result["requirements"]):
+            logger.info(
+                "文字が読めない公告をLLMで取り込みました: %s (%s)",
+                project.title[:30], url,
+            )
+            return result, url
+    return None, ""
+
+
 def fill_announcement(project) -> bool:
     """1案件の公開文書から工事概要・参加要件を取り込む。
 
@@ -264,18 +292,25 @@ def fill_announcement(project) -> bool:
 
     result = None
     used_url = ""
-    garbled_seen = False
+    garbled_urls = []
     for url in candidates:
         candidate = extract_from_url(url)
-        garbled_seen = garbled_seen or candidate["garbled"]
+        if candidate["garbled"]:
+            garbled_urls.append(url)
         if candidate["work_outline"] or candidate["requirements"]:
             result, used_url = candidate, url
             break
+
+    if result is None and garbled_urls:
+        # 文字が (cid) 化していて決定論的には読めないPDF。
+        # ここだけ Claude に読ませる（費用と月間予算のチェックは呼び先が行う）。
+        result, used_url = _extract_garbled_with_llm(project, garbled_urls)
+
     if result is None:
-        if garbled_seen:
+        if garbled_urls:
             logger.info(
                 "公告PDFの文字が読めないため取り込めません: %s (%s)",
-                project.title, candidates[0],
+                project.title, garbled_urls[0],
             )
         return False
 

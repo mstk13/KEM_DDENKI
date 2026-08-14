@@ -146,9 +146,13 @@ def check_project(project, qualifications, today=None):
         if score:
             by_issuer.append((score, qual))
     if not by_issuer:
+        # 資格マスタは国の機関のみで、地方自治体は登録されていない。
+        # 登録が無いことを「資格なし」とは扱わない。案件は取り込んだうえで
+        # 要確認（eligible=None）にし、公告で確かめてもらう。
         result["reason"] = (
-            f"「{bid_issuer}」の入札参加資格が登録されていません。"
-            "資格マスタに無いだけの可能性があるので、公告で確認してください。"
+            f"「{bid_issuer}」の入札参加資格は登録されていません。"
+            "資格要件が無いものとして取り込んでいます。"
+            "参加できるかは公告の参加資格の記載で確認してください。"
         )
         return result
 
