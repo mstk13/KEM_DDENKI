@@ -5,7 +5,6 @@
 """
 
 import io
-from decimal import Decimal
 
 import openpyxl
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
@@ -86,7 +85,7 @@ def export_boq_to_excel(project: EstimationProject) -> bytes:
     # ツリー構造を平坦化（parent=None が最上位）
     def _flatten_tree(parent_id=None):
         result = []
-        children = [l for l in lines if l.parent_id == parent_id]
+        children = [line for line in lines if line.parent_id == parent_id]
         for child in children:
             result.append(child)
             result.extend(_flatten_tree(child.pk))
@@ -127,8 +126,8 @@ def export_boq_to_excel(project: EstimationProject) -> bytes:
 
     # --- 合計行 ---
     total = sum(
-        l.amount for l in flat_lines
-        if l.amount and l.level == "shumoku"
+        line.amount for line in flat_lines
+        if line.amount and line.level == "shumoku"
     )
     ws.cell(row=row + 1, column=2, value="合計").font = Font(bold=True, size=11)
     c = ws.cell(row=row + 1, column=7, value=int(total))

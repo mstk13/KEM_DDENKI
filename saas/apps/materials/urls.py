@@ -34,10 +34,16 @@ urlpatterns = [
     path("po/item/<int:pk>/delete/", views.po_item_delete, name="po_item_delete"),
     # 発注書 Excel 出力
     path("po/<int:pk>/excel/order/", views.po_excel_download, name="po_excel_order"),
-    path("po/<int:pk>/excel/acceptance/", views.po_acceptance_excel_download, name="po_excel_acceptance"),
+    path(
+        "po/<int:pk>/excel/acceptance/",
+        views.po_acceptance_excel_download, name="po_excel_acceptance",
+    ),
     # 発注書 PDF 出力
     path("po/<int:pk>/pdf/order/", views.po_pdf_download, name="po_pdf_order"),
-    path("po/<int:pk>/pdf/acceptance/", views.po_acceptance_pdf_download, name="po_pdf_acceptance"),
+    path(
+        "po/<int:pk>/pdf/acceptance/",
+        views.po_acceptance_pdf_download, name="po_pdf_acceptance",
+    ),
     # CSV インポート
     path("po/csv-import/", views.po_csv_import, name="csv_import"),
     path("po/csv-import/<int:site_id>/", views.po_csv_import, name="csv_import_site"),
@@ -50,8 +56,14 @@ urlpatterns = [
     # 在庫
     path("inventory/", views.inventory_list, name="inventory_list"),
     # 材料仕入先
-    path("<int:material_pk>/suppliers/", views.material_supplier_list, name="material_supplier_list"),
-    path("<int:material_pk>/suppliers/add/", views.material_supplier_add, name="material_supplier_add"),
+    path(
+        "<int:material_pk>/suppliers/",
+        views.material_supplier_list, name="material_supplier_list",
+    ),
+    path(
+        "<int:material_pk>/suppliers/add/",
+        views.material_supplier_add, name="material_supplier_add",
+    ),
     path("suppliers/<int:pk>/edit/", views.material_supplier_edit, name="material_supplier_edit"),
     # 調達実績
     path("procurement/", views.procurement_list, name="procurement_list"),

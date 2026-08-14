@@ -48,7 +48,7 @@ class EstimationItemForm(forms.ModelForm):
             self.fields["work_type"].queryset = WorkType.unscoped.filter(
                 company=company, is_active=True,
             )
-        for name, field in self.fields.items():
+        for _name, field in self.fields.items():
             if not isinstance(field.widget, forms.Textarea):
                 field.widget.attrs.setdefault("class", "form-control")
 
@@ -70,7 +70,7 @@ class ItemAliasReviewForm(forms.ModelForm):
             self.fields["estimation_item"].queryset = (
                 EstimationItem.unscoped.filter(company=company, is_active=True)
             )
-        for name, field in self.fields.items():
+        for _name, field in self.fields.items():
             if not isinstance(field.widget, forms.Textarea):
                 field.widget.attrs.setdefault("class", "form-control")
 
@@ -101,7 +101,7 @@ class OrdererForm(forms.ModelForm):
             self.fields["customer"].queryset = Customer.unscoped.filter(
                 company=company, is_active=True,
             )
-        for name, field in self.fields.items():
+        for _name, field in self.fields.items():
             if not isinstance(field.widget, forms.Textarea):
                 field.widget.attrs.setdefault("class", "form-control")
 
@@ -132,7 +132,7 @@ class OrdererDataSourceForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        for name, field in self.fields.items():
+        for _name, field in self.fields.items():
             if not isinstance(field.widget, (forms.Textarea, forms.CheckboxInput)):
                 field.widget.attrs.setdefault("class", "form-control")
 
@@ -201,7 +201,7 @@ class EstimationStandardForm(forms.ModelForm):
             self.fields["orderer"].queryset = Orderer.unscoped.filter(
                 company=company, is_active=True,
             )
-        for name, field in self.fields.items():
+        for _name, field in self.fields.items():
             if not isinstance(field.widget, (forms.Textarea, forms.FileInput)):
                 field.widget.attrs.setdefault("class", "form-control")
 
@@ -230,7 +230,7 @@ class WorkRateForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        for name, field in self.fields.items():
+        for _name, field in self.fields.items():
             if not isinstance(field.widget, forms.Textarea):
                 field.widget.attrs.setdefault("class", "form-control")
 
@@ -251,8 +251,12 @@ class EstimationProjectForm(forms.ModelForm):
         ]
         widgets = {
             "notes": forms.Textarea(attrs={"class": "form-control", "rows": 3}),
-            "bid_announcement_date": forms.DateInput(attrs={"class": "form-control", "type": "date"}),
-            "bid_opening_date": forms.DateInput(attrs={"class": "form-control", "type": "date"}),
+            "bid_announcement_date": forms.DateInput(
+                attrs={"class": "form-control", "type": "date"},
+            ),
+            "bid_opening_date": forms.DateInput(
+                attrs={"class": "form-control", "type": "date"},
+            ),
         }
 
     def __init__(self, *args, company=None, **kwargs):
@@ -262,11 +266,13 @@ class EstimationProjectForm(forms.ModelForm):
             from apps.sites.models import Site
 
             # unscoped: フォーム初期化時に会社を明示フィルタするため
-            self.fields["orderer"].queryset = Orderer.unscoped.filter(company=company, is_active=True)
+            self.fields["orderer"].queryset = Orderer.unscoped.filter(
+                company=company, is_active=True,
+            )
             self.fields["standard"].queryset = EstimationStandard.unscoped.filter(company=company)
             self.fields["site"].queryset = Site.unscoped.filter(company=company)
             self.fields["bid_project"].queryset = BidProject.unscoped.filter(company=company)
-        for name, field in self.fields.items():
+        for _name, field in self.fields.items():
             if not isinstance(field.widget, forms.Textarea):
                 field.widget.attrs.setdefault("class", "form-control")
 
@@ -294,7 +300,7 @@ class BoqLineForm(forms.ModelForm):
             self.fields["work_rate"].queryset = WorkRate.unscoped.filter(
                 company=project.company, standard=project.standard,
             ) if project.standard else WorkRate.objects.none()
-        for name, field in self.fields.items():
+        for _name, field in self.fields.items():
             if not isinstance(field.widget, forms.Textarea):
                 field.widget.attrs.setdefault("class", "form-control")
 
@@ -325,7 +331,7 @@ class PurchaseRecordForm(forms.ModelForm):
             self.fields["supplier"].queryset = Supplier.unscoped.filter(
                 company=company, is_active=True,
             )
-        for name, field in self.fields.items():
+        for _name, field in self.fields.items():
             if not isinstance(field.widget, forms.Textarea):
                 field.widget.attrs.setdefault("class", "form-control")
 

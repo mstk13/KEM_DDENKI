@@ -6,8 +6,6 @@
 
 from decimal import Decimal
 
-from django.db.models import Avg, Q
-
 from apps.estimation.models import (
     CostComparison,
     EstimationProject,
@@ -32,10 +30,7 @@ def calc_own_price(estimation_item, company) -> tuple[Decimal | None, str]:
 
     prices = sorted([r.unit_price for r in records])
     n = len(prices)
-    if n % 2 == 0:
-        median = (prices[n // 2 - 1] + prices[n // 2]) / 2
-    else:
-        median = prices[n // 2]
+    median = (prices[n // 2 - 1] + prices[n // 2]) / 2 if n % 2 == 0 else prices[n // 2]
 
     return Decimal(str(int(median))), f"直近{n}件の中央値"
 
@@ -71,7 +66,8 @@ def generate_comparisons(project: EstimationProject) -> dict:
 
         own_price, basis = calc_own_price(item, project.company)
 
-        comp, was_created = CostComparison.unscoped.update_or_create(  # unscoped: company を明示指定
+        # unscoped: company を明示指定
+        comp, was_created = CostComparison.unscoped.update_or_create(
             company=project.company,
             project=project,
             estimation_item=item,

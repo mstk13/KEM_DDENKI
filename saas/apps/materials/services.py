@@ -377,17 +377,15 @@ _YAKKAN_ARTICLES = [
 
 def _build_po_pdf_elements(po, items, user, *, is_acceptance=False):
     """発注書/発注請書のPDF要素を組み立てる。"""
-    from decimal import Decimal
 
     from reportlab.lib import colors
-    from reportlab.lib.pagesizes import A4
     from reportlab.lib.styles import ParagraphStyle
     from reportlab.lib.units import mm
     from reportlab.pdfbase import pdfmetrics
     from reportlab.pdfbase.cidfonts import UnicodeCIDFont
     from reportlab.platypus import (
-        Paragraph,
         PageBreak,
+        Paragraph,
         Spacer,
         Table,
         TableStyle,
@@ -409,14 +407,8 @@ def _build_po_pdf_elements(po, items, user, *, is_acceptance=False):
     style_right = ParagraphStyle(
         "right", fontName=FONT, fontSize=10, alignment=2,
     )
-    style_small = ParagraphStyle(
-        "small", fontName=FONT, fontSize=9,
-    )
     style_company = ParagraphStyle(
         "company", fontName=FONT, fontSize=12, alignment=2,
-    )
-    style_total_label = ParagraphStyle(
-        "total_label", fontName=FONT, fontSize=14, alignment=0,
     )
     style_yakkan_title = ParagraphStyle(
         "yakkan_title", fontName=FONT_MINCHO, fontSize=14, alignment=1,
@@ -480,7 +472,7 @@ def _build_po_pdf_elements(po, items, user, *, is_acceptance=False):
     ]
     if not is_acceptance:
         company_info.append(Paragraph(
-            f"代表取締役　釼持　陽子", style_right,
+            "代表取締役　釼持　陽子", style_right,
         ))
 
     # 2カラムヘッダーテーブル

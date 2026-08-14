@@ -1,7 +1,12 @@
 from django import forms
 
 from apps.bids.models import (
-    BidCompetitor, BidCost, BidProject, Qualification, ScrapeTarget, UnitPrice,
+    BidCompetitor,
+    BidCost,
+    BidProject,
+    Qualification,
+    ScrapeTarget,
+    UnitPrice,
 )
 
 

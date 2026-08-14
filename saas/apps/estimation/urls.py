@@ -21,7 +21,10 @@ urlpatterns = [
     path("orderers/<int:pk>/edit/", views.orderer_edit, name="orderer_edit"),
     # データソース管理（官公庁ごとのデータ差異）
     path("datasources/", views.datasource_matrix, name="datasource_matrix"),
-    path("orderers/<int:orderer_pk>/datasources/new/", views.datasource_create, name="datasource_create"),
+    path(
+        "orderers/<int:orderer_pk>/datasources/new/",
+        views.datasource_create, name="datasource_create",
+    ),
     path("datasources/<int:pk>/edit/", views.datasource_edit, name="datasource_edit"),
     # M2: 労務単価
     path("labor-rates/", views.labor_rate_list, name="labor_rate_list"),
@@ -32,7 +35,10 @@ urlpatterns = [
     path("standards/<int:pk>/", views.standard_detail, name="standard_detail"),
     path("standards/<int:pk>/edit/", views.standard_edit, name="standard_edit"),
     # M2: 歩掛
-    path("standards/<int:standard_pk>/workrates/new/", views.workrate_create, name="workrate_create"),
+    path(
+        "standards/<int:standard_pk>/workrates/new/",
+        views.workrate_create, name="workrate_create",
+    ),
     path("workrates/<int:pk>/edit/", views.workrate_edit, name="workrate_edit"),
     # M3: 積算案件・内訳書
     path("projects/", views.project_list, name="project_list"),

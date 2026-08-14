@@ -316,9 +316,17 @@ class TestScrapeImport:
         )
 
     def _run(self, monkeypatch, records, target, company_a):
-        from apps.bids import scraper, services
+        from apps.bids import announcement, scraper, services
 
         monkeypatch.setattr(scraper, "scrape_ippi", lambda t: records)
+        # 取り込みの検証で公告PDFを取りに行かせない（ネットワークに触らない）
+        monkeypatch.setattr(
+            announcement, "extract_from_url",
+            lambda url: {
+                "work_outline": "", "requirements": "",
+                "required_grade": "", "headings": [], "garbled": False,
+            },
+        )
         return services.run_scrape(target, company_a)
 
     def test_detail_fields_are_saved(self, monkeypatch, company_a, user_a):
@@ -458,7 +466,8 @@ class TestScrapeImport:
         result = self._run(monkeypatch, [record], target, company_a)
 
         assert result == {
-            "new": 0, "updated": 0, "skipped": 1, "excluded": 0, "errors": [],
+            "new": 0, "updated": 0, "skipped": 1,
+            "excluded": 0, "outlined": 0, "errors": [],
         }
 
 

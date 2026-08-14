@@ -4,7 +4,6 @@
 """
 
 import io
-from copy import copy
 from decimal import Decimal
 from pathlib import Path
 
@@ -220,11 +219,19 @@ def parse_supplier_csv(csv_file, encoding="utf-8"):
         if not row or all(not c.strip() for c in row):
             continue
 
-        name = row[col_map["name"]].strip() if col_map.get("name") is not None and col_map["name"] < len(row) else ""
+        name_idx = col_map.get("name")
+        name = (
+            row[name_idx].strip()
+            if name_idx is not None and name_idx < len(row)
+            else ""
+        )
         if not name:
             continue
 
-        def _decimal(idx_key, default="0"):
+        def _decimal(idx_key, default="0", row=row):
+            # row を既定引数で束縛する。ループ内で定義したクロージャが
+            # 最後の行を参照しないようにするため（現状は同じ周回で呼んでいるので
+            # 動作は同じだが、後から遅延評価に変えたときに壊れる）。
             idx = col_map.get(idx_key)
             if idx is None or idx >= len(row):
                 return Decimal(default)

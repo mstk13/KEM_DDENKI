@@ -118,11 +118,16 @@ class QuotationItemForm(forms.ModelForm):
 class PurchaseOrderItemForm(forms.ModelForm):
     class Meta:
         model = PurchaseOrderItem
-        fields = ["material", "material_name", "quantity", "unit", "unit_price", "tax_rate", "work_type"]
+        fields = [
+            "material", "material_name", "quantity", "unit",
+            "unit_price", "tax_rate", "work_type",
+        ]
         widgets = {
             "quantity": forms.NumberInput(attrs={"class": "form-control", "step": "0.01"}),
             "unit_price": forms.NumberInput(attrs={"class": "form-control", "step": "0.01"}),
-            "tax_rate": forms.NumberInput(attrs={"class": "form-control", "step": "0.01", "value": "0.10"}),
+            "tax_rate": forms.NumberInput(
+                attrs={"class": "form-control", "step": "0.01", "value": "0.10"},
+            ),
         }
 
     def __init__(self, *args, company=None, **kwargs):
@@ -194,7 +199,7 @@ class MaterialSupplierForm(forms.ModelForm):
             self.fields["supplier"].queryset = Supplier.unscoped.filter(
                 company=company, is_active=True,
             )
-        for name, field in self.fields.items():
+        for _name, field in self.fields.items():
             if not isinstance(field.widget, (forms.Textarea, forms.CheckboxInput)):
                 field.widget.attrs.setdefault("class", "form-control")
 
@@ -222,6 +227,6 @@ class ProcurementRecordForm(forms.ModelForm):
             self.fields["supplier"].queryset = Supplier.unscoped.filter(
                 company=company, is_active=True,
             )
-        for name, field in self.fields.items():
+        for _name, field in self.fields.items():
             if not isinstance(field.widget, forms.Textarea):
                 field.widget.attrs.setdefault("class", "form-control")

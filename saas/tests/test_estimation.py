@@ -12,6 +12,7 @@ from datetime import date
 from decimal import Decimal
 
 import pytest
+from django.db import IntegrityError
 
 from apps.core.tenant_context import set_current_company
 from apps.estimation.models import (
@@ -34,7 +35,6 @@ from apps.estimation.services.normalization import (
     normalize_voltage,
     normalize_width,
 )
-
 
 # ---------------------------------------------------------------------------
 # テナント越境テスト
@@ -65,7 +65,7 @@ class TestEstimationItemIsolation:
             company=company_a, code="W001", canonical_name="test1",
             category="wire", unit="m",
         )
-        with pytest.raises(Exception):
+        with pytest.raises(IntegrityError):
             EstimationItem.unscoped.create(
                 company=company_a, code="W001", canonical_name="test2",
                 category="wire", unit="m",
