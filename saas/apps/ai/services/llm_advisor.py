@@ -88,6 +88,35 @@ def _calculate_cost(input_tokens, output_tokens, model_key,
     return cost.quantize(Decimal("0.000001"))
 
 
+def _first_text(message):
+    """レスポンスから最初のテキストブロックを取り出す。
+
+    content[0] がテキストとは限らない。Claude Sonnet 5 は thinking を指定しない
+    と adaptive thinking が既定で有効になり、先頭が ThinkingBlock になる。
+    thinking が入るかはモデルが都度決めるので、決め打ちすると
+    'ThinkingBlock' object has no attribute 'text' で断続的に落ちる
+    （2026-08-14 に本番で発生）。
+
+    max_tokens は thinking と本文の合計に効くため、thinking で使い切ると
+    テキストブロックが1つも無い応答になりうる。その場合は理由を添えて落とす。
+    """
+    for block in message.content:
+        if getattr(block, "type", None) == "text":
+            return block.text
+
+    stop_reason = getattr(message, "stop_reason", None)
+    if stop_reason == "max_tokens":
+        raise ValueError(
+            "max_tokens に達したため本文が返りませんでした。"
+            "thinking と本文の合計が上限に収まるよう max_tokens を増やしてください。"
+        )
+    kinds = ", ".join(sorted({getattr(b, "type", "?") for b in message.content}))
+    raise ValueError(
+        f"レスポンスにテキストブロックがありません（stop_reason={stop_reason}, "
+        f"blocks={kinds or 'なし'}）。"
+    )
+
+
 def _parse_json_response(text):
     """LLMレスポンスからJSON部分を抽出してパースする。"""
     if "```json" in text:
@@ -207,7 +236,7 @@ def _call_claude(prompt, model_key="haiku", max_tokens=2000, company=None,
     cache_write = getattr(usage, "cache_creation_input_tokens", 0) or 0
 
     return {
-        "text": message.content[0].text,
+        "text": _first_text(message),
         "input_tokens": usage.input_tokens,
         "output_tokens": usage.output_tokens,
         "model_id": config["model_id"],
