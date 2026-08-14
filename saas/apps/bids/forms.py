@@ -13,12 +13,16 @@ class BidProjectForm(forms.ModelForm):
             "title", "client", "agency_dept", "region", "location",
             "category", "bid_method", "electronic_bid", "design_no",
             "announced_on", "deadline", "opening_on",
-            "budget", "source_url", "status", "notes",
+            "budget", "source_url", "status",
+            "required_category", "required_grade", "required_issuer_type",
+            "work_outline", "requirements", "notes",
         ]
         widgets = {
             "announced_on": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
             "deadline": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
             "opening_on": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
+            "work_outline": forms.Textarea(attrs={"class": "form-control", "rows": 6}),
+            "requirements": forms.Textarea(attrs={"class": "form-control", "rows": 6}),
             "notes": forms.Textarea(attrs={"class": "form-control", "rows": 3}),
         }
 

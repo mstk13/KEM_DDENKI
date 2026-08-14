@@ -101,6 +101,34 @@
         {{ form.source_url }}
         {{ form.source_url.errors }}
       </div>
+      <h3 style="margin-top:20px;">工事概要・参加要件</h3>
+      <div class="form-group">
+        <label for="id_work_outline">工事概要</label>
+        {{ form.work_outline }}
+        {{ form.work_outline.errors }}
+      </div>
+      <div class="form-group">
+        <label for="id_requirements">参加要件</label>
+        {{ form.requirements }}
+        {{ form.requirements.errors }}
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="id_required_category">必要業種区分</label>
+          {{ form.required_category }}
+          {{ form.required_category.errors }}
+        </div>
+        <div class="form-group">
+          <label for="id_required_grade">必要等級</label>
+          {{ form.required_grade }}
+          {{ form.required_grade.errors }}
+        </div>
+      </div>
+      <div class="form-group">
+        <label for="id_required_issuer_type">資格種別</label>
+        {{ form.required_issuer_type }}
+        {{ form.required_issuer_type.errors }}
+      </div>
       <div class="form-group">
         <label for="id_notes">備考</label>
         {{ form.notes }}

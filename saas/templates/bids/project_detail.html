@@ -45,19 +45,47 @@
   <div class="card">
     <div class="card-header"><h2>参加資格判定</h2></div>
     <dl class="detail-grid">
-      <dt>必要業種区分</dt><dd>{{ project.required_category|default:"-" }}</dd>
-      <dt>必要等級</dt><dd>{{ project.required_grade|default:"-" }}{% if project.required_grade %} 以上{% endif %}</dd>
-      <dt>資格種別</dt><dd>{{ project.required_issuer_type|default:"-" }}</dd>
       <dt>判定結果</dt>
       <dd>
         {% if qual_check.eligible == True %}
-          <span class="badge badge-green">参加可能</span> {{ qual_check.reason }}
+          <span class="badge badge-green">参加可能</span>
         {% elif qual_check.eligible == False %}
-          <span class="badge badge-red">資格不足</span> {{ qual_check.reason }}
+          <span class="badge badge-red">資格不足</span>
         {% else %}
-          <span class="badge badge-gray">未判定</span> 参加要件が未設定です。編集画面で必要等級・業種区分を入力してください。
+          <span class="badge badge-gray">要確認</span>
+        {% endif %}
+        {{ qual_check.reason }}
+      </dd>
+      <dt>該当する自社資格</dt>
+      <dd>
+        {% if qual_check.matched %}
+          {{ qual_check.matched.issuer }}／{{ qual_check.matched.category }}
+          {% if qual_check.matched.grade %}（{{ qual_check.matched.grade }}等級）{% endif %}
+        {% else %}-{% endif %}
+      </dd>
+      <dt>等級 / 点数</dt>
+      <dd>
+        {% if qual_check.matched %}
+          等級 {{ qual_check.matched.grade|default:"-" }} /
+          経審点 {{ qual_check.matched.keisin_score|default:"-" }} /
+          総合点 {{ qual_check.matched.total_score|default:"-" }}
+        {% else %}-{% endif %}
+      </dd>
+      <dt>資格の有効期限</dt>
+      <dd>
+        {% if qual_check.matched %}{{ qual_check.matched.valid_until|default:"-" }}
+        {% else %}-{% endif %}
+        {% if qual_check.expired %}
+        <div style="color:var(--gray-400);font-size:12px;">
+          期限切れの資格が {{ qual_check.expired|length }} 件あります
+        </div>
         {% endif %}
       </dd>
+      <dt>業者番号</dt>
+      <dd>{% if qual_check.matched %}{{ qual_check.matched.vendor_number|default:"-" }}{% else %}-{% endif %}</dd>
+      <dt>公告側の必要業種区分</dt><dd>{{ project.required_category|default:"-" }}</dd>
+      <dt>公告側の必要等級</dt><dd>{{ project.required_grade|default:"-" }}{% if project.required_grade %} 以上{% endif %}</dd>
+      <dt>資格種別</dt><dd>{{ project.required_issuer_type|default:"-" }}</dd>
     </dl>
   </div>
 </div>
@@ -74,6 +102,34 @@
     {% else %}
     <div class="card-body" style="color:var(--gray-400);text-align:center;padding:20px;">原価情報が未登録です</div>
     {% endif %}
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:20px;">
+  <div class="card">
+    <div class="card-header"><h2>工事概要</h2></div>
+    <div class="card-body">
+      {% if project.work_outline %}
+      <div style="white-space:pre-wrap;">{{ project.work_outline }}</div>
+      {% else %}
+      <div style="color:var(--gray-400);text-align:center;padding:20px;">
+        未入力です。編集画面から公告・仕様書の内容を転記してください。
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><h2>参加要件</h2></div>
+    <div class="card-body">
+      {% if project.requirements %}
+      <div style="white-space:pre-wrap;">{{ project.requirements }}</div>
+      {% else %}
+      <div style="color:var(--gray-400);text-align:center;padding:20px;">
+        未入力です。公告の入札参加資格・実績要件・配置技術者の条件を転記してください。
+      </div>
+      {% endif %}
+    </div>
   </div>
 </div>
 

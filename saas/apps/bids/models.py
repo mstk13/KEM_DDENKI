@@ -113,6 +113,14 @@ class BidProject(TenantModel):
         "案件概要（取得原文）", blank=True,
         help_text="情報源の詳細ページの項目をそのまま保存したもの",
     )
+    work_outline = models.TextField(
+        "工事概要", blank=True,
+        help_text="工事の内容・数量・工期など。公告や仕様書から転記する",
+    )
+    requirements = models.TextField(
+        "参加要件", blank=True,
+        help_text="入札参加資格・同種工事の実績・配置技術者などの要件。公告から転記する",
+    )
 
     # 入札参加資格の要件（i-ppi 連携で自動取得）
     required_category = models.CharField(

@@ -15,6 +15,7 @@ from apps.bids.forms import (
     UnitPriceForm,
 )
 from apps.bids.models import BidProject, Qualification, UnitPrice
+from apps.bids.qualification import check_qualifications_for_projects
 from apps.bids.services import get_dashboard_stats, mark_as_won
 
 
@@ -33,8 +34,14 @@ def project_list(request):
     if region:
         qs = qs.filter(region__icontains=region)
 
+    # 一覧の資格バッジ用。資格マスタは1回だけ読む
+    projects = list(qs)
+    checks = check_qualifications_for_projects(projects, request.user.company)
+    for project in projects:
+        project.qual_check = checks[project.pk]
+
     return render(request, "bids/project_list.html", {
-        "projects": qs,
+        "projects": projects,
         "q": q,
         "status": status,
         "region": region,
@@ -47,10 +54,14 @@ def project_detail(request, pk):
     project = get_object_or_404(BidProject, pk=pk)
     cost = getattr(project, "cost", None)
     competitors = project.competitors.all()
+    qual_check = check_qualifications_for_projects(
+        [project], request.user.company,
+    )[project.pk]
     return render(request, "bids/project_detail.html", {
         "project": project,
         "cost": cost,
         "competitors": competitors,
+        "qual_check": qual_check,
     })
 
 
