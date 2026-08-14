@@ -117,6 +117,7 @@ def check_availability():
 
     Returns:
         (available: bool, message: str | None)
+        message は使えない理由。使える場合は None。
     """
     if not HAS_ANTHROPIC:
         return False, (
