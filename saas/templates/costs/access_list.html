@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block title %}アクセス管理 — {{ APP_NAME }}{% endblock %}
+{% block topbar_title %}現場見積もり/実経費{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>現場見積もり/実経費 アクセス管理</h1>
+  <a href="{% url 'costs:list' %}" class="btn btn-outline">← 一覧に戻る</a>
+</div>
+
+<p style="color:#666;margin-bottom:24px;">
+  現場見積もり/実経費モジュールには <strong>社長ロール</strong> および <strong>社員番号が G で始まるユーザー</strong> が自動的にアクセスできます。<br>
+  それ以外のユーザーには下記から個別にアクセス権を付与できます。
+</p>
+
+{# 自動アクセス対象 #}
+<div class="card" style="margin-bottom:24px;">
+  <div class="card-header"><h2>自動アクセス対象（社員番号 G〜）</h2></div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>社員番号</th><th>氏名</th><th>備考</th></tr></thead>
+      <tbody>
+        {% for u in auto_access_users %}
+        <tr>
+          <td>{{ u.employee_no }}</td>
+          <td>{{ u.get_full_name|default:u.username }}</td>
+          <td><span class="badge badge-blue">社員番号による自動許可</span></td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="3"><small>該当ユーザーなし</small></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{# 個別許可 #}
+<div class="card" style="margin-bottom:24px;">
+  <div class="card-header"><h2>個別アクセス許可</h2></div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>社員番号</th><th>氏名</th><th>許可者</th><th>メモ</th><th></th></tr></thead>
+      <tbody>
+        {% for g in grants %}
+        <tr>
+          <td>{{ g.user.employee_no }}</td>
+          <td>{{ g.user.get_full_name|default:g.user.username }}</td>
+          <td>{{ g.granted_by|default:"—" }}</td>
+          <td>{{ g.memo|default:"—" }}</td>
+          <td>
+            <form method="post" action="{% url 'costs:access_revoke' g.pk %}" style="display:inline;"
+                  onsubmit="return confirm('{{ g.user }} のアクセス権を取り消しますか？');">
+              {% csrf_token %}
+              <button class="btn btn-outline btn-xs" style="color:#dc3545;">取消</button>
+            </form>
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="5"><small>個別許可なし</small></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{# 新規追加 #}
+{% if available_users %}
+<div class="card">
+  <div class="card-header"><h2>アクセス権を付与</h2></div>
+  <form method="post" action="{% url 'costs:access_grant' %}" style="padding:24px;">
+    {% csrf_token %}
+    <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;">
+      <div>
+        <label class="form-label">ユーザー</label>
+        <select name="user_id" class="form-control" required>
+          <option value="">選択してください</option>
+          {% for u in available_users %}
+          <option value="{{ u.pk }}">{{ u.employee_no }} — {{ u.get_full_name|default:u.username }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="form-label">メモ（任意）</label>
+        <input type="text" name="memo" class="form-control" placeholder="例: 経理部門のため">
+      </div>
+      <button type="submit" class="btn btn-primary">付与する</button>
+    </div>
+  </form>
+</div>
+{% endif %}
+{% endblock %}

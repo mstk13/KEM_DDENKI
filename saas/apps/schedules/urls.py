@@ -5,9 +5,8 @@ from apps.schedules import views
 app_name = "schedules"
 
 urlpatterns = [
-    # Site schedule list + Gantt
-    path("", views.schedule_list, name="list"),
-    path("compare/", views.schedule_compare, name="compare"),
+    # 工期比較（ガントチャート付き）をデフォルトに
+    path("", views.schedule_compare, name="list"),
     path("<int:pk>/", views.schedule_detail, name="detail"),
     # Calendar
     path("calendar/", views.calendar_view, name="calendar"),

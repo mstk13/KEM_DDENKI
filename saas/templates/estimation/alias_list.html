@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+{% block title %}名寄せレビュー — {{ APP_NAME }}{% endblock %}
+{% block topbar_title %}積算{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>名寄せレビュー</h1>
+</div>
+
+<div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;">
+  <a href="?status=pending" class="btn {% if status_filter == 'pending' %}btn-primary{% else %}btn-outline{% endif %}">
+    未確認 ({{ status_counts.pending|default:"0" }})
+  </a>
+  <a href="?status=reviewed" class="btn {% if status_filter == 'reviewed' %}btn-primary{% else %}btn-outline{% endif %}">
+    レビュー済 ({{ status_counts.reviewed|default:"0" }})
+  </a>
+  <a href="?status=approved" class="btn {% if status_filter == 'approved' %}btn-primary{% else %}btn-outline{% endif %}">
+    承認済 ({{ status_counts.approved|default:"0" }})
+  </a>
+  <a href="?status=all" class="btn {% if status_filter == 'all' %}btn-primary{% else %}btn-outline{% endif %}">
+    すべて
+  </a>
+</div>
+
+<div class="card" style="margin-bottom:20px;">
+  <div class="card-body">
+    <form method="get" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;">
+      <input type="hidden" name="status" value="{{ status_filter }}">
+      <div class="form-group" style="margin-bottom:0;">
+        <label>キーワード</label>
+        <input type="text" name="q" value="{{ q }}" class="form-control" placeholder="原文名称">
+      </div>
+      <div class="form-group" style="margin-bottom:0;">
+        <label>ソース種別</label>
+        <select name="source_type" class="form-control">
+          <option value="">すべて</option>
+          {% for val, label in source_types %}
+          <option value="{{ val }}" {% if source_type == val %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <button type="submit" class="btn btn-primary">検索</button>
+    </form>
+  </div>
+</div>
+
+{% if status_filter == 'pending' and aliases %}
+<form method="post" action="{% url 'estimation:alias_bulk_approve' %}">
+  {% csrf_token %}
+  <div style="margin-bottom:12px;">
+    <button type="submit" class="btn btn-primary btn-sm">選択した高信頼度項目を一括承認</button>
+    <small style="color:var(--text-secondary);">（信頼度95%以上のみ承認されます）</small>
+  </div>
+{% endif %}
+
+<div class="card">
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          {% if status_filter == 'pending' %}<th style="width:40px;"><input type="checkbox" id="check-all"></th>{% endif %}
+          <th>原文名称</th>
+          <th>正規化名称</th>
+          <th>ソース</th>
+          <th>紐付先</th>
+          <th>信頼度</th>
+          <th>マッチ方法</th>
+          <th>状態</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for alias in aliases %}
+        <tr>
+          {% if status_filter == 'pending' %}
+          <td><input type="checkbox" name="alias_ids" value="{{ alias.pk }}"></td>
+          {% endif %}
+          <td>{{ alias.raw_name }}</td>
+          <td>{{ alias.normalized_name|default:"-" }}</td>
+          <td>{{ alias.get_source_type_display }}</td>
+          <td>{% if alias.estimation_item %}<a href="{% url 'estimation:item_detail' alias.estimation_item.pk %}">{{ alias.estimation_item.canonical_name }}</a>{% else %}<span style="color:var(--text-secondary);">未紐付</span>{% endif %}</td>
+          <td>
+            {% if alias.confidence >= 95 %}<span class="badge badge-green">{{ alias.confidence }}%</span>
+            {% elif alias.confidence >= 70 %}<span class="badge badge-orange">{{ alias.confidence }}%</span>
+            {% else %}<span class="badge badge-red">{{ alias.confidence }}%</span>
+            {% endif %}
+          </td>
+          <td>{{ alias.get_matched_by_display }}</td>
+          <td>
+            {% if alias.status == 'pending' %}<span class="badge badge-orange">未確認</span>
+            {% elif alias.status == 'reviewed' %}<span class="badge badge-blue">レビュー済</span>
+            {% elif alias.status == 'approved' %}<span class="badge badge-green">承認済</span>
+            {% elif alias.status == 'rejected' %}<span class="badge badge-red">却下</span>
+            {% endif %}
+          </td>
+          <td><a href="{% url 'estimation:alias_review' alias.pk %}" class="btn btn-outline btn-sm">レビュー</a></td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="{% if status_filter == 'pending' %}9{% else %}8{% endif %}"><div class="empty"><div class="empty-icon">&#x1f517;</div><p>名寄せデータがありません</p></div></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% if status_filter == 'pending' and aliases %}
+</form>
+<script>
+document.getElementById('check-all')?.addEventListener('change', function() {
+  document.querySelectorAll('input[name="alias_ids"]').forEach(cb => cb.checked = this.checked);
+});
+</script>
+{% endif %}
+{% endblock %}

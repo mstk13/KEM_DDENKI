@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}暗証番号変更 — {{ APP_NAME }}{% endblock %}
+{% block topbar_title %}設定{% endblock %}
+
+{% block content %}
+<div class="page-header"><h1>暗証番号を変更</h1></div>
+<div class="card" style="max-width:480px;">
+  {% if error %}
+  <div class="message message-error" style="margin:16px;">{{ error }}</div>
+  {% endif %}
+  <form method="post" style="padding:24px;">
+    {% csrf_token %}
+    {% if worker.pin_set %}
+    <div class="form-group" style="margin-bottom:16px;">
+      <label class="form-label">現在の暗証番号</label>
+      <input type="password" name="current_pin" class="form-control"
+             maxlength="4" inputmode="numeric" pattern="[0-9]{4}" required
+             style="text-align:center;letter-spacing:.2em;">
+    </div>
+    {% endif %}
+    <div class="form-group" style="margin-bottom:16px;">
+      <label class="form-label">新しい暗証番号（4桁の数字）</label>
+      <input type="password" name="new_pin" class="form-control"
+             maxlength="4" inputmode="numeric" pattern="[0-9]{4}" required
+             style="text-align:center;letter-spacing:.2em;">
+    </div>
+    <div class="form-group" style="margin-bottom:16px;">
+      <label class="form-label">新しい暗証番号（確認）</label>
+      <input type="password" name="new_pin_confirm" class="form-control"
+             maxlength="4" inputmode="numeric" pattern="[0-9]{4}" required
+             style="text-align:center;letter-spacing:.2em;">
+    </div>
+    <button type="submit" class="btn btn-primary">変更する</button>
+  </form>
+</div>
+{% endblock %}

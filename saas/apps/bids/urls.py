@@ -18,4 +18,10 @@ urlpatterns = [
     path("unit-prices/<int:pk>/edit/", views.unit_price_edit, name="unit_price_edit"),
     path("dashboard/", views.bid_dashboard, name="dashboard"),
     path("<int:pk>/mark-won/", views.bid_mark_won, name="mark_won"),
+    # スクレイピングターゲット管理
+    path("scrape-targets/", views.scrape_target_list, name="scrape_target_list"),
+    path("scrape-targets/new/", views.scrape_target_create, name="scrape_target_create"),
+    path("scrape-targets/<int:pk>/edit/", views.scrape_target_edit, name="scrape_target_edit"),
+    path("scrape-targets/<int:pk>/run/", views.scrape_run, name="scrape_run"),
+    path("scrape-targets/run-all/", views.scrape_run_all, name="scrape_run_all"),
 ]

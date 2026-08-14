@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}名寄せレビュー — {{ APP_NAME }}{% endblock %}
+{% block topbar_title %}名寄せレビュー{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>名寄せレビュー</h1>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+  <div class="card">
+    <div class="card-body">
+      <h3>元データ</h3>
+      <div style="margin-bottom:12px;">
+        <div style="color:var(--text-secondary);font-size:13px;">原文名称</div>
+        <div style="font-size:16px;font-weight:600;">{{ alias.raw_name }}</div>
+      </div>
+      <div style="margin-bottom:12px;">
+        <div style="color:var(--text-secondary);font-size:13px;">正規化名称</div>
+        <div>{{ alias.normalized_name|default:"-" }}</div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div>
+          <div style="color:var(--text-secondary);font-size:13px;">ソース種別</div>
+          <div>{{ alias.get_source_type_display }}</div>
+        </div>
+        <div>
+          <div style="color:var(--text-secondary);font-size:13px;">ソースキー</div>
+          <div>{{ alias.source_key|default:"-" }}</div>
+        </div>
+        <div>
+          <div style="color:var(--text-secondary);font-size:13px;">マッチ方法</div>
+          <div>{{ alias.get_matched_by_display }}</div>
+        </div>
+        <div>
+          <div style="color:var(--text-secondary);font-size:13px;">信頼度</div>
+          <div>
+            {% if alias.confidence >= 95 %}<span class="badge badge-green">{{ alias.confidence }}%</span>
+            {% elif alias.confidence >= 70 %}<span class="badge badge-orange">{{ alias.confidence }}%</span>
+            {% else %}<span class="badge badge-red">{{ alias.confidence }}%</span>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-body">
+      <h3>紐付先の選択</h3>
+      <form method="post">
+        {% csrf_token %}
+        <div class="form-group">
+          <label for="id_estimation_item">紐付先品目</label>
+          {{ form.estimation_item }}
+          {{ form.estimation_item.errors }}
+        </div>
+        {% if alias.estimation_item %}
+        <div style="margin-bottom:16px;padding:12px;background:var(--bg-secondary);border-radius:8px;">
+          <div style="color:var(--text-secondary);font-size:13px;">現在の紐付先</div>
+          <div><strong>{{ alias.estimation_item.code }}</strong> {{ alias.estimation_item.canonical_name }}</div>
+          <div style="font-size:13px;">{{ alias.estimation_item.get_category_display }} / {{ alias.estimation_item.unit }}</div>
+        </div>
+        {% endif %}
+        <div class="form-group">
+          <label for="id_notes">備考</label>
+          {{ form.notes }}
+          {{ form.notes.errors }}
+        </div>
+        <div class="form-actions" style="gap:8px;">
+          <button type="submit" name="action" value="approve" class="btn btn-primary">承認</button>
+          <button type="submit" name="action" value="reject" class="btn btn-outline" style="color:var(--red);">却下</button>
+          <a href="{% url 'estimation:alias_list' %}" class="btn btn-outline">戻る</a>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from django import forms
 
 from apps.accounts.models import User
@@ -10,13 +12,16 @@ class SiteForm(forms.ModelForm):
         model = Site
         fields = [
             "code", "name", "customer", "status",
-            "contract_amount", "start_date", "end_date",
-            "manager", "estimator", "address",
+            "contract_amount", "payment_terms", "estimate_valid_until",
+            "start_date", "end_date",
+            "manager", "estimator", "address", "note", "extracted_details",
         ]
         widgets = {
             "start_date": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
             "end_date": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
             "address": forms.Textarea(attrs={"class": "form-control", "rows": 2}),
+            "note": forms.Textarea(attrs={"class": "form-control", "rows": 3}),
+            "extracted_details": forms.Textarea(attrs={"class": "form-control", "rows": 6}),
         }
 
     def __init__(self, *args, company=None, **kwargs):
@@ -30,6 +35,35 @@ class SiteForm(forms.ModelForm):
             )
             self.fields["manager"].queryset = User.objects.filter(company=company)
             self.fields["estimator"].queryset = User.objects.filter(company=company)
+
+
+class EstimateUploadForm(forms.Form):
+    """見積ファイル（ライデンの CSV / Excel、見積書の PDF）を受け取るフォーム。"""
+
+    ALLOWED_SUFFIXES = (".csv", ".xlsx", ".xlsm", ".pdf")
+
+    file = forms.FileField(
+        label="見積ファイル",
+        widget=forms.ClearableFileInput(
+            attrs={"accept": ".csv,.xlsx,.xlsm,.pdf", "class": "form-control"}
+        ),
+    )
+
+    def clean_file(self):
+        uploaded = self.cleaned_data["file"]
+        suffix = Path(uploaded.name).suffix.lower()
+        if suffix == ".xls":
+            # openpyxl は旧形式を読めないので、拡張子の時点で理由を伝える。
+            raise forms.ValidationError(
+                "古い Excel 形式(.xls)は読めません。"
+                "Excel で開いて .xlsx で保存し直してから選んでください。"
+            )
+        if suffix not in self.ALLOWED_SUFFIXES:
+            raise forms.ValidationError(
+                "CSV(.csv) / Excel(.xlsx) / PDF(.pdf) を選んでください。"
+                f"（選ばれたのは {suffix or '拡張子なし'} です）"
+            )
+        return uploaded
 
 
 class ProcessForm(forms.ModelForm):

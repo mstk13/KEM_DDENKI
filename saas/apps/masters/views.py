@@ -8,6 +8,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 
 from apps.masters.forms import CustomerForm, SupplierForm
 from apps.masters.models import CostCategory, Customer, Supplier, WorkType
+from apps.masters.services import get_customer_site_history
 
 
 @login_required
@@ -28,6 +29,21 @@ def worktype_list(request):
 def customer_list(request):
     qs = Customer.objects.order_by("code")
     return render(request, "masters/customer_list.html", {"customers": qs})
+
+
+@login_required
+def customer_detail(request, pk):
+    """得意先の詳細。取引履歴（現場）と、見積ファイルの取込履歴を出す。
+
+    テンプレートは以前から用意されていたが、URL とビューが無く到達できな
+    かった。取込履歴の置き場所として必要になったのでここで繋ぐ。
+    """
+    customer = get_object_or_404(Customer, pk=pk)
+    return render(request, "masters/customer_detail.html", {
+        "customer": customer,
+        "sites": get_customer_site_history(customer),
+        "estimate_imports": customer.estimate_imports.select_related("site").all(),
+    })
 
 
 @login_required
@@ -149,7 +165,7 @@ def extract_partner(request):
 
     try:
         from apps.masters.extractor import extract_from_file
-        results = extract_from_file(tmp_path)
+        results = extract_from_file(tmp_path, company=request.user.company, user=request.user)
         return JsonResponse({"results": results})
     except ImportError as e:
         return JsonResponse({"error": str(e)}, status=500)

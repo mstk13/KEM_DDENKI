@@ -23,9 +23,12 @@ class BidCompetitorInline(admin.TabularInline):
 
 @admin.register(BidProject)
 class BidProjectAdmin(SimpleHistoryAdmin):
-    list_display = ("title", "client", "region", "status", "budget", "deadline", "company")
-    list_filter = ("status", "region", "company")
-    search_fields = ("title", "client")
+    list_display = (
+        "title", "client", "region", "category", "status",
+        "budget", "deadline", "company",
+    )
+    list_filter = ("status", "region", "category", "company")
+    search_fields = ("title", "client", "location", "design_no")
     inlines = [BidCostInline, BidCompetitorInline]
 
 
@@ -43,8 +46,11 @@ class BidCompetitorAdmin(SimpleHistoryAdmin):
 
 @admin.register(ScrapeTarget)
 class ScrapeTargetAdmin(SimpleHistoryAdmin):
-    list_display = ("name", "url", "region", "is_active", "last_scraped_at", "company")
-    list_filter = ("is_active", "company")
+    list_display = (
+        "name", "region", "category_filter",
+        "is_active", "last_scraped_at", "company",
+    )
+    list_filter = ("is_active", "region", "company")
 
 
 @admin.register(UnitPrice)

@@ -15,6 +15,7 @@ from apps.bids.forms import (
     UnitPriceForm,
 )
 from apps.bids.models import BidProject, Qualification, UnitPrice
+from apps.bids.qualification import check_qualifications_for_projects
 from apps.bids.services import get_dashboard_stats, mark_as_won
 
 
@@ -33,8 +34,14 @@ def project_list(request):
     if region:
         qs = qs.filter(region__icontains=region)
 
+    # 一覧の資格バッジ用。資格マスタは1回だけ読む
+    projects = list(qs)
+    checks = check_qualifications_for_projects(projects, request.user.company)
+    for project in projects:
+        project.qual_check = checks[project.pk]
+
     return render(request, "bids/project_list.html", {
-        "projects": qs,
+        "projects": projects,
         "q": q,
         "status": status,
         "region": region,
@@ -47,10 +54,14 @@ def project_detail(request, pk):
     project = get_object_or_404(BidProject, pk=pk)
     cost = getattr(project, "cost", None)
     competitors = project.competitors.all()
+    qual_check = check_qualifications_for_projects(
+        [project], request.user.company,
+    )[project.pk]
     return render(request, "bids/project_detail.html", {
         "project": project,
         "cost": cost,
         "competitors": competitors,
+        "qual_check": qual_check,
     })
 
 
@@ -275,3 +286,104 @@ def bid_mark_won(request, pk):
     site = mark_as_won(project, created_by=request.user)
     messages.success(request, f"落札しました。現場「{site.name}」を自動作成しました。")
     return redirect("bids:project_detail", pk=pk)
+
+
+# ---------------------------------------------------------------------------
+# スクレイピングターゲット管理
+# ---------------------------------------------------------------------------
+
+
+@login_required
+def scrape_target_list(request):
+    """スクレイピング対象の一覧。"""
+    from apps.bids.models import ScrapeTarget
+
+    targets = ScrapeTarget.objects.order_by("-is_active", "name")
+    return render(request, "bids/scrape_target_list.html", {
+        "targets": targets,
+    })
+
+
+@login_required
+def scrape_target_create(request):
+    """スクレイピング対象の追加。"""
+    from apps.bids.forms import ScrapeTargetForm
+
+    if request.method == "POST":
+        form = ScrapeTargetForm(request.POST)
+        if form.is_valid():
+            target = form.save(commit=False)
+            target.company = request.user.company
+            target.created_by = request.user
+            target.save()
+            messages.success(request, f"スクレイピング対象「{target.name}」を追加しました。")
+            return redirect("bids:scrape_target_list")
+    else:
+        form = ScrapeTargetForm()
+    return render(request, "bids/scrape_target_form.html", {
+        "form": form, "is_new": True,
+    })
+
+
+@login_required
+def scrape_target_edit(request, pk):
+    """スクレイピング対象の編集。"""
+    from apps.bids.forms import ScrapeTargetForm
+    from apps.bids.models import ScrapeTarget
+
+    target = get_object_or_404(ScrapeTarget, pk=pk)
+    if request.method == "POST":
+        form = ScrapeTargetForm(request.POST, instance=target)
+        if form.is_valid():
+            form.save()
+            messages.success(request, f"「{target.name}」を更新しました。")
+            return redirect("bids:scrape_target_list")
+    else:
+        form = ScrapeTargetForm(instance=target)
+    return render(request, "bids/scrape_target_form.html", {
+        "form": form, "is_new": False, "target": target,
+    })
+
+
+@login_required
+def scrape_run(request, pk):
+    """手動でスクレイピングを実行する。"""
+    from apps.bids.models import ScrapeTarget
+    from apps.bids.services import run_scrape
+
+    if request.method != "POST":
+        return redirect("bids:scrape_target_list")
+
+    target = get_object_or_404(ScrapeTarget, pk=pk)
+    result = run_scrape(target, request.user.company)
+
+    if result["errors"]:
+        messages.warning(
+            request,
+            f"「{target.name}」: 新規{result['new']}件, エラー{len(result['errors'])}件",
+        )
+    else:
+        messages.success(
+            request,
+            f"「{target.name}」: 新規{result['new']}件取得, "
+            f"既存{result.get('updated', 0)}件を補完 "
+            f"(スキップ{result['skipped']}件, 対象外{result.get('excluded', 0)}件)",
+        )
+    return redirect("bids:scrape_target_list")
+
+
+@login_required
+def scrape_run_all(request):
+    """全ターゲットを一括スクレイピング。"""
+    from apps.bids.services import run_all_scrapes
+
+    if request.method != "POST":
+        return redirect("bids:scrape_target_list")
+
+    result = run_all_scrapes(request.user.company)
+    messages.success(
+        request,
+        f"一括取得完了: {result['targets_processed']}サイト処理, "
+        f"新規{result['total_new']}件",
+    )
+    return redirect("bids:scrape_target_list")

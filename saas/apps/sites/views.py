@@ -1,10 +1,21 @@
+import tempfile
+from pathlib import Path
+
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404, redirect, render
 
-from apps.sites.forms import ProcessForm, SiteForm
-from apps.sites.models import Process, Site
-from apps.sites.services import get_site_summary
+from apps.sites.forms import EstimateUploadForm, ProcessForm, SiteForm
+from apps.sites.importer import FIELD_LABELS, parse_estimate_file
+from apps.sites.models import EstimateImport, Process, Site
+from apps.sites.services import (
+    APPLY_FIELDS,
+    apply_estimate_to_site,
+    build_estimate_diff,
+    estimate_values_for_site,
+    find_customer_by_name,
+    get_site_summary,
+)
 
 
 @login_required
@@ -46,6 +57,212 @@ def site_create(request):
     else:
         form = SiteForm(company=request.user.company)
     return render(request, "sites/form.html", {"form": form})
+
+
+def _parse_uploaded_estimate(request, uploaded):
+    """アップロードされた見積ファイルを一時ファイルに落として読み取る。
+
+    読み取りに失敗しても例外は投げず、メッセージを出して None を返す。
+    取り込み口で500にするより、手入力に切り替えられるほうが現場は困らない。
+    """
+    suffix = Path(uploaded.name).suffix.lower()
+    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+        for chunk in uploaded.chunks():
+            tmp.write(chunk)
+        tmp_path = tmp.name
+    try:
+        return parse_estimate_file(tmp_path, suffix)
+    except Exception as e:  # noqa: BLE001 — 読み取り失敗は画面に出して続行させる
+        messages.error(request, f"ファイルを読み取れませんでした: {e}")
+        return None
+    finally:
+        Path(tmp_path).unlink(missing_ok=True)
+
+
+@login_required
+def site_import(request):
+    """見積ファイル（ライデンの CSV / 見積書の PDF）から現場を登録する。
+
+    読み取れた項目は確認画面の初期値に入れ、読み取れなかった項目は空で出す。
+    どの項目もその場で直せる。取引先は自動作成せず、引き当てられなければ
+    未登録として知らせて選んでもらう（表記ゆれで重複マスタを作らないため）。
+    """
+    company = request.user.company
+    upload_form = EstimateUploadForm()
+    site_form = None
+    parsed = None
+    parsed_customer_name = ""
+    filename = ""
+
+    if request.method == "POST" and request.POST.get("step") == "confirm":
+        site_form = SiteForm(request.POST, company=company)
+        parsed_customer_name = request.POST.get("parsed_customer_name", "")
+        filename = request.POST.get("filename", "")
+        if site_form.is_valid():
+            site = site_form.save(commit=False)
+            site.company = company
+            site.created_by = request.user
+            site.save()
+            # 取込履歴は確定時だけ残す。読み取りを試しただけの操作は業務上の
+            # 出来事ではないので、履歴に混ぜるとノイズになる。
+            EstimateImport.objects.create(
+                company=company,
+                created_by=request.user,
+                customer=site.customer,
+                customer_name_raw=parsed_customer_name,
+                site=site,
+                filename=filename,
+                estimate_number=site.code,
+                amount=site.contract_amount,
+                payment_terms=site.payment_terms,
+            )
+            messages.success(
+                request, f"見積ファイルから現場「{site.name}」を登録しました。"
+            )
+            return redirect("sites:detail", pk=site.pk)
+        messages.error(request, "入力内容を確認してください。")
+
+    elif request.method == "POST":
+        upload_form = EstimateUploadForm(request.POST, request.FILES)
+        if upload_form.is_valid():
+            uploaded = upload_form.cleaned_data["file"]
+            filename = uploaded.name
+            parsed = _parse_uploaded_estimate(request, uploaded)
+
+        if parsed:
+            parsed_customer_name = parsed.get("customer_name") or ""
+            matched = find_customer_by_name(company, parsed_customer_name)
+            site_form = SiteForm(
+                company=company,
+                initial={
+                    "code": parsed.get("code") or "",
+                    "name": parsed.get("name") or "",
+                    "customer": matched.pk if matched else None,
+                    "payment_terms": parsed.get("payment_terms") or "",
+                    "estimate_valid_until": parsed.get("estimate_valid_until") or "",
+                    "contract_amount": parsed.get("contract_amount") or 0,
+                    "address": parsed.get("address") or "",
+                    "note": parsed.get("note") or "",
+                    "extracted_details": "\n".join(
+                        f"{label}: {value}" for label, value in parsed.get("details", [])
+                    ),
+                    "start_date": parsed.get("start_date") or "",
+                    "end_date": parsed.get("end_date") or "",
+                    "status": Site.Status.ESTIMATING,
+                },
+            )
+
+    customer_matched = (
+        find_customer_by_name(company, parsed_customer_name)
+        if parsed_customer_name
+        else None
+    )
+
+    return render(request, "sites/import.html", {
+        "upload_form": upload_form,
+        "form": site_form,
+        "filename": filename,
+        "parsed_customer_name": parsed_customer_name,
+        "customer_matched": customer_matched,
+        "read_rows": (
+            [(FIELD_LABELS[k], parsed[k]) for k in parsed["found"]] if parsed else []
+        ),
+        "missing_labels": (
+            [FIELD_LABELS[k] for k in parsed["missing"]] if parsed else []
+        ),
+        "detail_rows": parsed.get("details", []) if parsed else [],
+        "recent_imports": (
+            EstimateImport.objects.select_related("customer", "site")[:10]
+            if site_form is None
+            else []
+        ),
+    })
+
+
+@login_required
+def site_estimate_import(request, pk):
+    """既にある現場へ、見積ファイルから読み取った数値を反映する。
+
+    落札や受注のフェーズ移行で自動作成された現場は、件名と概算金額しか
+    入っていない。そこへ後からライデンの Excel / CSV や見積書 PDF を入れて
+    金額・工期・支払条件などを埋めるための入口。
+
+    新規登録の取り込み（site_import）と違い、**項目ごとに反映するかを選ぶ**。
+    現場担当が直した値をファイルの内容で黙って上書きしないため、既定で
+    チェックが入るのは今が空欄の項目だけにしてある。
+    """
+    company = request.user.company
+    site = get_object_or_404(Site, pk=pk)
+    upload_form = EstimateUploadForm()
+    diff_rows: list[dict] = []
+    parsed = None
+    parsed_customer_name = request.POST.get("parsed_customer_name", "")
+    filename = request.POST.get("filename", "")
+
+    if request.method == "POST" and request.POST.get("step") == "confirm":
+        # 確認画面が持ち回った値。ファイルは既に手元に無いので読み直さない。
+        values = {
+            field: request.POST[f"value_{field}"]
+            for field, _label in APPLY_FIELDS
+            if request.POST.get(f"value_{field}")
+        }
+        applied = apply_estimate_to_site(
+            site, values, set(request.POST.getlist("apply")), company,
+        )
+        if applied:
+            # 取込履歴は実際に反映できたときだけ残す。読み取りを試しただけの
+            # 操作は業務上の出来事ではないので、履歴に混ぜるとノイズになる。
+            EstimateImport.objects.create(
+                company=company,
+                created_by=request.user,
+                customer=site.customer,
+                customer_name_raw=parsed_customer_name,
+                site=site,
+                filename=filename,
+                estimate_number=site.code,
+                amount=site.contract_amount,
+                payment_terms=site.payment_terms,
+            )
+            messages.success(
+                request,
+                f"見積ファイルから {'、'.join(applied)} を現場「{site.name}」に反映しました。",
+            )
+        else:
+            messages.info(request, "反映する項目が選ばれていなかったので、何も変更していません。")
+        return redirect("sites:detail", pk=site.pk)
+
+    if request.method == "POST":
+        upload_form = EstimateUploadForm(request.POST, request.FILES)
+        if upload_form.is_valid():
+            uploaded = upload_form.cleaned_data["file"]
+            filename = uploaded.name
+            parsed = _parse_uploaded_estimate(request, uploaded)
+
+        if parsed:
+            parsed_customer_name = parsed.get("customer_name") or ""
+            matched = find_customer_by_name(company, parsed_customer_name)
+            diff_rows = build_estimate_diff(
+                site, estimate_values_for_site(parsed, matched), company,
+            )
+            if not diff_rows:
+                messages.warning(
+                    request,
+                    "このファイルからは、この現場へ反映できる項目を読み取れませんでした。",
+                )
+
+    return render(request, "sites/estimate_import.html", {
+        "site": site,
+        "upload_form": upload_form,
+        "diff_rows": diff_rows,
+        "filename": filename,
+        "parsed_customer_name": parsed_customer_name,
+        "customer_unmatched": bool(parsed_customer_name)
+        and not find_customer_by_name(company, parsed_customer_name),
+        "missing_labels": (
+            [FIELD_LABELS[k] for k in parsed["missing"]] if parsed else []
+        ),
+        "past_imports": site.estimate_imports.select_related("created_by")[:10],
+    })
 
 
 @login_required

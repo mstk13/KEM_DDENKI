@@ -1,0 +1,43 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>暗証番号設定 — {{ APP_NAME }}</title>
+<link rel="stylesheet" href="{% static 'css/style.css' %}">
+</head>
+<body>
+<div class="login-page">
+  <div class="login-card">
+    <h1>暗証番号を設定</h1>
+    <p class="subtitle">{{ worker.name }} さん、初回ログインありがとうございます。<br>
+    4桁の暗証番号を設定してください。<br>
+    次回からこの番号でログインします。</p>
+
+    {% if error %}
+    <div class="message message-error" style="margin-bottom:20px;">{{ error }}</div>
+    {% endif %}
+
+    <form method="post">
+      {% csrf_token %}
+      <div class="form-group">
+        <label for="pin">暗証番号（4桁の数字）</label>
+        <input type="password" name="pin" id="pin" class="form-control"
+               maxlength="4" inputmode="numeric" pattern="[0-9]{4}" required autofocus
+               style="font-size:1.5rem;text-align:center;letter-spacing:.3em;">
+      </div>
+      <div class="form-group">
+        <label for="pin_confirm">暗証番号（確認）</label>
+        <input type="password" name="pin_confirm" id="pin_confirm" class="form-control"
+               maxlength="4" inputmode="numeric" pattern="[0-9]{4}" required
+               style="font-size:1.5rem;text-align:center;letter-spacing:.3em;">
+      </div>
+      <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;padding:12px;margin-top:8px;">
+        設定する
+      </button>
+    </form>
+  </div>
+</div>
+</body>
+</html>

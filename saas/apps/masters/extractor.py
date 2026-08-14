@@ -2,31 +2,16 @@
 
 Claude APIのマルチモーダル機能を使い、名刺・書類・PDFから
 会社名・代表者・担当者・電話番号・FAX・メール・住所を抽出する。
+
+コスト方針: OCR/抽出はHaikuで十分。AILogに記録する。
 """
 
 import base64
 import json
-import os
+import logging
 from pathlib import Path
 
-
-def _get_client():
-    """Anthropic クライアントを取得。"""
-    try:
-        import anthropic
-    except ImportError as exc:
-        raise ImportError(
-            "anthropic パッケージが必要です。pip install anthropic を実行してください。"
-        ) from exc
-
-    api_key = os.environ.get("ANTHROPIC_API_KEY")
-    if not api_key:
-        raise ValueError(
-            "ANTHROPIC_API_KEY が設定されていません。"
-            "環境変数または .env ファイルに設定してください。"
-        )
-    return anthropic.Anthropic(api_key=api_key)
-
+logger = logging.getLogger(__name__)
 
 _EXTRACT_PROMPT = """\
 この画像/文書から取引先（会社・事業者）の情報を抽出してください。
@@ -67,19 +52,24 @@ def _get_media_type(file_path):
     }.get(suffix, "image/jpeg")
 
 
-def extract_from_file(file_path):
-    """画像/PDFファイルから取引先情報を抽出する。
+def extract_from_file(file_path, company=None, user=None):
+    """画像/PDFファイルから取引先情報を抽出する。AILogに記録。
+
+    Args:
+        file_path: 画像/PDFのパス
+        company: テナント（AILog・予算チェック用）
+        user: 実行ユーザー
 
     Returns:
         list[dict]: 抽出された取引先情報のリスト。
-        各dictは name, representative, contact_person, phone, fax, email, address を含む。
     """
-    client = _get_client()
+    from apps.ai.models import AILog
+    from apps.ai.services.llm_advisor import call_claude_with_log
+
     media_type = _get_media_type(file_path)
+    data = _encode_image(file_path)
 
     if media_type == "application/pdf":
-        # PDFはbase64エンコードしてdocumentとして送信
-        data = _encode_image(file_path)
         content = [
             {
                 "type": "document",
@@ -92,8 +82,6 @@ def extract_from_file(file_path):
             {"type": "text", "text": _EXTRACT_PROMPT},
         ]
     else:
-        # 画像
-        data = _encode_image(file_path)
         content = [
             {
                 "type": "image",
@@ -106,25 +94,30 @@ def extract_from_file(file_path):
             {"type": "text", "text": _EXTRACT_PROMPT},
         ]
 
-    response = client.messages.create(
-        model="claude-sonnet-4-20250514",
+    result = call_claude_with_log(
+        prompt=_EXTRACT_PROMPT,
+        model_key="haiku",
         max_tokens=2000,
-        messages=[{"role": "user", "content": content}],
+        company=company,
+        site=None,
+        task_type=AILog.TaskType.MASTER_EXTRACT,
+        input_data={"file_path": str(file_path), "media_type": media_type},
+        user=user,
+        content=content,
     )
 
-    text = response.content[0].text.strip()
+    parsed = result["parsed"]
+    if parsed is None:
+        # パース失敗時は生テキストから再試行
+        text = result["raw"].strip()
+        if text.startswith("```"):
+            text = text.split("```")[1]
+            if text.startswith("json"):
+                text = text[4:]
+            text = text.strip()
+        parsed = json.loads(text)
 
-    # JSON部分を抽出
-    if text.startswith("```"):
-        text = text.split("```")[1]
-        if text.startswith("json"):
-            text = text[4:]
-        text = text.strip()
+    if isinstance(parsed, dict):
+        parsed = [parsed]
 
-    result = json.loads(text)
-
-    # 単一オブジェクトの場合はリストに変換
-    if isinstance(result, dict):
-        result = [result]
-
-    return result
+    return parsed

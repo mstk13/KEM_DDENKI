@@ -13,18 +13,84 @@
 
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
   <div class="card">
-    <div class="card-header"><h2>基本情報</h2></div>
+    <div class="card-header"><h2>案件情報</h2></div>
     <dl class="detail-grid">
-      <dt>発注者</dt><dd>{{ project.client|default:"-" }}</dd>
+      <dt>工事名称</dt><dd>{{ project.title }}</dd>
+      <dt>発注機関</dt><dd>{{ project.client|default:"-" }}</dd>
+      <dt>担当部・事務所</dt><dd>{{ project.agency_dept|default:"-" }}</dd>
+      <dt>工事場所</dt><dd>{{ project.location|default:"-" }}</dd>
       <dt>地域</dt><dd>{{ project.region|default:"-" }}</dd>
       <dt>工事種別</dt><dd>{{ project.category|default:"-" }}</dd>
-      <dt>状態</dt><dd>{{ project.get_status_display }}</dd>
-      <dt>予算額</dt><dd>{{ project.budget|floatformat:0 }} 円</dd>
+      <dt>入札契約方式</dt><dd>{{ project.bid_method|default:"-" }}</dd>
+      <dt>電子入札対象</dt><dd>{{ project.electronic_bid|default:"-" }}</dd>
+      <dt>設計書番号</dt><dd>{{ project.design_no|default:"-" }}</dd>
+      <dt>公告日</dt><dd>{{ project.announced_on|default:"-" }}</dd>
       <dt>入札期限</dt><dd>{{ project.deadline|default:"-" }}</dd>
-      <dt>情報源URL</dt><dd>{% if project.source_url %}<a href="{{ project.source_url }}" target="_blank">{{ project.source_url }}</a>{% else %}-{% endif %}</dd>
+      <dt>開札日</dt><dd>{{ project.opening_on|default:"-" }}</dd>
+      <dt>予定価格</dt><dd>{% if project.budget %}{{ project.budget|floatformat:0 }} 円{% else %}非公表 / 未取得{% endif %}</dd>
+      <dt>状態</dt><dd>{{ project.get_status_display }}</dd>
+      <dt>収集元</dt><dd>{{ project.get_source_type_display }}</dd>
+      <dt>情報源URL</dt>
+      <dd>
+        {% if project.source_url %}
+          <a href="{{ project.source_url }}" target="_blank" rel="noopener noreferrer">入札公告等を開く</a>
+          <div style="word-break:break-all;color:var(--gray-400);font-size:12px;">{{ project.source_url }}</div>
+        {% else %}
+          -
+        {% endif %}
+      </dd>
     </dl>
   </div>
 
+  <div class="card">
+    <div class="card-header"><h2>参加資格判定</h2></div>
+    <dl class="detail-grid">
+      <dt>判定結果</dt>
+      <dd>
+        {% if qual_check.eligible == True %}
+          <span class="badge badge-green">参加可能</span>
+        {% elif qual_check.eligible == False %}
+          <span class="badge badge-red">資格不足</span>
+        {% else %}
+          <span class="badge badge-gray">要確認</span>
+        {% endif %}
+        {{ qual_check.reason }}
+      </dd>
+      <dt>該当する自社資格</dt>
+      <dd>
+        {% if qual_check.matched %}
+          {{ qual_check.matched.issuer }}／{{ qual_check.matched.category }}
+          {% if qual_check.matched.grade %}（{{ qual_check.matched.grade }}等級）{% endif %}
+        {% else %}-{% endif %}
+      </dd>
+      <dt>等級 / 点数</dt>
+      <dd>
+        {% if qual_check.matched %}
+          等級 {{ qual_check.matched.grade|default:"-" }} /
+          経審点 {{ qual_check.matched.keisin_score|default:"-" }} /
+          総合点 {{ qual_check.matched.total_score|default:"-" }}
+        {% else %}-{% endif %}
+      </dd>
+      <dt>資格の有効期限</dt>
+      <dd>
+        {% if qual_check.matched %}{{ qual_check.matched.valid_until|default:"-" }}
+        {% else %}-{% endif %}
+        {% if qual_check.expired %}
+        <div style="color:var(--gray-400);font-size:12px;">
+          期限切れの資格が {{ qual_check.expired|length }} 件あります
+        </div>
+        {% endif %}
+      </dd>
+      <dt>業者番号</dt>
+      <dd>{% if qual_check.matched %}{{ qual_check.matched.vendor_number|default:"-" }}{% else %}-{% endif %}</dd>
+      <dt>公告側の必要業種区分</dt><dd>{{ project.required_category|default:"-" }}</dd>
+      <dt>公告側の必要等級</dt><dd>{{ project.required_grade|default:"-" }}{% if project.required_grade %} 以上{% endif %}</dd>
+      <dt>資格種別</dt><dd>{{ project.required_issuer_type|default:"-" }}</dd>
+    </dl>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:20px;">
   <div class="card">
     <div class="card-header"><h2>原価情報</h2></div>
     {% if cost %}
@@ -38,6 +104,48 @@
     {% endif %}
   </div>
 </div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:20px;">
+  <div class="card">
+    <div class="card-header"><h2>工事概要</h2></div>
+    <div class="card-body">
+      {% if project.work_outline %}
+      <div style="white-space:pre-wrap;">{{ project.work_outline }}</div>
+      {% else %}
+      <div style="color:var(--gray-400);text-align:center;padding:20px;">
+        未入力です。編集画面から公告・仕様書の内容を転記してください。
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><h2>参加要件</h2></div>
+    <div class="card-body">
+      {% if project.requirements %}
+      <div style="white-space:pre-wrap;">{{ project.requirements }}</div>
+      {% else %}
+      <div style="color:var(--gray-400);text-align:center;padding:20px;">
+        未入力です。公告の入札参加資格・実績要件・配置技術者の条件を転記してください。
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+{% if project.summary or project.notes %}
+<div class="card" style="margin-top:20px;">
+  <div class="card-header"><h2>案件概要（情報源の原文）</h2></div>
+  <div class="card-body">
+    {% if project.summary %}
+    <pre style="white-space:pre-wrap;word-break:break-all;margin:0;font-family:inherit;">{{ project.summary }}</pre>
+    {% endif %}
+    {% if project.notes %}
+    <p style="margin-top:12px;white-space:pre-wrap;">{{ project.notes }}</p>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
 
 <div class="card" style="margin-top:20px;">
   <div class="card-header"><h2>競合情報</h2></div>

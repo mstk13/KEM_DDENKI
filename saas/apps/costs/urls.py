@@ -10,4 +10,8 @@ urlpatterns = [
     path("<int:site_id>/chart-data/", views.cost_chart_data, name="chart_data"),
     path("<int:site_id>/budget/new/", views.budget_create, name="budget_create"),
     path("manual/new/", views.manual_cost_create, name="manual_cost_create"),
+    # アクセス管理
+    path("access/", views.cost_access_list, name="access_list"),
+    path("access/grant/", views.cost_access_grant, name="access_grant"),
+    path("access/<int:pk>/revoke/", views.cost_access_revoke, name="access_revoke"),
 ]

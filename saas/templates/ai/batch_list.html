@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}AIバッチ処理 — {{ APP_NAME }}{% endblock %}
+{% block topbar_title %}AI分析基盤{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>AIバッチ処理一覧</h1>
+  <a href="{% url 'ai:dashboard' %}" class="btn btn-outline">ダッシュボードに戻る</a>
+</div>
+
+<p style="color:var(--text-secondary);margin-bottom:16px;">
+  17時以降にバッチ予約されたAI分析リクエストの一覧です。
+  翌営業日の朝9時に自動実行されます。
+</p>
+
+<div class="card">
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>予約日時</th>
+          <th>タスク</th>
+          <th>現場</th>
+          <th>依頼者</th>
+          <th>実行予定</th>
+          <th>状態</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for b in batches %}
+        <tr>
+          <td style="white-space:nowrap;">{{ b.created_at|date:"m/d H:i" }}</td>
+          <td>{{ b.get_task_type_display }}</td>
+          <td>{{ b.site.name }}</td>
+          <td>{{ b.requested_by }}</td>
+          <td style="white-space:nowrap;">{{ b.scheduled_for|date:"m/d H:i" }}</td>
+          <td>
+            {% if b.status == "pending" %}<span class="badge badge-blue">待機中</span>
+            {% elif b.status == "processing" %}<span class="badge badge-orange">処理中</span>
+            {% elif b.status == "completed" %}<span class="badge badge-green">完了</span>
+            {% elif b.status == "failed" %}<span class="badge badge-red">失敗</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="6"><div class="empty"><p>バッチリクエストがありません</p></div></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

@@ -1,6 +1,9 @@
 """通知基盤のテスト。"""
 
+from datetime import timedelta
+
 import pytest
+from django.utils import timezone
 
 from apps.notifications.models import AlertLog, AlertRule, Notification
 from apps.notifications.services import (
@@ -40,6 +43,12 @@ class TestNotificationModel:
             title="新しい通知",
             module=Notification.Module.REPORTS,
         )
+        # sent_at は auto_now_add で、続けて作ると同じ時刻になり得る。
+        # 同時刻だと並び順が不定になりテストが揺れるため、明示的に差をつける。
+        base = timezone.now()
+        Notification.unscoped.filter(pk=n1.pk).update(sent_at=base - timedelta(hours=1))
+        Notification.unscoped.filter(pk=n2.pk).update(sent_at=base)
+
         notifications = list(
             Notification.unscoped.filter(recipient=user).order_by("-sent_at")
         )

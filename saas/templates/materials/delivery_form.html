@@ -3,9 +3,9 @@
 {% block topbar_title %}材料管理{% endblock %}
 
 {% block content %}
-<div class="page-header"><h1>納品を記録: PO-{{ po.pk }}</h1></div>
+<div class="page-header"><h1>納品を記録: PO-{{ po.pk }} {{ po.site.name }}</h1></div>
 <div class="card">
-  <form method="post" style="padding:24px;">
+  <form method="post" enctype="multipart/form-data" style="padding:24px;">
     {% csrf_token %}
     {% for field in form %}
     <div class="form-group" style="margin-bottom:16px;">
@@ -13,6 +13,33 @@
       {{ field }}
     </div>
     {% endfor %}
+
+    <div class="form-group" style="margin-bottom:16px;">
+      <label class="form-label">納品書画像（任意）</label>
+      <input type="file" name="delivery_image" accept="image/*" class="form-control">
+      <small style="color:#888;">
+        納品書の画像をアップロードすると、AIが内容を読み取り明細を自動生成します。
+        読み取り後に編集も可能です。
+      </small>
+    </div>
+
+    {% if po_items %}
+    <div style="margin:20px 0;padding:16px;background:#f8f9fa;border-radius:8px;">
+      <strong>発注明細（参考）:</strong>
+      <table style="width:100%;margin-top:8px;">
+        <thead><tr><th>材料</th><th style="text-align:right;">発注数量</th></tr></thead>
+        <tbody>
+          {% for item in po_items %}
+          <tr>
+            <td>{{ item.material }}</td>
+            <td style="text-align:right;">{{ item.quantity }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+
     <div style="display:flex;gap:12px;">
       <button type="submit" class="btn btn-primary">記録する</button>
       <a href="{% url 'materials:po_detail' po.pk %}" class="btn btn-outline">キャンセル</a>

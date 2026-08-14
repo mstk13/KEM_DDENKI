@@ -23,6 +23,8 @@ class AILog(TenantModel):
         COST_OPTIMIZATION = "cost_optimization", "コスト最適化提案"
         SCHEDULE_SUGGEST = "schedule_suggest", "工程提案"
         SCHEDULE_RISK = "schedule_risk", "工程リスク分析"
+        DELIVERY_OCR = "delivery_ocr", "納品書OCR"
+        MASTER_EXTRACT = "master_extract", "取引先抽出"
         GENERAL_ANALYSIS = "general_analysis", "汎用分析"
 
     class ModelType(models.TextChoices):
@@ -58,7 +60,7 @@ class AILog(TenantModel):
         "モデルバージョン",
         max_length=100,
         blank=True,
-        help_text="例: claude-haiku-4-5-20251001, lgbm_cost_v3",
+        help_text="例: claude-haiku-4-5, lgbm_cost_v3",
     )
     input_data = models.JSONField(
         "入力データ",
@@ -142,6 +144,68 @@ class AILog(TenantModel):
             f"{self.get_task_type_display()} "
             f"({self.get_model_used_display()})"
         )
+
+
+class AIBatchRequest(TenantModel):
+    """バッチ処理キュー。17時以降のAIリクエストを翌営業日に遅延実行する。"""
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "待機中"
+        PROCESSING = "processing", "処理中"
+        COMPLETED = "completed", "完了"
+        FAILED = "failed", "失敗"
+
+    task_type = models.CharField(
+        "タスク種別",
+        max_length=30,
+        choices=AILog.TaskType.choices,
+    )
+    site = models.ForeignKey(
+        "sites.Site",
+        on_delete=models.CASCADE,
+        related_name="batch_requests",
+        verbose_name="対象現場",
+    )
+    requested_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="batch_requests",
+        verbose_name="依頼者",
+    )
+    model_key = models.CharField(
+        "モデル",
+        max_length=20,
+        default="haiku",
+    )
+    status = models.CharField(
+        "ステータス",
+        max_length=20,
+        choices=Status.choices,
+        default=Status.PENDING,
+    )
+    result_log = models.ForeignKey(
+        AILog,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="batch_request",
+        verbose_name="実行結果ログ",
+    )
+    error_message = models.TextField("エラー", blank=True)
+    scheduled_for = models.DateTimeField(
+        "実行予定日時",
+        null=True,
+        blank=True,
+        help_text="翌営業日の朝9時に設定される",
+    )
+
+    class Meta:
+        verbose_name = "AIバッチリクエスト"
+        verbose_name_plural = "AIバッチリクエスト"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"Batch-{self.pk} {self.get_task_type_display()} ({self.get_status_display()})"
 
 
 class AIFeedback(TenantModel):

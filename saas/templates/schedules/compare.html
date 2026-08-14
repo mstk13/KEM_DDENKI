@@ -1,13 +1,10 @@
 {% extends "base.html" %}
-{% block title %}工期比較 — {{ APP_NAME }}{% endblock %}
+{% block title %}工期管理 — {{ APP_NAME }}{% endblock %}
 {% block topbar_title %}工期管理{% endblock %}
 
 {% block content %}
 <div class="page-header">
-  <h1>工期比較</h1>
-  <div class="page-actions" style="display:flex;gap:8px;">
-    <a href="{% url 'schedules:list' %}" class="btn btn-outline">一覧に戻る</a>
-  </div>
+  <h1>工期管理</h1>
 </div>
 
 <!-- 表示条件 -->
@@ -42,7 +39,7 @@
       <!-- mode は送信ボタン側で持つ。hidden と併用すると値が二重に送られ、
            現場単位／工程単位の切替が効かなくなる。 -->
       <button type="submit" name="mode" value="{{ mode }}" class="btn btn-primary btn-sm">表示を更新</button>
-      <a href="{% url 'schedules:compare' %}?mode={{ mode }}" class="btn btn-outline btn-sm">選択をクリア</a>
+      <a href="{% url 'schedules:list' %}?mode={{ mode }}" class="btn btn-outline btn-sm">選択をクリア</a>
     </div>
   </div>
 </form>
@@ -110,7 +107,8 @@ document.addEventListener('DOMContentLoaded', function() {
   var tasks = {{ gantt_json|safe }};
   var gantt = new Gantt('#gantt-chart', tasks, {
     view_mode: 'Week',
-    language: 'ja',
+    // language は指定しない。frappe-gantt 0.6.1 は 'ja' の月名テーブルを持たず、
+    // 月ラベル生成時に例外を投げて描画が途中で止まる（バーが出ない）。
     custom_popup_html: function(task) {
       var days = Math.round((task.end - task.start) / 86400000) + 1;
       return '<div class="details-container" style="padding:12px;min-width:200px;">'
@@ -124,11 +122,16 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   });
 
+  var chart = document.querySelector('#gantt-chart');
+  localizeGanttMonths(chart);
+
   document.querySelectorAll('.gantt-mode').forEach(function(btn) {
     btn.addEventListener('click', function() {
       document.querySelectorAll('.gantt-mode').forEach(function(b) { b.classList.remove('active'); });
       this.classList.add('active');
       gantt.change_view_mode(this.dataset.mode);
+      // 表示切替で描き直されるため、月ラベルを付け直す
+      localizeGanttMonths(chart);
     });
   });
 });

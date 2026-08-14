@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.db import models
 from simple_history.models import HistoricalRecords
 
@@ -136,3 +137,34 @@ class CostTransaction(TenantModel):
             f"{self.transaction_date} {self.site} "
             f"{self.get_source_type_display()} {self.amount}"
         )
+
+
+class CostAccessGrant(TenantModel):
+    """原価・予実モジュールへの個別アクセス許可。
+
+    デフォルトでは社長ロールと社員番号が G で始まるユーザーのみアクセス可能。
+    それ以外のユーザーに対して管理者がここでアクセス権を付与できる。
+    """
+
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="cost_access_grant",
+        verbose_name="ユーザー",
+    )
+    granted_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="cost_access_grants_given",
+        verbose_name="許可者",
+    )
+    memo = models.CharField("メモ", max_length=200, blank=True)
+
+    class Meta:
+        verbose_name = "原価アクセス許可"
+        verbose_name_plural = "原価アクセス許可"
+
+    def __str__(self):
+        return f"原価アクセス: {self.user}"

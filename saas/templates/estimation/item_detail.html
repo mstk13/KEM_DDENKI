@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block title %}{{ item.canonical_name }} — {{ APP_NAME }}{% endblock %}
+{% block topbar_title %}積算品目{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>{{ item.code }} {{ item.canonical_name }}</h1>
+  <a href="{% url 'estimation:item_edit' item.pk %}" class="btn btn-outline">編集</a>
+</div>
+
+<div class="card" style="margin-bottom:20px;">
+  <div class="card-body">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;">
+      <div>
+        <div style="color:var(--text-secondary);font-size:13px;">区分</div>
+        <div>{{ item.get_category_display }}</div>
+      </div>
+      <div>
+        <div style="color:var(--text-secondary);font-size:13px;">単位</div>
+        <div>{{ item.unit }}</div>
+      </div>
+      <div>
+        <div style="color:var(--text-secondary);font-size:13px;">参考単価</div>
+        <div>{% if item.standard_price %}{{ item.standard_price|floatformat:0 }} 円{% else %}-{% endif %}</div>
+      </div>
+      <div>
+        <div style="color:var(--text-secondary);font-size:13px;">工種</div>
+        <div>{{ item.work_type.name|default:"-" }}</div>
+      </div>
+      <div>
+        <div style="color:var(--text-secondary);font-size:13px;">状態</div>
+        <div>
+          {% if item.status == 'draft' %}<span class="badge badge-gray">下書き</span>
+          {% elif item.status == 'reviewed' %}<span class="badge badge-orange">レビュー済</span>
+          {% elif item.status == 'approved' %}<span class="badge badge-green">承認済</span>
+          {% endif %}
+        </div>
+      </div>
+      <div>
+        <div style="color:var(--text-secondary);font-size:13px;">社内材料マスタ</div>
+        <div>{{ item.material.name|default:"-" }}</div>
+      </div>
+    </div>
+    {% if item.spec %}
+    <div style="margin-top:16px;">
+      <div style="color:var(--text-secondary);font-size:13px;">仕様</div>
+      <code>{{ item.spec }}</code>
+    </div>
+    {% endif %}
+    {% if item.notes %}
+    <div style="margin-top:16px;">
+      <div style="color:var(--text-secondary);font-size:13px;">備考</div>
+      <div>{{ item.notes }}</div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<div class="page-header">
+  <h2>名寄せ一覧</h2>
+</div>
+<div class="card">
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>ソース</th><th>原文名称</th><th>正規化名称</th><th>信頼度</th><th>マッチ方法</th><th>状態</th></tr>
+      </thead>
+      <tbody>
+        {% for alias in aliases %}
+        <tr>
+          <td>{{ alias.get_source_type_display }}</td>
+          <td>{{ alias.raw_name }}</td>
+          <td>{{ alias.normalized_name|default:"-" }}</td>
+          <td>{{ alias.confidence }}%</td>
+          <td>{{ alias.get_matched_by_display }}</td>
+          <td>
+            {% if alias.status == 'pending' %}<span class="badge badge-orange">未確認</span>
+            {% elif alias.status == 'reviewed' %}<span class="badge badge-blue">レビュー済</span>
+            {% elif alias.status == 'approved' %}<span class="badge badge-green">承認済</span>
+            {% elif alias.status == 'rejected' %}<span class="badge badge-red">却下</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="6"><div class="empty"><p>名寄せデータがありません</p></div></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block title %}{% if is_new %}データソースを追加{% else %}データソースを編集{% endif %} — {{ APP_NAME }}{% endblock %}
+{% block topbar_title %}{% if is_new %}データソースを追加{% else %}データソースを編集{% endif %}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>{{ orderer.name }} — {% if is_new %}データソースを追加{% else %}データソースを編集{% endif %}</h1>
+</div>
+
+<div class="card">
+  <div class="card-body">
+    <form method="post">
+      {% csrf_token %}
+      <div class="form-row">
+        <div class="form-group">
+          <label for="id_category">データ区分</label>
+          {{ form.category }}
+          {{ form.category.errors }}
+        </div>
+        <div class="form-group">
+          <label for="id_scope">適用範囲</label>
+          {{ form.scope }}
+          {{ form.scope.errors }}
+          <small>国交省の共通基準に準拠しているか、独自基準があるか</small>
+        </div>
+      </div>
+      <div class="form-group">
+        <label for="id_name">データソース名</label>
+        {{ form.name }}
+        {{ form.name.errors }}
+        <small>例: 防衛省独自歩掛、神奈川県設計単価表、国交省公共建築工事積算基準（準拠）</small>
+      </div>
+      <div class="form-group">
+        <label for="id_source_url">公開URL</label>
+        {{ form.source_url }}
+        {{ form.source_url.errors }}
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="id_update_cycle">更新頻度</label>
+          {{ form.update_cycle }}
+          {{ form.update_cycle.errors }}
+        </div>
+        <div class="form-group">
+          <label for="id_data_format">提供形式</label>
+          {{ form.data_format }}
+          {{ form.data_format.errors }}
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="id_is_free">
+            {{ form.is_free }} 無償公開
+          </label>
+          {{ form.is_free.errors }}
+        </div>
+        <div class="form-group">
+          <label for="id_fiscal_year">最新取得年度（西暦）</label>
+          {{ form.fiscal_year }}
+          {{ form.fiscal_year.errors }}
+        </div>
+        <div class="form-group">
+          <label for="id_last_checked_at">最終確認日</label>
+          {{ form.last_checked_at }}
+          {{ form.last_checked_at.errors }}
+        </div>
+      </div>
+      <div class="form-group">
+        <label for="id_diff_summary">共通基準との違い</label>
+        {{ form.diff_summary }}
+        {{ form.diff_summary.errors }}
+        <small>独自基準がある場合は必ず記載。何が違うのか、どこに影響するのか。</small>
+      </div>
+      <div class="form-group">
+        <label for="id_notes">備考</label>
+        {{ form.notes }}
+        {{ form.notes.errors }}
+      </div>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">保存</button>
+        <a href="{% url 'estimation:orderer_detail' orderer.pk %}" class="btn btn-outline">キャンセル</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

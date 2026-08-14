@@ -83,11 +83,31 @@ git pull origin developer     # 他の人の変更を取り込む
 cd saas
 docker compose restart web    # → http://localhost:8000/ で確認
 
-# テスト（マージ前に必ず通す。CI でも同じものが走ります）
-docker compose exec web sh -c "USE_SQLITE=true python -m pytest tests/ -v"
-docker compose exec web ruff check .
+# マイグレーションの同梱漏れチェック（モデルを変えたら必ず）
 docker compose exec web sh -c "USE_SQLITE=true python manage.py makemigrations --check --dry-run"
 ```
+
+**テスト（マージ前に必ず通す。CI でも同じものが走ります）**
+
+pytest と ruff は `pyproject.toml` の `[project.optional-dependencies] dev` にあり、
+Dockerfile は本体依存しか入れないため **web コンテナには入っていません**。
+`docker compose exec web python -m pytest` は `No module named pytest` になります。
+使い捨てコンテナに入れて回してください。
+
+```bash
+cd saas
+docker compose run --rm --entrypoint sh web -c "\
+  pip install -q pytest pytest-django ruff && \
+  ruff check . && \
+  python manage.py collectstatic --no-input >/dev/null && \
+  USE_SQLITE=true python -m pytest tests/ -q"
+```
+
+- `--entrypoint sh` は必須。付けないと `entrypoint.sh` が migrate と collectstatic を
+  流してからサーバーを起動してしまい、テストまで進みません。
+- `collectstatic` を先に流さないと、テンプレートを描画するテストが
+  「Missing staticfiles manifest entry」で落ちます（CI も同じ順番で流しています）。
+- 全体で2分ほどかかります。
 
 ### 3-4. 開発環境に反映する
 
@@ -106,6 +126,25 @@ git push origin developer
 # 開発環境が今どのコミットで動いているか
 curl -s https://desktop-rmsk0vg.tail8efe0d.ts.net:8443/health/ | head
 ```
+
+### 3-4-2. 開発環境にデモデータを入れる
+
+画面の実動作を見るためのテストデータは、サーバーPCで次を実行すると入ります。
+
+```bash
+docker compose -p kemdev exec web python manage.py seed_demo
+docker compose -p kemdev exec web python manage.py seed_demo --wipe  # 入れ直す
+```
+
+得意先・工種・材料・現場・工程・工期・日報・発注・実行予算・原価・入札案件・通知が
+一通り入ります。何度実行しても増えません（`--wipe` は自分が入れた分だけ消します）。
+
+作業員マスタには触れません。日報と現場配置は既存の作業員を参照するだけです。
+労務費は `Worker.hourly_cost`（実データは全員0）ではなく役職ごとのデモ単価で計上します。
+入札案件は収集済みの想定で投入します（スクレイピングの設定は別途必要）。
+入札参加資格は実データが入っているため対象外です。
+
+**本番では実行しないでください。** デモ用の現場・取引先がそのまま残ります。
 
 ### 3-5. 本番に出す（PM承認）
 

@@ -1,7 +1,7 @@
 from django.contrib import admin
 from simple_history.admin import SimpleHistoryAdmin
 
-from apps.sites.models import Process, Site
+from apps.sites.models import EstimateImport, Process, Site
 
 
 class ProcessInline(admin.TabularInline):
@@ -18,6 +18,16 @@ class SiteAdmin(SimpleHistoryAdmin):
     list_filter = ("status", "company")
     search_fields = ("code", "name")
     inlines = [ProcessInline]
+
+
+@admin.register(EstimateImport)
+class EstimateImportAdmin(SimpleHistoryAdmin):
+    list_display = (
+        "created_at", "filename", "customer", "customer_name_raw",
+        "estimate_number", "amount", "site", "company",
+    )
+    list_filter = ("company",)
+    search_fields = ("filename", "customer_name_raw", "estimate_number")
 
 
 @admin.register(Process)

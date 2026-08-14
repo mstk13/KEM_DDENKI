@@ -1,22 +1,23 @@
 {% extends "base.html" %}
-{% block title %}原価・予実 — {{ APP_NAME }}{% endblock %}
-{% block topbar_title %}原価・予実管理{% endblock %}
+{% block title %}現場見積もり/実経費 — {{ APP_NAME }}{% endblock %}
+{% block topbar_title %}現場見積もり/実経費{% endblock %}
 
 {% block content %}
 <div class="page-header">
-  <h1>原価・予実管理</h1>
+  <h1>現場見積もり/実経費</h1>
+  <a href="{% url 'costs:access_list' %}" class="btn btn-outline">アクセス管理</a>
 </div>
 
 <div class="card">
-  <div class="card-header"><h2>現場別原価サマリ</h2></div>
+  <div class="card-header"><h2>現場別 見積もり vs 実経費</h2></div>
   <div class="table-wrap">
     <table>
       <thead>
         <tr>
           <th>現場</th>
           <th style="text-align:right;">受注金額</th>
-          <th style="text-align:right;">予算</th>
-          <th style="text-align:right;">実績</th>
+          <th style="text-align:right;">見積もり</th>
+          <th style="text-align:right;">実経費</th>
           <th style="text-align:right;">消化率</th>
           <th style="text-align:right;">粗利率</th>
           <th>状態</th>

@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% block title %}納品詳細 — {{ APP_NAME }}{% endblock %}
+{% block topbar_title %}材料管理{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>納品 {{ delivery.delivery_date }} — PO-{{ po.pk }}</h1>
+  <div style="display:flex;gap:8px;align-items:center;">
+    {% if delivery.received %}
+      <span class="badge badge-green">受領済</span>
+    {% else %}
+      <form method="post" action="{% url 'materials:delivery_receive' delivery.pk %}" style="display:inline;">
+        {% csrf_token %}
+        <button class="btn btn-primary btn-sm">受領確認</button>
+      </form>
+    {% endif %}
+    {% if delivery.received and not delivery.inspected %}
+      <form method="post" action="{% url 'materials:delivery_inspect' delivery.pk %}" style="display:inline;">
+        {% csrf_token %}
+        <button class="btn btn-primary btn-sm">検収する</button>
+      </form>
+    {% elif delivery.inspected %}
+      <span class="badge badge-green">検収済</span>
+    {% endif %}
+    <a href="{% url 'materials:po_detail' po.pk %}" class="btn btn-outline btn-sm">← 発注に戻る</a>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+  <div class="card">
+    <div class="card-header"><h2>納品情報</h2></div>
+    <div style="padding:16px;">
+      <table style="width:100%;">
+        <tr><th style="text-align:left;width:30%;">発注書</th><td><a href="{% url 'materials:po_detail' po.pk %}">PO-{{ po.pk }} {{ po.site.name }}</a></td></tr>
+        <tr><th style="text-align:left;">仕入先</th><td>{{ po.supplier }}</td></tr>
+        <tr><th style="text-align:left;">納品日</th><td>{{ delivery.delivery_date }}</td></tr>
+        {% if delivery.received %}<tr><th style="text-align:left;">受領者</th><td>{{ delivery.received_by }} ({{ delivery.received_at|date:"Y/m/d H:i" }})</td></tr>{% endif %}
+        {% if delivery.inspected %}<tr><th style="text-align:left;">検収者</th><td>{{ delivery.inspected_by }} ({{ delivery.inspected_at|date:"Y/m/d H:i" }})</td></tr>{% endif %}
+        {% if delivery.notes %}<tr><th style="text-align:left;">備考</th><td>{{ delivery.notes }}</td></tr>{% endif %}
+      </table>
+    </div>
+  </div>
+
+  {% if delivery.image %}
+  <div class="card">
+    <div class="card-header"><h2>納品書画像</h2></div>
+    <div style="padding:16px;text-align:center;">
+      <img src="{{ delivery.image.url }}" alt="納品書" style="max-width:100%;max-height:400px;border:1px solid #ddd;border-radius:8px;">
+      <div style="margin-top:8px;">
+        <small style="color:#888;">{{ delivery.original_filename|default:"画像" }}</small>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+{# 納品明細 #}
+<div class="card" style="margin-top:20px;">
+  <div class="card-header"><h2>納品明細</h2></div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>材料</th>
+          <th style="text-align:right;">発注数量</th>
+          <th style="text-align:right;">納品数量</th>
+          <th>数量OK</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in items %}
+        <tr{% if not item.is_ok %} style="background:#fff3cd;"{% endif %}>
+          <td>{{ item.material }}</td>
+          <td style="text-align:right;">{{ item.ordered_qty }}</td>
+          <td style="text-align:right;font-weight:600;">{{ item.delivered_qty }}</td>
+          <td>
+            {% if item.is_ok %}<span class="badge badge-green">OK</span>
+            {% else %}<span class="badge badge-orange">差異あり</span>{% endif %}
+          </td>
+          <td>
+            {% if not delivery.inspected %}
+            <a href="{% url 'materials:delivery_item_edit' item.pk %}" class="btn btn-outline btn-xs">編集</a>
+            {% endif %}
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="5"><div class="empty"><p>明細がありません</p></div></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% if delivery.extraction_raw %}
+<div class="card" style="margin-top:20px;">
+  <div class="card-header"><h2>AI読取結果（生データ）</h2></div>
+  <div style="padding:16px;">
+    <pre style="white-space:pre-wrap;font-size:12px;background:#f8f9fa;padding:12px;border-radius:8px;max-height:300px;overflow-y:auto;">{{ delivery.extraction_raw }}</pre>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
