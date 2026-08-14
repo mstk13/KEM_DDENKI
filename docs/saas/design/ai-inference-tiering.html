@@ -1,0 +1,685 @@
+<title>AI推論の3層分割</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+/* ============================================================
+   トークン — 図面(ブループリント)+ 銅線 をモチーフにした配色
+   ============================================================ */
+:root{
+  --ground:#F5F7FA;         /* 製図用紙 */
+  --surface:#FFFFFF;
+  --surface-2:#EDF1F6;
+  --line:#D3DBE5;
+  --line-strong:#B4C0CE;
+  --ink:#151C27;
+  --ink-2:#3E4A5B;
+  --ink-3:#6B7889;          /* 青寄りのグレー */
+  --copper:#B26B2E;         /* 銅線 = アクセント */
+  --copper-soft:#F0E0CE;
+  --tier-a:#1E8B78;         /* 層A 埋め込み */
+  --tier-b:#B26B2E;         /* 層B ローカルLLM */
+  --tier-c:#4B5CC4;         /* 層C Claude API */
+  --warn:#B4541F;
+  --shadow:0 1px 2px rgba(21,28,39,.06),0 8px 24px -12px rgba(21,28,39,.18);
+  --mono:"Cascadia Mono","Consolas","SF Mono",ui-monospace,monospace;
+  --sans:"Yu Gothic UI","Yu Gothic","Hiragino Kaku Gothic ProN","Segoe UI",system-ui,sans-serif;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --ground:#0E131B;
+    --surface:#151C27;
+    --surface-2:#1C2531;
+    --line:#2A3542;
+    --line-strong:#3C4A5A;
+    --ink:#E6ECF3;
+    --ink-2:#B8C4D2;
+    --ink-3:#8494A6;
+    --copper:#D89152;
+    --copper-soft:#3A2A1A;
+    --tier-a:#3FBBA3;
+    --tier-b:#D89152;
+    --tier-c:#7C8AE8;
+    --warn:#E0855A;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px -12px rgba(0,0,0,.6);
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#0E131B; --surface:#151C27; --surface-2:#1C2531;
+  --line:#2A3542; --line-strong:#3C4A5A;
+  --ink:#E6ECF3; --ink-2:#B8C4D2; --ink-3:#8494A6;
+  --copper:#D89152; --copper-soft:#3A2A1A;
+  --tier-a:#3FBBA3; --tier-b:#D89152; --tier-c:#7C8AE8; --warn:#E0855A;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px -12px rgba(0,0,0,.6);
+}
+
+*{box-sizing:border-box}
+body{
+  margin:0; background:var(--ground); color:var(--ink);
+  font-family:var(--sans); font-size:16px; line-height:1.75;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:1000px;margin:0 auto;padding:0 24px 96px}
+
+/* ---------- タイポ ---------- */
+h1,h2,h3{text-wrap:balance;line-height:1.3;margin:0}
+h1{font-size:clamp(28px,4.6vw,44px);font-weight:700;letter-spacing:-.02em}
+h2{font-size:clamp(20px,2.6vw,27px);font-weight:700;letter-spacing:-.01em}
+h3{font-size:16px;font-weight:700}
+p{margin:0;max-width:68ch}
+.eyebrow{
+  font-family:var(--mono);font-size:11px;font-weight:600;
+  letter-spacing:.16em;text-transform:uppercase;color:var(--ink-3);
+}
+.lede{font-size:clamp(16px,2vw,19px);color:var(--ink-2);line-height:1.7}
+.muted{color:var(--ink-3);font-size:14px}
+code,.num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+code{
+  font-size:.88em;background:var(--surface-2);
+  padding:.12em .4em;border-radius:3px;border:1px solid var(--line);
+}
+
+/* ---------- 区切り ---------- */
+section{padding-top:64px}
+.sec-head{display:flex;flex-direction:column;gap:8px;margin-bottom:28px}
+.rule{height:1px;background:var(--line);margin-top:14px}
+
+/* ---------- ヘッダー ---------- */
+header{padding:56px 0 8px}
+.meta{
+  display:flex;flex-wrap:wrap;gap:8px 20px;margin-top:24px;
+  font-family:var(--mono);font-size:12px;color:var(--ink-3);
+}
+.meta b{color:var(--ink-2);font-weight:600}
+
+/* ---------- カード ---------- */
+.grid{display:grid;gap:16px}
+.g3{grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
+.g2{grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}
+.card{
+  background:var(--surface);border:1px solid var(--line);
+  border-radius:8px;padding:20px;box-shadow:var(--shadow);
+}
+.stat{display:flex;flex-direction:column;gap:6px}
+.stat .v{font-family:var(--mono);font-size:34px;font-weight:700;letter-spacing:-.03em;line-height:1}
+.stat .k{font-size:13px;color:var(--ink-3)}
+.stat .n{font-size:13px;color:var(--ink-2);margin-top:4px}
+
+/* 層バッジ */
+.badge{
+  display:inline-flex;align-items:center;gap:6px;
+  font-family:var(--mono);font-size:11px;font-weight:600;letter-spacing:.08em;
+  padding:3px 9px;border-radius:999px;border:1px solid;
+}
+.b-a{color:var(--tier-a);border-color:var(--tier-a);background:color-mix(in srgb,var(--tier-a) 8%,transparent)}
+.b-b{color:var(--tier-b);border-color:var(--tier-b);background:color-mix(in srgb,var(--tier-b) 8%,transparent)}
+.b-c{color:var(--tier-c);border-color:var(--tier-c);background:color-mix(in srgb,var(--tier-c) 8%,transparent)}
+
+/* ---------- 回路図 ---------- */
+.circuit{
+  background:var(--surface);border:1px solid var(--line);border-radius:8px;
+  padding:8px;box-shadow:var(--shadow);overflow-x:auto;
+}
+.circuit svg{display:block;min-width:660px;width:100%;height:auto}
+.wire{fill:none;stroke:var(--line-strong);stroke-width:1.5}
+.wire-a{stroke:var(--tier-a)} .wire-b{stroke:var(--tier-b)} .wire-c{stroke:var(--tier-c)}
+.node{fill:var(--surface-2);stroke:var(--line-strong);stroke-width:1.25}
+.node-lbl{font-family:var(--mono);font-size:11px;fill:var(--ink);font-weight:600}
+.node-sub{font-family:var(--mono);font-size:9px;fill:var(--ink-3)}
+.pulse{r:4.5;stroke:var(--surface);stroke-width:1.5}
+@keyframes flow{from{offset-distance:0%}to{offset-distance:100%}}
+.pulse{animation:flow 2.4s cubic-bezier(.5,0,.5,1) infinite}
+.p1{offset-path:path("M 150 96 C 210 96 210 52 268 52");fill:var(--tier-a);animation-delay:0s}
+.p2{offset-path:path("M 150 96 L 268 96");fill:var(--tier-b);animation-delay:.8s}
+.p3{offset-path:path("M 150 96 C 210 96 210 140 268 140");fill:var(--tier-c);animation-delay:1.6s}
+
+/* ---------- 表 ---------- */
+.tbl-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:8px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;min-width:560px;font-size:14px}
+th,td{padding:11px 14px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}
+thead th{
+  font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--ink-3);font-weight:600;background:var(--surface-2);white-space:nowrap;
+}
+tbody tr:last-child td{border-bottom:none}
+td.n{font-family:var(--mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+
+/* ---------- 損益分岐 ---------- */
+.calc{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:24px;box-shadow:var(--shadow)}
+.calc-ctl{display:flex;flex-wrap:wrap;gap:20px;align-items:flex-end;margin-bottom:24px}
+.field{display:flex;flex-direction:column;gap:7px;flex:1;min-width:230px}
+.field label{font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3)}
+input[type=range]{width:100%;accent-color:var(--copper);cursor:pointer}
+.seg{display:flex;border:1px solid var(--line-strong);border-radius:6px;overflow:hidden}
+.seg button{
+  flex:1;border:0;background:var(--surface);color:var(--ink-2);cursor:pointer;
+  font-family:var(--mono);font-size:12px;padding:9px 12px;transition:background .15s,color .15s;
+}
+.seg button+button{border-left:1px solid var(--line-strong)}
+.seg button[aria-pressed=true]{background:var(--copper);color:#fff;font-weight:600}
+.seg button:focus-visible,input:focus-visible{outline:2px solid var(--copper);outline-offset:2px}
+.bars{display:flex;flex-direction:column;gap:14px}
+.bar-row{display:grid;grid-template-columns:118px 1fr auto;gap:14px;align-items:center}
+.bar-row .lbl{font-family:var(--mono);font-size:12px;color:var(--ink-2)}
+.track{height:26px;background:var(--surface-2);border-radius:4px;overflow:hidden;border:1px solid var(--line)}
+.fill{height:100%;border-radius:3px 0 0 3px;transition:width .45s cubic-bezier(.4,0,.2,1)}
+.f-api{background:var(--tier-c)} .f-loc{background:var(--tier-a)}
+.bar-row .amt{font-family:var(--mono);font-size:14px;font-weight:600;min-width:82px;text-align:right;font-variant-numeric:tabular-nums}
+.verdict{
+  margin-top:22px;padding:14px 16px;border-radius:6px;font-size:14px;
+  border:1px solid var(--line);background:var(--surface-2);
+}
+.verdict b{font-family:var(--mono);font-variant-numeric:tabular-nums}
+
+/* ---------- VRAM ---------- */
+.vram{display:flex;flex-direction:column;gap:10px}
+.vbar{display:grid;grid-template-columns:150px 1fr;gap:14px;align-items:center}
+.vbar .nm{font-family:var(--mono);font-size:12px;color:var(--ink-2)}
+.vtrack{height:24px;background:var(--surface-2);border:1px solid var(--line);border-radius:4px;display:flex;overflow:hidden}
+.vseg{height:100%;display:flex;align-items:center;padding-left:7px;font-family:var(--mono);font-size:10px;color:#fff;white-space:nowrap;overflow:hidden}
+
+/* ---------- 手順 ---------- */
+ol.steps{list-style:none;counter-reset:s;padding:0;margin:0;display:flex;flex-direction:column;gap:14px}
+ol.steps li{
+  counter-increment:s;position:relative;padding:18px 20px 18px 62px;
+  background:var(--surface);border:1px solid var(--line);border-radius:8px;box-shadow:var(--shadow);
+}
+ol.steps li::before{
+  content:counter(s);position:absolute;left:20px;top:18px;
+  font-family:var(--mono);font-size:13px;font-weight:700;color:var(--copper);
+  width:26px;height:26px;border:1.5px solid var(--copper);border-radius:50%;
+  display:grid;place-items:center;
+}
+ul.tight{margin:10px 0 0;padding-left:20px;color:var(--ink-2);font-size:14.5px}
+ul.tight li{margin:5px 0}
+
+.note{
+  border-left:3px solid var(--warn);background:var(--surface);
+  padding:16px 20px;border-radius:0 6px 6px 0;border-top:1px solid var(--line);
+  border-right:1px solid var(--line);border-bottom:1px solid var(--line);
+}
+
+/* ---------- 出現アニメ ---------- */
+.reveal{opacity:0;transform:translateY(14px);transition:opacity .6s ease,transform .6s cubic-bezier(.2,.7,.3,1)}
+.reveal.in{opacity:1;transform:none}
+
+@media (prefers-reduced-motion:reduce){
+  *,*::before{animation:none!important;transition:none!important}
+  .reveal{opacity:1;transform:none}
+}
+</style>
+
+<div class="wrap">
+
+<header>
+  <div class="eyebrow">ADR-0010 · 設計判断の記録</div>
+  <h1 style="margin-top:12px">AI推論の3層分割</h1>
+  <p class="lede" style="margin-top:16px">
+    KEM_DDENKI のAI機能を、<b>埋め込み・ローカルLLM・Claude API</b> の3層に分けて振り分ける。
+    判断の根拠は「品質が価値の中核になるタスクだけAPIに残す」の一点で、
+    コスト削減はその副次効果として扱う。
+  </p>
+  <div class="meta">
+    <span><b>対象</b> apps/ai · apps/estimation</span>
+    <span><b>実行環境</b> DESKTOP-RMSK0VG (本番8000 / 開発8001)</span>
+    <span><b>GPU</b> RTX 3060 12GB</span>
+    <span><b>作成</b> 2026-08-14</span>
+  </div>
+</header>
+
+<!-- ========== 数字 ========== -->
+<section class="reveal">
+  <div class="sec-head">
+    <div class="eyebrow">判断の土台</div>
+    <h2>実測から出発する</h2>
+    <div class="rule"></div>
+  </div>
+  <p style="margin-bottom:22px">
+    設計の前に <code>ai_ailog</code> を集計した。推定値ではなく、実際に走った3件のトークン数と課金額が根拠になっている。
+  </p>
+  <div class="grid g3">
+    <div class="card stat">
+      <span class="v" style="color:var(--copper)">¥1.2</span>
+      <span class="k">分析系1呼び出しの実測コスト</span>
+      <span class="n">Haiku · 平均 634 in / 1,529 out · $1=152円</span>
+    </div>
+    <div class="card stat">
+      <span class="v">0<span style="font-size:20px;color:var(--ink-3)">件</span></span>
+      <span class="k">本番でのAI呼び出し実績</span>
+      <span class="n">saas-db-1 の ai_ailog は空。設計を決める好機</span>
+    </div>
+    <div class="card stat">
+      <span class="v">13<span style="font-size:20px;color:var(--ink-3)">秒</span></span>
+      <span class="k">平均レイテンシ</span>
+      <span class="n">同期呼び出し。ローカル8Bなら約33秒</span>
+    </div>
+  </div>
+
+  <div class="note" style="margin-top:20px">
+    <b>前提の訂正。</b> 当初「本番は別サーバー」と想定して設計したが、
+    <code>~/kem-ops/autodeploy.conf</code> と <code>hostname</code> の確認により、
+    <b>本番・開発の2スタックとも同一のこのPCが実体</b>だと判明した。
+    これによりローカル推論は本番コストに直接効き、リモート推論エンドポイントを介する構成は不要になった。
+    代わりに「同一PCの前景利用とGPUを取り合う」制約が新たに発生する。
+  </div>
+</section>
+
+<!-- ========== 回路図 ========== -->
+<section class="reveal">
+  <div class="sec-head">
+    <div class="eyebrow">図1</div>
+    <h2>振り分けの構造</h2>
+    <div class="rule"></div>
+  </div>
+  <p style="margin-bottom:22px">
+    Django から出たリクエストを、タスク種別で3つの経路に落とす。分電盤から回路が分岐するのと同じ形で、
+    どの負荷をどの系統に載せるかを最初に決めておく。
+  </p>
+
+  <div class="circuit">
+    <svg viewBox="0 0 700 200" role="img" aria-label="Djangoアプリからルーターを経て3層に分岐する構成図">
+      <!-- 配線 -->
+      <path class="wire wire-a" d="M 150 96 C 210 96 210 52 268 52"/>
+      <path class="wire wire-b" d="M 150 96 L 268 96"/>
+      <path class="wire wire-c" d="M 150 96 C 210 96 210 140 268 140"/>
+      <path class="wire wire-a" d="M 452 52 L 520 52"/>
+      <path class="wire wire-b" d="M 452 96 L 520 96"/>
+      <path class="wire wire-c" d="M 452 140 L 520 140"/>
+
+      <!-- 発信元 -->
+      <rect class="node" x="14" y="72" width="136" height="48" rx="5"/>
+      <text class="node-lbl" x="30" y="92">Django</text>
+      <text class="node-sub" x="30" y="107">saas-web-1 : 8000</text>
+
+      <!-- 3層 -->
+      <rect class="node" x="268" y="32" width="184" height="40" rx="5" style="stroke:var(--tier-a)"/>
+      <text class="node-lbl" x="282" y="49" style="fill:var(--tier-a)">層A  埋め込み照合</text>
+      <text class="node-sub" x="282" y="63">ruri-v3-310m · 0.5GB · 数十ms</text>
+
+      <rect class="node" x="268" y="76" width="184" height="40" rx="5" style="stroke:var(--tier-b)"/>
+      <text class="node-lbl" x="282" y="93" style="fill:var(--tier-b)">層B  構造化・抽出</text>
+      <text class="node-sub" x="282" y="107">Qwen3-8B Q4 · 5GB · 50 tok/s</text>
+
+      <rect class="node" x="268" y="120" width="184" height="40" rx="5" style="stroke:var(--tier-c)"/>
+      <text class="node-lbl" x="282" y="137" style="fill:var(--tier-c)">層C  分析・提案</text>
+      <text class="node-sub" x="282" y="151">Claude Sonnet · API</text>
+
+      <!-- 実行先 -->
+      <rect class="node" x="520" y="32" width="166" height="84" rx="5"/>
+      <text class="node-lbl" x="536" y="58">ローカル GPU</text>
+      <text class="node-sub" x="536" y="74">RTX 3060 · VRAM 12GB</text>
+      <text class="node-sub" x="536" y="88">host.docker.internal:11434</text>
+
+      <rect class="node" x="520" y="120" width="166" height="40" rx="5"/>
+      <text class="node-lbl" x="536" y="137">Anthropic API</text>
+      <text class="node-sub" x="536" y="151">従量課金 · 月上限 ¥4,000</text>
+
+      <!-- 流れる電流 -->
+      <circle class="pulse p1"/>
+      <circle class="pulse p2"/>
+      <circle class="pulse p3"/>
+    </svg>
+  </div>
+</section>
+
+<!-- ========== 判断表 ========== -->
+<section class="reveal">
+  <div class="sec-head">
+    <div class="eyebrow">図2</div>
+    <h2>どのタスクをどの層に置くか</h2>
+    <div class="rule"></div>
+  </div>
+  <div class="tbl-wrap">
+    <table>
+      <thead>
+        <tr><th>層</th><th>対象タスク</th><th>実装箇所</th><th>判断の根拠</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span class="badge b-a">層A</span></td>
+          <td>品目名マッチング</td>
+          <td><code>matching.py:135</code><br><span class="muted">_match_by_llm</span></td>
+          <td>品目名の類似判定は本来LLMを必要としない。ベクトル類似度で置き換えれば品質リスクなしに呼び出しが丸ごと消える。<b>最優先</b></td>
+        </tr>
+        <tr>
+          <td><span class="badge b-b">層B</span></td>
+          <td>労務単価PDF構造化<br>納品書OCR<br>取引先抽出</td>
+          <td><code>labor_pdf.py:186</code><br><span class="muted">structure_page_with_llm</span></td>
+          <td>定型JSONへの変換。バッチで非同期に走るため、1ページ130秒でも実害がない。<code>max_tokens=4000</code>×ページ数で呼び出し回数が伸びやすい</td>
+        </tr>
+        <tr>
+          <td><span class="badge b-c">層C</span></td>
+          <td>コスト最適化提案<br>工程提案<br>工程リスク分析</td>
+          <td><code>llm_advisor.py:279-347</code></td>
+          <td>電力で負けるからではなく<b>品質とレイテンシ</b>のため据え置く。文脈判断が機能の価値そのもので、かつ画面から同期的に呼ばれるため 13秒→33秒 はUXの劣化になる</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ========== 損益分岐 ========== -->
+<section class="reveal">
+  <div class="sec-head">
+    <div class="eyebrow">図3 · 操作できます</div>
+    <h2>損益分岐はどこか</h2>
+    <div class="rule"></div>
+  </div>
+  <p style="margin-bottom:22px">
+    ローカル側の費用はほぼ<b>電気代の固定費</b>で、呼び出し回数にほとんど比例しない。
+    APIは完全な従量制。この形の違いが分岐点を決める。前提は31円/kWh、GPUアイドル増分8W、推論時140W。
+  </p>
+
+  <div class="calc">
+    <div class="calc-ctl">
+      <div class="field">
+        <label for="calls">月間呼び出し回数 — <span id="callsOut" class="num">300</span> 回</label>
+        <input type="range" id="calls" min="0" max="3000" step="25" value="300">
+      </div>
+      <div class="field" style="max-width:280px">
+        <label>タスク種別</label>
+        <div class="seg" role="group" aria-label="タスク種別">
+          <button id="tAnalysis" aria-pressed="true">分析系 ¥1.22/回</button>
+          <button id="tExtract" aria-pressed="false">抽出系 ¥0.18/回</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="bars">
+      <div class="bar-row">
+        <span class="lbl">Claude API</span>
+        <div class="track"><div class="fill f-api" id="barApi" style="width:0%"></div></div>
+        <span class="amt" id="amtApi">¥0</span>
+      </div>
+      <div class="bar-row">
+        <span class="lbl">ローカル推論</span>
+        <div class="track"><div class="fill f-loc" id="barLoc" style="width:0%"></div></div>
+        <span class="amt" id="amtLoc">¥0</span>
+      </div>
+    </div>
+
+    <div class="verdict" id="verdict"></div>
+  </div>
+
+  <div class="grid g2" style="margin-top:24px">
+    <div class="card">
+      <h3>1回あたりの実費</h3>
+      <div class="tbl-wrap" style="margin-top:12px;border:none">
+        <table style="min-width:0">
+          <thead><tr><th></th><th style="text-align:right">費用</th><th style="text-align:right">所要</th></tr></thead>
+          <tbody>
+            <tr><td>Claude API 分析系</td><td class="n" style="text-align:right">¥1.22</td><td class="n" style="text-align:right">13秒</td></tr>
+            <tr><td>Claude API 抽出系</td><td class="n" style="text-align:right">¥0.18</td><td class="n" style="text-align:right">—</td></tr>
+            <tr><td><b>ローカル 8B</b></td><td class="n" style="text-align:right;color:var(--tier-a);font-weight:700">¥0.04</td><td class="n" style="text-align:right">33秒</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="muted" style="margin-top:12px;font-size:13px">
+        30秒 × 140W = 0.00117kWh × 31円/kWh = 0.036円。電力単価だけを見ればローカルが負ける場面はない。
+      </p>
+    </div>
+    <div class="card">
+      <h3><code>keep_alive</code> はリクエスト単位で使い分ける</h3>
+      <p class="muted" style="margin-top:10px;font-size:14.5px">
+        環境変数で一律 <code>OLLAMA_KEEP_ALIVE=0</code> にすると固定費は消えるが、
+        毎回3〜5秒のロードが乗る。<b>50ページのバッチで毎回解放すると約3分がロードだけで消える。</b>
+      </p>
+      <ul class="tight">
+        <li>単発呼び出し … <code>"keep_alive": 0</code>（固定費ゼロ）</li>
+        <li>バッチ処理中 … <code>"keep_alive": "10m"</code>（保持電力は1時間で約0.25円）</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ========== 本当の価値 ========== -->
+<section class="reveal">
+  <div class="sec-head">
+    <div class="eyebrow">この設計の狙い</div>
+    <h2>削減額よりも、止まらないこと</h2>
+    <div class="rule"></div>
+  </div>
+  <p style="margin-bottom:22px">
+    正直なところ削減額は年間5,000円前後にすぎず、<code>AI_MONTHLY_BUDGET_JPY=4000</code> の上限が効くため
+    青天井にもならない。<b>費用削減だけを目的にするなら投資対効果は薄い。</b>実際の価値は次の2点にある。
+  </p>
+  <div class="grid g2">
+    <div class="card">
+      <h3>予算上限でAI機能が止まらなくなる</h3>
+      <p class="muted" style="margin-top:10px;font-size:14.5px">
+        現在 <code>check_budget_and_notify()</code> は上限到達時にAI機能を丸ごと停止する
+        （<code>llm_advisor.py:161-169</code>）。層A・層Bをローカルへ逃がせば、
+        上限に当たるのは層Cだけになり、業務が止まる範囲が狭まる。
+      </p>
+    </div>
+    <div class="card">
+      <h3><code>bulk_match</code> を気兼ねなく回せる</h3>
+      <p class="muted" style="margin-top:10px;font-size:14.5px">
+        従量課金では数千件の一括マッチングを躊躇するが、電気代なら実行を我慢する理由がなくなる。
+        使える機能を実際に使える状態にする、という効果のほうが大きい。
+      </p>
+    </div>
+  </div>
+  <div class="note" style="margin-top:20px;border-left-color:var(--tier-a)">
+    <b>機能は一つも削らない。</b> 品質が価値の中核でないタスクだけ実行先を変える。
+    コスト最適化はその結果であって、目的ではない。
+  </div>
+</section>
+
+<!-- ========== VRAM ========== -->
+<section class="reveal">
+  <div class="sec-head">
+    <div class="eyebrow">図4</div>
+    <h2>なぜ 8B なのか</h2>
+    <div class="rule"></div>
+  </div>
+  <p style="margin-bottom:22px">
+    VRAM 12,288MiB のうち617MiBはデスクトップ描画が使用中。残り約11GBの収まり方でモデルサイズが決まる。
+    <code>labor_pdf</code> は本文3,000字＋テーブルJSONを入力し4,000トークンを出力するため、
+    コンテキスト用の余白を確保できるかが選定の分かれ目になる。
+  </p>
+  <div class="vram" id="vram"></div>
+  <p class="muted" style="margin-top:18px">
+    14Bは品質で勝るが、50ページのPDFで1.8時間かかり、埋め込みモデルとの同時常駐で余白が消える。
+    20B級（gpt-oss-20b等）はコンテキストを伸ばした時点で確実に溢れるため対象外とした。
+  </p>
+</section>
+
+<!-- ========== 実装 ========== -->
+<section class="reveal">
+  <div class="sec-head">
+    <div class="eyebrow">実装詳細</div>
+    <h2>コードに落とすとどうなるか</h2>
+    <div class="rule"></div>
+  </div>
+  <div class="grid g2">
+    <div class="card">
+      <h3><span class="badge b-a">層A</span> &nbsp;埋め込み照合の挿入</h3>
+      <p class="muted" style="margin-top:10px">apps/estimation/services/matching.py</p>
+      <ul class="tight">
+        <li><code>_match_by_embedding()</code> を新設し、<code>_match_by_spec</code> の後・<code>_match_by_llm</code> の前に挿入</li>
+        <li><code>EstimationItem</code> にベクトル列を追加。件数規模ならpgvector不要、numpyの総当たりで足りる</li>
+        <li>閾値未満のときだけ既存の <code>_match_by_llm</code> にフォールバック</li>
+        <li>CPU実行で完結するためGPU競合の影響を受けない</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3><span class="badge b-b">層B</span> &nbsp;プロバイダ抽象の追加</h3>
+      <p class="muted" style="margin-top:10px">apps/ai/services/llm_advisor.py</p>
+      <ul class="tight">
+        <li><code>MODEL_CONFIG</code>（L42-59）に <code>"local"</code> キーを追加。<code>display</code> には既存の <code>AILog.ModelType.CUSTOM</code> を割り当てる</li>
+        <li><code>_call_claude()</code> をディスパッチャに分離し、local時はOllamaの <code>/api/chat</code> を叩く</li>
+        <li><code>_calculate_cost()</code> はlocal時に <code>Decimal("0")</code> を返す。AILogの記録経路は共通のまま維持</li>
+        <li>既存の <code>_parse_json_response()</code> はそのまま流用できる</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>フォールバック</h3>
+      <ul class="tight" style="margin-top:12px">
+        <li>ローカル側がVRAM不足・タイムアウト・接続失敗のいずれかなら、その場でClaude APIに切り替える</li>
+        <li>機能を落とすのではなく、コストを払って動く方に倒す。業務システムとして可用性を優先する</li>
+        <li>切り替え発生は <code>AILog.model_used</code> の分布で事後に追える</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>運用設定</h3>
+      <ul class="tight" style="margin-top:12px">
+        <li>Ollamaは<b>Windowsネイティブ</b>で稼働。WSL内に置くと <code>memory=12GB</code> 制限を食い、GPUパススルーの損失も乗る</li>
+        <li>コンテナからは <code>host.docker.internal:11434</code> で到達</li>
+        <li><code>OLLAMA_NUM_THREAD=4</code>。6コアのうち2つをDjango/Postgres用に残す</li>
+        <li><code>keep_alive</code> は環境変数で固定せず、リクエスト単位で指定する（単発は <code>0</code>、バッチ中は <code>"10m"</code>）</li>
+        <li>バッチは既存の12:30自動バックアップと同じ夜間スケジュールに寄せる</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ========== リスク ========== -->
+<section class="reveal">
+  <div class="sec-head">
+    <div class="eyebrow">残るリスク</div>
+    <h2>前景利用との競合</h2>
+    <div class="rule"></div>
+  </div>
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th>リスク</th><th>影響</th><th>対処</th></tr></thead>
+      <tbody>
+        <tr><td>VRAMの取り合い</td><td>本番AI機能がロード失敗・タイムアウト</td><td>API自動フォールバック（実装済み前提）＋ <code>KEEP_ALIVE=0</code></td></tr>
+        <tr><td>連続推論中の発熱</td><td>アイドル56℃。推論時70〜80℃でファン音</td><td><b>定格運用で許容する。</b>ファン音は問題にならないため電力制限はかけない。LLM推論はメモリ帯域律速で実消費は140W前後に収まり、上限を絞っても費用はほぼ変わらず速度だけ約10%落ちる</td></tr>
+        <tr><td>ローカル出力のJSON崩れ</td><td>パース失敗が増える</td><td>既存 <code>_parse_json_response()</code> の失敗時にAPIへ再試行。Claude結果との突き合わせ検証を導入前に実施</td></tr>
+        <tr><td>単一障害点</td><td>このPC停止で本番停止</td><td><b>新規リスクではない</b>。既に本番がこのPCで動いており、LLM追加で増える依存はない</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ========== 手順 ========== -->
+<section class="reveal">
+  <div class="sec-head">
+    <div class="eyebrow">導入順序</div>
+    <h2>効果の大きい順に進める</h2>
+    <div class="rule"></div>
+  </div>
+  <ol class="steps">
+    <li>
+      <h3>層A — 埋め込みマッチングの導入</h3>
+      <p class="muted" style="margin-top:6px">GPU不要・CPUで完結。本番のAPI呼び出しが実際に減る唯一の即効施策で、品質リスクを伴わない。ここから着手する。</p>
+    </li>
+    <li>
+      <h3>Ollama + Qwen3-8B の検証</h3>
+      <p class="muted" style="margin-top:6px"><code>labor_pdf</code> の構造化をローカルに切り替え、既存のClaude出力と突き合わせて精度を確認する。合格するまで本番へは入れない。</p>
+    </li>
+    <li>
+      <h3>プロバイダ抽象とフォールバックの実装</h3>
+      <p class="muted" style="margin-top:6px"><code>llm_advisor.py</code> にlocalプロバイダとAPI退避を追加。AILogの記録形式は変えず、既存のコスト監視をそのまま活かす。</p>
+    </li>
+    <li>
+      <h3>層Cは触らない</h3>
+      <p class="muted" style="margin-top:6px">分析・提案系はClaude Sonnetのまま据え置く。ここを削ると機能の価値そのものが落ちる。</p>
+    </li>
+  </ol>
+</section>
+
+<footer style="margin-top:72px;padding-top:22px;border-top:1px solid var(--line)">
+  <p class="muted">
+    KEM_DDENKI · docs/saas/design/ai-inference-tiering.html ·
+    関連: ADR-0006（Claude API統合）, ADR-0008（見積アプリ）
+  </p>
+</footer>
+
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ---- 損益分岐 ---- */
+  var IDLE = 180;              // 月間アイドル電力 (円)
+  var RATES = { analysis: 1.22, extract: 0.18 };
+  var mode = "analysis";
+
+  var $ = function(id){ return document.getElementById(id); };
+  var calls = $("calls");
+
+  function yen(v){ return "¥" + Math.round(v).toLocaleString("ja-JP"); }
+
+  function render(){
+    var n = Number(calls.value);
+    var rate = RATES[mode];
+    var api = n * rate;
+    // ローカル: アイドル固定費 + 推論電力(1回あたり約0.04円)
+    var loc = IDLE + n * 0.04;
+    var max = Math.max(api, loc, 1);
+
+    $("callsOut").textContent = n.toLocaleString("ja-JP");
+    $("barApi").style.width = (api / max * 100) + "%";
+    $("barLoc").style.width = (loc / max * 100) + "%";
+    $("amtApi").textContent = yen(api);
+    $("amtLoc").textContent = yen(loc);
+
+    var be = Math.ceil(IDLE / (rate - 0.04));
+    var v = $("verdict");
+    if (n < be) {
+      v.innerHTML = "この回数では <b>APIの方が安い</b>。分岐点は <b>月" +
+        be.toLocaleString("ja-JP") + "回</b>（1日あたり約" + Math.ceil(be/30) +
+        "回）で、そこを超えるとローカルが逆転する。";
+    } else {
+      v.innerHTML = "ローカルが <b>月" + yen(api - loc) + "</b> 安い（年間 " +
+        yen((api - loc) * 12) + "）。分岐点は月" + be.toLocaleString("ja-JP") + "回。";
+    }
+  }
+
+  calls.addEventListener("input", render);
+  $("tAnalysis").addEventListener("click", function(){
+    mode = "analysis";
+    this.setAttribute("aria-pressed","true");
+    $("tExtract").setAttribute("aria-pressed","false");
+    render();
+  });
+  $("tExtract").addEventListener("click", function(){
+    mode = "extract";
+    this.setAttribute("aria-pressed","true");
+    $("tAnalysis").setAttribute("aria-pressed","false");
+    render();
+  });
+  render();
+
+  /* ---- VRAM 収支 ---- */
+  var TOTAL = 12288;
+  var plans = [
+    { nm:"現在（デスクトップのみ）", segs:[["描画",617,"var(--ink-3)"]] },
+    { nm:"推奨: 8B + 埋め込み",      segs:[["描画",617,"var(--ink-3)"],["Qwen3-8B Q4",5100,"var(--tier-b)"],["埋め込み",620,"var(--tier-a)"],["KVキャッシュ",1800,"var(--copper-soft)"]] },
+    { nm:"14B 構成",                 segs:[["描画",617,"var(--ink-3)"],["Qwen3-14B Q4",9200,"var(--tier-b)"],["KVキャッシュ",1800,"var(--copper-soft)"]] }
+  ];
+  var host = $("vram");
+  plans.forEach(function(p){
+    var used = p.segs.reduce(function(a,s){ return a + s[1]; }, 0);
+    var free = Math.max(TOTAL - used, 0);
+    var row = document.createElement("div");
+    row.className = "vbar";
+    var segs = p.segs.map(function(s){
+      var w = (s[1] / TOTAL * 100).toFixed(2);
+      var dark = s[2] === "var(--copper-soft)";
+      return '<div class="vseg" style="width:' + w + '%;background:' + s[2] +
+             (dark ? ";color:var(--ink-2)" : "") + '" title="' + s[0] + ' ' + s[1] + 'MiB">' +
+             (Number(w) > 11 ? s[0] : "") + "</div>";
+    }).join("");
+    row.innerHTML = '<span class="nm">' + p.nm + '</span>' +
+      '<div><div class="vtrack">' + segs + '</div>' +
+      '<div class="muted" style="font-size:11.5px;margin-top:5px;font-family:var(--mono)">使用 ' +
+      (used/1024).toFixed(1) + 'GB / 空き ' + (free/1024).toFixed(1) + 'GB</div></div>';
+    host.appendChild(row);
+  });
+
+  /* ---- 出現アニメ ---- */
+  if (!window.matchMedia || !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    var io = new IntersectionObserver(function(entries){
+      entries.forEach(function(e){
+        if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); }
+      });
+    }, { rootMargin: "0px 0px -60px 0px" });
+    document.querySelectorAll(".reveal").forEach(function(el){ io.observe(el); });
+  } else {
+    document.querySelectorAll(".reveal").forEach(function(el){ el.classList.add("in"); });
+  }
+})();
+</script>
