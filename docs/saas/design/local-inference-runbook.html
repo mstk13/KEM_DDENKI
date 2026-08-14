@@ -1,0 +1,502 @@
+<title>ローカル推論ランブック</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+:root{
+  --ground:#F5F7FA; --surface:#FFFFFF; --surface-2:#EDF1F6; --code-bg:#EEF2F7;
+  --line:#D3DBE5; --line-strong:#B4C0CE;
+  --ink:#151C27; --ink-2:#3E4A5B; --ink-3:#6B7889;
+  --copper:#B26B2E; --tier-a:#1E8B78; --tier-b:#B26B2E; --tier-c:#4B5CC4;
+  --warn:#B4541F; --ok:#1E8B78;
+  --shadow:0 1px 2px rgba(21,28,39,.06),0 8px 24px -12px rgba(21,28,39,.18);
+  --mono:"Cascadia Mono","Consolas","SF Mono",ui-monospace,monospace;
+  --sans:"Yu Gothic UI","Yu Gothic","Hiragino Kaku Gothic ProN","Segoe UI",system-ui,sans-serif;
+}
+@media (prefers-color-scheme:dark){ :root:not([data-theme="light"]){
+  --ground:#0E131B; --surface:#151C27; --surface-2:#1C2531; --code-bg:#111823;
+  --line:#2A3542; --line-strong:#3C4A5A;
+  --ink:#E6ECF3; --ink-2:#B8C4D2; --ink-3:#8494A6;
+  --copper:#D89152; --tier-a:#3FBBA3; --tier-b:#D89152; --tier-c:#7C8AE8;
+  --warn:#E0855A; --ok:#3FBBA3;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px -12px rgba(0,0,0,.6);
+}}
+:root[data-theme="dark"]{
+  --ground:#0E131B; --surface:#151C27; --surface-2:#1C2531; --code-bg:#111823;
+  --line:#2A3542; --line-strong:#3C4A5A;
+  --ink:#E6ECF3; --ink-2:#B8C4D2; --ink-3:#8494A6;
+  --copper:#D89152; --tier-a:#3FBBA3; --tier-b:#D89152; --tier-c:#7C8AE8;
+  --warn:#E0855A; --ok:#3FBBA3;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px -12px rgba(0,0,0,.6);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--ground);color:var(--ink);font-family:var(--sans);font-size:15.5px;line-height:1.75;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1040px;margin:0 auto;padding:0 24px 96px}
+h1,h2,h3,h4{text-wrap:balance;line-height:1.32;margin:0}
+h1{font-size:clamp(27px,4.4vw,42px);font-weight:700;letter-spacing:-.02em}
+h2{font-size:clamp(19px,2.5vw,26px);font-weight:700;letter-spacing:-.01em}
+h3{font-size:16.5px;font-weight:700}
+h4{font-size:14px;font-weight:700;color:var(--ink-2)}
+p{margin:0;max-width:70ch}
+.eyebrow{font-family:var(--mono);font-size:11px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-3)}
+.lede{font-size:clamp(15.5px,2vw,18px);color:var(--ink-2)}
+.muted{color:var(--ink-3);font-size:13.5px}
+code{font-family:var(--mono);font-size:.88em;background:var(--surface-2);padding:.12em .4em;border-radius:3px;border:1px solid var(--line)}
+pre{margin:0;background:var(--code-bg);border:1px solid var(--line);border-radius:6px;padding:15px 17px;overflow-x:auto}
+pre code{background:none;border:none;padding:0;font-size:12.8px;line-height:1.65;display:block;white-space:pre}
+.cm{color:var(--ink-3)} .st{color:var(--tier-a)} .kw{color:var(--tier-c);font-weight:600} .hl{color:var(--copper);font-weight:600}
+section{padding-top:60px}
+.sec-head{display:flex;flex-direction:column;gap:7px;margin-bottom:24px}
+.rule{height:1px;background:var(--line);margin-top:12px}
+header{padding:52px 0 4px}
+.meta{display:flex;flex-wrap:wrap;gap:7px 20px;margin-top:22px;font-family:var(--mono);font-size:12px;color:var(--ink-3)}
+.meta b{color:var(--ink-2);font-weight:600}
+.grid{display:grid;gap:16px}
+.g2{grid-template-columns:repeat(auto-fit,minmax(320px,1fr))}
+.g3{grid-template-columns:repeat(auto-fit,minmax(210px,1fr))}
+.g4{grid-template-columns:repeat(auto-fit,minmax(160px,1fr))}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:20px;box-shadow:var(--shadow)}
+.card.flush{padding:0;overflow:hidden}
+.card.flush .hd{padding:16px 20px;border-bottom:1px solid var(--line);background:var(--surface-2)}
+.card.flush .bd{padding:20px}
+.stat{display:flex;flex-direction:column;gap:5px}
+.stat .v{font-family:var(--mono);font-size:29px;font-weight:700;letter-spacing:-.03em;line-height:1;font-variant-numeric:tabular-nums}
+.stat .k{font-size:12.5px;color:var(--ink-3)}
+.tbl-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:8px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;min-width:520px;font-size:14px}
+th,td{padding:10px 14px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}
+thead th{font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);font-weight:600;background:var(--surface-2);white-space:nowrap}
+tbody tr:last-child td{border-bottom:none}
+td.n{font-family:var(--mono);font-variant-numeric:tabular-nums;white-space:nowrap;text-align:right}
+.note{border-left:3px solid var(--warn);background:var(--surface);padding:15px 19px;border-radius:0 6px 6px 0;border-top:1px solid var(--line);border-right:1px solid var(--line);border-bottom:1px solid var(--line)}
+.note.good{border-left-color:var(--ok)}
+.note h4{margin-bottom:6px}
+/* 類似度バー */
+.simrow{display:grid;grid-template-columns:1fr 62px 150px;gap:12px;align-items:center;padding:7px 0;border-bottom:1px solid var(--line)}
+.simrow:last-child{border-bottom:none}
+.simrow .t{font-size:13.5px}
+.simrow .s{font-family:var(--mono);font-size:13px;font-weight:700;text-align:right;font-variant-numeric:tabular-nums}
+.simtrack{height:9px;background:var(--surface-2);border-radius:5px;overflow:hidden;border:1px solid var(--line)}
+.simfill{height:100%;border-radius:4px;transition:width .8s cubic-bezier(.3,.8,.3,1);width:0}
+ul.tight{margin:9px 0 0;padding-left:19px;color:var(--ink-2);font-size:14.5px}
+ul.tight li{margin:5px 0}
+dl.kv{display:grid;grid-template-columns:auto 1fr;gap:6px 18px;margin:12px 0 0;font-size:14px}
+dl.kv dt{font-family:var(--mono);font-size:12px;color:var(--ink-3);white-space:nowrap;padding-top:2px}
+dl.kv dd{margin:0;color:var(--ink-2)}
+a{color:var(--copper);text-decoration:none;border-bottom:1px solid color-mix(in srgb,var(--copper) 35%,transparent)}
+a:hover{border-bottom-color:var(--copper)}
+a:focus-visible{outline:2px solid var(--copper);outline-offset:2px;border-radius:2px}
+.reveal{opacity:0;transform:translateY(12px);transition:opacity .55s ease,transform .55s cubic-bezier(.2,.7,.3,1)}
+.reveal.in{opacity:1;transform:none}
+@media (prefers-reduced-motion:reduce){*,*::before{animation:none!important;transition:none!important}.reveal{opacity:1;transform:none}.simfill{transition:none}}
+</style>
+
+<div class="wrap">
+
+<header>
+  <div class="eyebrow">開発者向けリファレンス · KEM_DDENKI</div>
+  <h1 style="margin-top:11px">ローカル推論ランブック</h1>
+  <p class="lede" style="margin-top:15px">
+    ADR-0010 で決めた3層分割のうち、層A（埋め込み）と層B（構造化）を動かす基盤。
+    導入済みの2モデルについて、何がどう動いているのか、どう呼ぶのか、
+    そして<b>実測して分かった落とし穴</b>をまとめる。数値はすべてこのPCでの実測値。
+  </p>
+  <div class="meta">
+    <span><b>ホスト</b> DESKTOP-RMSK0VG</span>
+    <span><b>GPU</b> RTX 3060 12GB</span>
+    <span><b>Ollama</b> 0.32.9</span>
+    <span><b>計測</b> 2026-08-14</span>
+  </div>
+</header>
+
+<!-- ===== 実測サマリ ===== -->
+<section class="reveal">
+  <div class="sec-head"><div class="eyebrow">実測サマリ</div><h2>導入直後の測定結果</h2><div class="rule"></div></div>
+  <div class="grid g4">
+    <div class="card stat"><span class="v" style="color:var(--copper)">58<span style="font-size:15px;color:var(--ink-3)"> tok/s</span></span><span class="k">Qwen3-8B 生成速度</span></div>
+    <div class="card stat"><span class="v">5,994<span style="font-size:15px;color:var(--ink-3)"> MiB</span></span><span class="k">VRAM（8B単体）</span></div>
+    <div class="card stat"><span class="v">155<span style="font-size:15px;color:var(--ink-3)"> W</span></span><span class="k">推論時消費電力 / 74℃</span></div>
+    <div class="card stat"><span class="v">3.3<span style="font-size:15px;color:var(--ink-3)"> 秒</span></span><span class="k">コールドロード</span></div>
+  </div>
+  <p class="muted" style="margin-top:16px">
+    ADR-0010 の想定は45〜55 tok/s・5.1GB・140Wだった。速度は想定を上回り、電力は約10%多い。
+    費用試算（1回0.04円）は誤差の範囲で変わらない。
+  </p>
+</section>
+
+<!-- ===== 構成 ===== -->
+<section class="reveal">
+  <div class="sec-head"><div class="eyebrow">構成</div><h2>いま何がどこで動いているか</h2><div class="rule"></div></div>
+  <div class="grid g2">
+    <div class="card">
+      <h3>プロセス配置</h3>
+      <dl class="kv">
+        <dt>実行形態</dt><dd>Windows ネイティブ（WSL内・コンテナ内ではない）</dd>
+        <dt>実行ファイル</dt><dd><code>%LOCALAPPDATA%\Programs\Ollama\ollama.exe</code></dd>
+        <dt>待受</dt><dd><code>:: 11434</code>（デュアルスタック）</dd>
+        <dt>モデル保管</dt><dd><code>%USERPROFILE%\.ollama\models</code></dd>
+      </dl>
+      <p class="muted" style="margin-top:14px">
+        WSL内に置くと <code>.wslconfig</code> の <code>memory=12GB</code> 制限を食い、
+        GPUパススルーの損失も乗るためネイティブ実行としている。
+      </p>
+    </div>
+    <div class="card">
+      <h3>環境変数（マシン単位で設定済み）</h3>
+      <dl class="kv">
+        <dt>OLLAMA_HOST</dt><dd><code>0.0.0.0:11434</code> — 既定の <code>127.0.0.1</code> ではコンテナから届かない</dd>
+        <dt>OLLAMA_NUM_THREAD</dt><dd><code>4</code> — 6コアのうち2つを Django/Postgres に残す</dd>
+        <dt>OLLAMA_KEEP_ALIVE</dt><dd><code>0</code> — 既定は都度解放。リクエスト単位で上書きする</dd>
+      </dl>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:16px">
+    <h3>ネットワークとアクセス制御</h3>
+    <p class="muted" style="margin-top:8px">
+      Ollama には認証機構がない。<code>0.0.0.0</code> で待ち受けると LAN（192.168.1.3）と
+      Tailscale（100.76.219.49）にも露出するため、Windows ファイアウォールで
+      <b>WSLサブネットからのみ</b>許可している。Windows の受信既定は拒否なので、
+      この許可規則だけでLAN・Tailscale側は塞がったままになる。
+    </p>
+    <pre style="margin-top:14px"><code><span class="cm"># 適用済みの規則</span>
+New-NetFirewallRule -DisplayName <span class="st">"Ollama (WSL/Docker only)"</span> `
+  -Direction Inbound -Protocol TCP -LocalPort <span class="hl">11434</span> `
+  -RemoteAddress <span class="hl">172.23.16.0/20</span> -Action Allow -Profile Any</code></pre>
+    <p class="muted" style="margin-top:12px">
+      コンテナからの到達先は <code>host.docker.internal</code>。
+      検証時は IPv6 の <code>fdc4:f303:9324::254</code> に解決されたため、
+      待受を <code>::</code>（デュアルスタック）にしてある。<code>0.0.0.0</code> のIPv4単独では届かない場合がある。
+    </p>
+  </div>
+</section>
+
+<!-- ===== モデル詳細 ===== -->
+<section class="reveal">
+  <div class="sec-head"><div class="eyebrow">モデル詳細</div><h2>2つのモデルの中身</h2><div class="rule"></div></div>
+
+  <div class="card flush">
+    <div class="hd"><h3 style="color:var(--tier-b)">Qwen3-8B <span class="muted" style="font-weight:400">— 層B 構造化・抽出</span></h3></div>
+    <div class="bd">
+      <div class="tbl-wrap" style="border:none">
+        <table style="min-width:0">
+          <tbody>
+            <tr><td style="width:190px"><b>総パラメータ</b></td><td>8.2B（うち埋め込み層を除くと 6.95B）</td></tr>
+            <tr><td><b>層数 / Attention</b></td><td>36層、GQA構成で Query 32ヘッド / Key-Value 8ヘッド</td></tr>
+            <tr><td><b>コンテキスト長</b></td><td>ネイティブ 32,768 トークン（YaRN 拡張で最大 131,072）</td></tr>
+            <tr><td><b>量子化</b></td><td>Q4_K_M — 配布サイズ 5.2GB</td></tr>
+            <tr><td><b>ライセンス</b></td><td>Apache 2.0（商用利用可）</td></tr>
+            <tr><td><b>言語</b></td><td>100以上の言語・方言</td></tr>
+            <tr><td><b>特徴</b></td><td>thinking / non-thinking モードを1モデル内で切替可能。ツール呼び出し対応</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <h4 style="margin-top:20px">仕組み — 押さえておくべき3点</h4>
+      <ul class="tight">
+        <li><b>Q4_K_M 量子化</b> … 重みを約4.5bitに圧縮したもの。FP16なら16GB超で3060には載らないが、
+          品質劣化を抑えつつ5.2GBまで落としている。<code>K</code>は重要度に応じてビット幅を変える手法、
+          <code>M</code>はそのバランス設定（S/M/L のうち中間）</li>
+        <li><b>GQA（Grouped Query Attention）</b> … Query 32ヘッドに対し Key-Value を8ヘッドに集約する構造。
+          KVキャッシュが 1/4 で済むため、長文を入れてもVRAMが急激に膨らまない。
+          <code>labor_pdf</code> のような長い入力を扱ううえで効く</li>
+        <li><b>thinking モード</b> … 既定では <code>&lt;think&gt;...&lt;/think&gt;</code> に囲まれた推論過程を出力してから答える。
+          JSON構造化では邪魔になるので明示的に切る（後述）</li>
+      </ul>
+      <p class="muted" style="margin-top:14px">
+        一次情報:
+        <a href="https://huggingface.co/Qwen/Qwen3-8B">huggingface.co/Qwen/Qwen3-8B</a> ·
+        <a href="https://ollama.com/library/qwen3:8b">ollama.com/library/qwen3:8b</a> ·
+        <a href="https://github.com/QwenLM/Qwen3">github.com/QwenLM/Qwen3</a>
+      </p>
+    </div>
+  </div>
+
+  <div class="card flush" style="margin-top:16px">
+    <div class="hd"><h3 style="color:var(--tier-a)">BGE-M3 <span class="muted" style="font-weight:400">— 層A 埋め込み照合</span></h3></div>
+    <div class="bd">
+      <div class="tbl-wrap" style="border:none">
+        <table style="min-width:0">
+          <tbody>
+            <tr><td style="width:190px"><b>ベースモデル</b></td><td>XLM-RoBERTa（8,192トークンまで拡張）</td></tr>
+            <tr><td><b>埋め込み次元</b></td><td>1,024（実測で確認済み）</td></tr>
+            <tr><td><b>最大系列長</b></td><td>8,192 トークン</td></tr>
+            <tr><td><b>検索モード</b></td><td>Dense / Sparse（語彙マッチ）/ Multi-Vector（ColBERT型）の3方式</td></tr>
+            <tr><td><b>ライセンス</b></td><td>MIT</td></tr>
+            <tr><td><b>配布サイズ</b></td><td>1.2GB（Ollama <code>bge-m3</code>）</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <h4 style="margin-top:20px">仕組み — なぜ品目マッチングに向くのか</h4>
+      <ul class="tight">
+        <li>文字列を1,024次元のベクトルに変換する。意味が近い文字列はベクトル空間上で近い位置に来るため、
+          <b>表記ゆれを吸収した照合</b>ができる。「VVFケーブル 1.6mm 2芯」と「VVF 1.6×2C」は
+          文字列一致では0点だが、ベクトルでは近くなる</li>
+        <li>生成モデルと違い出力がベクトル1本なので、<b>推論が1パスで終わり圧倒的に速い</b>。
+          LLMのように何百トークンも生成しない</li>
+        <li>Ollama の <code>/api/embed</code> は Dense モードのみを返す。
+          Sparse や Multi-Vector を使いたい場合は FlagEmbedding 等の別実装が必要</li>
+      </ul>
+      <p class="muted" style="margin-top:14px">
+        一次情報:
+        <a href="https://huggingface.co/BAAI/bge-m3">huggingface.co/BAAI/bge-m3</a> ·
+        <a href="https://ollama.com/library/bge-m3">ollama.com/library/bge-m3</a> ·
+        <a href="https://github.com/FlagOpen/FlagEmbedding">github.com/FlagOpen/FlagEmbedding</a>
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ===== 呼び出し方 ===== -->
+<section class="reveal">
+  <div class="sec-head"><div class="eyebrow">実装</div><h2>正しい呼び方</h2><div class="rule"></div></div>
+
+  <h3 style="margin-bottom:12px">層B — JSONスキーマで構造化する</h3>
+  <p style="margin-bottom:14px">
+    <code>format</code> に<b>JSON Schema そのものを渡す</b>のが正解。<code>format:"json"</code> という文字列指定だけでは
+    「JSONらしきもの」しか保証されず、キー名も構造も守られない（実測で確認済み）。
+    <code>think:false</code> で推論過程の出力を止める。
+  </p>
+  <pre><code><span class="kw">import</span> requests
+
+SCHEMA = {
+    <span class="st">"type"</span>: <span class="st">"object"</span>,
+    <span class="st">"properties"</span>: {
+        <span class="st">"rates"</span>: {<span class="st">"type"</span>: <span class="st">"array"</span>, <span class="st">"items"</span>: {
+            <span class="st">"type"</span>: <span class="st">"object"</span>,
+            <span class="st">"properties"</span>: {
+                <span class="st">"prefecture"</span>: {<span class="st">"type"</span>: <span class="st">"string"</span>},
+                <span class="st">"job"</span>:        {<span class="st">"type"</span>: <span class="st">"string"</span>},
+                <span class="st">"rate"</span>:       {<span class="st">"type"</span>: <span class="st">"integer"</span>},
+            },
+            <span class="st">"required"</span>: [<span class="st">"prefecture"</span>, <span class="st">"job"</span>, <span class="st">"rate"</span>],
+        }},
+    },
+    <span class="st">"required"</span>: [<span class="st">"rates"</span>],
+}
+
+r = requests.post(
+    <span class="st">"http://host.docker.internal:11434/api/generate"</span>,
+    json={
+        <span class="st">"model"</span>: <span class="st">"qwen3:8b"</span>,
+        <span class="st">"prompt"</span>: prompt,
+        <span class="st">"stream"</span>: <span class="kw">False</span>,
+        <span class="st">"think"</span>: <span class="kw">False</span>,          <span class="cm"># &lt;think&gt; ブロックを抑止</span>
+        <span class="st">"format"</span>: SCHEMA,        <span class="cm"># スキーマそのものを渡す</span>
+        <span class="st">"keep_alive"</span>: <span class="st">"10m"</span>,    <span class="cm"># バッチ中は保持。単発なら 0</span>
+        <span class="st">"options"</span>: {<span class="st">"temperature"</span>: 0.7, <span class="st">"top_p"</span>: 0.8, <span class="st">"top_k"</span>: 20},
+    },
+    timeout=600,
+)
+data = json.loads(r.json()[<span class="st">"response"</span>])</code></pre>
+  <p class="muted" style="margin-top:12px">
+    サンプリング設定は Qwen 公式の推奨値。non-thinking は temperature 0.7 / top_p 0.8 / top_k 20、
+    thinking 時は 0.6 / 0.95 / 20。<b>greedy decoding（temperature 0）は非推奨</b>とされている。
+  </p>
+
+  <h3 style="margin:26px 0 12px">層A — 埋め込みで候補を出す</h3>
+  <pre><code>r = requests.post(
+    <span class="st">"http://host.docker.internal:11434/api/embed"</span>,
+    json={<span class="st">"model"</span>: <span class="st">"bge-m3"</span>, <span class="st">"input"</span>: <span class="st">"VVFケーブル 1.6mm 2芯 100m巻"</span>},
+    timeout=60,
+)
+vec = r.json()[<span class="st">"embeddings"</span>][0]   <span class="cm"># 1024次元</span>
+
+<span class="cm"># input にリストを渡せば一括取得できる（バッチ推奨）</span>
+<span class="cm"># {"model": "bge-m3", "input": ["品目A", "品目B", ...]}</span></code></pre>
+</section>
+
+<!-- ===== 落とし穴 ===== -->
+<section class="reveal">
+  <div class="sec-head"><div class="eyebrow">実測して分かったこと</div><h2>踏んだ落とし穴</h2><div class="rule"></div></div>
+
+  <div class="note" style="margin-bottom:18px">
+    <h4>1. 類似度のマージンが狭い — 単一しきい値は危険</h4>
+    <p style="margin-top:8px;font-size:14.5px">
+      「VVFケーブル 1.6mm 2芯 100m巻」を基準に実測した結果がこれ。
+      <b>同一品目の略記（0.768）と、別種ケーブル（0.668）の差がわずか0.10しかない。</b>
+      閾値を1本引いて自動確定させると、CVケーブルをVVFとして誤マッチする。
+    </p>
+    <div style="margin-top:16px" id="sims"></div>
+    <p style="margin-top:14px;font-size:14.5px">
+      <b>対処</b> … 埋め込みは<b>候補生成</b>に使い、確定判断はしない。
+      0.85以上のみ自動確定、0.65〜0.85は上位k件をLLMに渡して選ばせる、0.65未満は不一致。
+      ADR-0010 で設計した「閾値未満は <code>_match_by_llm</code> にフォールバック」は、
+      この実測により具体的な数値が入った。
+    </p>
+  </div>
+
+  <div class="note" style="margin-bottom:18px">
+    <h4>2. PowerShell 5.1 は日本語プロンプトを化けさせる</h4>
+    <p style="margin-top:8px;font-size:14.5px">
+      検証中、モデルが入力を無視して「北海道 / 正社員」などを捏造する現象が出た。
+      原因はモデルではなく <code>Invoke-RestMethod -Body</code> が UTF-8 で送っていなかったこと。
+      バイト列に変換して送ったら <b>3/3 正答</b>になった。
+    </p>
+    <pre style="margin-top:12px"><code><span class="cm"># NG — 日本語が化ける</span>
+Invoke-RestMethod -Body ($body|ConvertTo-Json) -ContentType <span class="st">'application/json'</span>
+
+<span class="cm"># OK</span>
+$bytes = [Text.Encoding]::UTF8.GetBytes(($body|ConvertTo-Json -Depth 12))
+Invoke-RestMethod -Body <span class="hl">$bytes</span> -ContentType <span class="st">'application/json; charset=utf-8'</span></code></pre>
+    <p class="muted" style="margin-top:12px">
+      Python の <code>requests</code>（<code>json=</code> 引数）は自動でUTF-8にするため、
+      アプリ本体では発生しない。検証スクリプトを書くときだけ注意。
+    </p>
+  </div>
+
+  <div class="note" style="margin-bottom:18px">
+    <h4>3. <code>format:"json"</code> だけではスキーマが守られない</h4>
+    <p style="margin-top:8px;font-size:14.5px">
+      文字列指定だと <code>{"key1": "string", "key2": 24500, ...}</code> のような
+      構造だけJSONの無意味な出力になった。
+      <b>JSON Schema オブジェクトを渡すと構造・キー名・型がすべて守られる。</b>
+      さらに出力トークン数が 1,550 → 111 に激減し、27秒が2秒になる副次効果もある。
+    </p>
+  </div>
+
+  <div class="note good">
+    <h4>4. thinking を切っても抽出精度は落ちない</h4>
+    <p style="margin-top:8px;font-size:14.5px">
+      <code>think:false</code> と <code>think:true</code> で正答率は同じ 3/3。
+      スキーマ付き構造化タスクでは推論過程を出す意味がなく、
+      <b>切ったほうが速くトークンも減る</b>。ただし判断を伴うタスクでは別途検証が必要。
+    </p>
+  </div>
+</section>
+
+<!-- ===== ベンチ詳細 ===== -->
+<section class="reveal">
+  <div class="sec-head"><div class="eyebrow">計測データ</div><h2>実測値の一覧</h2><div class="rule"></div></div>
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th>条件</th><th>生成トークン</th><th>生成時間</th><th>速度</th><th>結果</th></tr></thead>
+      <tbody>
+        <tr><td>既定（thinking有効・スキーマなし）</td><td class="n">1,635</td><td class="n">28.1s</td><td class="n">58.1 tok/s</td><td>冗長な散文</td></tr>
+        <tr><td><code>/no_think</code>（スキーマなし）</td><td class="n">1,550</td><td class="n">26.8s</td><td class="n">57.9 tok/s</td><td>冗長な散文</td></tr>
+        <tr><td><code>think:false</code> + <code>format:"json"</code></td><td class="n">55</td><td class="n">0.9s</td><td class="n">60.0 tok/s</td><td>キー名が無意味</td></tr>
+        <tr><td><b><code>think:false</code> + JSON Schema</b></td><td class="n">111</td><td class="n">2.0s</td><td class="n">55.9 tok/s</td><td style="color:var(--ok);font-weight:600">正答 3/3</td></tr>
+        <tr><td><code>think:true</code> + JSON Schema</td><td class="n">86</td><td class="n">1.6s</td><td class="n">53.6 tok/s</td><td style="color:var(--ok);font-weight:600">正答 3/3</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="grid g3" style="margin-top:16px">
+    <div class="card">
+      <h4>ロード時間</h4>
+      <dl class="kv"><dt>コールド</dt><dd>3.3秒</dd><dt>ウォーム</dt><dd>0.21秒</dd></dl>
+      <p class="muted" style="margin-top:10px;font-size:13px">バッチで毎回解放すると1件あたり3秒を失う。<code>keep_alive</code> の使い分けが効く理由</p>
+    </div>
+    <div class="card">
+      <h4>VRAM</h4>
+      <dl class="kv"><dt>8B のみ</dt><dd>5,994 MiB</dd><dt>8B + bge-m3</dt><dd>6,745 MiB</dd><dt>空き</dt><dd>約5.4 GB</dd></dl>
+      <p class="muted" style="margin-top:10px;font-size:13px">同時常駐しても余裕がある。14Bだと成立しなかった</p>
+    </div>
+    <div class="card">
+      <h4>埋め込み</h4>
+      <dl class="kv"><dt>次元</dt><dd>1,024</dd><dt>初回</dt><dd>2,646 ms</dd><dt>ウォーム</dt><dd>約220 ms</dd></dl>
+      <p class="muted" style="margin-top:10px;font-size:13px">ADR-0010 の「数十ms」は楽観的だった。一括埋め込みAPIでまとめるべき</p>
+    </div>
+  </div>
+</section>
+
+<!-- ===== 運用 ===== -->
+<section class="reveal">
+  <div class="sec-head"><div class="eyebrow">運用</div><h2>日常の操作</h2><div class="rule"></div></div>
+  <div class="grid g2">
+    <div class="card">
+      <h3>状態確認</h3>
+      <pre style="margin-top:12px"><code><span class="cm"># モデル一覧</span>
+ollama list
+
+<span class="cm"># ロード中のモデルと残り保持時間</span>
+ollama ps
+
+<span class="cm"># GPU の実測値</span>
+nvidia-smi --query-gpu=memory.used,utilization.gpu,`
+  power.draw,temperature.gpu --format=csv
+
+<span class="cm"># コンテナから到達できるか</span>
+docker exec saas-web-1 python -c <span class="st">"import urllib.request,json; \
+print(json.load(urllib.request.urlopen( \
+'http://host.docker.internal:11434/api/tags')))"</span></code></pre>
+    </div>
+    <div class="card">
+      <h3>つまずいたときの確認順</h3>
+      <ul class="tight">
+        <li><b>コンテナから届かない</b> … <code>OLLAMA_HOST</code> が <code>0.0.0.0</code> か、
+          ファイアウォール規則が有効か、待受が <code>::</code> になっているか</li>
+        <li><b>応答が異常に遅い</b> … <code>ollama ps</code> で <code>100% GPU</code> か確認。
+          <code>CPU</code> と出ていればVRAMが足りずCPUに落ちている</li>
+        <li><b>JSONパース失敗</b> … <code>think:false</code> が入っているか。
+          <code>&lt;think&gt;</code> が混ざっていないか</li>
+        <li><b>日本語が化ける</b> … リクエストボディがUTF-8で送られているか</li>
+        <li><b>出力が入力を無視する</b> … 上と同じ。プロンプトが届いていない可能性を先に疑う</li>
+      </ul>
+    </div>
+  </div>
+  <div class="card" style="margin-top:16px">
+    <h3>モデルの更新</h3>
+    <pre style="margin-top:12px"><code><span class="cm"># 更新（既存タグを上書き）</span>
+ollama pull qwen3:8b
+
+<span class="cm"># 別バージョンを併存させて比較する場合はタグを指定</span>
+ollama pull qwen3:14b   <span class="cm"># 9.2GB。bge-m3 との同時常駐は不可</span>
+
+<span class="cm"># 不要になったら削除</span>
+ollama rm qwen3:14b</code></pre>
+    <p class="muted" style="margin-top:12px">
+      更新したら必ず <code>labor_pdf</code> のサンプルで再検証すること。
+      量子化やテンプレートが変わると出力が変わりうる。
+    </p>
+  </div>
+</section>
+
+<footer style="margin-top:68px;padding-top:20px;border-top:1px solid var(--line)">
+  <p class="muted">
+    KEM_DDENKI · docs/saas/design/local-inference-runbook.html ·
+    設計判断は <a href="../adr/ADR-0010-ai-inference-tiering.md">ADR-0010</a>、
+    3層分割の全体像は <a href="./ai-inference-tiering.html">ai-inference-tiering.html</a>
+  </p>
+</footer>
+
+</div>
+
+<script>
+(function(){
+  "use strict";
+  var sims = [
+    { t:"VVFケーブル1.6-2C 100m巻き", s:0.9036, note:"同一品目・表記ゆれ", c:"var(--tier-a)" },
+    { t:"VVF 1.6×2C 100m",            s:0.7684, note:"同一品目・略記",    c:"var(--tier-a)" },
+    { t:"CVケーブル 2.0mm 3芯",        s:0.6684, note:"別種ケーブル",      c:"var(--warn)" },
+    { t:"エアコン用コンセント 250V 20A", s:0.4425, note:"無関係",          c:"var(--ink-3)" },
+    { t:"分電盤 20回路",               s:0.3428, note:"無関係",           c:"var(--ink-3)" }
+  ];
+  var host = document.getElementById("sims");
+  sims.forEach(function(x){
+    var d = document.createElement("div");
+    d.className = "simrow";
+    d.innerHTML = '<span class="t">' + x.t +
+      ' <span class="muted" style="font-size:12px">' + x.note + '</span></span>' +
+      '<span class="s" style="color:' + x.c + '">' + x.s.toFixed(3) + '</span>' +
+      '<div class="simtrack"><div class="simfill" data-w="' + (x.s*100).toFixed(1) +
+      '" style="background:' + x.c + '"></div></div>';
+    host.appendChild(d);
+  });
+
+  var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  function fill(){ host.querySelectorAll(".simfill").forEach(function(el){ el.style.width = el.dataset.w + "%"; }); }
+
+  if (reduce) {
+    fill();
+    document.querySelectorAll(".reveal").forEach(function(el){ el.classList.add("in"); });
+  } else {
+    var io = new IntersectionObserver(function(es){
+      es.forEach(function(e){
+        if (!e.isIntersecting) return;
+        e.target.classList.add("in");
+        if (e.target.contains(host)) setTimeout(fill, 200);
+        io.unobserve(e.target);
+      });
+    }, { rootMargin: "0px 0px -60px 0px" });
+    document.querySelectorAll(".reveal").forEach(function(el){ io.observe(el); });
+  }
+})();
+</script>
