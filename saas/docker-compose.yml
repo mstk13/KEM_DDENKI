@@ -111,21 +111,30 @@ services:
       - .:/app
       - media_data:/app/media
     entrypoint: ["sh", "-c"]
+    # 定時実行。cron は使わない。
+    #  - python:3.12-slim に cron は入っておらず、crontab/crond が
+    #    「not found」で終了コード127を返し、restart: always と相まって
+    #    再起動ループになる（本番で発生。自動巡回は一度も動いていなかった）
+    #  - cron を入れたとしても、cron はコンテナの環境変数をジョブに渡さない。
+    #    DB_HOST 等が欠けて別の壊れ方をする
+    # 分単位で時刻を見るだけのループなら、パッケージ追加も環境変数の受け渡しも要らない。
     command:
       - |
-        echo "=== cron サービス起動 ==="
-        # crontab を設定
-        cat > /tmp/crontab <<'CRON'
-        # 2日に1回 朝7時: 入札案件の自動取得（i-ppi + 個別サイト）
-        0 7 */2 * * cd /app && python manage.py scrape_bids --force >> /proc/1/fd/1 2>&1
-        # 毎朝8時: 書類アラート（資格期限・健診期限等）
-        0 8 * * * cd /app && python manage.py send_document_alerts >> /proc/1/fd/1 2>&1
-        CRON
-        crontab /tmp/crontab
-        echo "cron 設定完了:"
-        crontab -l
-        # cron をフォアグラウンドで実行
-        exec crond -f -l 2
+        echo "=== 定時実行サービス起動（scrape_bids 2日に1回7時 / send_document_alerts 毎日8時）==="
+        cd /app
+        while true; do
+          now=$$(date +%H%M)
+          doy=$$(date +%j)
+          if [ "$$now" = "0700" ] && [ $$((10#$$doy % 2)) -eq 0 ]; then
+            echo "[$$(date +%F\ %T)] scrape_bids 開始"
+            python manage.py scrape_bids --force || echo "scrape_bids が失敗しました"
+          fi
+          if [ "$$now" = "0800" ]; then
+            echo "[$$(date +%F\ %T)] send_document_alerts 開始"
+            python manage.py send_document_alerts || echo "send_document_alerts が失敗しました"
+          fi
+          sleep 60
+        done
 
   # --- Cloudflare Tunnel（社外アクセス用・任意） ---
   # 使用する場合は .env に CLOUDFLARE_TUNNEL_TOKEN を設定してください。
