@@ -253,6 +253,12 @@ def fill_announcement(project) -> bool:
     if result["required_grade"] and not project.required_grade:
         project.required_grade = result["required_grade"]
         changed.append("required_grade")
+    if result["required_grades"] and not project.required_grades:
+        project.required_grades = result["required_grades"]
+        changed.append("required_grades")
+    if result["required_score"] and project.required_score is None:
+        project.required_score = result["required_score"]
+        changed.append("required_score")
 
     if not changed:
         if result["garbled"]:

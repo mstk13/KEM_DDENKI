@@ -323,8 +323,9 @@ class TestScrapeImport:
         monkeypatch.setattr(
             announcement, "extract_from_url",
             lambda url: {
-                "work_outline": "", "requirements": "",
-                "required_grade": "", "headings": [], "garbled": False,
+                "work_outline": "", "requirements": "", "required_grade": "",
+                "required_grades": "", "required_score": None,
+                "headings": [], "garbled": False,
             },
         )
         return services.run_scrape(target, company_a)
@@ -600,6 +601,50 @@ class TestQualificationCheck:
         self._qual(company_a, user_a, grade="A")
         project = self._project(company_a, user_a, required_grade="B")
         assert self._check(project, company_a)["eligible"] is True
+
+    def test_enumerated_grades_are_a_set_not_a_floor(self, company_a, user_a):
+        """公告が「Ｂ等級又はＣ等級」と列挙する場合、A等級では参加できない。
+
+        下限として大小比較すると A ≥ B で参加可と誤判定する。
+        """
+        self._qual(company_a, user_a, grade="A")
+        project = self._project(company_a, user_a, required_grades="BC")
+        check = self._check(project, company_a)
+        assert check["eligible"] is False
+        assert "B等級・C等級の認定が必要" in check["reason"]
+
+    def test_enumerated_grades_matched(self, company_a, user_a):
+        self._qual(company_a, user_a, grade="B")
+        project = self._project(company_a, user_a, required_grades="BC")
+        check = self._check(project, company_a)
+        assert check["eligible"] is True
+        assert any("自社 B 等級" in c for c in check["checked"])
+
+    def test_score_requirement_met(self, company_a, user_a):
+        # 防衛省は「総合審査数値が780点以上」のように点数で切る
+        self._qual(company_a, user_a, grade="", total_score=884, keisin_score=884)
+        project = self._project(company_a, user_a, required_score=780)
+        check = self._check(project, company_a)
+        assert check["eligible"] is True
+        assert any("780点以上 → 自社 884 点" in c for c in check["checked"])
+
+    def test_score_requirement_not_met(self, company_a, user_a):
+        self._qual(company_a, user_a, grade="", total_score=884, keisin_score=884)
+        project = self._project(company_a, user_a, required_score=1100)
+        check = self._check(project, company_a)
+        assert check["eligible"] is False
+        assert "1100点以上が必要" in check["reason"]
+        assert "自社は 884 点" in check["reason"]
+
+    def test_score_requirement_without_our_score(self, company_a, user_a):
+        self._qual(
+            company_a, user_a, grade="B", total_score=None, keisin_score=None,
+        )
+        project = self._project(company_a, user_a, required_score=780)
+        check = self._check(project, company_a)
+        # 点数が分からないだけで資格不足とは言わない
+        assert check["eligible"] is True
+        assert any("未確認" in c for c in check["checked"])
 
     def test_unified_qualification_is_not_an_issuer(self, company_a, user_a):
         # 全省庁統一資格は物品・役務の資格。工事の発注機関としては使わない

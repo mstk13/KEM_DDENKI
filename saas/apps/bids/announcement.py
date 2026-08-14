@@ -47,11 +47,31 @@ REQUIREMENT_WORDS = ("資格", "要件")
 # 「総合評価に関する事項」を要件と取り違えないための除外語
 REQUIREMENT_EXCLUDE = ("総合評価", "入札手続", "その他", "契約手続")
 
-# 「Ｄ等級以上」のように下限が明示されている場合だけ等級要件として採る。
-# 「Ｂ等級又はＣ等級」は下限ではなく列挙なので、
-# 自社等級との大小比較に使うと誤判定になる。本文は参加要件欄に出るので
-# そちらで確認してもらう。
+# 「Ｄ等級以上」のように下限が明示されている場合の等級要件。
 GRADE_FLOOR = re.compile(r"([ＡＢＣＤA-D])\s*(?:等級|級)\s*以上")
+
+# 公告が認定を求める等級。国土交通省は「電気設備工事Ｂ等級又はＣ等級に
+# 認定されている者であること」と列挙で書く。下限ではないので、
+# 大小比較ではなく集合として扱う（Ａ等級しか無い会社はＢ・Ｃ指定に参加できない）。
+GRADE = re.compile(r"([ＡＢＣＤA-D])\s*等級")
+GRADE_CONTEXT = ("認定", "格付", "参加資格")
+# 工事成績評定点の話を等級と取り違えないための除外語
+GRADE_EXCLUDE = ("評定", "成績")
+
+# 点数の下限。防衛省は等級ではなくこれで切る。
+# 「総合審査数値（…欄の点数）が780点以上」「経営事項評価数値…が1,100点以上」
+SCORE = re.compile(r"([0-9０-９][0-9０-９,，]{1,6})\s*点\s*以上")
+SCORE_CONTEXT = (
+    "総合審査数値", "経営事項評価数値", "総合点数", "総合数値", "総合評点",
+    "審査数値", "評価数値",
+)
+# 「工事成績評定点が65点未満」「証明をもって65点以上の工事とみなす」は
+# 過去の工事成績の話で、資格の点数ではない。
+SCORE_EXCLUDE = ("評定", "成績", "とみなす")
+
+# 文脈を見る窓の広さ（前 / 後）
+CONTEXT_BACK, CONTEXT_FORWARD = 120, 40
+_ZENKAKU = str.maketrans("０１２３４５６７８９，ＡＢＣＤ", "0123456789,ABCD")
 
 _last_request_at = 0.0
 
@@ -122,12 +142,50 @@ def split_sections(text: str) -> list[tuple[str, str]]:
 
 def extract_grade_floor(text: str) -> str:
     """要件本文から「X等級以上」の下限を返す。列挙は対象外。"""
-    hits = {
-        g.translate(str.maketrans("ＡＢＣＤ", "ABCD"))
-        for g in GRADE_FLOOR.findall(text or "")
-    }
+    hits = {g.translate(_ZENKAKU) for g in GRADE_FLOOR.findall(text or "")}
     # 複数書かれていれば緩いほう（＝アルファベット順で後ろ）が下限
     return max(hits) if hits else ""
+
+
+def _flatten(text: str) -> str:
+    """PDF由来の折り返しを潰す。
+
+    文の途中で改行されており、括弧の中にも「。」が入るため、
+    句点で文に切る方法は使えない。前後の文字数で窓を取る。
+    """
+    return re.sub(r"\s+", "", text or "")
+
+
+def _has_context(flat: str, match, wanted, unwanted) -> bool:
+    window = flat[max(0, match.start() - CONTEXT_BACK):match.end() + CONTEXT_FORWARD]
+    return any(w in window for w in wanted) and not any(w in window for w in unwanted)
+
+
+def extract_grades(text: str) -> str:
+    """公告が認定を求める等級を返す。「Ｂ等級又はＣ等級」なら "BC"。"""
+    flat = _flatten(text)
+    hits = {
+        m.group(1).translate(_ZENKAKU)
+        for m in GRADE.finditer(flat)
+        if _has_context(flat, m, GRADE_CONTEXT, GRADE_EXCLUDE)
+    }
+    return "".join(sorted(hits))
+
+
+def extract_score_floor(text: str) -> int | None:
+    """総合審査数値・経営事項評価数値の下限を返す。
+
+    共同企業体の構成員向けに緩い点数が併記されることがあるので、
+    単体で参加する前提の厳しいほう（最大値）を採る。
+    """
+    flat = _flatten(text)
+    best = None
+    for m in SCORE.finditer(flat):
+        if not _has_context(flat, m, SCORE_CONTEXT, SCORE_EXCLUDE):
+            continue
+        value = int(m.group(1).translate(_ZENKAKU).replace(",", ""))
+        best = value if best is None else max(best, value)
+    return best
 
 
 def extract_sections(text: str) -> dict:
@@ -141,6 +199,8 @@ def extract_sections(text: str) -> dict:
         "work_outline": "",
         "requirements": "",
         "required_grade": "",
+        "required_grades": "",
+        "required_score": None,
         "headings": [],
         "garbled": False,
     }
@@ -167,6 +227,8 @@ def extract_sections(text: str) -> dict:
         "work_outline": outline,
         "requirements": requirements,
         "required_grade": extract_grade_floor(requirements),
+        "required_grades": extract_grades(requirements),
+        "required_score": extract_score_floor(requirements),
         "headings": [head for head, _ in sections],
         "garbled": False,
     }

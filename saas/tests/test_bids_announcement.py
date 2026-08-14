@@ -9,6 +9,8 @@ import pytest
 
 from apps.bids.announcement import (
     extract_grade_floor,
+    extract_grades,
+    extract_score_floor,
     extract_sections,
     is_garbled,
     split_sections,
@@ -111,6 +113,73 @@ class TestGarbled:
         assert not is_garbled(KOUKOKU)
 
 
+class TestGradeEnumeration:
+    """公告は等級を「下限」ではなく「列挙」で指定することが多い。
+
+    本文は 2026-08-14 に国土交通省の実公告から取ったもの。
+    """
+
+    def test_enumeration(self):
+        text = (
+            "（１）関東地方整備局の令和７・８年度一般競争（指名競争）\n"
+            "参加資格業者のうち電気設備工事Ｂ等級又はＣ等級に認定されている者であること"
+        )
+        assert extract_grades(text) == "BC"
+
+    def test_single_grade(self):
+        text = "参加資格業者のうち電気設備工事Ｂ等級に認定されている者であること"
+        assert extract_grades(text) == "B"
+
+    def test_grade_of_form(self):
+        # 中部地方整備局は「電気設備工事に係るＡ等級の…一般競争参加資格」と書く
+        text = (
+            "(2) 中部地方整備局における電気設備工事に係るＡ等級の"
+            "令和７・８年度一般競争参加資格の認定を受けていること"
+        )
+        assert extract_grades(text) == "A"
+
+    def test_performance_score_grade_is_ignored(self):
+        # 工事成績評定点の話に出てくる等級らしき文字を拾わない
+        assert extract_grades("工事成績評定点が65点未満のものを除く") == ""
+
+    def test_nothing(self):
+        assert extract_grades("") == ""
+
+
+class TestScoreFloor:
+    """防衛省は等級ではなく点数で切る。"""
+
+    def test_sougou_shinsa_suuchi(self):
+        text = (
+            "(4) 防衛省競争参加資格の「電気工事」に係る総合審査数値"
+            "（資格審査結果通知書の記３の総合審査数値欄の点数）が780点以上であること。"
+        )
+        assert extract_score_floor(text) == 780
+
+    def test_keiei_jikou_hyouka_suuchi(self):
+        text = (
+            "(4) 代表者は、防衛省競争参加資格の「電気工事」に係る経営事項評価数値"
+            "（資格審査結果通知書の記３の経営事項評価数値欄の点数）が1,100点以上で"
+            "あること。ただし、代表者以外の構成員は、経営事項評価数値が1,000点以上"
+            "であること。"
+        )
+        # 共同企業体の構成員向けの緩い点数ではなく、単体で必要な厳しいほうを採る
+        assert extract_score_floor(text) == 1100
+
+    def test_performance_score_is_ignored(self):
+        # 「工事成績評定点」「65点以上の工事とみなす」は資格の点数ではない
+        text = (
+            "ただし、工事成績評定点が65点未満のものを除くものとし、"
+            "工事成績のない工事については、検査に合格している証明をもって"
+            "65点以上の工事とみなす。"
+        )
+        assert extract_score_floor(text) is None
+
+    def test_nothing(self):
+        assert extract_score_floor("") is None
+        assert extract_score_floor("「電気工事」で級別の格付を受けていること") is None
+
+
 class TestGradeFloor:
     def test_floor_is_extracted(self):
         assert extract_grade_floor("「電気設備工事」のＤ等級以上であること") == "D"
@@ -147,6 +216,8 @@ class TestFillAnnouncement:
             "work_outline": "工事内容：空調設備改修に係る電気工事 一式",
             "requirements": "「電気工事」のＤ等級以上であること",
             "required_grade": "D",
+            "required_grades": "",
+            "required_score": None,
             "headings": [],
             "garbled": False,
         }
