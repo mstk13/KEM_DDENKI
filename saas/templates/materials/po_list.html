@@ -5,8 +5,28 @@
 {% block content %}
 <div class="page-header">
   <h1>発注一覧</h1>
-  <a href="{% url 'materials:create_po' %}" class="btn btn-primary">+ 発注書を作成</a>
+  <a href="{% url 'materials:create_po' %}{% if selected_site %}?site={{ selected_site }}{% endif %}" class="btn btn-primary">+ 発注書を作成</a>
 </div>
+
+<div class="card" style="margin-bottom:20px;">
+  <div class="card-body">
+    <form method="get" style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;">
+      <div class="form-group" style="margin-bottom:0;min-width:240px;">
+        <label for="filter-site">現場</label>
+        <select id="filter-site" name="site" class="form-control">
+          <option value="">すべての現場</option>
+          {% for s in sites %}
+          <option value="{{ s.pk }}" {% if selected_site == s.pk|stringformat:"s" %}selected{% endif %}>{{ s.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group" style="margin-bottom:0;">
+        <button type="submit" class="btn btn-outline">絞り込む</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <div class="card">
   <div class="table-wrap">
     <table>

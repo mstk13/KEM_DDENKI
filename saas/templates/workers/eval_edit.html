@@ -57,7 +57,8 @@
   .question-text { font-size: .85rem; color: var(--text-primary); display: flex; gap: 10px; align-items: flex-start; margin-bottom: 8px; }
   .question-num { flex-shrink: 0; width: 36px; height: 24px; background: var(--bg); border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: .7rem; font-weight: 600; color: var(--text-muted); }
   .question-scores { display: flex; gap: 4px; margin-left: 46px; }
-  .q-score-option { cursor: pointer; width: 36px; height: 30px; border: 1.5px solid var(--border); border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: .78rem; font-weight: 600; color: var(--text-muted); transition: var(--transition); background: var(--white); }
+  /* 「はい」「いいえ」が入るよう幅は固定しない */
+  .q-score-option { cursor: pointer; min-width: 64px; height: 32px; padding: 0 14px; white-space: nowrap; border: 1.5px solid var(--border); border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: .85rem; font-weight: 600; color: var(--text-muted); transition: var(--transition); background: var(--white); }
   .q-score-option:hover { border-color: var(--accent); color: var(--accent); }
   .q-score-option input[type=radio] { display: none; }
   .q-score-option:has(input:checked) { border-color: var(--brand); background: var(--brand); color: var(--white); }
@@ -86,29 +87,11 @@
       <span class="badge badge-{% if item.section == '共通' %}gray{% elif item.section == '電工' %}blue{% elif item.section == '事務' %}green{% else %}orange{% endif %}">{{ item.section }}</span>
       {{ item.name }}
     </h2>
-    <span class="points">{{ item.max_score }}点</span>
+    {# 項目単位の5段階評価を廃止したため、配点表示はしない #}
   </div>
   <div class="eval-section-body">
 
-    {% if item.anchor_5 or item.anchor_3 or item.anchor_1 %}
-    <div class="anchor-box">
-      {% if item.anchor_5 %}<div class="anchor-row"><span class="anchor-label a5">5</span><span class="anchor-text">{{ item.anchor_5 }}</span></div>{% endif %}
-      {% if item.anchor_3 %}<div class="anchor-row"><span class="anchor-label a3">3</span><span class="anchor-text">{{ item.anchor_3 }}</span></div>{% endif %}
-      {% if item.anchor_1 %}<div class="anchor-row"><span class="anchor-label a1">1</span><span class="anchor-text">{{ item.anchor_1 }}</span></div>{% endif %}
-    </div>
-    {% endif %}
-
-    <div style="margin-bottom:8px;">
-      <label style="font-size:.82rem;font-weight:600;color:var(--text-primary);display:block;margin-bottom:6px;">この項目の評価</label>
-      <div class="score-selector">
-        {% for s in scale %}
-        <label class="score-option">
-          <input type="radio" name="score_{{ item.section }}_{{ item.num }}" value="{{ s.value }}" {% if item.saved_score == s.value %}checked{% endif %}>
-          <span class="score-num">{{ s.value }}</span> {{ s.label }}
-        </label>
-        {% endfor %}
-      </div>
-    </div>
+    {# 行動基準（アンカー）と項目単位の5段階評価は廃止 #}
 
     {% for q in item.questions %}
     <div class="question-item">
@@ -117,10 +100,10 @@
         <span>{{ q.text }}</span>
       </div>
       <div class="question-scores">
-        {% for s in scale %}
+        {% for s in question_scale %}
         <label class="q-score-option">
           <input type="radio" name="q_{{ item.section }}_{{ q.qnum }}" value="{{ s.value }}" {% if q.saved_score == s.value %}checked{% endif %}>
-          {{ s.value }}
+          {{ s.label }}
         </label>
         {% endfor %}
       </div>
@@ -139,42 +122,14 @@
 </div>
 {% endfor %}
 
+{# 総合所見と総合評点は廃止。総合コメントの記入欄のみ残す #}
 <div class="eval-section">
   <div class="eval-section-header">
-    <h2><span class="badge badge-blue">総合</span> 総合所見</h2>
+    <h2><span class="badge badge-green">総合</span> 総合コメント</h2>
   </div>
   <div class="eval-section-body">
-    {% for o in overall %}
     <div class="form-group">
-      <label style="display:flex;align-items:center;gap:8px;">
-        {{ o.qnum }}. {{ o.text }}
-        {% if o.by_self %}<span class="badge badge-orange" style="font-size:.68rem;">本人記入</span>{% endif %}
-      </label>
-      <textarea name="overall_{{ o.qnum }}" class="form-control" rows="3">{{ o.saved_text }}</textarea>
-    </div>
-    {% endfor %}
-  </div>
-</div>
-
-<div class="eval-section">
-  <div class="eval-section-header">
-    <h2><span class="badge badge-green">最終</span> 総合評点</h2>
-  </div>
-  <div class="eval-section-body">
-    <div style="margin-bottom:20px;">
-      <label style="font-size:.82rem;font-weight:600;color:var(--text-primary);display:block;margin-bottom:8px;">総合評点</label>
-      <div class="score-selector">
-        {% for s in scale %}
-        <label class="score-option">
-          <input type="radio" name="total_score" value="{{ s.value }}" {% if evaluation.score == s.value %}checked{% endif %}>
-          <span class="score-num">{{ s.value }}</span> {{ s.label }}
-        </label>
-        {% endfor %}
-      </div>
-    </div>
-    <div class="form-group">
-      <label>総合コメント</label>
-      <textarea name="total_comment" class="form-control" rows="4">{{ evaluation.comment|default:"" }}</textarea>
+      <textarea name="total_comment" class="form-control" rows="6">{{ evaluation.comment|default:"" }}</textarea>
     </div>
   </div>
 </div>

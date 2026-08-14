@@ -1,5 +1,7 @@
 from django.conf import settings
 from django.db import models
+from django.db.models.signals import post_save
+from django.dispatch import receiver
 from simple_history.models import HistoricalRecords
 
 from apps.core.models import TenantModel
@@ -111,6 +113,17 @@ class Worker(TenantModel):
         default=list,
         blank=True,
         help_text="アクセスを許可するアプリコードのリスト",
+    )
+    pin = models.CharField(
+        "暗証番号",
+        max_length=128,
+        blank=True,
+        help_text="4桁の暗証番号（ハッシュ化して保存）",
+    )
+    pin_set = models.BooleanField(
+        "暗証番号設定済み",
+        default=False,
+        help_text="初回ログイン後に暗証番号を設定したかどうか",
     )
 
     history = HistoricalRecords()
@@ -299,3 +312,44 @@ class WorkerEvaluation(TenantModel):
 
     def __str__(self):
         return f"{self.worker} - {self.period}"
+
+
+# ---- シグナル: 書類添付時にアラート履歴をクリア ----
+
+
+@receiver(post_save, sender=WorkerQualification)
+def clear_cert_alert_log(sender, instance, **kwargs):
+    """証明書が添付されたらアラート履歴をクリアして再アラートを可能にする。"""
+    if instance.certificate_image:
+        from apps.notifications.models import AlertLog
+
+        AlertLog.unscoped.filter(
+            reference_type="workers.WorkerQualification",
+            reference_id=instance.pk,
+            alert_rule__alert_type="cert_missing",
+        ).delete()
+
+
+@receiver(post_save, sender=HealthCheckup)
+def clear_health_report_alert_log(sender, instance, **kwargs):
+    """健診報告書が添付されたらアラート履歴をクリアする。"""
+    if instance.report_file:
+        from apps.notifications.models import AlertLog
+
+        AlertLog.unscoped.filter(
+            reference_type="workers.HealthCheckup",
+            reference_id=instance.pk,
+            alert_rule__alert_type="health_report_missing",
+        ).delete()
+
+
+@receiver(post_save, sender=HealthCheckup)
+def clear_health_checkup_due_alert_log(sender, instance, **kwargs):
+    """新規健診記録追加時に健診期限アラート履歴をクリアする。"""
+    from apps.notifications.models import AlertLog
+
+    AlertLog.unscoped.filter(
+        reference_type="workers.Worker",
+        reference_id=instance.worker_id,
+        alert_rule__alert_type="health_checkup_due",
+    ).delete()

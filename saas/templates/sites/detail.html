@@ -22,7 +22,8 @@
       <dt>状態</dt><dd>{{ site.get_status_display }}</dd>
       <dt>受注金額</dt><dd>{{ site.contract_amount|floatformat:0 }} 円</dd>
       <dt>工期</dt><dd>{{ site.start_date|default:"-" }} 〜 {{ site.end_date|default:"" }}</dd>
-      <dt>担当者</dt><dd>{{ site.manager|default:"-" }}</dd>
+      <dt>現場担当者</dt><dd>{{ site.manager|default:"-" }}</dd>
+      <dt>見積担当者</dt><dd>{{ site.estimator|default:"-" }}</dd>
       <dt>住所</dt><dd>{{ site.address|default:"-" }}</dd>
     </dl>
   </div>
@@ -49,10 +50,13 @@
 </div>
 
 <div class="card" style="margin-top:20px;">
-  <div class="card-header"><h2>工程</h2></div>
+  <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;">
+    <h2>工程</h2>
+    <a href="{% url 'sites:process_create' site.pk %}" class="btn btn-primary btn-sm">+ 工程を追加</a>
+  </div>
   <div class="table-wrap">
     <table>
-      <thead><tr><th>工程名</th><th>工種</th><th>計画開始</th><th>計画終了</th><th>状態</th></tr></thead>
+      <thead><tr><th>工程名</th><th>工種</th><th>計画開始</th><th>計画終了</th><th>実績開始</th><th>実績終了</th><th>状態</th><th></th></tr></thead>
       <tbody>
         {% for p in processes %}
         <tr>
@@ -60,11 +64,58 @@
           <td>{{ p.work_type }}</td>
           <td>{{ p.planned_start|default:"-" }}</td>
           <td>{{ p.planned_end|default:"-" }}</td>
+          <td>{{ p.actual_start|default:"-" }}</td>
+          <td>{{ p.actual_end|default:"-" }}</td>
           <td>{{ p.get_status_display }}</td>
+          <td><a href="{% url 'sites:process_edit' p.pk %}" class="btn btn-outline btn-sm">編集</a></td>
         </tr>
         {% empty %}
-        <tr><td colspan="5" style="text-align:center;color:var(--gray-400);padding:20px;">工程が登録されていません</td></tr>
+        <tr><td colspan="8" style="text-align:center;color:var(--gray-400);padding:20px;">
+          工程が登録されていません。「+ 工程を追加」から手入力するか、AI工程提案を利用してください。
+        </td></tr>
         {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card" style="margin-top:20px;">
+  <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;">
+    <h2>材料の受発注</h2>
+    <div>
+      <a href="{% url 'materials:quotation_create' %}?site={{ site.pk }}" class="btn btn-outline btn-sm">+ 見積を登録</a>
+      <a href="{% url 'materials:create_po' %}?site={{ site.pk }}" class="btn btn-primary btn-sm">+ 発注を登録</a>
+    </div>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>区分</th><th>日付</th><th>仕入先</th><th>金額</th><th>状態</th><th></th></tr></thead>
+      <tbody>
+        {% for po in purchase_orders %}
+        <tr>
+          <td><span class="badge badge-blue">発注</span></td>
+          <td>{{ po.order_date }}</td>
+          <td>{{ po.supplier }}</td>
+          <td>{{ po.total_amount|floatformat:0 }} 円</td>
+          <td>{{ po.get_status_display }}</td>
+          <td><a href="{% url 'materials:po_detail' po.pk %}" class="btn btn-outline btn-sm">明細</a></td>
+        </tr>
+        {% endfor %}
+        {% for q in quotations %}
+        <tr>
+          <td><span class="badge badge-gray">見積</span></td>
+          <td>{{ q.quotation_date }}</td>
+          <td>{{ q.supplier }}</td>
+          <td>{{ q.total_amount|floatformat:0 }} 円</td>
+          <td>{{ q.get_status_display }}</td>
+          <td></td>
+        </tr>
+        {% endfor %}
+        {% if not purchase_orders and not quotations %}
+        <tr><td colspan="6" style="text-align:center;color:var(--gray-400);padding:20px;">
+          この現場の見積・発注はまだ登録されていません
+        </td></tr>
+        {% endif %}
       </tbody>
     </table>
   </div>

@@ -25,6 +25,18 @@ class DailyReport(TenantModel):
         SNOWY = "snowy", "雪"
         OTHER = "other", "その他"
 
+    class ReportType(models.TextChoices):
+        MANAGEMENT = "management", "管理"
+        OFFICE = "office", "事務"
+        ELECTRICIAN = "electrician", "電工"
+        IT = "it", "IT"
+
+    report_type = models.CharField(
+        "種別",
+        max_length=20,
+        choices=ReportType.choices,
+        default=ReportType.ELECTRICIAN,
+    )
     site = models.ForeignKey(
         "sites.Site",
         on_delete=models.CASCADE,

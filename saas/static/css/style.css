@@ -243,7 +243,11 @@ a:hover { color: var(--brand-dark); }
 }
 .hamburger:hover { background: rgba(255,255,255,.1); }
 
-.content { padding: 28px 32px; max-width: 1200px; }
+/* PC の広い画面でも画面全体を使う。以前は max-width:1200px 固定で、
+   ワイドモニタだと右側に大きな余白が残っていた。 */
+.content { padding: 28px 32px; max-width: none; }
+/* 読みやすさのために幅を絞りたい画面は content-narrow を付ける */
+.content.content-narrow { max-width: 1200px; }
 .content.content-wide { max-width: none; }
 
 /* ---- Cards ---- */
@@ -288,6 +292,47 @@ a:hover { color: var(--brand-dark); }
 .stat-value.blue { color: var(--brand); }
 .stat-value.green { color: var(--success); }
 .stat-value.orange { color: var(--warning); }
+
+/* ---- Accordion（業種別一覧などの「タップで下に開く」リスト） ----
+   サイドバーの .nav-group と同じ動き。開閉は app.js が .open を付け外しする。
+   max-height は中身より必ず大きい値にすること（足りないと下が切れる）。 */
+.acc-group { border-bottom: 1px solid var(--border-light); }
+.acc-group:last-child { border-bottom: none; }
+.acc-head {
+  display: flex; align-items: center; gap: 12px;
+  width: 100%;
+  padding: 16px 20px;
+  font-size: 16px; font-weight: 600;
+  color: var(--text-primary);
+  background: none; border: none; cursor: pointer;
+  text-align: left;
+  transition: var(--transition);
+}
+.acc-head:hover { background: var(--surface-hover); }
+.acc-group.open .acc-head { background: var(--brand-light); color: var(--brand); }
+.acc-title { flex: 1; min-width: 0; }
+.acc-group.open .nav-chevron { transform: rotate(180deg); }
+
+.acc-body {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height .3s cubic-bezier(.4,0,.2,1);
+}
+.acc-group.open .acc-body { max-height: 5000px; }
+.acc-list { padding: 4px 12px 12px; }
+.acc-item {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 16px;
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  font-size: 15px;
+  text-decoration: none;
+  transition: var(--transition);
+}
+.acc-item-name { flex: 1; min-width: 0; }
+.acc-item:hover { background: var(--bg); color: var(--text-primary); text-decoration: none; }
+.acc-item.active { background: var(--brand-light); color: var(--brand); font-weight: 600; }
+.acc-empty { padding: 20px; text-align: center; color: var(--text-muted); font-size: 15px; }
 
 /* ---- Tables ---- */
 .table-wrap { overflow-x: auto; }
@@ -363,6 +408,34 @@ tbody tr:last-child td { border-bottom: none; }
   background: var(--white); color: var(--text-primary);
 }
 .form-control:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 3px rgba(26,39,68,.12); }
+.form-control[readonly] { background: var(--bg); color: var(--text-secondary); }
+.form-hint { margin-top: 5px; font-size: .78rem; color: var(--text-muted); line-height: 1.6; }
+/* 事務の日報で「現場追加」ボタンから増やしていくブロック */
+.site-block {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px 18px;
+  margin-bottom: 14px;
+  background: var(--surface-hover);
+}
+.site-block-head {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 12px;
+}
+.site-block-no { font-size: 15px; font-weight: 600; color: var(--text-primary); }
+/* チェックボックスで複数選ぶ欄（日報の作業員など）。指でも押しやすい間隔にする */
+.form-group ul { list-style: none; display: flex; flex-wrap: wrap; gap: 8px 16px; }
+.form-group ul li label {
+  display: flex; align-items: center; gap: 8px;
+  margin: 0; padding: 8px 14px;
+  border: 1.5px solid var(--border); border-radius: var(--radius-sm);
+  font-size: 15px; font-weight: 500; cursor: pointer;
+  background: var(--white); transition: var(--transition);
+}
+.form-group ul li label:hover { border-color: var(--accent); }
+.form-group ul li label:has(input:checked) {
+  border-color: var(--brand); background: var(--brand-light); color: var(--brand);
+}
 .form-control::placeholder { color: var(--text-muted); }
 select.form-control { appearance: auto; }
 textarea.form-control { min-height: 88px; resize: vertical; line-height: 1.6; }

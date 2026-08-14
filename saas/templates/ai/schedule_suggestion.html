@@ -14,6 +14,13 @@
 <div class="message message-warning" style="margin-bottom:16px;">{{ error_message }}</div>
 {% endif %}
 
+{% if not llm_available %}
+<div class="message message-warning" style="margin-bottom:16px;">
+  <strong>AI機能は現在利用できません。</strong><br>
+  {{ llm_unavailable_message }}
+</div>
+{% endif %}
+
 {% if not result %}
 <div class="card">
   <div class="card-header"><h2>工程提案を実行</h2></div>
@@ -31,7 +38,7 @@
             <option value="sonnet">Sonnet（高精度）</option>
           </select>
         </div>
-        <button type="submit" class="btn btn-primary">工程提案を取得</button>
+        <button type="submit" class="btn btn-primary"{% if not llm_available %} disabled title="APIキーが未登録です"{% endif %}>工程提案を取得</button>
       </div>
     </form>
   </div>

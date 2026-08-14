@@ -1,8 +1,14 @@
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.core.exceptions import PermissionDenied
 from django.shortcuts import get_object_or_404, redirect, render
 
-from apps.reports.forms import DailyReportForm
+from apps.permissions.services import can_approve_report
+from apps.reports.forms import (
+    DailyReportForm,
+    OfficeDailyReportForm,
+    is_office_reporter,
+)
 from apps.reports.models import DailyReport, SafetyRecord
 from apps.reports.services import (
     alert_safety_incomplete,
@@ -17,25 +23,123 @@ def report_list(request):
     reports = DailyReport.objects.select_related(
         "worker", "site", "work_type"
     ).order_by("-report_date", "-created_at")
-    return render(request, "reports/list.html", {"reports": reports})
+
+    selected_status = request.GET.get("status", "")
+    if selected_status:
+        reports = reports.filter(status=selected_status)
+
+    return render(request, "reports/list.html", {
+        "reports": reports,
+        "status_choices": DailyReport.Status.choices,
+        "selected_status": selected_status,
+        "can_approve": can_approve_report(request.user),
+        "submitted_count": DailyReport.objects.filter(
+            status=DailyReport.Status.SUBMITTED
+        ).count(),
+    })
+
+
+def _report_form_context(company):
+    """日報フォームの候補一覧と、現場→発注先の対応表を返す。"""
+    from apps.core.json_utils import json_for_script
+    from apps.masters.models import WorkType
+    from apps.sites.models import Process, Site
+
+    sites = list(
+        Site.unscoped.filter(company=company)
+        .select_related("customer")
+        .order_by("name")
+    )
+    return {
+        "site_names": [s.name for s in sites],
+        "weather_choices": [label for _v, label in DailyReport.Weather.choices],
+        "process_names": sorted({
+            p.name for p in Process.unscoped.filter(company=company)
+        }),
+        "worktype_names": list(
+            WorkType.unscoped.filter(company=company, is_active=True)
+            .order_by("name")
+            .values_list("name", flat=True)
+        ),
+        # 現場名を入れたら発注先を自動で埋めるための対応表
+        "site_orderer_json": json_for_script(
+            {s.name: (str(s.customer) if s.customer else "") for s in sites}
+        ),
+    }
+
+
+def _office_report_create(request):
+    """事務の日報。1日ぶんの時間＋現場ごとの作業内容を書く。"""
+    worker = getattr(request.user, "worker_profile", None)
+
+    if request.method == "POST":
+        form = OfficeDailyReportForm(
+            request.POST, company=request.user.company, worker=worker,
+        )
+        if form.is_valid():
+            status = (
+                DailyReport.Status.SUBMITTED
+                if request.POST.get("action") == "submit"
+                else None
+            )
+            saved, skipped = form.save_reports(user=request.user, status=status)
+            messages.success(request, f"{len(saved)}件の日報を保存しました。")
+            if skipped:
+                messages.warning(
+                    request,
+                    "、".join(skipped)
+                    + " は同じ日付の日報が既にあるため作成しませんでした。",
+                )
+            return redirect("reports:list")
+    else:
+        form = OfficeDailyReportForm(company=request.user.company, worker=worker)
+
+    # 保存に失敗して画面に戻ったとき、入力済みの現場を復元するために渡す
+    from apps.core.json_utils import json_for_script
+
+    previous = [
+        {"site": e["site_name"], "work": e["work_description"]}
+        for e in getattr(form, "entries", [])
+    ]
+
+    ctx = {
+        "form": form,
+        "worker": worker,
+        "previous_entries_json": json_for_script(previous),
+        **_report_form_context(request.user.company),
+    }
+    return render(request, "reports/office_form.html", ctx)
 
 
 @login_required
 def report_create(request):
+    # 社員番号が G/S/A/P の人は、1日に複数現場ぶんの事務内容を書く形式にする
+    if is_office_reporter(request.user):
+        return _office_report_create(request)
+
     if request.method == "POST":
         form = DailyReportForm(request.POST, company=request.user.company)
         if form.is_valid():
-            report = form.save(commit=False)
-            report.company = request.user.company
-            report.created_by = request.user
-            if request.POST.get("action") == "submit":
-                report.status = DailyReport.Status.SUBMITTED
-            report.save()
-            messages.success(request, "日報を保存しました。")
+            status = (
+                DailyReport.Status.SUBMITTED
+                if request.POST.get("action") == "submit"
+                else None
+            )
+            saved, skipped = form.save_reports(
+                company=request.user.company, user=request.user, status=status,
+            )
+            messages.success(request, f"{len(saved)}件の日報を保存しました。")
+            if skipped:
+                names = "、".join(str(w) for w in skipped)
+                messages.warning(
+                    request,
+                    f"{names} は同じ現場・日付・工種の日報が既にあるため作成しませんでした。",
+                )
             return redirect("reports:list")
     else:
         form = DailyReportForm(company=request.user.company)
-    return render(request, "reports/form.html", {"form": form})
+    ctx = {"form": form, **_report_form_context(request.user.company)}
+    return render(request, "reports/form.html", ctx)
 
 
 @login_required
@@ -46,19 +150,27 @@ def report_edit(request, pk):
             request.POST, instance=report, company=request.user.company,
         )
         if form.is_valid():
-            report = form.save(commit=False)
-            if request.POST.get("action") == "submit":
-                report.status = DailyReport.Status.SUBMITTED
-            report.save()
+            status = (
+                DailyReport.Status.SUBMITTED
+                if request.POST.get("action") == "submit"
+                else None
+            )
+            form.save_reports(
+                company=request.user.company, user=request.user, status=status,
+            )
             messages.success(request, "日報を更新しました。")
             return redirect("reports:list")
     else:
         form = DailyReportForm(instance=report, company=request.user.company)
-    return render(request, "reports/form.html", {"form": form})
+    ctx = {"form": form, **_report_form_context(request.user.company)}
+    return render(request, "reports/form.html", ctx)
 
 
 @login_required
 def report_approve(request, pk):
+    if not can_approve_report(request.user):
+        raise PermissionDenied("日報を承認できるのは社長とITのみです。")
+
     report = get_object_or_404(DailyReport, pk=pk)
     if report.status == DailyReport.Status.SUBMITTED:
         approve_report(report, approved_by=request.user)
@@ -66,6 +178,34 @@ def report_approve(request, pk):
             request,
             f"{report.worker} の日報を承認し、労務費を計上しました。",
         )
+    else:
+        messages.info(request, "提出済の日報のみ承認できます。")
+    return redirect("reports:list")
+
+
+@login_required
+def report_approve_bulk(request):
+    """提出済の日報をまとめて承認する。"""
+    if not can_approve_report(request.user):
+        raise PermissionDenied("日報を承認できるのは社長とITのみです。")
+
+    if request.method != "POST":
+        return redirect("reports:list")
+
+    pks = request.POST.getlist("report_ids")
+    reports = DailyReport.objects.filter(
+        pk__in=pks, status=DailyReport.Status.SUBMITTED,
+    )
+
+    approved = 0
+    for report in reports:
+        approve_report(report, approved_by=request.user)
+        approved += 1
+
+    if approved:
+        messages.success(request, f"{approved}件の日報を承認し、労務費を計上しました。")
+    else:
+        messages.info(request, "承認できる日報が選択されていません。")
     return redirect("reports:list")
 
 
@@ -76,7 +216,11 @@ def safety_check(request):
 
     from apps.sites.models import Site
 
-    sites = Site.objects.filter(status="active")
+    # "active" という状態は Site.Status に存在せず、常に空になっていた。
+    # 稼働中とみなせる状態（受注済・施工中）を対象にする。
+    sites = Site.objects.filter(
+        status__in=[Site.Status.ORDERED, Site.Status.IN_PROGRESS]
+    ).order_by("name")
     selected_site_id = request.GET.get("site")
     check_date = request.GET.get("date", str(date.today()))
 

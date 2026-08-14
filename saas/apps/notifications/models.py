@@ -99,6 +99,9 @@ class AlertRule(TenantModel):
         SCHEDULE_DELAY = "schedule_delay", "工期遅延"
         BID_DEADLINE = "bid_deadline", "入札期限"
         SAFETY_INCOMPLETE = "safety_incomplete", "安全書類未記入"
+        CERT_MISSING = "cert_missing", "証明書未添付"
+        HEALTH_REPORT_MISSING = "health_report_missing", "健診報告書未添付"
+        HEALTH_CHECKUP_DUE = "health_checkup_due", "健診期限"
 
     name = models.CharField("ルール名", max_length=200)
     alert_type = models.CharField(

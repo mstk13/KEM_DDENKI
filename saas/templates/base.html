@@ -64,6 +64,9 @@
           <a href="{% url 'workers:evaluations' %}" class="{% if 'eval' in request.resolver_match.url_name %}active{% endif %}">
             <span class="nav-icon">&#x1f4cb;</span> 人材評価
           </a>
+          <a href="{% url 'workers:document_alerts' %}" class="{% if request.resolver_match.url_name == 'document_alerts' %}active{% endif %}">
+            <span class="nav-icon">&#x26a0;&#xfe0f;</span> 書類アラート
+          </a>
         </div>
       </div>
 
@@ -157,6 +160,9 @@
       <div class="nav-group {% if 'ai:' in request.resolver_match.view_name %}open{% endif %}">
         <button class="nav-section" type="button">AI分析<span class="nav-chevron"></span></button>
         <div class="nav-group-items">
+          <a href="{% url 'ai:site_select' %}" class="{% if 'ai:' in request.resolver_match.view_name and request.resolver_match.url_name in 'site_select,cost_optimization,cost_prediction,schedule_suggestion,schedule_risk' %}active{% endif %}">
+            <span class="nav-icon">&#x1f916;</span> コスト分析・工程提案
+          </a>
           <a href="{% url 'ai:dashboard' %}" class="{% if request.resolver_match.url_name == 'dashboard' and 'ai:' in request.resolver_match.view_name %}active{% endif %}">
             <span class="nav-icon">&#x1f4ca;</span> 利用状況
           </a>

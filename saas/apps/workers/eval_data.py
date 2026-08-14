@@ -12,6 +12,14 @@ from pathlib import Path
 
 _DATA_DIR = Path(__file__).resolve().parent.parent.parent / "static" / "data"
 
+# 設問1問ごとの回答は「はい/いいえ」の2択。
+# 項目全体の評価と総合評点は従来どおり scale（5段階）を使うため、
+# こちらはテナントのテンプレートに関わらず固定とする。
+QUESTION_SCALE = [
+    {"value": 1, "label": "はい"},
+    {"value": 0, "label": "いいえ"},
+]
+
 
 def _load_json(filename):
     with open(_DATA_DIR / filename, encoding="utf-8") as f:
@@ -43,6 +51,26 @@ def get_sections_for_worker(worker, company=None):
     テナントにテンプレートがあればそれを使い、なければ JSON フォールバック。
     """
     company = company or worker.company
+    job_name = str(worker.job_title) if worker.job_title else ""
+    return get_sections_for_role(job_name, company)
+
+
+def get_available_roles(company):
+    """評価シートを作成できる職種名の一覧を返す（共通を除く）。"""
+    template = get_template_for_company(company)
+    items = template.survey_items if template else _fallback_survey()["items"]
+    sections = {i.get("section") for i in items if i.get("section") != "共通"}
+    # 表示順は固定（一覧に無いものは末尾へ）
+    order = ["電工", "事務", "役員", "社長"]
+    return sorted(sections, key=lambda s: (order.index(s) if s in order else 99, s))
+
+
+def get_sections_for_role(job_name, company):
+    """職種名に基づき、該当する評価データを返す。
+
+    特定の作業員に紐づかない「役職別の白紙シート」でも使えるよう、
+    Worker ではなく職種名を受け取る。
+    """
     template = get_template_for_company(company)
 
     if template:
@@ -57,8 +85,6 @@ def get_sections_for_worker(worker, company=None):
         scale = survey["scale"]
         overall = survey["overall"]
 
-    job_name = str(worker.job_title) if worker.job_title else ""
-
     # 該当セクション判定
     applicable_sections = ["共通"]
     if job_name == "電工":
@@ -72,13 +98,27 @@ def get_sections_for_worker(worker, company=None):
         if job_name in all_sections and job_name not in applicable_sections:
             applicable_sections.append(job_name)
 
-    items = [i for i in eval_items if i.get("section") in applicable_sections]
-    survey_items = [i for i in survey_data_items if i.get("section") in applicable_sections]
+    # 並び順は「共通 → 職種別」で固定する。
+    # データ側の並びに任せると、職種別が先に来る職種（事務）だけ
+    # 共通の設問が下に埋もれて見落とされる。
+    def _order(entry):
+        section = entry.get("section")
+        return (applicable_sections.index(section), entry.get("num") or 0)
+
+    items = sorted(
+        (i for i in eval_items if i.get("section") in applicable_sections),
+        key=_order,
+    )
+    survey_items = sorted(
+        (i for i in survey_data_items if i.get("section") in applicable_sections),
+        key=_order,
+    )
 
     return {
         "items": items,
         "survey_items": survey_items,
         "scale": scale,
+        "question_scale": QUESTION_SCALE,
         "overall": overall,
         "sections": applicable_sections,
         "template": template,

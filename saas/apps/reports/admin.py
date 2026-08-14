@@ -12,9 +12,10 @@ class DailyReportMaterialInline(admin.TabularInline):
 @admin.register(DailyReport)
 class DailyReportAdmin(SimpleHistoryAdmin):
     list_display = (
-        "report_date", "worker", "site", "work_type", "work_hours", "status", "company",
+        "report_date", "report_type", "worker", "site", "work_type",
+        "work_hours", "status", "company",
     )
-    list_filter = ("status", "report_date", "company")
+    list_filter = ("status", "report_type", "report_date", "company")
     search_fields = ("worker__name", "site__name")
     inlines = [DailyReportMaterialInline]
 

@@ -11,94 +11,65 @@
   </div>
 </div>
 
-<div style="display:grid;grid-template-columns:250px 1fr;gap:20px;">
-
-  <!-- Industry List -->
-  <div class="card">
-    <div class="card-header"><h2>業種</h2></div>
-    <div style="padding:10px;">
-      {% for item in industry_data %}
-      <a href="{% url 'sales:industry_browse' %}?industry={{ item.industry }}"
-         style="display:flex;justify-content:space-between;padding:8px 12px;text-decoration:none;color:inherit;border-radius:4px;{% if selected_industry == item.industry %}background:var(--primary-light, #eff6ff);font-weight:bold;{% endif %}">
-        <span>{{ item.industry }}</span>
+{# 業種をタップすると、その下に会社一覧が開く（サイドバーのメニューと同じ動き） #}
+<div class="card">
+  <div class="card-header"><h2>業種</h2></div>
+  <div class="acc">
+    {% for item in industry_data %}
+    <div class="acc-group{% if selected_industry == item.industry %} open{% endif %}">
+      <button class="acc-head" type="button">
+        <span class="acc-title">{{ item.industry }}</span>
         <span class="badge badge-gray">{{ item.count }}</span>
-      </a>
-      {% empty %}
-      <div style="text-align:center;color:var(--gray-400);padding:20px;">業種データがありません</div>
-      {% endfor %}
-    </div>
-  </div>
-
-  <div>
-    {% if selected_industry %}
-    <!-- Companies in selected industry -->
-    <div class="card" style="margin-bottom:20px;">
-      <div class="card-header"><h2>{{ selected_industry }} の会社一覧</h2></div>
-      <div class="table-wrap">
-        <table>
-          <thead><tr><th>会社名</th><th>件数</th><th></th></tr></thead>
-          <tbody>
-            {% for c in companies %}
-            <tr{% if selected_company == c.company_name %} style="background:var(--primary-light, #eff6ff);"{% endif %}>
-              <td>
-                <a href="{% url 'sales:industry_browse' %}?industry={{ selected_industry }}&company={{ c.company_name }}">
-                  {{ c.company_name }}
-                </a>
-              </td>
-              <td>{{ c.count }}</td>
-              <td>
-                <a href="{% url 'sales:industry_browse' %}?industry={{ selected_industry }}&company={{ c.company_name }}"
-                   class="btn btn-outline btn-sm">詳細</a>
-              </td>
-            </tr>
-            {% empty %}
-            <tr><td colspan="3" style="text-align:center;color:var(--gray-400);padding:20px;">この業種の会社がありません</td></tr>
-            {% endfor %}
-          </tbody>
-        </table>
+        <span class="nav-chevron"></span>
+      </button>
+      <div class="acc-body">
+        <div class="acc-list">
+          {% for c in item.companies %}
+          <a class="acc-item{% if selected_industry == item.industry and selected_company == c.company_name %} active{% endif %}"
+             href="{% url 'sales:industry_browse' %}?industry={{ item.industry|urlencode }}&company={{ c.company_name|urlencode }}">
+            <span class="acc-item-name">{{ c.company_name }}</span>
+            <span class="badge badge-gray">{{ c.count }}</span>
+          </a>
+          {% empty %}
+          <div class="acc-empty">この業種の会社がありません</div>
+          {% endfor %}
+        </div>
       </div>
     </div>
-
-    {% if selected_company %}
-    <!-- Records for selected company -->
-    <div class="card">
-      <div class="card-header"><h2>{{ selected_company }} の訪問記録</h2></div>
-      <div class="table-wrap">
-        <table>
-          <thead><tr><th>担当者</th><th>営業内容</th><th>状態</th><th>訪問日</th><th></th></tr></thead>
-          <tbody>
-            {% for r in records %}
-            <tr>
-              <td>{{ r.rep_name|default:"-" }}</td>
-              <td>{{ r.sales_content|default:"-"|truncatewords:20 }}</td>
-              <td>
-                {% if r.status == '下書き' %}<span class="badge badge-gray">下書き</span>
-                {% elif r.status == '確認済' %}<span class="badge badge-blue">確認済</span>
-                {% elif r.status == '対応中' %}<span class="badge badge-orange">対応中</span>
-                {% elif r.status == '完了' %}<span class="badge badge-green">完了</span>
-                {% elif r.status == '見送り' %}<span class="badge badge-red">見送り</span>
-                {% endif %}
-              </td>
-              <td>{{ r.visit_date|default:"-" }}</td>
-              <td><a href="{% url 'sales:visit_detail' r.pk %}" class="btn btn-outline btn-sm">詳細</a></td>
-            </tr>
-            {% empty %}
-            <tr><td colspan="5" style="text-align:center;color:var(--gray-400);padding:20px;">訪問記録がありません</td></tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-    </div>
-    {% endif %}
-
-    {% else %}
-    <!-- No industry selected -->
-    <div class="card">
-      <div class="card-body" style="text-align:center;color:var(--gray-400);padding:40px;">
-        左の業種を選択すると、会社一覧が表示されます
-      </div>
-    </div>
-    {% endif %}
+    {% empty %}
+    <div class="acc-empty">業種データがありません</div>
+    {% endfor %}
   </div>
 </div>
+
+{% if selected_company %}
+<div class="card" style="margin-top:20px;">
+  <div class="card-header"><h2>{{ selected_company }} の訪問記録</h2></div>
+  <div class="table-wrap table-slide">
+    <table>
+      <thead><tr><th>担当者</th><th>営業内容</th><th>状態</th><th>訪問日</th><th></th></tr></thead>
+      <tbody>
+        {% for r in records %}
+        <tr>
+          <td>{{ r.rep_name|default:"-" }}</td>
+          <td>{{ r.sales_content|default:"-"|truncatewords:20 }}</td>
+          <td>
+            {% if r.status == '下書き' %}<span class="badge badge-gray">下書き</span>
+            {% elif r.status == '確認済' %}<span class="badge badge-blue">確認済</span>
+            {% elif r.status == '対応中' %}<span class="badge badge-orange">対応中</span>
+            {% elif r.status == '完了' %}<span class="badge badge-green">完了</span>
+            {% elif r.status == '見送り' %}<span class="badge badge-red">見送り</span>
+            {% endif %}
+          </td>
+          <td>{{ r.visit_date|default:"-" }}</td>
+          <td><a href="{% url 'sales:visit_detail' r.pk %}" class="btn btn-outline btn-sm">詳細</a></td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="5"><div class="empty"><p>訪問記録がありません</p></div></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
 {% endblock %}

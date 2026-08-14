@@ -1,4 +1,5 @@
 import datetime
+from collections import defaultdict
 
 from django.contrib.auth.decorators import login_required
 from django.db.models import Count, Q
@@ -124,24 +125,35 @@ def industry_browse(request):
     selected_industry = request.GET.get("industry", "").strip()
     selected_company = request.GET.get("company", "").strip()
 
-    # Get all industries with counts
-    industry_data = (
+    # 業種ごとの件数と、その中の会社一覧をまとめて組み立てる。
+    # 画面はタップで開くアコーディオンなので、業種ごとに問い合わせず
+    # 2クエリで全業種分の会社をまとめて取得してから Python 側で束ねる。
+    industry_rows = (
         SalesVisit.objects.values("industry")
         .annotate(count=Count("id"))
         .order_by("industry")
     )
+    company_rows = (
+        SalesVisit.objects.values("industry", "company_name")
+        .annotate(count=Count("id"))
+        .order_by("industry", "company_name")
+    )
 
-    companies = []
+    companies_by_industry = defaultdict(list)
+    for row in company_rows:
+        companies_by_industry[row["industry"]].append(row)
+
+    industry_data = [
+        {
+            "industry": row["industry"],
+            "count": row["count"],
+            "companies": companies_by_industry.get(row["industry"], []),
+        }
+        for row in industry_rows
+    ]
+
+    companies = companies_by_industry.get(selected_industry, []) if selected_industry else []
     records = []
-
-    if selected_industry:
-        # Get companies within selected industry
-        companies = (
-            SalesVisit.objects.filter(industry=selected_industry)
-            .values("company_name")
-            .annotate(count=Count("id"))
-            .order_by("company_name")
-        )
 
     if selected_company:
         # Get records for selected company in selected industry

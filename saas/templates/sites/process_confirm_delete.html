@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}工程削除確認 — {{ APP_NAME }}{% endblock %}
+{% block topbar_title %}工程削除{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>工程の削除確認</h1>
+</div>
+
+<div class="card" style="padding:24px;">
+  <p style="font-size:16px;">以下の工程を削除しますか？この工程を参照している日報の工程欄は空になります。</p>
+  <div style="background:var(--bg-warning,#fff3cd);padding:16px;border-radius:8px;margin:16px 0;">
+    <strong>{{ process.name }}</strong><br>
+    <small>現場: {{ process.site.name }} / 工種: {{ process.work_type }}</small>
+  </div>
+  <form method="post" style="display:flex;gap:12px;margin-top:16px;">
+    {% csrf_token %}
+    <button type="submit" class="btn" style="background:#ef4444;color:#fff;">削除する</button>
+    <a href="{% url 'sites:detail' process.site_id %}" class="btn btn-outline">キャンセル</a>
+  </form>
+</div>
+{% endblock %}

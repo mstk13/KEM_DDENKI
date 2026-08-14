@@ -8,36 +8,80 @@
   <a href="{% url 'reports:create' %}" class="btn btn-primary">+ 日報を書く</a>
 </div>
 
-<div class="card">
-  <div class="table-wrap">
-    <table>
-      <thead><tr><th>日付</th><th>作業員</th><th>現場</th><th>工種</th><th>時間</th><th>状態</th><th></th></tr></thead>
-      <tbody>
-        {% for r in reports %}
-        <tr>
-          <td>{{ r.report_date }}</td>
-          <td>{{ r.worker }}</td>
-          <td>{{ r.site }}</td>
-          <td>{{ r.work_type }}</td>
-          <td>{{ r.work_hours }}h</td>
-          <td>
-            {% if r.status == 'draft' %}<span class="badge badge-gray">下書き</span>
-            {% elif r.status == 'submitted' %}<span class="badge badge-orange">提出済</span>
-            {% elif r.status == 'approved' %}<span class="badge badge-green">承認済</span>
-            {% endif %}
-          </td>
-          <td>
-            {% if r.status == 'submitted' %}
-            <a href="{% url 'reports:approve' r.pk %}" class="btn btn-success btn-sm">承認</a>
-            {% endif %}
-            <a href="{% url 'reports:edit' r.pk %}" class="btn btn-outline btn-sm">編集</a>
-          </td>
-        </tr>
-        {% empty %}
-        <tr><td colspan="7"><div class="empty"><div class="empty-icon">&#x1f4dd;</div><p>日報がありません</p></div></td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
+<div class="card" style="margin-bottom:20px;">
+  <div class="card-body">
+    <form method="get" style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;">
+      <div class="form-group" style="margin-bottom:0;">
+        <label for="filter-status">状態</label>
+        <select id="filter-status" name="status" class="form-control">
+          <option value="">すべて</option>
+          {% for value, label in status_choices %}
+          <option value="{{ value }}" {% if selected_status == value %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group" style="margin-bottom:0;">
+        <button type="submit" class="btn btn-outline">絞り込む</button>
+      </div>
+      {% if can_approve and submitted_count %}
+      <div class="form-group" style="margin-bottom:0;margin-left:auto;">
+        <a href="?status=submitted" class="btn btn-outline btn-sm">未承認 {{ submitted_count }}件</a>
+      </div>
+      {% endif %}
+    </form>
   </div>
 </div>
+
+<form method="post" action="{% url 'reports:approve_bulk' %}">
+  {% csrf_token %}
+  <div class="card">
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          {% if can_approve %}<th style="width:32px;"><input type="checkbox" data-check-all="report_ids"></th>{% endif %}
+          <th>日付</th><th>作業員</th><th>現場</th><th>工種</th><th>時間</th><th>協力会社</th><th>状態</th><th></th>
+        </tr></thead>
+        <tbody>
+          {% for r in reports %}
+          <tr>
+            {% if can_approve %}
+            <td>
+              {% if r.status == 'submitted' %}
+              <input type="checkbox" name="report_ids" value="{{ r.pk }}">
+              {% endif %}
+            </td>
+            {% endif %}
+            <td>{{ r.report_date }}</td>
+            <td>{{ r.worker }}</td>
+            <td>{{ r.site }}</td>
+            <td>{{ r.work_type }}</td>
+            <td>{{ r.work_hours }}h</td>
+            <td>{% if r.is_partner_worker %}{{ r.partner|default:"-" }}{% else %}-{% endif %}</td>
+            <td>
+              {% if r.status == 'draft' %}<span class="badge badge-gray">下書き</span>
+              {% elif r.status == 'submitted' %}<span class="badge badge-orange">提出済</span>
+              {% elif r.status == 'approved' %}<span class="badge badge-green">承認済</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if r.status == 'submitted' and can_approve %}
+              <a href="{% url 'reports:approve' r.pk %}" class="btn btn-success btn-sm">承認</a>
+              {% endif %}
+              <a href="{% url 'reports:edit' r.pk %}" class="btn btn-outline btn-sm">編集</a>
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="{% if can_approve %}9{% else %}8{% endif %}"><div class="empty"><div class="empty-icon">&#x1f4dd;</div><p>日報がありません</p></div></td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% if can_approve %}
+    <div class="card-body" style="border-top:1px solid var(--border);">
+      <button type="submit" class="btn btn-success">選択した日報を一括承認</button>
+      <span style="color:var(--text-secondary);margin-left:8px;">承認できるのは社長とITのみです。</span>
+    </div>
+    {% endif %}
+  </div>
+</form>
 {% endblock %}

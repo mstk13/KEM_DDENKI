@@ -4,7 +4,7 @@
 認証済みユーザーの company をリクエストごとに contextvar へセットする。
 """
 
-from django.http import HttpResponseForbidden
+from django.core.exceptions import PermissionDenied
 
 from apps.core.tenant_context import set_current_company
 
@@ -91,13 +91,6 @@ class AppPermissionMiddleware:
 
         # 権限チェック
         if profile and profile.allowed_apps and app_code not in profile.allowed_apps:
-            return HttpResponseForbidden(
-                '<div style="text-align:center;padding:80px 20px;">'
-                '<h1 style="color:#1a2744;">アクセス権限がありません</h1>'
-                '<p style="color:#666;">このアプリへのアクセスが許可されていません。<br>'
-                '管理者にお問い合わせください。</p>'
-                '<a href="/" style="color:#1a2744;">ダッシュボードに戻る</a>'
-                '</div>'
-            )
+            raise PermissionDenied("このアプリへのアクセスが許可されていません。")
 
         return self.get_response(request)

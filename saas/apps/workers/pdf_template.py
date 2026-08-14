@@ -18,6 +18,8 @@ from reportlab.platypus import (
     TableStyle,
 )
 
+from apps.workers.eval_data import QUESTION_SCALE
+
 # 日本語フォント登録
 pdfmetrics.registerFont(UnicodeCIDFont("HeiseiKakuGo-W5"))
 _FONT = "HeiseiKakuGo-W5"
@@ -116,33 +118,7 @@ def generate_template_pdf(template):
             num = item.get("num", "")
             elements.append(_p(f"{num}. {name}", STYLE_H3))
 
-            # アンカー（基準）
-            anchor_5 = item.get("anchor_5", "")
-            anchor_3 = item.get("anchor_3", "")
-            anchor_1 = item.get("anchor_1", "")
-            if anchor_5 or anchor_3 or anchor_1:
-                anchor_data = [[
-                    _p("評点", STYLE_LABEL),
-                    _p("行動基準", STYLE_LABEL),
-                ]]
-                if anchor_5:
-                    anchor_data.append([_p("5 (最高)", STYLE_SMALL), _p(anchor_5, STYLE_SMALL)])
-                if anchor_3:
-                    anchor_data.append([_p("3 (標準)", STYLE_SMALL), _p(anchor_3, STYLE_SMALL)])
-                if anchor_1:
-                    anchor_data.append([_p("1 (要改善)", STYLE_SMALL), _p(anchor_1, STYLE_SMALL)])
-                t = Table(anchor_data, colWidths=[60, None])
-                t.setStyle(TableStyle([
-                    ("FONTNAME", (0, 0), (-1, -1), _FONT),
-                    ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#e2e8f0")),
-                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#f0f4f8")),
-                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                    ("TOPPADDING", (0, 0), (-1, -1), 3),
-                    ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
-                    ("LEFTPADDING", (0, 0), (-1, -1), 6),
-                ]))
-                elements.append(t)
-                elements.append(Spacer(1, 4))
+            # 5段階の行動基準（アンカー）は廃止したため出力しない
 
             # 個別質問
             questions = item.get("questions", [])
@@ -176,33 +152,7 @@ def generate_template_pdf(template):
 
             elements.append(Spacer(1, 6))
 
-    # 総合所見
-    overall = template.overall or []
-    if overall:
-        elements.append(_p("【総合所見】", STYLE_H2))
-        o_data = [[
-            _p("No.", STYLE_LABEL),
-            _p("質問", STYLE_LABEL),
-            _p("記入者", STYLE_LABEL),
-        ]]
-        for o in overall:
-            writer = "本人" if o.get("by_self") else "評価者"
-            o_data.append([
-                _p(str(o.get("qnum", "")), STYLE_BODY),
-                _p(str(o.get("text", "")), STYLE_BODY),
-                _p(writer, STYLE_BODY),
-            ])
-        t = Table(o_data, colWidths=[40, None, 50])
-        t.setStyle(TableStyle([
-            ("FONTNAME", (0, 0), (-1, -1), _FONT),
-            ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#e2e8f0")),
-            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#f0f4f8")),
-            ("VALIGN", (0, 0), (-1, -1), "TOP"),
-            ("TOPPADDING", (0, 0), (-1, -1), 3),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
-            ("LEFTPADDING", (0, 0), (-1, -1), 6),
-        ]))
-        elements.append(t)
+    # 総合所見は廃止
 
     doc.build(elements)
     return buf.getvalue()
@@ -496,45 +446,7 @@ def generate_comparison_pdf(template, workers, period=""):
             elements.append(t)
             elements.append(Spacer(1, 8))
 
-    # 総合所見（全員共通）
-    overall = template.overall or []
-    if overall:
-        elements.append(PageBreak())
-        elements.append(_cp("【総合所見】", STYLE_COMP_H2))
-
-        for job_name, group_workers in job_groups.items():
-            n_workers = len(group_workers)
-            q_col_width = 130 * mm
-            remaining = available_width - q_col_width
-            name_col_width = min(remaining / max(n_workers, 1), 40 * mm)
-            col_widths = [q_col_width] + [name_col_width] * n_workers
-
-            header = [_cp(f"【{job_name}】 総合所見", STYLE_COMP_LABEL)]
-            for w in group_workers:
-                header.append(_cp(w.name, STYLE_COMP_NAME))
-            table_data = [header]
-
-            for o in overall:
-                writer = "（本人記入）" if o.get("by_self") else ""
-                row = [_cp(f"{o.get('qnum', '')}  {o.get('text', '')}{writer}", STYLE_COMP_SMALL)]
-                for _ in group_workers:
-                    row.append(_cp("", STYLE_COMP_BODY))
-                table_data.append(row)
-
-            t = Table(table_data, colWidths=col_widths, repeatRows=1)
-            t.setStyle(TableStyle([
-                ("FONTNAME", (0, 0), (-1, -1), _FONT),
-                ("GRID", (0, 0), (-1, -1), 0.4, _GRID_COLOR),
-                ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                ("TOPPADDING", (0, 0), (-1, -1), 3),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
-                ("LEFTPADDING", (0, 0), (-1, -1), 4),
-                ("BACKGROUND", (0, 0), (-1, 0), _HEADER_BG),
-                ("ALIGN", (1, 0), (-1, 0), "CENTER"),
-                ("BACKGROUND", (1, 1), (-1, -1), _LIGHT_YELLOW),
-            ]))
-            elements.append(t)
-            elements.append(Spacer(1, 10))
+    # 総合所見は廃止
 
     doc.build(elements, onFirstPage=page_header, onLaterPages=page_header)
     return buf.getvalue()
@@ -612,6 +524,23 @@ def _score_boxes_table(max_value=5):
     return t
 
 
+def _choice_boxes_table(labels):
+    """任意のラベルの空ボックス行を返す（設問の「はい/いいえ」用）。"""
+    cells = [Paragraph(str(label), STYLE_EVAL_SCORE_NUM) for label in labels]
+    t = Table([cells], colWidths=[48] * len(cells), rowHeights=[22])
+    t.setStyle(TableStyle([
+        ("FONTNAME", (0, 0), (-1, -1), _FONT),
+        ("BOX", (0, 0), (-1, -1), 1, _SCORE_BOX_BORDER),
+        ("INNERGRID", (0, 0), (-1, -1), 0.8, _SCORE_BOX_BORDER),
+        ("BACKGROUND", (0, 0), (-1, -1), _SCORE_BOX_BG),
+        ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("TOPPADDING", (0, 0), (-1, -1), 2),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
+    ]))
+    return t
+
+
 def _writein_area(num_lines=3, width=None):
     """空の罫線付き記入エリアを返す。"""
     if width is None:
@@ -643,7 +572,7 @@ def generate_evaluator_pdf(template, evaluator_name, targets_with_data, period="
         評価者の氏名。
     targets_with_data : list[dict]
         対象者情報のリスト。各要素は worker_name, job_title,
-        survey_items, scale, overall を含む。
+        survey_items, scale を含む。
     period : str
         評価期間の表示文字列（任意）。
     """
@@ -706,20 +635,23 @@ def generate_evaluator_pdf(template, evaluator_name, targets_with_data, period="
         worker_name = target.get("worker_name", "")
         job_title = target.get("job_title", "")
         survey_items = target.get("survey_items") or []
-        scale = target.get("scale") or legend_scale or []
-        overall = target.get("overall") or []
 
-        max_scale_value = max(
-            (int(s.get("value", 5)) for s in scale), default=5
-        )
-
-        # 対象者ヘッダー
-        elements.append(
-            _p(
-                f"対象者 {idx + 1}: {worker_name}　（{job_title}）",
-                STYLE_EVAL_TARGET,
+        # 対象者ヘッダー。氏名が空の場合は役職別の白紙シートとして扱い、
+        # 氏名・評価者は手書きできるよう記入欄にする。
+        if worker_name:
+            elements.append(
+                _p(
+                    f"対象者 {idx + 1}: {worker_name}　（{job_title}）",
+                    STYLE_EVAL_TARGET,
+                )
             )
-        )
+        else:
+            elements.append(_p(f"【{job_title}】評価シート", STYLE_EVAL_TARGET))
+            elements.append(Spacer(1, 2))
+            elements.append(
+                _p("被評価者：＿＿＿＿＿＿＿＿＿＿　　評価者：＿＿＿＿＿＿＿＿＿＿",
+                   STYLE_EVAL_SUB)
+            )
         elements.append(Spacer(1, 6))
 
         # セクション別にグループ化
@@ -732,8 +664,6 @@ def generate_evaluator_pdf(template, evaluator_name, targets_with_data, period="
                 sections_map[sec] = []
             sections_map[sec].append(item)
 
-        total_question_count = 0
-
         for sec in sections_order:
             elements.append(_p(f"【{sec}】", STYLE_EVAL_SECTION))
 
@@ -745,54 +675,21 @@ def generate_evaluator_pdf(template, evaluator_name, targets_with_data, period="
                        STYLE_EVAL_ITEM)
                 )
 
-                # アンカー（基準）
-                anchor_5 = item.get("anchor_5", "")
-                anchor_3 = item.get("anchor_3", "")
-                anchor_1 = item.get("anchor_1", "")
-                if anchor_5 or anchor_3 or anchor_1:
-                    anchor_rows = [[
-                        _p("評点", STYLE_LABEL),
-                        _p("行動基準", STYLE_LABEL),
-                    ]]
-                    if anchor_5:
-                        anchor_rows.append([
-                            _p("5 (最高)", STYLE_EVAL_ANCHOR),
-                            _p(anchor_5, STYLE_EVAL_ANCHOR),
-                        ])
-                    if anchor_3:
-                        anchor_rows.append([
-                            _p("3 (標準)", STYLE_EVAL_ANCHOR),
-                            _p(anchor_3, STYLE_EVAL_ANCHOR),
-                        ])
-                    if anchor_1:
-                        anchor_rows.append([
-                            _p("1 (要改善)", STYLE_EVAL_ANCHOR),
-                            _p(anchor_1, STYLE_EVAL_ANCHOR),
-                        ])
-                    t = Table(anchor_rows, colWidths=[60, None])
-                    t.setStyle(TableStyle([
-                        ("FONTNAME", (0, 0), (-1, -1), _FONT),
-                        ("GRID", (0, 0), (-1, -1), 0.5, _GRID_COLOR),
-                        ("BACKGROUND", (0, 0), (-1, 0), _HEADER_BG),
-                        ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                        ("TOPPADDING", (0, 0), (-1, -1), 3),
-                        ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
-                        ("LEFTPADDING", (0, 0), (-1, -1), 6),
-                    ]))
-                    elements.append(t)
-                    elements.append(Spacer(1, 3))
+                # 5段階の行動基準（アンカー）は廃止したため出力しない
 
                 # 個別質問 + スコアボックス
                 questions = item.get("questions", [])
                 for q in questions:
-                    total_question_count += 1
                     qnum = q.get("qnum", "")
                     qtext = q.get("text", "")
                     elements.append(
                         _p(f"Q{qnum}. {qtext}", STYLE_EVAL_Q)
                     )
                     elements.append(Spacer(1, 2))
-                    elements.append(_score_boxes_table(max_scale_value))
+                    # 設問は「はい/いいえ」の2択。項目全体・総合は5段階のまま。
+                    elements.append(
+                        _choice_boxes_table([s["label"] for s in QUESTION_SCALE])
+                    )
                     elements.append(Spacer(1, 4))
 
                 # 自由記述エリア
@@ -807,52 +704,12 @@ def generate_evaluator_pdf(template, evaluator_name, targets_with_data, period="
 
                 elements.append(Spacer(1, 4))
 
-        # ---------- 総合所見 ----------
-        if overall:
-            elements.append(Spacer(1, 6))
-            elements.append(_p("【総合所見】", STYLE_EVAL_SECTION))
-
-            for o in overall:
-                oqnum = o.get("qnum", "")
-                otext = o.get("text", "")
-                by_self = o.get("by_self", False)
-                label = "（本人記入）" if by_self else ""
-                elements.append(
-                    _p(f"{oqnum}. {otext}{label}", STYLE_EVAL_OVERALL_Q)
-                )
-                elements.append(Spacer(1, 2))
-                elements.append(_writein_area(num_lines=4))
-                elements.append(Spacer(1, 6))
-
-        # ---------- 合計点セクション ----------
+        # ---------- 総合コメント ----------
+        # 総合所見（設問形式）と合計点は廃止。自由記入の総合コメント欄のみ置く。
         elements.append(Spacer(1, 10))
-        elements.append(_p("【合計点】", STYLE_EVAL_SECTION))
-
-        total_data = [
-            [
-                _p("質問数", STYLE_LABEL),
-                _p("合計スコア", STYLE_LABEL),
-                _p("平均スコア", STYLE_LABEL),
-            ],
-            [
-                _p(str(total_question_count), STYLE_BODY),
-                _p("　　　/　　　", STYLE_BODY),
-                _p("　　　.　　　", STYLE_BODY),
-            ],
-        ]
-        t = Table(total_data, colWidths=[60, 90, 90])
-        t.setStyle(TableStyle([
-            ("FONTNAME", (0, 0), (-1, -1), _FONT),
-            ("GRID", (0, 0), (-1, -1), 0.8, _SCORE_BOX_BORDER),
-            ("BACKGROUND", (0, 0), (-1, 0), _HEADER_BG),
-            ("BACKGROUND", (1, 1), (-1, -1), _WRITEIN_BG),
-            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-            ("ALIGN", (0, 0), (-1, -1), "CENTER"),
-            ("TOPPADDING", (0, 0), (-1, -1), 6),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
-            ("LEFTPADDING", (0, 0), (-1, -1), 8),
-        ]))
-        elements.append(t)
+        elements.append(_p("【総合コメント】", STYLE_EVAL_SECTION))
+        elements.append(Spacer(1, 2))
+        elements.append(_writein_area(num_lines=8))
 
     doc.build(elements)
     return buf.getvalue()

@@ -13,6 +13,24 @@
   </div>
 </div>
 
+{% if sheet_roles %}
+<div class="card" style="margin-bottom:20px;">
+  <div class="card-header"><h2>役職別 人材評価シート（PDF）</h2></div>
+  <div class="card-body">
+    <p style="color:var(--text-secondary);margin-bottom:12px;">
+      印刷して手書きで使える白紙の評価シートです。共通の項目と、その職種の項目が入ります。
+    </p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      {% for r in sheet_roles %}
+      <a href="{% url 'workers:eval_role_sheet_pdf' %}?role={{ r|urlencode }}"
+         class="btn btn-outline btn-sm">{{ r }}</a>
+      {% endfor %}
+      <a href="{% url 'workers:eval_role_sheet_pdf' %}" class="btn btn-primary btn-sm">全役職まとめて</a>
+    </div>
+  </div>
+</div>
+{% endif %}
+
 {% if evaluations %}
 <div class="stats">
   <div class="stat-card blue">

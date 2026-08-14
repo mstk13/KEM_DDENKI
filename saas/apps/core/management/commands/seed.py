@@ -70,3 +70,27 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS(
             f"「{company.name}」に職種{len(job_titles)}件・役職{len(positions)}件を投入しました。"
         ))
+
+        # アラートルール（書類未添付・健診期限）
+        from apps.notifications.models import AlertRule, Notification
+
+        alert_rules = [
+            ("cert_missing", "証明書未添付アラート"),
+            ("health_report_missing", "健診報告書未添付アラート"),
+            ("health_checkup_due", "健診期限アラート（2ヶ月前）"),
+        ]
+        for alert_type, name in alert_rules:
+            AlertRule.unscoped.get_or_create(
+                company=company,
+                alert_type=alert_type,
+                defaults={
+                    "name": name,
+                    "is_active": True,
+                    "notification_level": Notification.Level.WARNING,
+                    "notify_channels": ["in_app", "email"],
+                    "notify_roles": ["office_staff"],
+                },
+            )
+        self.stdout.write(self.style.SUCCESS(
+            f"「{company.name}」にアラートルール{len(alert_rules)}件を投入しました。"
+        ))
