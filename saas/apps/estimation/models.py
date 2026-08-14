@@ -10,7 +10,6 @@ from simple_history.models import HistoricalRecords
 
 from apps.core.models import TenantModel
 
-
 # ===================================================================
 # S4: データ所有区分 Mixin
 # ===================================================================

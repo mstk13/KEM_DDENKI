@@ -2,7 +2,11 @@ from django.contrib import admin
 from simple_history.admin import SimpleHistoryAdmin
 
 from apps.materials.models import (
-    Material, MaterialSupplier, ProcurementRecord, PurchaseOrder, PurchaseOrderItem,
+    Material,
+    MaterialSupplier,
+    ProcurementRecord,
+    PurchaseOrder,
+    PurchaseOrderItem,
 )
 
 

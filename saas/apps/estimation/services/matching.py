@@ -269,10 +269,7 @@ def match_item(
                 confidence = Decimal("0")
 
     # 高信頼度（コード一致・正規化一致）は reviewed、それ以外は pending
-    if confidence >= Decimal("90"):
-        status = ItemAlias.Status.REVIEWED
-    else:
-        status = ItemAlias.Status.PENDING
+    status = ItemAlias.Status.REVIEWED if confidence >= Decimal("90") else ItemAlias.Status.PENDING
 
     alias, _created = ItemAlias.unscoped.get_or_create(  # unscoped: company を明示指定
         company=company,

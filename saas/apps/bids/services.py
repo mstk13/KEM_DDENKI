@@ -248,8 +248,12 @@ def run_scrape(target, company):
             raw_results = scrape_ippi(target)
         else:
             # 個別サイトスクレイパー（requests + BS4）
-            from apps.bids.scrapers import get_scraper
-            from apps.bids.scrapers import shigaku, kanagawa_thk, kanagawa_swf  # noqa: F401 レジストリ登録
+            from apps.bids.scrapers import (  # noqa: F401 レジストリ登録
+                get_scraper,
+                kanagawa_swf,
+                kanagawa_thk,
+                shigaku,
+            )
 
             scraper = get_scraper(target.site_key)
             if not scraper:
