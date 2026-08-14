@@ -138,6 +138,93 @@ def get_dashboard_stats(company):
 # ===================================================================
 
 
+# 取り込み結果 → BidProject のフィールド。値の長さ上限も持つ。
+_IMPORT_FIELDS = [
+    ("agency_dept", 200),
+    ("location", 400),
+    ("category", 100),
+    ("bid_method", 200),
+    ("design_no", 100),
+    ("electronic_bid", 50),
+    ("source_url", 500),
+    ("summary", None),
+    ("required_grade", None),
+    ("required_category", None),
+    ("required_issuer_type", None),
+    ("announced_on", None),
+    ("opening_on", None),
+    ("deadline", None),
+    ("budget", None),
+    ("region", None),
+]
+
+
+def find_existing_project(company, rec):
+    """取り込み済みの同じ案件を探す。無ければ None。
+
+    発注機関を「機関」と「担当部・事務所」に分けて保存するようにしたため、
+    旧形式（`機関 ／ 担当部` を client に入れていた）で保存された案件とも
+    突き合わせる。ここで取りこぼすと同じ案件が二重登録される。
+    """
+    source_url = rec.get("source_url", "")
+    if source_url:
+        hit = BidProject.unscoped.filter(  # unscoped: company を明示指定
+            company=company, source_url=source_url,
+        ).first()
+        if hit:
+            return hit
+
+    title = rec.get("title", "")
+    if not title:
+        return None
+
+    client = rec.get("client", "")
+    agency_dept = rec.get("agency_dept", "")
+    legacy_client = f"{client} ／ {agency_dept}" if agency_dept else client
+
+    candidates = BidProject.unscoped.filter(  # unscoped: company を明示指定
+        company=company, title=title,
+    )
+    for candidate in candidates:
+        if candidate.client in ("", client, legacy_client):
+            return candidate
+    return None
+
+
+def fill_missing_fields(project, rec, default_region=""):
+    """既存案件の空いている項目だけを取り込み結果で埋める。
+
+    画面で手直しした値を上書きしないよう、既に値がある項目には触らない。
+    変更があれば True を返す。
+    """
+    changed = []
+
+    # 旧形式の「機関 ／ 担当部」は、分割済みの値に置き換える
+    client = rec.get("client", "")
+    if client and "／" in project.client and project.client.startswith(client):
+        project.client = client[:200]
+        changed.append("client")
+
+    for name, max_length in _IMPORT_FIELDS:
+        value = rec.get(name)
+        if name == "region":
+            value = value or default_region
+        if value in (None, "", 0):
+            continue
+        if getattr(project, name) not in (None, "", 0):
+            continue
+        if max_length and isinstance(value, str):
+            value = value[:max_length]
+        setattr(project, name, value)
+        changed.append(name)
+
+    if not changed:
+        return False
+
+    project.save(update_fields=[*changed, "updated_at"])
+    return True
+
+
 def run_scrape(target, company):
     """1つの ScrapeTarget に対してスクレイピングを実行する。
 
@@ -167,7 +254,7 @@ def run_scrape(target, company):
             scraper = get_scraper(target.site_key)
             if not scraper:
                 return {
-                    "new": 0, "skipped": 0, "excluded": 0,
+                    "new": 0, "updated": 0, "skipped": 0, "excluded": 0,
                     "errors": [f"未対応: {target.site_key}"],
                 }
             bid_infos = scraper.scrape()
@@ -192,10 +279,13 @@ def run_scrape(target, company):
         target.save(update_fields=[
             "error_count", "last_error", "last_scraped_at", "updated_at",
         ])
-        return {"new": 0, "skipped": 0, "excluded": 0, "errors": [str(e)]}
+        return {
+            "new": 0, "updated": 0, "skipped": 0, "excluded": 0, "errors": [str(e)],
+        }
 
     # --- 結果をBidProjectに登録 ---
     new_count = 0
+    updated = 0
     skipped = 0
     excluded = 0
     errors = []
@@ -222,19 +312,14 @@ def run_scrape(target, company):
                 skipped += 1
                 continue
 
-        # 重複チェック: source_url で判定
-        if source_url:
-            if BidProject.unscoped.filter(  # unscoped: company を明示指定
-                company=company, source_url=source_url,
-            ).exists():
+        # 既に取り込み済みなら、空いている項目だけ埋める。
+        # 取得項目を増やしても既存案件は「重複」で弾かれ続けて永久に空のままになる。
+        existing = find_existing_project(company, rec)
+        if existing is not None:
+            if fill_missing_fields(existing, rec, default_region=target.region):
+                updated += 1
+            else:
                 skipped += 1
-                continue
-
-        # タイトル+発注者でも補助的に重複チェック
-        if BidProject.unscoped.filter(  # unscoped: company を明示指定
-            company=company, title=title, client=client,
-        ).exists():
-            skipped += 1
             continue
 
         try:
@@ -269,7 +354,7 @@ def run_scrape(target, company):
     target.last_scraped_at = timezone.now()
     target.error_count = 0
     target.last_error = ""
-    target.last_result = f"新規{new_count}件, スキップ{skipped}件"
+    target.last_result = f"新規{new_count}件, 更新{updated}件, スキップ{skipped}件"
     if excluded:
         target.last_result += f", 対象外{excluded}件"
     if errors:
@@ -281,6 +366,7 @@ def run_scrape(target, company):
 
     return {
         "new": new_count,
+        "updated": updated,
         "skipped": skipped,
         "excluded": excluded,
         "errors": errors,

@@ -367,6 +367,93 @@ class TestScrapeImport:
         target.refresh_from_db()
         assert "対象外1件" in target.last_result
 
+    def test_existing_project_is_filled_in_not_skipped(
+        self, monkeypatch, company_a, user_a,
+    ):
+        """取得項目を増やしたとき、取り込み済みの案件も後から埋まる。
+
+        重複でスキップし続けると、既存案件は永久に空のままになる。
+        """
+        # 旧コードで取り込んだ案件（発注機関と担当部が1カラムに入っている）
+        old = BidProject.unscoped.create(
+            company=company_a, created_by=user_a,
+            title="Ｒ８下京税務署電気設備工事",
+            client="国土交通省近畿地方整備局 ／ 営繕部",
+            category="電気設備工事",
+            status=BidProject.Status.CONSIDERING,
+        )
+        target = self._target(company_a, user_a)
+        record = {
+            "title": "Ｒ８下京税務署電気設備工事",
+            "client": "国土交通省近畿地方整備局",
+            "agency_dept": "営繕部",
+            "location": "京都府京都市下京区",
+            "category": "電気設備工事",
+            "bid_method": "一般競争入札（標準型）",
+            "announced_on": "2026-08-04",
+            "opening_on": "2026-10-28",
+            "source_url": "https://example.go.jp/kokoku/1",
+            "summary": "発注機関\t国土交通省近畿地方整備局",
+        }
+        result = self._run(monkeypatch, [record], target, company_a)
+
+        assert result["new"] == 0
+        assert result["updated"] == 1
+        assert BidProject.unscoped.filter(company=company_a).count() == 1
+
+        old.refresh_from_db()
+        assert old.client == "国土交通省近畿地方整備局"
+        assert old.agency_dept == "営繕部"
+        assert old.location == "京都府京都市下京区"
+        assert old.announced_on == datetime.date(2026, 8, 4)
+        assert old.opening_on == datetime.date(2026, 10, 28)
+        assert old.source_url == "https://example.go.jp/kokoku/1"
+        # 画面で動かした状態は保持する
+        assert old.status == BidProject.Status.CONSIDERING
+
+    def test_edited_values_are_not_overwritten(self, monkeypatch, company_a, user_a):
+        existing = BidProject.unscoped.create(
+            company=company_a, created_by=user_a,
+            title="Ｒ８下京税務署電気設備工事",
+            client="国土交通省近畿地方整備局",
+            location="現地確認済み：京都市下京区○○町",
+            deadline=datetime.date(2026, 8, 20),
+        )
+        target = self._target(company_a, user_a)
+        record = {
+            "title": "Ｒ８下京税務署電気設備工事",
+            "client": "国土交通省近畿地方整備局",
+            "location": "京都府京都市下京区",
+            "deadline": "2026-08-31",
+            "bid_method": "一般競争入札（標準型）",
+        }
+        self._run(monkeypatch, [record], target, company_a)
+
+        existing.refresh_from_db()
+        assert existing.location == "現地確認済み：京都市下京区○○町"
+        assert existing.deadline == datetime.date(2026, 8, 20)
+        # 空いていた項目は埋まる
+        assert existing.bid_method == "一般競争入札（標準型）"
+
+    def test_nothing_to_fill_counts_as_skipped(self, monkeypatch, company_a, user_a):
+        BidProject.unscoped.create(
+            company=company_a, created_by=user_a,
+            title="Ｒ８下京税務署電気設備工事",
+            client="国土交通省近畿地方整備局",
+            category="電気設備工事",
+        )
+        target = self._target(company_a, user_a)
+        record = {
+            "title": "Ｒ８下京税務署電気設備工事",
+            "client": "国土交通省近畿地方整備局",
+            "category": "電気設備工事",
+        }
+        result = self._run(monkeypatch, [record], target, company_a)
+
+        assert result == {
+            "new": 0, "updated": 0, "skipped": 1, "excluded": 0, "errors": [],
+        }
+
 
 @pytest.mark.django_db
 class TestProjectDetailView:
