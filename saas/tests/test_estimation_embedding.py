@@ -279,19 +279,27 @@ class TestSimilarityHelpers:
 
 
 class TestSourceTextBuilder:
-    def test_includes_unit_and_spec(self):
+    """索引側と照会側で文字列の形を揃えること。
+
+    照合相手は数量書の生の品名で、単位も仕様も付いていない。
+    品目側だけを補強すると同一品目でも類似度が下がり、
+    実測で 0.9036 → 0.8412 まで落ちて自動確定の閾値を割った。
+    """
+
+    def test_uses_canonical_name_only(self):
         from apps.estimation.management.commands.build_item_embeddings import (
             build_source_text,
         )
 
         item = EstimationItem(
             code="A-001",
-            canonical_name="VVFケーブル",
-            unit="m",
+            canonical_name="VVFケーブル 1.6mm 2芯 100m巻",
+            unit="巻",
             spec={"type": "VVF", "size": "1.6", "cores": 2},
         )
         text = build_source_text(item)
-        assert "VVFケーブル" in text
-        assert "m" in text
-        assert "1.6" in text
-        assert "2" in text
+
+        assert text == "VVFケーブル 1.6mm 2芯 100m巻"
+        # 単位・仕様は混ぜない。照会側に同じものを付けられないため。
+        assert "巻 VVF" not in text
+        assert "1.6 2" not in text
