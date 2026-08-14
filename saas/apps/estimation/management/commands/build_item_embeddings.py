@@ -19,20 +19,25 @@ from apps.estimation.services import embedding as embedding_service
 
 
 def build_source_text(item: EstimationItem) -> str:
-    """ベクトル化する文字列を組み立てる。
+    """ベクトル化する文字列を組み立てる。正規名称のみを使う。
 
-    正規名称だけでなく単位と仕様を足す。「VVF 1.6-2C」のような
-    短い品名は情報量が乏しく、単体では別品目と区別しにくいため。
+    当初は単位と仕様も足していたが、それをやめた。
+
+    照合の相手は発注者数量書の生の品名であり、こちらには単位も仕様も無い。
+    品目側だけを補強すると索引側と照会側で文字列の形が変わり、
+    同じ品目どうしでも類似度が下がる。実測では次のとおりで、
+    補強によって自動確定の閾値 0.85 を割っていた。
+
+        品目=名+単位+仕様, 照会=名のみ   0.8412  ← 閾値割れ
+        品目=名のみ,       照会=名のみ   0.9036
+        両側とも名+単位+仕様             0.9355
+
+    照会側を同じ形に補強できれば最も高くなるが、生の品名から
+    仕様を復元することはできない。したがって両側を素の名称に揃える。
+
+    短い品名の区別は、既に戦略3（仕様属性一致）が担っている。
     """
-    parts = [item.canonical_name]
-    if item.unit:
-        parts.append(item.unit)
-    spec = item.spec or {}
-    for key in ("type", "size", "cores", "voltage"):
-        value = spec.get(key)
-        if value:
-            parts.append(str(value))
-    return " ".join(parts)
+    return item.canonical_name
 
 
 class Command(BaseCommand):
