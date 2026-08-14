@@ -21,6 +21,7 @@ from decimal import Decimal
 from django.conf import settings
 
 from apps.estimation.models import LaborRate
+from apps.estimation.services import labor_table
 
 logger = logging.getLogger(__name__)
 
@@ -123,6 +124,11 @@ def extract_tables_from_pdf(pdf_bytes: bytes) -> list[PageTable]:
 # [3] Claude API で構造化
 # ===================================================================
 
+# 1ページ分の構造化出力の上限。到達すると JSON が途中で切れる。
+# 令和8年3月版の単価表は1ページ400件超あり、この上限では到底収まらない。
+# そうしたページは labor_table の決定論的パーサで処理する前提。
+STRUCTURE_MAX_TOKENS = 4000
+
 STRUCTURE_SYSTEM_PROMPT = (
     "あなたは日本の公共工事設計労務単価のPDFから表を読み取る専門家です。"
     "入力されたテキストや表データから、都道府県名・職種名・単価を正確に抽出してください。"
@@ -171,16 +177,21 @@ def _get_api_key():
 
 
 def _parse_json(text: str) -> dict:
-    """LLM レスポンスから JSON を抽出してパースする。"""
-    if "```json" in text:
-        start = text.index("```json") + len("```json")
-        end = text.index("```", start)
-        text = text[start:end].strip()
-    elif "```" in text:
-        start = text.index("```") + len("```")
-        end = text.index("```", start)
-        text = text[start:end].strip()
-    return json.loads(text)
+    """LLM レスポンスから JSON を抽出してパースする。
+
+    出力が max_tokens で途中終了すると閉じフェンス ``` が付かない。
+    旧実装は text.index("```", start) が ValueError になり、
+    呼び出し側がそれを握り潰して全件を捨てていた（実データで確認）。
+    ここでは開始フェンスだけでも処理し、閉じが無ければ残り全部を対象にする。
+    """
+    body = text
+    for fence in ("```json", "```"):
+        if fence in body:
+            body = body.split(fence, 1)[1]
+            break
+    # 閉じフェンスがあればそこまで。無ければ末尾まで。
+    body = body.split("```", 1)[0].strip()
+    return json.loads(body)
 
 
 def structure_page_with_llm(
@@ -207,7 +218,7 @@ def structure_page_with_llm(
 
     response = client.messages.create(
         model="claude-haiku-4-5",
-        max_tokens=4000,
+        max_tokens=STRUCTURE_MAX_TOKENS,
         system=[{
             "type": "text",
             "text": STRUCTURE_SYSTEM_PROMPT,
@@ -221,6 +232,17 @@ def structure_page_with_llm(
         f"Page {page.page_number}: "
         f"input={response.usage.input_tokens}, output={response.usage.output_tokens}"
     )
+
+    # 出力が上限で切られたら黙って部分結果を返さない。
+    # 実データ（令和8年3月版 p.3、正解422件）で max_tokens=4000 に到達し、
+    # 途中で切れた JSON が捨てられて0件になっていた。
+    # 件数が多いページは LLM ではなく labor_table の決定論的パーサで処理する。
+    if response.stop_reason == "max_tokens":
+        logger.error(
+            "Page %s: 出力が max_tokens(%s) に到達し切り捨てられました。"
+            "このページは件数が多すぎます。決定論的パーサの利用を検討してください。",
+            page.page_number, STRUCTURE_MAX_TOKENS,
+        )
 
     try:
         data = _parse_json(result_text)
@@ -243,16 +265,63 @@ def structure_page_with_llm(
     return drafts
 
 
+def structure_page_deterministic(
+    page: PageTable,
+    valid_from: date,
+    fiscal_year_label: str = "",
+) -> list[LaborRateDraft]:
+    """表の座標から直接読む。LLM を使わない。
+
+    「都道府県(行) × 職種(列)」の規則的な表であればこれで完全に読める。
+    実測で適合率・再現率とも 1.000（LLM は 0.03〜0.64）。
+    """
+    rows = labor_table.parse_page(page.tables)
+    return [
+        LaborRateDraft(
+            prefecture=row.prefecture,
+            occupation_code=row.prefecture_code,
+            occupation_name=row.occupation_name,
+            unit_price=row.unit_price,
+            valid_from=valid_from,
+            fiscal_year_label=fiscal_year_label,
+        )
+        for row in rows
+    ]
+
+
 def structure_all_pages(
     pages: list[PageTable],
     valid_from: date,
     fiscal_year_label: str = "",
+    *,
+    use_llm_fallback: bool = True,
 ) -> list[LaborRateDraft]:
-    """全ページを構造化する。"""
+    """全ページを構造化する。
+
+    規則的な単価表は決定論的に読み、読めないページだけ LLM に回す。
+    LLM を先に通していた頃は、1ページ400件超の表で出力が
+    max_tokens に達して切り捨てられ、静かに0件になっていた。
+    """
     all_drafts = []
     for page in pages:
         if not page.tables and len(page.raw_text.strip()) < 50:
             continue
+
+        if labor_table.looks_like_rate_table(page.tables):
+            drafts = structure_page_deterministic(
+                page, valid_from, fiscal_year_label,
+            )
+            logger.info(
+                "Page %s: 決定論的パーサで %d 件（LLM未使用）",
+                page.page_number, len(drafts),
+            )
+            all_drafts.extend(drafts)
+            continue
+
+        if not use_llm_fallback:
+            logger.info("Page %s: 決定論的に読めずスキップ", page.page_number)
+            continue
+
         try:
             drafts = structure_page_with_llm(page, valid_from, fiscal_year_label)
             all_drafts.extend(drafts)
