@@ -349,6 +349,40 @@ def _run_cascade(raw_name: str, normalized_name: str, company, *, use_llm: bool)
     return None, Decimal("0"), ItemAlias.MatchMethod.MANUAL
 
 
+# 人間が判断を下した状態。自動再マッチで上書きしてはならない。
+FINALISED_STATUSES = frozenset({
+    ItemAlias.Status.REVIEWED,
+    ItemAlias.Status.APPROVED,
+    ItemAlias.Status.REJECTED,
+})
+
+
+def _should_update(alias: ItemAlias, item, confidence: Decimal, *, force: bool) -> bool:
+    """既存の ItemAlias を再マッチ結果で上書きしてよいか判定する。
+
+    無条件に上書きすると2つの事故が起きる。
+
+    1. レビュー済み・承認済み・却下済みの判断が消える
+       名寄せは人間の確認を前提にした資産であり、自動処理で覆してはならない。
+    2. 一時的な障害で既存の紐付けが失われる
+       Ollama が落ちている間に再マッチすると戦略4が空振りし、
+       せっかく紐付いていたものが「手動・信頼度0」に戻ってしまう。
+
+    そのため、未確認かつ結果が良くなる場合にのみ上書きする。
+    """
+    if force:
+        return True
+    if alias.status in FINALISED_STATUSES:
+        return False
+    if item is None:
+        # 今回マッチしなかった。既存の紐付けは消さない。
+        return False
+    if alias.estimation_item_id is None:
+        # 未紐付けだったものが紐付いた。これは常に改善。
+        return True
+    return confidence > alias.confidence
+
+
 def match_item(
     raw_name: str,
     source_type: str,
@@ -356,12 +390,21 @@ def match_item(
     company,
     *,
     use_llm: bool = False,
+    update_existing: bool = True,
+    force: bool = False,
 ) -> ItemAlias:
     """マッチング戦略をカスケード実行し、ItemAlias を生成して返す。
 
     use_llm=True の場合、戦略4まで失敗したらLLMマッチングを試みる。
     埋め込み（戦略4）は Ollama に到達できなければ黙って飛ばされ、
     従来どおり戦略5へ落ちる。
+
+    Args:
+        update_existing: 既存の ItemAlias を再マッチ結果で更新する。
+            レビュー済みのものは対象外（_should_update を参照）。
+            False にすると従来どおり既存レコードには一切触れない。
+        force: レビュー済みも含めて無条件に上書きする。
+            人間の判断を消すため、移行作業など明確な意図がある時だけ使う。
     """
     normalized_name = normalize(raw_name)
 
@@ -377,7 +420,7 @@ def match_item(
     # 高信頼度（コード一致・正規化一致）は reviewed、それ以外は pending
     status = ItemAlias.Status.REVIEWED if confidence >= Decimal("90") else ItemAlias.Status.PENDING
 
-    alias, _created = ItemAlias.unscoped.get_or_create(  # unscoped: company を明示指定
+    alias, created = ItemAlias.unscoped.get_or_create(  # unscoped: company を明示指定
         company=company,
         source_type=source_type,
         source_key=source_key or "",
@@ -390,6 +433,26 @@ def match_item(
             "status": status,
         },
     )
+
+    if created or not update_existing:
+        return alias
+
+    if not _should_update(alias, item, confidence, force=force):
+        return alias
+
+    logger.info(
+        "名寄せを更新: %s  %s(%s) -> %s(%s)",
+        raw_name, alias.matched_by, alias.confidence, matched_by, confidence,
+    )
+    alias.estimation_item = item
+    alias.normalized_name = normalized_name
+    alias.confidence = confidence
+    alias.matched_by = matched_by
+    alias.status = status
+    alias.save(update_fields=[
+        "estimation_item", "normalized_name", "confidence",
+        "matched_by", "status", "updated_at",
+    ])
     return alias
 
 
@@ -398,6 +461,8 @@ def bulk_match(
     company,
     *,
     use_llm: bool = False,
+    update_existing: bool = True,
+    force: bool = False,
 ) -> list[ItemAlias]:
     """一括マッチング。
 
@@ -411,6 +476,8 @@ def bulk_match(
             source_key=entry.get("source_key", ""),
             company=company,
             use_llm=use_llm,
+            update_existing=update_existing,
+            force=force,
         )
         results.append(alias)
     return results
