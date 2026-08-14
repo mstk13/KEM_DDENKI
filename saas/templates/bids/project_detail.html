@@ -83,8 +83,25 @@
       </dd>
       <dt>業者番号</dt>
       <dd>{% if qual_check.matched %}{{ qual_check.matched.vendor_number|default:"-" }}{% else %}-{% endif %}</dd>
+      <dt>照合した要件</dt>
+      <dd>
+        {% if qual_check.checked %}
+          <ul style="margin:0;padding-left:18px;">
+            {% for item in qual_check.checked %}<li>{{ item }}</li>{% endfor %}
+          </ul>
+        {% else %}
+          公告から等級・点数の要件を読み取れていません。参加要件欄を確認してください。
+        {% endif %}
+      </dd>
+      <dt>公告側の必要等級</dt>
+      <dd>
+        {% if project.required_grades %}{{ project.required_grades }} のいずれか
+        {% elif project.required_grade %}{{ project.required_grade }} 以上
+        {% else %}-{% endif %}
+      </dd>
+      <dt>公告側の必要点数</dt>
+      <dd>{% if project.required_score %}{{ project.required_score }} 点以上{% else %}-{% endif %}</dd>
       <dt>公告側の必要業種区分</dt><dd>{{ project.required_category|default:"-" }}</dd>
-      <dt>公告側の必要等級</dt><dd>{{ project.required_grade|default:"-" }}{% if project.required_grade %} 以上{% endif %}</dd>
       <dt>資格種別</dt><dd>{{ project.required_issuer_type|default:"-" }}</dd>
     </dl>
   </div>

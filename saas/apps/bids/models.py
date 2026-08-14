@@ -136,6 +136,19 @@ class BidProject(TenantModel):
         "資格種別", max_length=200, blank=True,
         help_text="例: 全省庁統一資格, 防衛省, 国土交通省, 千葉県",
     )
+    # 公告が求める等級は「B等級以上」（下限）とは限らず、
+    # 国土交通省は「Ｂ等級又はＣ等級に認定されている者」と列挙で指定する。
+    # 下限として大小比較すると、A等級しか持たない場合に誤って参加可と出る。
+    required_grades = models.CharField(
+        "必要等級（該当）", max_length=20, blank=True,
+        help_text="公告が認定を求める等級。列挙のときは並べる。例: BC",
+    )
+    # 防衛省は等級ではなく点数で切る。
+    # 「総合審査数値…が780点以上」「経営事項評価数値…が1,100点以上」
+    required_score = models.IntegerField(
+        "必要点数", null=True, blank=True,
+        help_text="総合審査数値・経営事項評価数値の下限",
+    )
 
     history = HistoricalRecords()
 

@@ -119,9 +119,21 @@
           {{ form.required_category.errors }}
         </div>
         <div class="form-group">
-          <label for="id_required_grade">必要等級</label>
+          <label for="id_required_grade">必要等級（下限）</label>
           {{ form.required_grade }}
           {{ form.required_grade.errors }}
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="id_required_grades">必要等級（該当。例: BC）</label>
+          {{ form.required_grades }}
+          {{ form.required_grades.errors }}
+        </div>
+        <div class="form-group">
+          <label for="id_required_score">必要点数</label>
+          {{ form.required_score }}
+          {{ form.required_score.errors }}
         </div>
       </div>
       <div class="form-group">

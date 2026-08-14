@@ -19,7 +19,8 @@ class BidProjectForm(forms.ModelForm):
             "category", "bid_method", "electronic_bid", "design_no",
             "announced_on", "deadline", "opening_on",
             "budget", "source_url", "status",
-            "required_category", "required_grade", "required_issuer_type",
+            "required_category", "required_grade", "required_grades",
+            "required_score", "required_issuer_type",
             "work_outline", "requirements", "notes",
         ]
         widgets = {

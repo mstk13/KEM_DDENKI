@@ -129,6 +129,7 @@ def check_project(project, qualifications, today=None):
         "matched": None,
         "expired": [],
         "issuer_known": False,
+        "checked": [],  # 実際に突き合わせた要件（画面に根拠として出す）
     }
 
     bid_issuer = project.client or ""
@@ -199,28 +200,66 @@ def check_project(project, qualifications, today=None):
 
     best = valid[0][1]
     result["matched"] = best
-
-    # 4. 等級要件があれば比較する
-    required = normalize_grade(project.required_grade)
-    ours = normalize_grade(best.grade)
     detail = _describe(best)
-    if required and ours and GRADE_ORDER[ours] < GRADE_ORDER[required]:
-        result["eligible"] = False
-        result["reason"] = (
-            f"{required}等級以上が必要ですが、自社は {ours} 等級です（{detail}）。"
+    ours = normalize_grade(best.grade)
+
+    # 4. 公告が等級を列挙している場合（国土交通省の「Ｂ等級又はＣ等級」）。
+    #    下限ではないので大小比較してはいけない。集合に入っているかを見る。
+    listed = "".join(sorted({
+        g for g in (project.required_grades or "").upper() if g in GRADE_ORDER
+    }))
+    if listed and ours:
+        label = "・".join(f"{g}等級" for g in listed)
+        if ours not in listed:
+            result["eligible"] = False
+            result["reason"] = (
+                f"{label}の認定が必要ですが、自社は {ours} 等級です（{detail}）。"
+            )
+            return result
+        result["checked"].append(f"{label} → 自社 {ours} 等級")
+
+    # 5. 等級の下限が書かれている場合
+    floor = normalize_grade(project.required_grade)
+    if floor and ours:
+        if GRADE_ORDER[ours] < GRADE_ORDER[floor]:
+            result["eligible"] = False
+            result["reason"] = (
+                f"{floor}等級以上が必要ですが、自社は {ours} 等級です（{detail}）。"
+            )
+            return result
+        result["checked"].append(f"{floor}等級以上 → 自社 {ours} 等級")
+
+    # 6. 点数の下限が書かれている場合（防衛省の総合審査数値・経営事項評価数値）
+    if project.required_score:
+        our_score = max(
+            [s for s in (best.total_score, best.keisin_score) if s], default=None,
         )
-        return result
+        if our_score is None:
+            result["checked"].append(
+                f"{project.required_score}点以上 → 自社の点数が未登録のため未確認"
+            )
+        elif our_score < project.required_score:
+            result["eligible"] = False
+            result["reason"] = (
+                f"{project.required_score}点以上が必要ですが、"
+                f"自社は {our_score} 点です（{detail}）。"
+            )
+            return result
+        else:
+            result["checked"].append(
+                f"{project.required_score}点以上 → 自社 {our_score} 点"
+            )
 
     result["eligible"] = True
-    if required and ours:
-        result["reason"] = f"{required}等級以上の要件を満たします（{detail}）。"
-    elif required and not ours:
+    if result["checked"]:
         result["reason"] = (
-            f"登録はありますが等級が未記録のため、{required}等級以上の要件は"
-            f"公告で確認してください（{detail}）。"
+            "公告の要件を満たします（" + "／".join(result["checked"]) + f"、{detail}）。"
         )
     else:
-        result["reason"] = f"登録があります（{detail}）。等級要件は公告で確認してください。"
+        result["reason"] = (
+            f"登録があります（{detail}）。"
+            "等級・点数の要件は公告本文で確認してください。"
+        )
     return result
 
 
