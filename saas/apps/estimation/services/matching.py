@@ -5,9 +5,17 @@
   1. コード完全一致 (confidence=100)
   2. 正規化名完全一致 (confidence=90)
   3. 仕様属性一致 (confidence=70)
-  4. LLM による候補提示 (confidence=30〜60)
+  4. 埋め込み類似度一致 (confidence=65〜85)   ← ADR-0010 層A
+  5. LLM による候補提示 (confidence=30〜60)
 
 1〜2 以外は必ず人間の承認を要求する。
+
+戦略4は「候補を絞る」のが主目的で、確定判断は限定的にしか行わない。
+実測で、同一品目の略記(0.768)と別種ケーブル(0.668)の類似度差が
+0.10 しかないことを確認しているため、0.85 以上のみ自動確定とし、
+0.65〜0.85 は上位k件を戦略5へ渡して LLM に選ばせる。
+これにより LLM へ渡す候補が「先頭100件」から「類似上位k件」になり、
+精度が上がると同時に入力トークンも減る。
 """
 
 import json
@@ -17,6 +25,7 @@ from decimal import Decimal
 from django.conf import settings
 
 from apps.estimation.models import EstimationItem, ItemAlias
+from apps.estimation.services import embedding as embedding_service
 from apps.estimation.services.normalization import extract_spec, normalize
 
 logger = logging.getLogger(__name__)
@@ -82,7 +91,72 @@ def _match_by_spec(normalized_name: str, company):
 
 
 # ===================================================================
-# 戦略 4: LLM マッチング
+# 戦略 4: 埋め込み類似度マッチング（ADR-0010 層A）
+# ===================================================================
+
+# 自動確定の上限。類似度が幾ら高くてもこれ以上の confidence は付けない。
+# 90 以上にすると match_item() が status=REVIEWED にしてしまい、
+# 人間のレビューを飛ばすため。類似度一致は必ずレビュー対象とする。
+EMBEDDING_MAX_CONFIDENCE = 85
+
+
+def _match_by_embedding(raw_name: str, normalized_name: str, company):
+    """埋め込み類似度で照合する。
+
+    Returns:
+        (item, confidence, candidates)
+        - item: 自動確定できた品目。閾値未満なら None
+        - confidence: item がある場合のみ有効
+        - candidates: LLM に渡す候補 EstimationItem のリスト（確定できた場合は空）
+    """
+    if not embedding_service.is_configured():
+        return None, Decimal("0"), []
+
+    query = normalized_name or raw_name
+    query_vector = embedding_service.embed_text(query)
+    if not query_vector:
+        # Ollama に到達できない。従来どおり LLM へ落とす。
+        return None, Decimal("0"), []
+
+    items = EstimationItem.unscoped.filter(  # unscoped: company を明示指定
+        company=company, is_active=True,
+    ).select_related("embedding")
+
+    pairs = [
+        (item, item.embedding.vector)
+        for item in items
+        if hasattr(item, "embedding") and item.embedding.vector
+    ]
+    if not pairs:
+        logger.info("埋め込み未生成のため類似度マッチングをスキップします")
+        return None, Decimal("0"), []
+
+    ranked = embedding_service.rank_by_similarity(query_vector, pairs, top_k=5)
+    if not ranked:
+        return None, Decimal("0"), []
+
+    best_item, best_score = ranked[0]
+
+    if best_score >= embedding_service.AUTO_CONFIRM_THRESHOLD:
+        confidence = Decimal(
+            str(min(round(best_score * 100), EMBEDDING_MAX_CONFIDENCE))
+        )
+        logger.info(
+            "類似度マッチング確定: %s -> %s (score=%.3f)",
+            raw_name, best_item.code, best_score,
+        )
+        return best_item, confidence, []
+
+    # 中間帯。確定はせず、候補だけを LLM に渡す。
+    logger.info(
+        "類似度マッチング候補: %s -> %d件 (最高 score=%.3f)",
+        raw_name, len(ranked), best_score,
+    )
+    return None, Decimal("0"), [item for item, _score in ranked]
+
+
+# ===================================================================
+# 戦略 5: LLM マッチング
 # ===================================================================
 
 LLM_SYSTEM_PROMPT = (
@@ -132,8 +206,20 @@ def _get_api_key():
     return api_key
 
 
-def _match_by_llm(raw_name: str, normalized_name: str, company):
-    """Claude API で候補を提示する。上位1件を返す。"""
+def _match_by_llm(
+    raw_name: str,
+    normalized_name: str,
+    company,
+    *,
+    candidate_items: list | None = None,
+):
+    """Claude API で候補を提示する。上位1件を返す。
+
+    candidate_items が渡された場合はそれを候補リストとして使う。
+    戦略4（埋め込み）が絞り込んだ上位k件を渡す想定で、
+    「先頭100件」を送るより精度が上がり、入力トークンも減る。
+    渡されない場合は従来どおり先頭100件にフォールバックする。
+    """
     if not HAS_ANTHROPIC:
         return None, Decimal("0")
 
@@ -141,10 +227,13 @@ def _match_by_llm(raw_name: str, normalized_name: str, company):
     if not api_key:
         return None, Decimal("0")
 
-    # 候補リストを取得（最大100件）
-    items = EstimationItem.unscoped.filter(  # unscoped: company を明示指定
-        company=company, is_active=True,
-    )[:100]
+    if candidate_items:
+        items = candidate_items
+    else:
+        # 候補リストを取得（最大100件）
+        items = EstimationItem.unscoped.filter(  # unscoped: company を明示指定
+            company=company, is_active=True,
+        )[:100]
 
     if not items:
         return None, Decimal("0")
@@ -226,6 +315,40 @@ def _match_by_llm(raw_name: str, normalized_name: str, company):
 # ===================================================================
 
 
+def _run_cascade(raw_name: str, normalized_name: str, company, *, use_llm: bool):
+    """戦略2〜5を順に試し、(item, confidence, matched_by) を返す。
+
+    戦略1（コード完全一致）は source_key を必要とするため match_item 側で扱う。
+    ネストを深くしないようここへ分離している。
+    """
+    # 戦略 2: 正規化名完全一致
+    item, confidence = _match_by_normalized_name(normalized_name, company)
+    if item:
+        return item, confidence, ItemAlias.MatchMethod.NORMALIZED
+
+    # 戦略 3: 仕様属性一致
+    item, confidence = _match_by_spec(normalized_name, company)
+    if item:
+        return item, confidence, ItemAlias.MatchMethod.SPEC_MATCH
+
+    # 戦略 4: 埋め込み類似度一致
+    item, confidence, candidates = _match_by_embedding(
+        raw_name, normalized_name, company,
+    )
+    if item:
+        return item, confidence, ItemAlias.MatchMethod.EMBEDDING
+
+    # 戦略 5: LLM マッチング（戦略4が絞った候補があればそれを渡す）
+    if use_llm:
+        item, confidence = _match_by_llm(
+            raw_name, normalized_name, company, candidate_items=candidates or None,
+        )
+        if item:
+            return item, confidence, ItemAlias.MatchMethod.LLM
+
+    return None, Decimal("0"), ItemAlias.MatchMethod.MANUAL
+
+
 def match_item(
     raw_name: str,
     source_type: str,
@@ -236,7 +359,9 @@ def match_item(
 ) -> ItemAlias:
     """マッチング戦略をカスケード実行し、ItemAlias を生成して返す。
 
-    use_llm=True の場合、戦略3まで失敗したらLLMマッチングを試みる。
+    use_llm=True の場合、戦略4まで失敗したらLLMマッチングを試みる。
+    埋め込み（戦略4）は Ollama に到達できなければ黙って飛ばされ、
+    従来どおり戦略5へ落ちる。
     """
     normalized_name = normalize(raw_name)
 
@@ -245,28 +370,9 @@ def match_item(
     if item:
         matched_by = ItemAlias.MatchMethod.EXACT_CODE
     else:
-        # 戦略 2: 正規化名完全一致
-        item, confidence = _match_by_normalized_name(normalized_name, company)
-        if item:
-            matched_by = ItemAlias.MatchMethod.NORMALIZED
-        else:
-            # 戦略 3: 仕様属性一致
-            item, confidence = _match_by_spec(normalized_name, company)
-            if item:
-                matched_by = ItemAlias.MatchMethod.SPEC_MATCH
-            elif use_llm:
-                # 戦略 4: LLM マッチング
-                item, confidence = _match_by_llm(
-                    raw_name, normalized_name, company,
-                )
-                if item:
-                    matched_by = ItemAlias.MatchMethod.LLM
-                else:
-                    matched_by = ItemAlias.MatchMethod.MANUAL
-                    confidence = Decimal("0")
-            else:
-                matched_by = ItemAlias.MatchMethod.MANUAL
-                confidence = Decimal("0")
+        item, confidence, matched_by = _run_cascade(
+            raw_name, normalized_name, company, use_llm=use_llm,
+        )
 
     # 高信頼度（コード一致・正規化一致）は reviewed、それ以外は pending
     if confidence >= Decimal("90"):

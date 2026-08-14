@@ -169,6 +169,20 @@ AI_MONTHLY_BUDGET_JPY = int(os.environ.get("AI_MONTHLY_BUDGET_JPY", "4000"))
 # USD→JPYレート（概算。正確なレートは不要）
 AI_USD_TO_JPY_RATE = int(os.environ.get("AI_USD_TO_JPY_RATE", "152"))
 
+# ---- ローカル推論 (Ollama) ----
+# ADR-0010「AI推論の3層分割」の層A・層B。
+# Ollama はホストの Windows 側で稼働するため、コンテナからは
+# host.docker.internal で到達する。到達できない場合は各サービスが
+# 黙って Claude API へフォールバックするので、未設定でも動作する。
+OLLAMA_BASE_URL = os.environ.get(
+    "OLLAMA_BASE_URL", "http://host.docker.internal:11434"
+)
+OLLAMA_EMBED_MODEL = os.environ.get("OLLAMA_EMBED_MODEL", "bge-m3")
+OLLAMA_EMBED_TIMEOUT = int(os.environ.get("OLLAMA_EMBED_TIMEOUT", "60"))
+OLLAMA_EMBED_ENABLED = os.environ.get(
+    "OLLAMA_EMBED_ENABLED", "True"
+).lower() in ("true", "1", "yes")
+
 # ---- Email (SMTP) ----
 EMAIL_BACKEND = os.environ.get(
     "EMAIL_BACKEND",
