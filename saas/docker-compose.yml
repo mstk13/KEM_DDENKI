@@ -110,22 +110,12 @@ services:
     volumes:
       - .:/app
       - media_data:/app/media
-    entrypoint: ["sh", "-c"]
-    command:
-      - |
-        echo "=== cron サービス起動 ==="
-        # crontab を設定
-        cat > /tmp/crontab <<'CRON'
-        # 2日に1回 朝7時: 入札案件の自動取得（i-ppi + 個別サイト）
-        0 7 */2 * * cd /app && python manage.py scrape_bids --force >> /proc/1/fd/1 2>&1
-        # 毎朝8時: 書類アラート（資格期限・健診期限等）
-        0 8 * * * cd /app && python manage.py send_document_alerts >> /proc/1/fd/1 2>&1
-        CRON
-        crontab /tmp/crontab
-        echo "cron 設定完了:"
-        crontab -l
-        # cron をフォアグラウンドで実行
-        exec crond -f -l 2
+    # cron は使わない。イメージ（python:3.12-slim）に crontab も crond も無く、
+    # このコンテナは exit 127 で再起動を繰り返していた。
+    # 仮に cron を入れてもジョブに環境変数が渡らず DB に接続できない。
+    # スケジュールは apps/core/management/commands/run_scheduler.py にある。
+    entrypoint: ["python", "manage.py"]
+    command: ["run_scheduler"]
 
   # --- Cloudflare Tunnel（社外アクセス用・任意） ---
   # 使用する場合は .env に CLOUDFLARE_TUNNEL_TOKEN を設定してください。
