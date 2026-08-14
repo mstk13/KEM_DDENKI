@@ -354,7 +354,8 @@ def scrape_run(request, pk):
     else:
         messages.success(
             request,
-            f"「{target.name}」: 新規{result['new']}件取得 (スキップ{result['skipped']}件)",
+            f"「{target.name}」: 新規{result['new']}件取得 "
+            f"(スキップ{result['skipped']}件, 対象外{result.get('excluded', 0)}件)",
         )
     return redirect("bids:scrape_target_list")
 

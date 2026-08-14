@@ -6,20 +6,26 @@ from apps.bids.models import (
 
 
 class BidProjectForm(forms.ModelForm):
+    # summary は情報源の原文なので画面からは編集させない（詳細画面で表示のみ）
     class Meta:
         model = BidProject
         fields = [
-            "title", "client", "region", "category",
-            "deadline", "budget", "source_url", "status",
+            "title", "client", "agency_dept", "region", "location",
+            "category", "bid_method", "electronic_bid", "design_no",
+            "announced_on", "deadline", "opening_on",
+            "budget", "source_url", "status", "notes",
         ]
         widgets = {
+            "announced_on": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
             "deadline": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
+            "opening_on": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
+            "notes": forms.Textarea(attrs={"class": "form-control", "rows": 3}),
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         for _name, field in self.fields.items():
-            if not isinstance(field.widget, forms.DateInput):
+            if not isinstance(field.widget, (forms.DateInput, forms.Textarea)):
                 field.widget.attrs.setdefault("class", "form-control")
 
 

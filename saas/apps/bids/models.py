@@ -3,6 +3,46 @@ from simple_history.models import HistoricalRecords
 
 from apps.core.models import TenantModel
 
+# --- 工事種別の取得対象 --------------------------------------------------
+# i-ppi の「工事区分／工事種別」は発注機関ごとの自由記述で、
+# 「建築工事及び土木工事」「建築一式工事（電気設備工事、機械設備工事含む。）」の
+# ように複数種別が1つの文字列に入る。よって完全一致ではなく部分一致で判定する。
+EXCLUDED_CATEGORY_KEYWORDS = (
+    "一般土木工事",
+    "土木工事",
+    "アスファルト舗装工事",
+    "セメント・コンクリート舗装工事",
+)
+
+# 除外語を含んでいても取得する語。自社の施工対象が含まれる案件を捨てないため。
+# 例:「建築一式工事（電気設備工事、機械設備工事含む。）」
+INCLUDED_CATEGORY_KEYWORDS = (
+    "電気設備工事",
+    "機械設備工事",
+)
+
+
+def is_excluded_category(category: str) -> bool:
+    """工事種別が取得対象外かどうかを返す。
+
+    除外語を含んでいても、自社対象（電気設備工事・機械設備工事）を含む場合は
+    対象として残す。
+    """
+    if not category:
+        return False
+    if any(k in category for k in INCLUDED_CATEGORY_KEYWORDS):
+        return False
+    return any(k in category for k in EXCLUDED_CATEGORY_KEYWORDS)
+
+
+def _selectable(names: list[str]) -> list[tuple[str, str]]:
+    """i-ppi の選択肢から取得対象外のものを落として choices にする。
+
+    検索条件の選択肢と取り込み時のフィルタが食い違うと、
+    選べるのに1件も保存されない条件ができてしまうため、同じ判定を通す。
+    """
+    return [(n, n) for n in names if not is_excluded_category(n)]
+
 
 class BidProject(TenantModel):
     """入札案件。"""
@@ -52,7 +92,7 @@ class BidProject(TenantModel):
         choices=SourceType.choices,
         default=SourceType.MANUAL,
     )
-    source_url = models.URLField("情報源URL", blank=True)
+    source_url = models.URLField("情報源URL", max_length=500, blank=True)
     status = models.CharField(
         "状態",
         max_length=20,
@@ -60,6 +100,19 @@ class BidProject(TenantModel):
         default=Status.NEW,
     )
     notes = models.TextField("備考", blank=True)
+
+    # --- 案件概要（i-ppi の詳細ページから取得） ---
+    agency_dept = models.CharField("担当部・事務所", max_length=200, blank=True)
+    location = models.CharField("工事場所", max_length=400, blank=True)
+    bid_method = models.CharField("入札契約方式", max_length=200, blank=True)
+    design_no = models.CharField("設計書番号", max_length=100, blank=True)
+    announced_on = models.DateField("公告日", null=True, blank=True)
+    opening_on = models.DateField("開札日", null=True, blank=True)
+    electronic_bid = models.CharField("電子入札対象", max_length=50, blank=True)
+    summary = models.TextField(
+        "案件概要（取得原文）", blank=True,
+        help_text="情報源の詳細ページの項目をそのまま保存したもの",
+    )
 
     # 入札参加資格の要件（i-ppi 連携で自動取得）
     required_category = models.CharField(
@@ -200,67 +253,71 @@ class ScrapeTarget(TenantModel):
         ("九州・沖縄", "九州・沖縄"),
     ]
 
-    KOJI_KBN_CHOICES = [
-        ("一般土木工事", "一般土木工事"),
-        ("アスファルト舗装工事", "アスファルト舗装工事"),
-        ("鋼橋上部工事", "鋼橋上部工事"),
-        ("造園工事", "造園工事"),
-        ("建築工事", "建築工事"),
-        ("木造建築工事", "木造建築工事"),
-        ("電気設備工事", "電気設備工事"),
-        ("暖冷房衛生設備工事", "暖冷房衛生設備工事"),
-        ("セメント・コンクリート舗装工事", "セメント・コンクリート舗装工事"),
-        ("プレストレスト・コンクリート工事", "プレストレスト・コンクリート工事"),
-        ("法面処理工事", "法面処理工事"),
-        ("塗装工事", "塗装工事"),
-        ("維持修繕工事", "維持修繕工事"),
-        ("浚渫工事", "浚渫工事"),
-        ("グラウト工事", "グラウト工事"),
-        ("杭打工事", "杭打工事"),
-        ("さく井工事", "さく井工事"),
-        ("プレハブ建築工事", "プレハブ建築工事"),
-        ("機械設備工事", "機械設備工事"),
-        ("通信設備工事", "通信設備工事"),
-        ("受変電設備工事", "受変電設備工事"),
-        ("港湾土木工事", "港湾土木工事"),
-        ("農林土木工事", "農林土木工事"),
-        ("農林建築工事", "農林建築工事"),
-        ("橋梁補修工事", "橋梁補修工事"),
-        ("その他", "その他"),
+    # i-ppi の「工事区分」プルダウンの全選択肢。取得対象外のものは
+    # _selectable() が落とすので、この一覧は i-ppi の実物と同じ並びで持つ。
+    KOJI_KBN_ALL = [
+        "一般土木工事",
+        "アスファルト舗装工事",
+        "鋼橋上部工事",
+        "造園工事",
+        "建築工事",
+        "木造建築工事",
+        "電気設備工事",
+        "暖冷房衛生設備工事",
+        "セメント・コンクリート舗装工事",
+        "プレストレスト・コンクリート工事",
+        "法面処理工事",
+        "塗装工事",
+        "維持修繕工事",
+        "浚渫工事",
+        "グラウト工事",
+        "杭打工事",
+        "さく井工事",
+        "プレハブ建築工事",
+        "機械設備工事",
+        "通信設備工事",
+        "受変電設備工事",
+        "港湾土木工事",
+        "農林土木工事",
+        "農林建築工事",
+        "橋梁補修工事",
+        "その他",
     ]
+    KOJI_KBN_CHOICES = _selectable(KOJI_KBN_ALL)
 
-    KOJI_GYOSYU_CHOICES = [
-        ("土木一式工事", "土木一式工事"),
-        ("建築一式工事", "建築一式工事"),
-        ("大工工事", "大工工事"),
-        ("左官工事", "左官工事"),
-        ("とび・土工・コンクリート工事", "とび・土工・コンクリート工事"),
-        ("石工事", "石工事"),
-        ("屋根工事", "屋根工事"),
-        ("電気工事", "電気工事"),
-        ("管工事", "管工事"),
-        ("タイル・れんが・ブロック工事", "タイル・れんが・ブロック工事"),
-        ("鋼構造物工事", "鋼構造物工事"),
-        ("鉄筋工事", "鉄筋工事"),
-        ("舗装工事", "舗装工事"),
-        ("浚渫工事", "浚渫工事"),
-        ("板金工事", "板金工事"),
-        ("ガラス工事", "ガラス工事"),
-        ("塗装工事", "塗装工事"),
-        ("防水工事", "防水工事"),
-        ("内装仕上工事", "内装仕上工事"),
-        ("機械器具設置工事", "機械器具設置工事"),
-        ("熱絶縁工事", "熱絶縁工事"),
-        ("電気通信工事", "電気通信工事"),
-        ("造園工事", "造園工事"),
-        ("さく井工事", "さく井工事"),
-        ("建具工事", "建具工事"),
-        ("水道施設工事", "水道施設工事"),
-        ("消防施設工事", "消防施設工事"),
-        ("清掃施設工事", "清掃施設工事"),
-        ("解体工事", "解体工事"),
-        ("その他", "その他"),
+    KOJI_GYOSYU_ALL = [
+        "土木一式工事",
+        "建築一式工事",
+        "大工工事",
+        "左官工事",
+        "とび・土工・コンクリート工事",
+        "石工事",
+        "屋根工事",
+        "電気工事",
+        "管工事",
+        "タイル・れんが・ブロック工事",
+        "鋼構造物工事",
+        "鉄筋工事",
+        "舗装工事",
+        "浚渫工事",
+        "板金工事",
+        "ガラス工事",
+        "塗装工事",
+        "防水工事",
+        "内装仕上工事",
+        "機械器具設置工事",
+        "熱絶縁工事",
+        "電気通信工事",
+        "造園工事",
+        "さく井工事",
+        "建具工事",
+        "水道施設工事",
+        "消防施設工事",
+        "清掃施設工事",
+        "解体工事",
+        "その他",
     ]
+    KOJI_GYOSYU_CHOICES = _selectable(KOJI_GYOSYU_ALL)
 
     name = models.CharField("名称", max_length=200)
     url = models.URLField("URL", max_length=500, blank=True)

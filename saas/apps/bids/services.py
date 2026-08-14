@@ -7,7 +7,7 @@
 
 from django.db.models import Count, Q, Sum
 
-from apps.bids.models import BidProject
+from apps.bids.models import BidProject, is_excluded_category
 
 
 def create_site_from_won_bid(bid_project, created_by=None):
@@ -166,18 +166,24 @@ def run_scrape(target, company):
 
             scraper = get_scraper(target.site_key)
             if not scraper:
-                return {"new": 0, "skipped": 0, "errors": [f"未対応: {target.site_key}"]}
+                return {
+                    "new": 0, "skipped": 0, "excluded": 0,
+                    "errors": [f"未対応: {target.site_key}"],
+                }
             bid_infos = scraper.scrape()
             # BidInfo → dict に変換（i-ppi と同じ形式に統一）
-            raw_results = [
-                {
+            from apps.bids.scraper import _empty_record
+
+            raw_results = []
+            for b in bid_infos:
+                rec = _empty_record()
+                rec.update({
                     "title": b.title, "client": b.client, "region": b.region,
                     "category": b.category, "deadline": b.deadline,
                     "budget": int(b.budget) if b.budget else 0,
                     "source_url": b.source_url,
-                }
-                for b in bid_infos
-            ]
+                })
+                raw_results.append(rec)
     except Exception as e:
         logger.error(f"[{target.site_key or 'ippi'}] スクレイプエラー: {e}")
         target.error_count += 1
@@ -186,11 +192,12 @@ def run_scrape(target, company):
         target.save(update_fields=[
             "error_count", "last_error", "last_scraped_at", "updated_at",
         ])
-        return {"new": 0, "skipped": 0, "errors": [str(e)]}
+        return {"new": 0, "skipped": 0, "excluded": 0, "errors": [str(e)]}
 
     # --- 結果をBidProjectに登録 ---
     new_count = 0
     skipped = 0
+    excluded = 0
     errors = []
 
     for rec in raw_results:
@@ -200,11 +207,17 @@ def run_scrape(target, company):
 
         source_url = rec.get("source_url", "")
         client = rec.get("client", "")
+        category = rec.get("category", "")
+
+        # 取得対象外の工事種別（土木・舗装系）を落とす
+        if is_excluded_category(category):
+            excluded += 1
+            logger.debug("対象外の工事種別のため除外: %s (%s)", title, category)
+            continue
 
         # 工事種別フィルタ
         if target.category_filter:
             filters = [f.strip() for f in target.category_filter.split(",")]
-            category = rec.get("category", "")
             if category and not any(f in category for f in filters):
                 skipped += 1
                 continue
@@ -227,14 +240,22 @@ def run_scrape(target, company):
         try:
             BidProject.unscoped.create(  # unscoped: company を明示指定
                 company=company,
-                title=title,
-                client=client,
+                title=title[:300],
+                client=client[:200],
+                agency_dept=rec.get("agency_dept", "")[:200],
                 region=rec.get("region", "") or target.region,
-                category=rec.get("category", ""),
+                location=rec.get("location", "")[:400],
+                category=category[:100],
+                bid_method=rec.get("bid_method", "")[:200],
+                design_no=rec.get("design_no", "")[:100],
+                electronic_bid=rec.get("electronic_bid", "")[:50],
+                announced_on=rec.get("announced_on"),
+                opening_on=rec.get("opening_on"),
                 deadline=rec.get("deadline"),
                 budget=rec.get("budget") or 0,
                 source_type=BidProject.SourceType.SCRAPING,
-                source_url=source_url,
+                source_url=source_url[:500],
+                summary=rec.get("summary", ""),
                 status=BidProject.Status.NEW,
                 required_grade=rec.get("required_grade", ""),
                 required_category=rec.get("required_category", ""),
@@ -249,6 +270,8 @@ def run_scrape(target, company):
     target.error_count = 0
     target.last_error = ""
     target.last_result = f"新規{new_count}件, スキップ{skipped}件"
+    if excluded:
+        target.last_result += f", 対象外{excluded}件"
     if errors:
         target.last_result += f", エラー{len(errors)}件"
     target.save(update_fields=[
@@ -256,7 +279,12 @@ def run_scrape(target, company):
         "last_result", "updated_at",
     ])
 
-    return {"new": new_count, "skipped": skipped, "errors": errors}
+    return {
+        "new": new_count,
+        "skipped": skipped,
+        "excluded": excluded,
+        "errors": errors,
+    }
 
 
 def run_all_scrapes(company):

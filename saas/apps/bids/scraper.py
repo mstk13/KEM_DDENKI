@@ -43,6 +43,86 @@ PAGE_SIZE_LABEL = "100件"
 # 0件時に i-ppi が返す文言
 NO_RESULT_TEXT = "該当する案件が見つかりませんでした"
 
+# --- 検索結果／詳細ページの id ---
+# 実物を確認済み。文言ではなく id で掴むほうが安定する。
+GRID_SEARCH_LIST = "#dgrSearchList"  # 検索結果テーブル
+TBL_DETAIL_HDR = "#tblDataHdr"  # 詳細ページの案件概要（ラベル+値の2列）
+GRID_KOKOKU = "#dgrKokoku"  # 詳細ページの「公開文書（入札公告等）」
+
+# 詳細ページの一覧の案件リンクは href="javascript:__doPostBack(...)" なので
+# URL にならない。案件ごとの外部URLは公開文書のリンク（発注機関のページ、
+# または e-bisc の公開文書サーブレット）から取る。
+
+# 一覧テーブルのヘッダー → レコードのキー。上から順に部分一致で判定する。
+# 実物のヘッダー: No / 発注機関／担当部・事務所 / 工事名 / 入札契約方式 / 工事区分 / 公告日
+LIST_HEADER_MAP = [
+    (("工事名", "業務名", "案件名", "件名"), "title"),
+    (("発注機関", "発注者"), "client"),
+    (("入札契約方式", "契約方式", "入札方式"), "bid_method"),
+    (("工事区分", "工事種別", "種別", "業種", "工種"), "category"),
+    (("公告日",), "announced_on"),
+    (("開札",), "opening_on"),
+    (("期限", "締切"), "deadline"),
+    (("場所", "地域", "都道府県"), "location"),
+    (("予定価格", "金額"), "budget"),
+    (("等級", "格付"), "required_grade"),
+]
+
+# 詳細ページ（案件概要）のラベル → レコードのキー。完全一致で引く。
+DETAIL_LABEL_MAP = {
+    "発注機関": "client",
+    "担当部・事務所": "agency_dept",
+    "工事名称": "title",
+    "業務名称": "title",
+    "工事場所": "location",
+    "履行場所": "location",
+    "入札契約方式": "bid_method",
+    "工事種別／工事の業種": "category",
+    "業務種別": "category",
+    "設計書番号": "design_no",
+    "公告日時": "announced_on",
+    "期限日時": "deadline",
+    "開札日時": "opening_on",
+    "電子入札対象": "electronic_bid",
+    "予定価格": "budget",
+}
+
+DETAIL_DATE_KEYS = ("announced_on", "deadline", "opening_on")
+
+PREFECTURES = (
+    "北海道", "青森県", "岩手県", "宮城県", "秋田県", "山形県", "福島県",
+    "茨城県", "栃木県", "群馬県", "埼玉県", "千葉県", "東京都", "神奈川県",
+    "新潟県", "富山県", "石川県", "福井県", "山梨県", "長野県", "岐阜県",
+    "静岡県", "愛知県", "三重県", "滋賀県", "京都府", "大阪府", "兵庫県",
+    "奈良県", "和歌山県", "鳥取県", "島根県", "岡山県", "広島県", "山口県",
+    "徳島県", "香川県", "愛媛県", "高知県", "福岡県", "佐賀県", "長崎県",
+    "熊本県", "大分県", "宮崎県", "鹿児島県", "沖縄県",
+)
+
+
+def _empty_record() -> dict:
+    """スクレイパーが返すレコードの雛形。"""
+    return {
+        "title": "",
+        "client": "",
+        "agency_dept": "",
+        "region": "",
+        "location": "",
+        "category": "",
+        "bid_method": "",
+        "design_no": "",
+        "electronic_bid": "",
+        "announced_on": None,
+        "opening_on": None,
+        "deadline": None,
+        "budget": 0,
+        "source_url": "",
+        "summary": "",
+        "required_grade": "",
+        "required_category": "",
+        "required_issuer_type": "",
+    }
+
 
 def scrape_ippi(
     target,
@@ -270,23 +350,13 @@ def _parse_results(page) -> list[dict]:
     except Exception:
         logger.warning("ページ本文を読めませんでした")
 
-    # テーブルを探す
-    tables = page.locator("table")
-    result_table = None
-    count = tables.count()
-
-    for i in range(count):
-        table = tables.nth(i)
-        text = table.inner_text()
-        # 結果テーブルの特徴的なヘッダーを探す
-        if "案件名" in text or "工事名" in text or "件名" in text:
-            result_table = table
-            break
+    result_table = _find_result_table(page)
 
     if not result_table:
         logger.warning("結果テーブルが見つかりませんでした")
         # ヘッダー文言を確定させるため、候補テーブルの1行目を残す
-        _log_table_candidates(page, tables, count)
+        tables = page.locator("table")
+        _log_table_candidates(page, tables, tables.count())
         # ページ全体のテキストからリンクを探すフォールバック
         return _parse_results_fallback(page)
 
@@ -359,6 +429,60 @@ def _normalize_header(text: str) -> str:
     return head.translate(str.maketrans("", "", "△▽▲▼ 　\xa0")).strip()
 
 
+def _match_list_header(header: str) -> str | None:
+    """一覧テーブルのヘッダー文言をレコードのキーに対応づける。"""
+    for needles, key in LIST_HEADER_MAP:
+        if any(n in header for n in needles):
+            return key
+    return None
+
+
+def _split_agency(client: str, agency_dept: str) -> tuple[str, str]:
+    """「発注機関 ／ 担当部・事務所」を分割する。
+
+    一覧の1カラムに両方入っている。詳細ページでは別項目なので、
+    そちらで取れている場合はそのまま返す。
+    """
+    if agency_dept or not client:
+        return client, agency_dept
+    for sep in ("／", "/"):
+        if sep in client:
+            head, _, tail = client.partition(sep)
+            return head.strip(), tail.strip()
+    return client, ""
+
+
+def _clean_location(location: str) -> str:
+    """工事場所を読める形に整える。
+
+    実物は「自：…」と「至：…」の2行構成で、1地点しかない案件でも
+    「至：」だけの行が付いてくる。中身のない「至：」は落とす。
+    """
+    text = " ".join((location or "").split())
+    if not text:
+        return ""
+    head, sep, tail = text.partition("至：")
+    if sep and not tail.strip():
+        text = head.strip()
+        if text.startswith("自："):
+            text = text[2:].strip()
+    return text
+
+
+def _extract_prefecture(location: str) -> str:
+    """工事場所から都道府県名を取り出す。
+
+    実物は「自：長野県長野県飯田市…から静岡県浜松市…」のように
+    都道府県が重複したり複数県にまたがったりする。最初の1つを地域として扱う。
+    """
+    if not location:
+        return ""
+    hits = [(location.find(p), p) for p in PREFECTURES if p in location]
+    if not hits:
+        return ""
+    return min(hits)[1]
+
+
 def _log_coverage(page, fetched: int) -> None:
     """総ヒット件数と実際に取得できた件数の差をログに残す。
 
@@ -403,7 +527,11 @@ def _log_table_candidates(page, tables, count: int) -> None:
 
 
 def _enrich_from_detail_pages(page, results: list[dict]) -> None:
-    """検索結果の各案件の詳細ページを開き、締切日等を補完する。
+    """検索結果の各案件の詳細ページを開き、案件概要を取り込む。
+
+    一覧が持っているのは発注機関・工事名・入札契約方式・工事区分・公告日だけで、
+    工事場所・期限・開札日・情報源URLは詳細ページにしかない。
+    案件詳細画面が空にならないよう、全件の詳細を開く。
 
     i-ppi の一覧リンクは javascript:__doPostBack('dgrSearchList','$N') 形式。
     各行をクリック → 詳細ページから情報を取得 → ブラウザバック を繰り返す。
@@ -411,15 +539,8 @@ def _enrich_from_detail_pages(page, results: list[dict]) -> None:
     if not results:
         return
 
-    # deadline が既に取れている案件はスキップ対象
-    indices_to_visit = [
-        i for i, r in enumerate(results) if not r.get("deadline")
-    ]
-    if not indices_to_visit:
-        logger.info("全案件に締切日があるため詳細ページの巡回をスキップします")
-        return
-
-    logger.info(f"{len(indices_to_visit)}件の詳細ページから締切日を取得します...")
+    indices_to_visit = list(range(len(results)))
+    logger.info(f"{len(indices_to_visit)}件の詳細ページから案件概要を取得します...")
 
     for row_index in indices_to_visit:
         try:
@@ -445,16 +566,17 @@ def _enrich_from_detail_pages(page, results: list[dict]) -> None:
             page.wait_for_load_state("networkidle")
             page.wait_for_timeout(1500)
 
-            # 詳細ページから情報を抽出
+            # 詳細ページから情報を抽出し、一覧で取れた値の上に重ねる
             detail = _parse_detail_page(page)
-            if detail.get("deadline"):
-                results[row_index]["deadline"] = detail["deadline"]
-                logger.info(
-                    f"  [{row_index}] {results[row_index]['title'][:30]}... "
-                    f"→ 締切: {detail['deadline']}"
-                )
-            if detail.get("budget") and not results[row_index].get("budget"):
-                results[row_index]["budget"] = detail["budget"]
+            _merge_detail(results[row_index], detail)
+            logger.info(
+                "  [%d] %s... → 締切: %s / 場所: %s / URL: %s",
+                row_index,
+                results[row_index]["title"][:30],
+                results[row_index].get("deadline") or "不明",
+                results[row_index].get("location") or "不明",
+                results[row_index].get("source_url") or "なし",
+            )
 
             # 一覧に戻る
             page.go_back()
@@ -472,12 +594,55 @@ def _enrich_from_detail_pages(page, results: list[dict]) -> None:
                 logger.warning("一覧ページへの復帰に失敗。詳細巡回を中断します")
                 break
 
-    filled = sum(1 for r in results if r.get("deadline"))
-    logger.info(f"締切日を取得済み: {filled}/{len(results)}件")
+    total = len(results)
+    logger.info(
+        "詳細取得: 締切 %d/%d件, 工事場所 %d/%d件, 情報源URL %d/%d件",
+        sum(1 for r in results if r.get("deadline")), total,
+        sum(1 for r in results if r.get("location")), total,
+        sum(1 for r in results if r.get("source_url")), total,
+    )
+
+
+def _merge_detail(record: dict, detail: dict) -> None:
+    """詳細ページで取れた値をレコードに反映する。
+
+    詳細ページのほうが情報源として正確なので、値があるものは上書きする。
+    空の値で一覧の値を潰さないようにする。
+    """
+    for key, value in detail.items():
+        if value in (None, "", 0):
+            continue
+        record[key] = value
+
+    record["client"], record["agency_dept"] = _split_agency(
+        record.get("client", ""), record.get("agency_dept", ""),
+    )
+    if record.get("location"):
+        record["location"] = _clean_location(record["location"])
+        record["region"] = _extract_prefecture(record["location"]) or record.get(
+            "region", "",
+        )
+    # 期限日時が空の案件がある（法務省の例）。開札日を締切として扱う。
+    if not record.get("deadline") and record.get("opening_on"):
+        record["deadline"] = record["opening_on"]
 
 
 def _find_result_table(page):
-    """結果テーブルを再取得する（ページ遷移後に参照が無効になるため）。"""
+    """結果テーブルを取得する（ページ遷移後は参照が無効になるので都度呼ぶ）。
+
+    id での取得を優先する。文言で探すとヘッダーを含む外側のテーブルを
+    掴んでしまうことがあり、セルの並びがずれる。
+    """
+    grid = page.locator(GRID_SEARCH_LIST)
+    try:
+        if grid.count() > 0:
+            return grid.first
+    except Exception:
+        pass
+
+    logger.warning(
+        "%s が見つかりませんでした。ヘッダー文言でテーブルを探します", GRID_SEARCH_LIST
+    )
     tables = page.locator("table")
     for i in range(tables.count()):
         table = tables.nth(i)
@@ -500,16 +665,25 @@ def _data_row_offset(rows) -> int:
 
 
 def _parse_detail_page(page) -> dict:
-    """詳細ページから締切日・予定価格等を抽出する。
+    """詳細ページ（案件概要）から案件情報を抽出する。
 
-    i-ppi の詳細ページは定義リスト風のテーブル（ラベル＋値）で構成される。
-    開札日時、入札書提出期限、質問受付期限などの日付フィールドを探す。
+    i-ppi の案件概要は #tblDataHdr の「ラベル / 値」2列テーブル。実物の項目:
+      発注機関 / 担当部・事務所 / 工事名称 / 工事場所 / 入札契約方式 /
+      工事種別／工事の業種 / 設計書番号 / 公告日時 / 期限日時 / 開札日時 /
+      電子入札対象 / 予定価格 / 落札者名 / 落札価格 / 契約者名 / 契約金額
+    ラベルが取れない発注機関のために、本文テキストからの抽出も残す。
     """
-    result = {"deadline": None, "budget": 0}
+    result = _parse_detail_table(page)
+    result["source_url"] = _find_document_url(page)
+    result["summary"] = _detail_summary(page)
 
     try:
         body_text = page.inner_text("body")
     except Exception:
+        return result
+
+    if result.get("deadline"):
+        # 概要テーブルから取れているので本文からの推測は不要
         return result
 
     # 日付抽出の優先順位:
@@ -564,17 +738,120 @@ def _parse_detail_page(page) -> dict:
             pass
 
     # 予定価格
-    budget_patterns = [
-        r"予定価格[（\(税抜き\)）]*[：:]\s*([\d,]+)",
-        r"設計金額[：:]\s*([\d,]+)",
-    ]
-    for pattern in budget_patterns:
-        m = re.search(pattern, body_text)
-        if m:
-            result["budget"] = _parse_amount(m.group(1))
-            break
+    if not result.get("budget"):
+        budget_patterns = [
+            r"予定価格[（\(税抜き\)）]*[：:]\s*([\d,]+)",
+            r"設計金額[：:]\s*([\d,]+)",
+        ]
+        for pattern in budget_patterns:
+            m = re.search(pattern, body_text)
+            if m:
+                result["budget"] = _parse_amount(m.group(1))
+                break
 
     return result
+
+
+def _parse_detail_table(page) -> dict:
+    """案件概要テーブル（#tblDataHdr）をラベルで引いて dict にする。
+
+    「工事場所」は値が「自：…」で、続く行に「至：…」だけが入る2行構成。
+    行の1セル目がラベルにならないので、直前のラベルの続きとして連結する。
+    """
+    result: dict = {"deadline": None, "budget": 0}
+
+    table = page.locator(TBL_DETAIL_HDR)
+    try:
+        if table.count() == 0:
+            logger.warning(
+                "%s が見つかりませんでした（案件概要のレイアウト変更の可能性）",
+                TBL_DETAIL_HDR,
+            )
+            return result
+    except Exception:
+        return result
+
+    last_key = None
+    for row in table.first.locator("tr").all():
+        try:
+            cells = [c.inner_text().strip() for c in row.locator("td, th").all()]
+        except Exception:
+            continue
+        if not cells:
+            continue
+
+        if len(cells) == 1:
+            # 「至：…」のような値だけの行。直前の項目の続きとして扱う。
+            # 「■予定価格情報」のような見出し行を値に混ぜないよう、
+            # 継続を許すのは複数行構成が確認できている工事場所だけにする。
+            if last_key and cells[0]:
+                result[last_key] = f"{result.get(last_key, '')} {cells[0]}".strip()
+            last_key = None
+            continue
+
+        key = DETAIL_LABEL_MAP.get(cells[0])
+        last_key = key if key == "location" else None
+        if not key:
+            continue
+
+        value = cells[1].strip()
+        if not value:
+            continue
+        if key in DETAIL_DATE_KEYS:
+            result[key] = _parse_date(value)
+        elif key == "budget":
+            result[key] = _parse_amount(value)
+        elif key == "design_no":
+            # 「2026857140010004 ＊発注機関が独自に定めるコード」の注記を落とす
+            result[key] = value.split("＊")[0].strip()
+        else:
+            result[key] = value
+
+    return result
+
+
+def _find_document_url(page) -> str:
+    """公開文書（入札公告等）のリンクURLを返す。
+
+    案件詳細そのものは Koji/Kokoku/List.aspx?tab=3 という全案件共通のURLで、
+    セッションに依存するため情報源URLとして保存できない。
+    公開文書のリンクは発注機関のページや e-bisc の公開文書サーブレットへの
+    絶対URLで、案件ごとに変わるのでこれを情報源URLとして使う。
+    """
+    for selector in (f"{GRID_KOKOKU} a", "#tblDataDtl a"):
+        try:
+            links = page.locator(selector).all()
+        except Exception:
+            continue
+        for link in links:
+            try:
+                url = _absolute_url(link.get_attribute("href"))
+            except Exception:
+                continue
+            if url:
+                return url[:500]
+    return ""
+
+
+def _detail_summary(page) -> str:
+    """案件概要テーブルをそのままテキストで残す。
+
+    項目名がモデルのフィールドに割り当てられていない発注機関があるため、
+    取りこぼしを画面で確認できるよう原文を保存する。
+    """
+    table = page.locator(TBL_DETAIL_HDR)
+    try:
+        if table.count() == 0:
+            return ""
+        lines = []
+        for row in table.first.locator("tr").all():
+            cells = [c.inner_text().strip() for c in row.locator("td, th").all()]
+            cells = [c for c in cells if c]
+            if cells:
+                lines.append("\t".join(cells))
+        return "\n".join(lines)[:4000]
+    except Exception:
+        return ""
 
 
 def _parse_results_fallback(page) -> list[dict]:
@@ -588,15 +865,10 @@ def _parse_results_fallback(page) -> list[dict]:
         href = _absolute_url(link.get_attribute("href"))
         # 案件リンクらしいものをフィルタ
         if len(text) > 10 and ("工事" in text or "業務" in text or "電気" in text):
-            results.append({
-                "title": text,
-                "client": "",
-                "region": "",
-                "category": "",
-                "deadline": None,
-                "budget": 0,
-                "source_url": href,
-            })
+            record = _empty_record()
+            record["title"] = text
+            record["source_url"] = href
+            results.append(record)
     return results
 
 
@@ -607,38 +879,37 @@ def _map_cells_to_record(
     if len(cells) == 0:
         return None
 
-    record = {
-        "title": "",
-        "client": "",
-        "region": "",
-        "category": "",
-        "deadline": None,
-        "budget": 0,
-        "source_url": detail_url,
-        "required_grade": "",
-        "required_category": "",
-        "required_issuer_type": "",
-    }
+    record = _empty_record()
+    record["source_url"] = detail_url
 
     for idx, header in enumerate(headers):
         if idx >= len(cells):
             break
         val = cells[idx]
+        key = _match_list_header(header)
+        if not key:
+            continue
 
-        if "案件" in header or "件名" in header or "工事名" in header:
-            record["title"] = val
-        elif "発注" in header or "機関" in header:
-            record["client"] = val
-        elif "場所" in header or "地域" in header:
-            record["region"] = val
-        elif "種別" in header or "業種" in header or "工種" in header or "区分" in header:
-            record["category"] = val
-        elif "期限" in header or "締切" in header or "開札" in header:
-            record["deadline"] = _parse_date(val)
-        elif "予定価格" in header or "金額" in header:
-            record["budget"] = _parse_amount(val)
-        elif "等級" in header or "格付" in header:
-            record["required_grade"] = _extract_grade(val)
+        if key in DETAIL_DATE_KEYS:
+            record[key] = _parse_date(val)
+        elif key == "budget":
+            record[key] = _parse_amount(val)
+        elif key == "required_grade":
+            record[key] = _extract_grade(val)
+        else:
+            record[key] = val
+
+    # 一覧に締切がない（i-ppi の一覧は公告日だけ）場合は詳細ページで埋める。
+    # 一覧が開札日を持っていた場合はそれを暫定の締切にする。
+    if not record["deadline"] and record["opening_on"]:
+        record["deadline"] = record["opening_on"]
+
+    # 発注機関は「国土交通省中部地方整備局 ／ 飯田国道事務所」の形で入っている
+    record["client"], record["agency_dept"] = _split_agency(
+        record["client"], record["agency_dept"],
+    )
+    record["location"] = _clean_location(record["location"])
+    record["region"] = _extract_prefecture(record["location"])
 
     # タイトルが空なら最初の長いセルをタイトルにする
     if not record["title"]:
