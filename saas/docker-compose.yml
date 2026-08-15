@@ -51,6 +51,10 @@ services:
       redis:
         condition: service_healthy
     environment:
+      # コンテナの既定は UTC。Django の TIME_ZONE は Asia/Tokyo だが、
+      # date.today() のような素の Python はコンテナの時計を見るため、
+      # 朝9時前は前日として扱われる。OSの時計もJSTに揃える。
+      TZ: ${TZ:-Asia/Tokyo}
       DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:-change-me-in-production}
       DJANGO_DEBUG: ${DJANGO_DEBUG:-True}
       DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1}
@@ -91,6 +95,9 @@ services:
       redis:
         condition: service_healthy
     environment:
+      # 定時実行の時刻判定はコンテナの date を見る。UTC のままだと
+      # 07:00 / 08:00 が JST の 16:00 / 17:00 に走ってしまう。
+      TZ: ${TZ:-Asia/Tokyo}
       DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:-change-me-in-production}
       DJANGO_DEBUG: "False"
       DB_NAME: kensetsu_saas
