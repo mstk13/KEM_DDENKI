@@ -8,7 +8,14 @@
 2026-08-14 に実案件11件（防衛省北関東防衛局・国土交通省関東/中部地方整備局）で
 確認した結果、工事概要 10/11・参加要件 10/11 が取れた。
 取れなかった1件はフォントに ToUnicode が無く、テキストが (cid:NNN) にしか
-ならないPDF。OCR が要るのでここでは扱わず、取得できなかったこととして返す。
+ならないPDF。
+
+決定論的に読めないPDFは2種類ある。どちらも `garbled: True` を返し、
+呼び出し側（services.fill_announcement）が LLM 読み取りに回す。
+
+  1. (cid) 化 … フォントに ToUnicode が無く文字が化ける
+  2. テキスト層なし … スキャン画像のみのPDF。抽出結果がほぼ空になる
+     （防衛省「市ヶ谷（８）電気設備更新工事」がこれ）
 
 注意:
 - 相手は官公庁サイトなのでリクエスト間隔を空ける
@@ -25,6 +32,7 @@ import re
 import ssl
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 
 logger = logging.getLogger(__name__)
@@ -35,6 +43,41 @@ USER_AGENT = (
 )
 REQUEST_INTERVAL = 2.0  # 秒
 TIMEOUT = 60
+
+# 発注機関のページに載っているホスト名がそのままでは引けないことがある。
+# 防衛省北関東防衛局の公告は `http://www-up.mod.go.jp/...` で案内されるが、
+# このホストは名前解決できない（2026-08-15 時点）。同じパスを
+# `https://www.mod.go.jp/...` に置くと取得できる。
+# 発注機関ごとの実測に基づく対応表で、推測でホストを書き換えることはしない。
+HOST_ALIASES = {
+    "www-up.mod.go.jp": ("https", "www.mod.go.jp"),
+}
+
+# PDF なのに抽出できたテキストがこれ未満なら、テキスト層が無い
+# （スキャン画像の）PDF とみなす。公告は最低でも数千字あるので、
+# 章立てが取れる文書がこの長さになることはない。
+MIN_TEXT_CHARS = 200
+
+
+def alternate_urls(url: str) -> list[str]:
+    """名前解決できないホストの代替URLを返す。該当しなければ空。"""
+    if not url:
+        return []
+    parts = urllib.parse.urlsplit(url)
+    alias = HOST_ALIASES.get(parts.hostname or "")
+    if not alias:
+        return []
+    scheme, host = alias
+    return [urllib.parse.urlunsplit((scheme, host, parts.path, parts.query, ""))]
+
+
+def has_no_text_layer(data: bytes | None, text: str) -> bool:
+    """PDF は取得できたのにテキスト層が無い（スキャン画像）かどうか。
+
+    (cid) 化と違って文字化けすらせず空に近い結果になるため、
+    is_garbled では拾えない。LLM に読ませる対象はこちらも含む。
+    """
+    return bool(data) and data.startswith(b"%PDF") and len(text.strip()) < MIN_TEXT_CHARS
 
 # 章見出し: 行頭の番号 + 区切り + 空白を含まない見出し語。
 # 「４．入札手続等 入札説明書の交付期間及び受 令和８年…」のような表の行を
@@ -236,4 +279,11 @@ def extract_sections(text: str) -> dict:
 
 def extract_from_url(url: str) -> dict:
     """情報源URLから工事概要・参加要件を取り出す。"""
-    return extract_sections(extract_text(fetch_document(url)))
+    data = fetch_document(url)
+    text = extract_text(data)
+    result = extract_sections(text)
+    if not result["garbled"] and has_no_text_layer(data, text):
+        # スキャン画像のPDF。決定論的には読めないので LLM に回す。
+        logger.info("公告PDFにテキスト層がありません（スキャン画像）: %s", url)
+        return {**result, "garbled": True}
+    return result
