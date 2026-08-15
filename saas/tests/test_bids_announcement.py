@@ -8,10 +8,12 @@
 import pytest
 
 from apps.bids.announcement import (
+    alternate_urls,
     extract_grade_floor,
     extract_grades,
     extract_score_floor,
     extract_sections,
+    has_no_text_layer,
     is_garbled,
     split_sections,
 )
@@ -327,3 +329,81 @@ class TestFillAnnouncement:
         project.refresh_from_db()
         assert project.work_outline == ""
         assert project.requirements == ""
+
+
+class TestNoTextLayer:
+    """スキャン画像だけのPDF。(cid) 化と違い、抽出結果はほぼ空になる。"""
+
+    def test_image_pdf_is_detected(self):
+        assert has_no_text_layer(b"%PDF-1.4 ...", "\n\n\n")
+
+    def test_text_pdf_is_not_detected(self):
+        assert not has_no_text_layer(b"%PDF-1.4 ...", KOUKOKU)
+
+    def test_fetch_failure_is_not_detected(self):
+        # 取得できなかっただけの場合まで LLM に回さない
+        assert not has_no_text_layer(None, "")
+
+    def test_non_pdf_is_not_detected(self):
+        assert not has_no_text_layer(b"<html>...", "")
+
+    def test_extract_from_url_marks_image_pdf_as_garbled(self, monkeypatch):
+        from apps.bids import announcement
+
+        monkeypatch.setattr(announcement, "fetch_document", lambda url: b"%PDF-1.4 ...")
+        monkeypatch.setattr(announcement, "extract_text", lambda data: "\n\n\n")
+        result = announcement.extract_from_url("https://example.go.jp/scan.pdf")
+        assert result["garbled"] is True
+
+    def test_extract_from_url_keeps_readable_pdf(self, monkeypatch):
+        from apps.bids import announcement
+
+        monkeypatch.setattr(announcement, "fetch_document", lambda url: b"%PDF-1.4 ...")
+        monkeypatch.setattr(announcement, "extract_text", lambda data: KOUKOKU)
+        result = announcement.extract_from_url("https://example.go.jp/kokoku.pdf")
+        assert result["garbled"] is False
+        assert "空調設備改修" in result["work_outline"]
+
+
+class TestAlternateUrls:
+    """案内されているホストが名前解決できない発注機関への代替URL。"""
+
+    def test_mod_go_jp_upload_host(self):
+        assert alternate_urls(
+            "http://www-up.mod.go.jp/rdb/n-kanto/kouji/R8k-073.pdf",
+        ) == ["https://www.mod.go.jp/rdb/n-kanto/kouji/R8k-073.pdf"]
+
+    def test_unknown_host_has_no_alternate(self):
+        assert alternate_urls("https://www.mlit.go.jp/doc.pdf") == []
+
+    def test_empty_url(self):
+        assert alternate_urls("") == []
+
+
+@pytest.mark.django_db
+class TestCandidatesWithAlternate:
+    def test_alternate_is_appended_after_the_original(self, company_a, user_a):
+        project = BidProject.unscoped.create(
+            company=company_a, created_by=user_a,
+            title="市ヶ谷（８）電気設備更新工事",
+            source_url="http://www-up.mod.go.jp/rdb/n-kanto/kouji/R8k-073.pdf",
+        )
+        assert announcement_candidates(project) == [
+            "http://www-up.mod.go.jp/rdb/n-kanto/kouji/R8k-073.pdf",
+            "https://www.mod.go.jp/rdb/n-kanto/kouji/R8k-073.pdf",
+        ]
+
+    def test_no_duplicate_when_both_are_listed(self, company_a, user_a):
+        project = BidProject.unscoped.create(
+            company=company_a, created_by=user_a,
+            title="市ヶ谷（８）電気設備更新工事",
+            source_url="http://www-up.mod.go.jp/rdb/n-kanto/kouji/R8k-073.pdf",
+            document_urls=(
+                "http://www-up.mod.go.jp/rdb/n-kanto/kouji/R8k-073.pdf\n"
+                "https://www.mod.go.jp/rdb/n-kanto/kouji/R8k-073.pdf"
+            ),
+        )
+        assert announcement_candidates(project) == [
+            "http://www-up.mod.go.jp/rdb/n-kanto/kouji/R8k-073.pdf",
+            "https://www.mod.go.jp/rdb/n-kanto/kouji/R8k-073.pdf",
+        ]

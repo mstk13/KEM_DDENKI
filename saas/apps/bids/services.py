@@ -236,9 +236,16 @@ def announcement_candidates(project) -> list[str]:
     実際「立川防災合同庁舎（２６）電気設備改修工事」は先頭が
     「技術資料収集に係る掲示」で、しかも文字が読めないPDFだった。
     """
+    from apps.bids.announcement import alternate_urls
+
     urls = [u.strip() for u in (project.document_urls or "").splitlines() if u.strip()]
     if project.source_url and project.source_url not in urls:
         urls.insert(0, project.source_url)
+
+    # 案内されているホストが引けない発注機関がある。代替URLを後ろに足す。
+    # 読めたURLが情報源として保存されるので、画面のリンクも生きたものになる。
+    for url in list(urls):
+        urls.extend(alt for alt in alternate_urls(url) if alt not in urls)
     return urls
 
 

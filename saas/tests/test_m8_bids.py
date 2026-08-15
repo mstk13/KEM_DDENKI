@@ -23,9 +23,12 @@ from apps.bids.qualification import (
 from apps.bids.scraper import (
     _absolute_url,
     _clean_location,
+    _extract_grade,
     _extract_prefecture,
     _map_cells_to_record,
     _normalize_header,
+    _parse_amount,
+    _parse_date,
 )
 from apps.core.tenant_context import set_current_company
 
@@ -772,3 +775,88 @@ class TestProjectDetailView:
         assert project.electronic_bid == "対象"
         assert project.announced_on == datetime.date(2026, 8, 4)
         assert project.opening_on == datetime.date(2026, 9, 10)
+
+
+class TestParseDate:
+    """_parse_date — i-ppi 詳細ページに現れる各種日付フォーマットを変換する。"""
+
+    def test_slash_format(self):
+        assert _parse_date("2026/08/13") == "2026-08-13"
+
+    def test_hyphen_format(self):
+        assert _parse_date("2026-04-01") == "2026-04-01"
+
+    def test_single_digit_month_day(self):
+        assert _parse_date("2026/4/1") == "2026-04-01"
+
+    def test_kanji_year_month_day(self):
+        assert _parse_date("2026年8月13日") == "2026-08-13"
+
+    def test_reiwa(self):
+        # 令和8年 = 2018 + 8 = 2026
+        assert _parse_date("令和8年4月1日") == "2026-04-01"
+
+    def test_reiwa_with_spaces(self):
+        assert _parse_date("令和 8 年 4 月 1 日") == "2026-04-01"
+
+    def test_date_with_surrounding_text(self):
+        assert _parse_date("提出期限：2026/09/30 17:00まで") == "2026-09-30"
+
+    def test_empty_and_none(self):
+        assert _parse_date("") is None
+        assert _parse_date(None) is None
+
+    def test_no_date(self):
+        assert _parse_date("該当なし") is None
+
+    def test_dot_separator(self):
+        assert _parse_date("2026.08.13") == "2026-08-13"
+
+
+class TestParseAmount:
+    """_parse_amount — カンマ区切りや「円」付きの金額文字列を整数に変換する。"""
+
+    def test_plain_number(self):
+        assert _parse_amount("12345678") == 12345678
+
+    def test_comma_separated(self):
+        assert _parse_amount("12,345,678") == 12345678
+
+    def test_yen_suffix(self):
+        assert _parse_amount("12,345,678円") == 12345678
+
+    def test_empty(self):
+        assert _parse_amount("") == 0
+        assert _parse_amount(None) == 0
+
+    def test_no_digits(self):
+        assert _parse_amount("非公表") == 0
+
+
+class TestExtractGrade:
+    """_extract_grade — 等級表記のバリエーションから A〜D を抽出する。"""
+
+    def test_zenkaku_grade(self):
+        assert _extract_grade("Ａ等級") == "A"
+
+    def test_hankaku_grade(self):
+        assert _extract_grade("B等級") == "B"
+
+    def test_grade_ijou(self):
+        assert _extract_grade("D等級以上") == "D"
+
+    def test_zenkaku_ijou(self):
+        assert _extract_grade("Ｄ等級以上") == "D"
+
+    def test_kakuzuke(self):
+        assert _extract_grade("格付：A") == "A"
+
+    def test_grade_in_longer_text(self):
+        assert _extract_grade("本工事はC等級以上の業者が対象") == "C"
+
+    def test_no_grade(self):
+        assert _extract_grade("特に指定なし") == ""
+
+    def test_empty(self):
+        assert _extract_grade("") == ""
+        assert _extract_grade(None) == ""

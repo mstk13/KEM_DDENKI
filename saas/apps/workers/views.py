@@ -50,13 +50,13 @@ def _has_role(user, role_code):
 @login_required
 def document_alert_dashboard(request):
     """事務員向け: 証明書・健診書類の未添付一覧。"""
-    from dateutil.relativedelta import relativedelta
+    from apps.core.date_utils import add_months, add_years
 
     if not (_is_admin(request.user) or _has_role(request.user, "office_staff")):
         raise PermissionDenied("この画面は事務員・管理者のみ閲覧できます。")
 
     today = date.today()
-    due_threshold = today + relativedelta(months=2)
+    due_threshold = add_months(today, 2)
 
     # 証明書未添付の資格
     missing_certs = (
@@ -81,7 +81,7 @@ def document_alert_dashboard(request):
     for row in latest_dates:
         if not row["worker__is_active"]:
             continue
-        next_due = row["latest"] + relativedelta(years=1)
+        next_due = add_years(row["latest"], 1)
         if next_due <= due_threshold:
             worker = Worker.objects.filter(pk=row["worker"]).first()
             if worker:
