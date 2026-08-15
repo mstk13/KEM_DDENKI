@@ -550,9 +550,9 @@ def check_health_report_missing_alerts(company):
 
 def check_health_checkup_due_alerts(company):
     """健診期限アラート。最新受診日の1年後が2ヶ月以内に迫っている作業員を検出する。"""
-    from dateutil.relativedelta import relativedelta
     from django.db.models import Max
 
+    from apps.core.date_utils import add_months, add_years
     from apps.workers.models import HealthCheckup, Worker
 
     rules = AlertRule.unscoped.filter(
@@ -565,7 +565,7 @@ def check_health_checkup_due_alerts(company):
 
     rule = rules.first()
     today = date.today()
-    due_threshold = today + relativedelta(months=2)
+    due_threshold = add_months(today, 2)
 
     # 各ワーカーの最新受診日を取得
     latest_dates = (
@@ -575,7 +575,7 @@ def check_health_checkup_due_alerts(company):
     )
 
     for row in latest_dates:
-        next_due = row["latest"] + relativedelta(years=1)
+        next_due = add_years(row["latest"], 1)
         if next_due > due_threshold:
             continue
 
