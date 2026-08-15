@@ -19,6 +19,10 @@
 # 実行記録はファイルに残す。コンテナ再起動で消えると、自動デプロイの
 # たびに同じジョブが走り直してしまうため。
 #
+# 時刻判定はコンテナの date に従う。コンテナの既定は UTC なので、
+# compose で TZ=Asia/Tokyo を渡している。これが無いと 07:00 / 08:00 が
+# JST の 16:00 / 17:00 に走る（2026-08-15 まで実際にそうなっていた）。
+#
 # 環境変数（既定値で本番動作。テスト時のみ上書きする）:
 #   SCHEDULER_INTERVAL   判定間隔の秒数（既定 30）
 #   SCHEDULER_STATE_DIR  実行記録の置き場（既定 /app/media/.scheduler）
@@ -87,6 +91,7 @@ cd /app || exit 1
 mkdir -p "$STATE_DIR" 2>/dev/null || true
 
 log "=== 定時実行サービス起動 ==="
+log "  現在時刻 $(date '+%F %T %Z')"
 log "  scrape_bids          2日に1回 07:00 以降"
 log "  send_document_alerts 毎日     08:00 以降"
 log "  判定間隔 ${INTERVAL}秒 / 記録 ${STATE_DIR}"
