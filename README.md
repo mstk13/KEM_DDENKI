@@ -382,7 +382,7 @@ KEM_DDENKI/
 ├── .github/workflows/          CI/CD（テスト自動実行・リリース）
 ├── tools/autodeploy/           自動デプロイスクリプトの正本
 ├── docs/
-│   ├── design/                 設計資料（7点）
+│   ├── design/                 設計資料（8点）
 │   │   ├── 要件定義書.md         全モジュールの機能仕様
 │   │   ├── DB設計書.md           テーブル定義・ER図
 │   │   ├── 技術選定書.md         Django / Next.js段階移行方針
@@ -460,6 +460,7 @@ KEM_DDENKI/
 | **[設計判断の根拠書](docs/design/設計判断の根拠書.md)** | **全ての設計で「なぜそうしたのか」を解説** |
 | [TM向けQ&A集](docs/design/TM向けQ&A集.md) | 想定質問20問と回答 |
 | [技術用語集](docs/design/技術用語集.md) | 50以上の技術用語を業務用語に対応づけて解説 |
+| **[AI設計](docs/design/AI設計.md)** | **AI/MLの全体像 — 3層アーキテクチャ・利用箇所マップ・コスト管理（ADR横断の要約）** |
 
 ---
 
@@ -527,7 +528,7 @@ KEM_DDENKI/
 | マイグレーション | 74 |
 | ADR（設計判断記録） | 8 |
 | Python 行数（migrations 除く） | 36,440 |
-| 設計資料 | 7 |
+| 設計資料 | 8 |
 
 > 上の数値は `0d4bd1d`（`developer`、2026-08-14）時点の実測値です。アプリやモデルを足したら
 > [開発者マップ](index.html) の「30秒で掴む」と合わせて更新してください。
@@ -559,6 +560,7 @@ KEM_DDENKI/
 | **[docs/developer_guide.md](docs/developer_guide.md)** | **開発者向け1枚まとめ（編集→確認→承認→本番反映）** |
 | **[docs/server_operations.md](docs/server_operations.md)** | **サーバーPCの運用（自動起動・自動デプロイ・バックアップ）** |
 | [docs/design/](docs/design/) | 設計資料一式（7点） |
+| **[docs/design/AI設計.md](docs/design/AI設計.md)** | **AI/ML全体像（3層アーキテクチャ・利用箇所・コスト管理）** |
 | [docs/saas/adr/](docs/saas/adr/) | ADR（設計判断記録）8件 |
 | [docs/git_workflow.md](docs/git_workflow.md) | Git運用ルール・ブランチ戦略 |
 | [docs/branch_protection_setup.md](docs/branch_protection_setup.md) | main ブランチ保護（PM承認の強制）— リポジトリ管理者向け |
