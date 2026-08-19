@@ -6,6 +6,9 @@
 
 import base64
 import logging
+import re
+import unicodedata
+from decimal import Decimal
 
 from django.db.models import Sum
 from django.utils import timezone
@@ -13,11 +16,119 @@ from django.utils import timezone
 from apps.costs.services import create_material_cost_from_po_item
 from apps.materials.models import (
     Inventory,
+    Material,
     PurchaseOrder,
+    Quotation,
     QuotationItem,
 )
 
 logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# 見積ファイルから読み取った明細の登録
+# ---------------------------------------------------------------------------
+
+
+def normalize_material_name(name: str) -> str:
+    """材料名の照合キー。表記ゆれを吸収する。
+
+    「VVF 1.6mm 2C」「ＶＶＦ1.6MM2C」「VVF-1.6mm-2c」を同じものとして扱う。
+    全角/半角・大小文字・空白・区切り記号の違いだけを潰す。数字や単位は
+    落とさない（「1.6」と「2.0」は別物なので）。
+    """
+    if not name:
+        return ""
+    text = unicodedata.normalize("NFKC", str(name)).lower()
+    return re.sub(r"[\s　\-_/・,，.．()（）\[\]]", "", text)
+
+
+def find_material_by_name(company, raw_name):
+    """材料名から材料マスタを引き当てる。見つからなければ None。
+
+    自動作成はしない — 表記ゆれで重複マスタが増えるほうが後で困る。
+    引き当てられなかったものは確認画面に「未登録」として並べ、人が
+    マスタを作るか自由入力のままにするかを選ぶ。
+    得意先の引き当て（sites.services.find_customer_by_name）と同じ方針。
+    """
+    key = normalize_material_name(raw_name)
+    if not key:
+        return None
+
+    # unscoped: 取り込み経路はテナントコンテキスト未設定で通ることがあるため
+    # company を明示して絞る。
+    for material in Material.unscoped.filter(company=company, is_active=True):
+        if normalize_material_name(material.name) == key:
+            return material
+    return None
+
+
+def match_lines_to_materials(company, lines: list[dict]) -> list[dict]:
+    """明細に材料マスタの引き当て結果を添える。行は増減させない。
+
+    引き当てられた行には material が入り、それ以外は None のまま。
+    確認画面で「どれがマスタに無いのか」を出すために使う。
+    """
+    return [
+        {**line, "material": find_material_by_name(company, line.get("name"))}
+        for line in lines
+    ]
+
+
+def create_quotation_from_lines(
+    *, company, user, site, customer, lines, quotation_date,
+    quotation_number="", source_filename="", valid_until=None, notes="",
+):
+    """読み取った明細から自社発行の見積とその明細を作る。
+
+    materials.Material への自動登録はしない。引き当てられた行だけ FK を張り、
+    残りは material_name（自由入力）に読み取った名称をそのまま残す。
+    後から材料マスタを整備したときに再照合できるよう、名称は必ず保持する。
+
+    Returns:
+        (Quotation, 作成した QuotationItem のリスト)
+    """
+    quotation = Quotation.objects.create(
+        company=company,
+        created_by=user,
+        kind=Quotation.Kind.ISSUED,
+        site=site,
+        customer=customer,
+        quotation_number=quotation_number,
+        source_filename=source_filename,
+        quotation_date=quotation_date,
+        valid_until=valid_until,
+        status=Quotation.Status.RECEIVED,
+        notes=notes,
+    )
+
+    items = []
+    for order, line in enumerate(lines):
+        material = line.get("material")
+        amount = line.get("amount") or Decimal("0")
+        items.append(QuotationItem(
+            company=company,
+            created_by=user,
+            quotation=quotation,
+            material=material,
+            # マスタに引き当てられても、読み取った名称は残す。マスタ名と
+            # 見積書上の表記が違うとき、どちらで書かれていたかが後で要る。
+            material_name=line.get("name") or "",
+            spec=line.get("spec") or "",
+            unit=line.get("unit") or "",
+            quantity=line.get("quantity"),
+            unit_price=line.get("unit_price"),
+            amount=amount,
+            remarks=line.get("remarks") or "",
+            sort_order=order,
+        ))
+    QuotationItem.objects.bulk_create(items)
+
+    # 合計は明細の積み上げで持つ。見積書の合計欄は値引きや消費税を含んで
+    # いることがあり、明細の和と一致しない。ここでは明細の和を正とする。
+    quotation.total_amount = sum((i.amount or Decimal("0")) for i in items)
+    quotation.save(update_fields=["total_amount", "updated_at"])
+    return quotation, items
 
 
 def compare_quotations(material_id, site_id=None):
@@ -43,6 +154,10 @@ def compare_quotations(material_id, site_id=None):
 
     results = []
     for item in qs:
+        # 単価が読めていない明細（金額だけの一式計上など）は比較できない。
+        # 0 として並べると最安に見えてしまうので、比較表から外す。
+        if item.unit_price is None:
+            continue
         results.append({
             "supplier": item.quotation.supplier,
             "unit_price": item.unit_price,
@@ -285,8 +400,10 @@ def generate_quotation_pdf(output, quotation, items, user):
     table_data = [["No.", "品名", "数量", "単価", "金額"]]
     for i, item in enumerate(items, 1):
         name = str(item.material) if item.material else item.material_name
-        qty = f"{item.quantity:,.2f}"
-        price = f"¥{int(item.unit_price):,}"
+        # 取り込み見積では数量・単価が空の行がある。0 と書くと誤りになるので
+        # 空欄のまま出す。金額は既定 0 なので常に出せる。
+        qty = f"{item.quantity:,.2f}" if item.quantity is not None else ""
+        price = f"¥{int(item.unit_price):,}" if item.unit_price is not None else ""
         amount = f"¥{int(item.amount):,}"
         table_data.append([str(i), name, qty, price, amount])
 

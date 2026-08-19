@@ -177,6 +177,30 @@ def _read_pdf_rows(filepath: str | Path) -> list[list[str]]:
     return rows
 
 
+def read_rows(filepath: str | Path, suffix: str) -> list[list[str]]:
+    """拡張子に応じてファイルをセルの二次元リストにする。
+
+    見出し項目の走査（parse_estimate_file）と明細行の抽出（line_items）で
+    同じ読み取り結果を使うため、分岐をここに集約する。
+    """
+    suffix = (suffix or "").lower()
+    if suffix == ".csv":
+        return _read_csv_rows(filepath)
+    if suffix in (".xlsx", ".xlsm"):
+        return _read_excel_rows(filepath)
+    if suffix == ".pdf":
+        return _read_pdf_rows(filepath)
+    if suffix == ".xls":
+        # openpyxl は旧形式を読めない。変換してもらうほうが確実。
+        raise ValueError(
+            "古い Excel 形式(.xls)は読めません。"
+            "Excel で開いて .xlsx で保存し直してください。"
+        )
+    raise ValueError(
+        "CSV(.csv) / Excel(.xlsx, .xlsm) / PDF(.pdf) のみ対応しています。"
+    )
+
+
 # ---------------------------------------------------------------------------
 # 走査
 # ---------------------------------------------------------------------------
@@ -395,24 +419,15 @@ def parse_estimate_file(filepath: str | Path, suffix: str) -> dict:
     読めなかった項目は None のまま返す（推測で埋めない）。
     found / missing は確認画面で「何が読めて何が手入力か」を出すために使う。
     """
-    suffix = (suffix or "").lower()
-    if suffix == ".csv":
-        rows = _read_csv_rows(filepath)
-    elif suffix in (".xlsx", ".xlsm"):
-        rows = _read_excel_rows(filepath)
-    elif suffix == ".pdf":
-        rows = _read_pdf_rows(filepath)
-    elif suffix == ".xls":
-        # openpyxl は旧形式を読めない。変換してもらうほうが確実。
-        raise ValueError(
-            "古い Excel 形式(.xls)は読めません。"
-            "Excel で開いて .xlsx で保存し直してください。"
-        )
-    else:
-        raise ValueError(
-            "CSV(.csv) / Excel(.xlsx, .xlsm) / PDF(.pdf) のみ対応しています。"
-        )
+    return parse_rows(read_rows(filepath, suffix))
 
+
+def parse_rows(rows: list[list[str]]) -> dict:
+    """読み取り済みの行から見出し項目を拾う。
+
+    明細抽出（line_items）と同じ読み取り結果を使い回せるよう、ファイルの
+    読み込みと項目の走査を分けてある。PDF を2回開かないためのもの。
+    """
     start_date, end_date = _parse_period(_find_labeled_value(rows, LABELS["period"]))
 
     data: dict = {

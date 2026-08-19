@@ -40,7 +40,17 @@ class Material(TenantModel):
 
 
 class Quotation(TenantModel):
-    """見積。仕入先から取得した見積書を管理する。"""
+    """見積。仕入先から取得した見積書と、自社が得意先に出した見積の両方を持つ。
+
+    元は仕入先からの受領見積だけを想定していたが、見積ファイル（ライデンの
+    Excel/CSV・見積書 PDF）の取り込みで自社発行の見積も同じ形で扱えるように
+    kind で向きを分けた。明細（QuotationItem）と材料マスタの引き当ては
+    どちらの向きでも同じものを使う。
+    """
+
+    class Kind(models.TextChoices):
+        RECEIVED = "received", "仕入先から受領"
+        ISSUED = "issued", "自社が発行"
 
     class Status(models.TextChoices):
         DRAFT = "draft", "依頼中"
@@ -48,6 +58,13 @@ class Quotation(TenantModel):
         ACCEPTED = "accepted", "採用"
         REJECTED = "rejected", "不採用"
 
+    kind = models.CharField(
+        "見積の向き",
+        max_length=16,
+        choices=Kind.choices,
+        default=Kind.RECEIVED,
+        help_text="仕入先から受領した見積か、自社が得意先へ出した見積か。",
+    )
     site = models.ForeignKey(
         "sites.Site",
         on_delete=models.CASCADE,
@@ -59,8 +76,27 @@ class Quotation(TenantModel):
     supplier = models.ForeignKey(
         "masters.Supplier",
         on_delete=models.CASCADE,
+        null=True,
+        blank=True,
         related_name="quotations",
         verbose_name="仕入先",
+        help_text="受領見積のときの相手先。自社発行の見積では空。",
+    )
+    customer = models.ForeignKey(
+        "masters.Customer",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="quotations",
+        verbose_name="得意先",
+        help_text="自社発行の見積のときの宛先。受領見積では空。",
+    )
+    quotation_number = models.CharField(
+        "見積番号", max_length=100, blank=True,
+    )
+    source_filename = models.CharField(
+        "取込元ファイル名", max_length=255, blank=True,
+        help_text="見積ファイルから取り込んだ場合に残す。手入力なら空。",
     )
     quotation_date = models.DateField("見積日")
     valid_until = models.DateField("有効期限", null=True, blank=True)
@@ -91,7 +127,13 @@ class Quotation(TenantModel):
         verbose_name_plural = "見積"
 
     def __str__(self):
-        return f"見積-{self.pk} {self.supplier} ({self.quotation_date})"
+        return f"見積-{self.pk} {self.counterparty_name} ({self.quotation_date})"
+
+    @property
+    def counterparty_name(self) -> str:
+        """相手先の表示名。向きによって仕入先／得意先のどちらかを出す。"""
+        party = self.customer if self.kind == self.Kind.ISSUED else self.supplier
+        return str(party) if party else "相手先未設定"
 
 
 class QuotationItem(TenantModel):
@@ -112,13 +154,24 @@ class QuotationItem(TenantModel):
         verbose_name="材料（マスタ）",
     )
     material_name = models.CharField("材料名（自由入力）", max_length=200, blank=True)
-    quantity = models.DecimalField("数量", max_digits=10, decimal_places=2)
-    unit_price = models.DecimalField("単価", max_digits=12, decimal_places=2)
+    spec = models.CharField("規格・仕様", max_length=300, blank=True)
+    unit = models.CharField("単位", max_length=50, blank=True)
+    # 取り込んだ見積書には金額だけで数量・単価が無い行がある（一式計上など）。
+    # 0 を入れると「単価0円」という読めてもいない数字が残るので null を許す。
+    quantity = models.DecimalField(
+        "数量", max_digits=10, decimal_places=2, null=True, blank=True,
+    )
+    unit_price = models.DecimalField(
+        "単価", max_digits=12, decimal_places=2, null=True, blank=True,
+    )
     amount = models.DecimalField("金額", max_digits=14, decimal_places=0, default=0)
+    remarks = models.CharField("備考", max_length=300, blank=True)
+    sort_order = models.IntegerField("表示順", default=0)
 
     class Meta:
         verbose_name = "見積明細"
         verbose_name_plural = "見積明細"
+        ordering = ["quotation", "sort_order", "pk"]
 
     def __str__(self):
         name = self.material.name if self.material else self.material_name

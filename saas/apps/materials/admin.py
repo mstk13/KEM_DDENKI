@@ -7,6 +7,8 @@ from apps.materials.models import (
     ProcurementRecord,
     PurchaseOrder,
     PurchaseOrderItem,
+    Quotation,
+    QuotationItem,
 )
 
 
@@ -15,6 +17,24 @@ class MaterialAdmin(SimpleHistoryAdmin):
     list_display = ("code", "name", "unit", "category", "company", "is_active")
     list_filter = ("is_active", "company")
     search_fields = ("code", "name")
+
+
+class QuotationItemInline(admin.TabularInline):
+    model = QuotationItem
+    extra = 0
+    fields = ("sort_order", "material", "material_name", "spec", "unit",
+              "quantity", "unit_price", "amount")
+
+
+@admin.register(Quotation)
+class QuotationAdmin(SimpleHistoryAdmin):
+    list_display = (
+        "__str__", "kind", "site", "supplier", "customer",
+        "quotation_date", "total_amount", "status", "company",
+    )
+    list_filter = ("kind", "status", "company")
+    search_fields = ("quotation_number", "source_filename", "site__name")
+    inlines = [QuotationItemInline]
 
 
 class PurchaseOrderItemInline(admin.TabularInline):
