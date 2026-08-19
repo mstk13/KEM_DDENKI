@@ -46,6 +46,18 @@ def _timeout() -> int:
     return int(getattr(settings, "OLLAMA_EMBED_TIMEOUT", 60))
 
 
+def _keep_alive() -> str:
+    """モデルをVRAMに常駐させる時間。
+
+    ホスト側に OLLAMA_KEEP_ALIVE=0 が設定されているため、指定しないと
+    1リクエストごとにアンロードされ、次回に再ロードが丸ごと乗る。
+    実測でコールド 3.3秒 / ウォーム 0.27秒 と約12倍の差がある。
+    リクエストの keep_alive はサーバ側の環境変数を上書きするので、
+    ホストの設定に手を入れずにここで打ち消せる。
+    """
+    return str(getattr(settings, "OLLAMA_KEEP_ALIVE", "5m"))
+
+
 def is_configured() -> bool:
     """埋め込み機能が有効化されているか。"""
     return bool(getattr(settings, "OLLAMA_EMBED_ENABLED", True)) and bool(_base_url())
@@ -64,7 +76,7 @@ def embed_texts(texts: list[str]) -> list[list[float]] | None:
         return None
 
     payload = json.dumps(
-        {"model": _model(), "input": texts},
+        {"model": _model(), "input": texts, "keep_alive": _keep_alive()},
         ensure_ascii=False,
     ).encode("utf-8")
 

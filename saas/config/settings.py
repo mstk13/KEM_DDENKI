@@ -182,6 +182,12 @@ OLLAMA_EMBED_TIMEOUT = int(os.environ.get("OLLAMA_EMBED_TIMEOUT", "60"))
 OLLAMA_EMBED_ENABLED = os.environ.get(
     "OLLAMA_EMBED_ENABLED", "True"
 ).lower() in ("true", "1", "yes")
+# モデルをVRAMに常駐させる時間。ホスト側のシステム環境変数に
+# OLLAMA_KEEP_ALIVE=0 が入っており、無指定だとリクエストのたびに
+# アンロードされて毎回の再ロードが応答時間に乗る（実測 3.3秒 → 0.27秒）。
+# リクエスト単位の keep_alive はサーバ側の環境変数より優先されるため、
+# ホストの設定を変更せずにこちらで上書きする。
+OLLAMA_KEEP_ALIVE = os.environ.get("OLLAMA_KEEP_ALIVE", "5m")
 
 # ---- Email (SMTP) ----
 EMAIL_BACKEND = os.environ.get(
