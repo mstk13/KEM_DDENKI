@@ -9,6 +9,50 @@
 </div>
 
 <div class="card">
+  <div class="card-header"><h2>見積書を読み込む</h2></div>
+  <div class="card-body">
+    <p style="font-size:.88rem;color:var(--text-muted);margin-bottom:16px;">
+      見積書の <b>PDF</b> / <b>Excel</b>（.xlsx / .xlsm）/ CSV を読み込んで、
+      現場の<b>実行予算</b>として登録します。読み取った明細は次の画面に出るので、
+      内容を確認してから登録してください。
+    </p>
+    <form method="post" action="{% url 'costs:budget_import' %}" enctype="multipart/form-data">
+      {% csrf_token %}
+      <div class="form-row">
+        <div class="form-group">
+          <label for="{{ import_form.site.id_for_label }}">現場</label>
+          {{ import_form.site }}
+          <p style="font-size:.78rem;color:var(--text-muted);margin:4px 0 0;">
+            予算を追加する現場を選んでください。
+          </p>
+        </div>
+        <div class="form-group">
+          <label for="{{ import_form.file.id_for_label }}">見積書ファイル（.pdf / .xlsx / .csv）</label>
+          {{ import_form.file }}
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="{{ import_form.default_work_type.id_for_label }}">工種の既定値</label>
+          {{ import_form.default_work_type }}
+        </div>
+        <div class="form-group">
+          <label for="{{ import_form.default_cost_category.id_for_label }}">原価区分の既定値</label>
+          {{ import_form.default_cost_category }}
+        </div>
+      </div>
+      <p style="font-size:.78rem;color:var(--text-muted);margin:0 0 12px;">
+        工種と原価区分は見積書に書かれていないため、ここで既定値を選びます。
+        <b>確認画面で行ごとに変えられます。</b>
+      </p>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">読み取る</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card" style="margin-top:20px;">
   <div class="card-header"><h2>現場別 見積もり vs 実経費</h2></div>
   <div class="table-wrap">
     <table>
