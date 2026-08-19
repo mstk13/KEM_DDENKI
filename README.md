@@ -23,45 +23,73 @@
 ## システム構成図
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                        ユーザー                              │
-│    PC (Chrome/Edge)    スマホ (Safari/Chrome)    Discord     │
-└───────────┬──────────────────┬─────────────────────┬────────┘
-            │                  │                     │
-            ▼                  ▼                     ▼
-┌─────────────────────────────────────────────────────────────┐
-│              Tailscale serve (HTTPS終端・VPN内限定)            │
-│      本番 …:8000  https://desktop-rmsk0vg.tail8efe0d.ts.net  │
-│      開発 …:8001  https://desktop-rmsk0vg…ts.net:8443        │
-└───────────────────────────┬─────────────────────────────────┘
-                            │
-┌───────────────────────────▼─────────────────────────────────┐
-│                Django 5.2 LTS + Gunicorn                     │
-│                                                              │
-│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐       │
-│  │ 日報管理  │ │ 原価管理  │ │ 材料管理  │ │ 入札管理  │       │
-│  │ reports  │ │ costs    │ │materials │ │ bids     │       │
-│  ├──────────┤ ├──────────┤ ├──────────┤ ├──────────┤       │
-│  │ 工期管理  │ │ 人材管理  │ │ 営業管理  │ │ 取引先   │       │
-│  │schedules │ │ workers  │ │ sales    │ │ masters  │       │
-│  ├──────────┤ ├──────────┤ ├──────────┤ ├──────────┤       │
-│  │ 開発管理  │ │ 現場管理  │ │ 通知     │ │ 権限管理  │       │
-│  │ devkanri │ │ sites    │ │notific.  │ │permiss.  │       │
-│  └──────────┘ └──────────┘ └──────────┘ └──────────┘       │
-│                                                              │
-│  ┌──────────┐ ┌──────────┐ ┌──────────┐                    │
-│  │ accounts │ │ tenants  │ │  core    │  ← 基盤レイヤー      │
-│  └──────────┘ └──────────┘ └──────────┘                    │
-└──────┬──────────────┬──────────────┬────────────────────────┘
+┌──────────────────────────────────────────────────────────────────┐
+│                          ユーザー                                 │
+│    PC (Chrome/Edge)    スマホ (Safari/Chrome)    Discord          │
+└──────────┬──────────────────┬─────────────────────┬──────────────┘
+           │                  │                     │
+           ▼                  ▼                     ▼
+┌──────────────────────────────────────────────────────────────────┐
+│               Tailscale serve (HTTPS終端・VPN内限定)               │
+│      本番 …:8000  https://desktop-rmsk0vg.tail8efe0d.ts.net      │
+│      開発 …:8001  https://desktop-rmsk0vg…ts.net:8443            │
+└──────────────────────────┬───────────────────────────────────────┘
+                           │
+┌──────────────────────────▼───────────────────────────────────────┐
+│                                                                   │
+│  ┌─────────────────────────────────────────────────────────────┐ │
+│  │  web コンテナ (Django 5.2 LTS + Gunicorn)                    │ │
+│  │                                                              │ │
+│  │  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐       │ │
+│  │  │ 日報管理  │ │ 原価管理  │ │ 材料管理  │ │ 入札管理  │       │ │
+│  │  │ reports  │ │ costs    │ │materials │ │ bids     │       │ │
+│  │  ├──────────┤ ├──────────┤ ├──────────┤ ├──────────┤       │ │
+│  │  │ 積算     │ │ 現場管理  │ │ 営業管理  │ │ 取引先   │       │ │
+│  │  │estimat.  │ │ sites    │ │ sales    │ │ masters  │       │ │
+│  │  ├──────────┤ ├──────────┤ ├──────────┤ ├──────────┤       │ │
+│  │  │ 工期管理  │ │ 人材管理  │ │ 通知     │ │ 権限管理  │       │ │
+│  │  │schedules │ │ workers  │ │notific.  │ │permiss.  │       │ │
+│  │  ├──────────┤ ├──────────┤ ├──────────┤ ├──────────┤       │ │
+│  │  │ 勤怠管理  │ │ 人材評価  │ │ 開発管理  │ │ AI支援   │       │ │
+│  │  │attendance│ │evaluation│ │ devkanri │ │ ai       │       │ │
+│  │  └──────────┘ └──────────┘ └──────────┘ └──────────┘       │ │
+│  │  ┌──────────┐ ┌──────────┐ ┌──────────┐                    │ │
+│  │  │ accounts │ │ tenants  │ │  core    │  ← 基盤レイヤー      │ │
+│  │  └──────────┘ └──────────┘ └──────────┘                    │ │
+│  └─────────────────────────────────────────────────────────────┘ │
+│                                                                   │
+│  ┌─────────────────────────────────────────────────────────────┐ │
+│  │  cron コンテナ (定期タスク)                                    │ │
+│  │  毎朝7時: i-ppi自動スクレイピング (2日に1回)                     │ │
+│  │  毎朝8時: 書類・資格・健診アラート送信                            │ │
+│  └─────────────────────────────────────────────────────────────┘ │
+│                           Docker Compose                          │
+└──────┬──────────────┬──────────────┬─────────────────────────────┘
        │              │              │
        ▼              ▼              ▼
-┌──────────┐   ┌──────────┐
-│PostgreSQL│   │  Redis   │
-│    16    │   │    7     │
-└──────────┘   └──────────┘
+┌──────────┐   ┌──────────┐   ┌──────────────────────────────┐
+│PostgreSQL│   │  Redis   │   │ 外部サービス                   │
+│    16    │   │    7     │   │  Claude API (PDF解析・分析)    │
+└──────────┘   └──────────┘   │  i-ppi.jp (入札情報取得)      │
+                              └──────────────────────────────┘
 ```
 
-**技術スタック:** Django 5.2 LTS / PostgreSQL 16 / Redis 7 / Tailscale Serve / Docker
+## 技術スタック
+
+| レイヤー | 技術 | 用途 |
+|---------|------|------|
+| **Web フレームワーク** | Django 5.2 LTS / Python 3.12 | テンプレートベースのフルスタック |
+| **データベース** | PostgreSQL 16 | メインDB（全モデル simple-history 付き） |
+| **キャッシュ** | Redis 7 | セッション・キャッシュ |
+| **AP サーバー** | Gunicorn (4 workers, 2 threads) | 本番用 WSGI |
+| **ブラウザ自動操作** | Playwright + Chromium | i-ppi.jp 入札情報スクレイピング |
+| **AI — LLM** | Claude API (Haiku / Sonnet) | PDF解析・コスト分析・工程提案 |
+| **AI — ML** | LightGBM / scikit-learn | コスト予測モデル |
+| **AI — Embedding** | bge-m3 (1,024次元) | 積算品目の名寄せ（類似度マッチング） |
+| **ネットワーク** | Tailscale Serve | HTTPS終端・VPN内限定アクセス |
+| **コンテナ** | Docker Compose | db / redis / web / cron の4サービス |
+| **CI/CD** | GitHub Actions + 自動デプロイ | テスト・リント・2分おき自動反映 |
+| **PWA** | manifest.json + Service Worker | スマホ・PCのホーム画面から起動 |
 
 ---
 
@@ -74,14 +102,14 @@
 | 日報管理 | `/reports/` | 日報入力（開始終了時間・残業自動計算）・KY記入チェック・月別集計 |
 | 原価管理 | `/costs/` | 予算vs実績ダッシュボード・消化率グラフ・75/80/90/100%アラート |
 | 材料管理 | `/materials/` | 材料マスタ・見積比較・発注・納品検収・在庫 |
-| 入札管理 | `/bids/` | 案件管理・競合情報・落札→現場自動登録・受注率ダッシュボード |
-| 積算 | `/estimation/` | 品目マスタ・名寄せ・労務単価取込・歩掛/積算基準・内訳書Excel出力・差分分析 |
+| 入札管理 | `/bids/` | i-ppi自動スクレイピング・公告PDF解析・資格適格判定・競合情報・落札→現場自動登録 |
+| 積算 | `/estimation/` | 品目マスタ・Embedding名寄せ・労務単価取込・歩掛/積算基準・内訳書Excel出力・差分分析 |
 | 営業管理 | `/sales/` | 営業来訪記録・業界別ブラウズ・ステータス管理 |
 | 工期管理 | `/schedules/` | ガントチャート・配置カレンダー・マイルストーン・工程テンプレート |
 | 人材管理 | `/workers/` | 作業員・資格(5段階アラート)・スキルマップ・健康診断 |
 | 勤怠管理 | `/attendance/` | 出勤簿・打刻明細・従業員別記録・月次集計 |
 | 人材評価 | `/evaluation/` | 評価基準・評価入力・評価者割当・従業員別サマリ |
-| AI支援 | `/ai/` | コスト予測/最適化・工程提案・工程リスク・呼び出しログ・フィードバック |
+| AI支援 | `/ai/` | コスト予測(LightGBM)・最適化(Claude)・工程提案・呼び出しログ・コスト管理・フィードバック |
 | 開発管理 | `/dev/` | カンバンボード・Discord webhook通知・GitHub PR/Issue連携 |
 | 取引先管理 | `/masters/` | 得意先・仕入先CRUD・5段階評価・名刺管理 |
 | 通知 | `/notifications/` | 全モジュール共通の通知センター・アラートルール管理 |
@@ -256,8 +284,9 @@ cd KEM_DDENKI/saas
 
 # 環境変数を設定
 cp .env.example .env
+# .env を編集: DJANGO_SECRET_KEY, DB_PASSWORD, ANTHROPIC_API_KEY 等を設定
 
-# Docker で起動（PostgreSQL + Redis + Django）
+# Docker で起動（PostgreSQL + Redis + Django + cron）
 docker compose up -d
 
 # マイグレーション実行
@@ -265,6 +294,9 @@ docker compose exec web python manage.py migrate
 
 # 管理者アカウント作成
 docker compose exec web python manage.py createsuperuser
+
+# Playwright（入札スクレイパー用）のブラウザインストール
+docker compose exec web python -m playwright install --with-deps chromium
 
 # ブラウザで開く → http://localhost:8000
 ```
@@ -350,7 +382,7 @@ KEM_DDENKI/
 ├── .github/workflows/          CI/CD（テスト自動実行・リリース）
 ├── tools/autodeploy/           自動デプロイスクリプトの正本
 ├── docs/
-│   ├── design/                 設計資料（7点）
+│   ├── design/                 設計資料（8点）
 │   │   ├── 要件定義書.md         全モジュールの機能仕様
 │   │   ├── DB設計書.md           テーブル定義・ER図
 │   │   ├── 技術選定書.md         Django / Next.js段階移行方針
@@ -358,6 +390,8 @@ KEM_DDENKI/
 │   │   ├── 設計判断の根拠書.md   全ての「なぜ」を解説
 │   │   ├── TM向けQ&A集.md       想定質問20問と回答
 │   │   └── 技術用語集.md         50以上の用語解説
+│   ├── saas/adr/               ADR（設計判断記録）8件
+│   │   ├── ADR-0005 … 0012     ML予測・Claude統合・積算・入札詳細・AI3層分離 等
 │   ├── developer_guide.md      編集→確認→承認→本番反映の1枚まとめ
 │   ├── server_operations.md    サーバーPCの運用（自動起動・デプロイ・バックアップ）
 │   ├── git_workflow.md         Git運用ルール
@@ -377,8 +411,8 @@ KEM_DDENKI/
     │   ├── masters/            全社マスタ（工種/原価区分/得意先/仕入先/名刺）
     │   │
     │   │── 業務の背骨
-    │   ├── bids/               入札（案件・競合・書類・落札→現場自動登録）
-    │   ├── estimation/         積算（品目・労務単価・歩掛・内訳書・差分分析）
+    │   ├── bids/               入札（i-ppiスクレイピング・公告PDF解析・資格適格判定・落札→現場自動登録）
+    │   ├── estimation/         積算（品目・Embedding名寄せ・労務単価・歩掛・内訳書・差分分析）
     │   ├── sites/              現場管理（現場・工程・見積ファイル取込）
     │   ├── reports/            日報（開始終了時間・残業自動計算・KY管理）
     │   ├── costs/              原価（予算vs実績・Chart.jsグラフ・閾値アラート）
@@ -402,12 +436,11 @@ KEM_DDENKI/
     │
     ├── static/                 CSS / JavaScript
     ├── scripts/                データ移行スクリプト
-    ├── tests/                  テスト（281件）
+    ├── tests/                  テスト（441件）
     ├── CLAUDE.md               実装時の開発規律（絶対ルール9項目）
     │
-    ├── docker-compose.yml      開発用（db + redis + web）
-    ├── docker-compose.prod.yml 本番用
-    ├── Dockerfile
+    ├── docker-compose.yml      db + redis + web + cron（+ Cloudflare Tunnel オプション）
+    ├── Dockerfile              Python 3.12 + Playwright Chromium
     ├── pyproject.toml          Python依存関係
     └── .env.example            環境変数サンプル
 ```
@@ -427,6 +460,7 @@ KEM_DDENKI/
 | **[設計判断の根拠書](docs/design/設計判断の根拠書.md)** | **全ての設計で「なぜそうしたのか」を解説** |
 | [TM向けQ&A集](docs/design/TM向けQ&A集.md) | 想定質問20問と回答 |
 | [技術用語集](docs/design/技術用語集.md) | 50以上の技術用語を業務用語に対応づけて解説 |
+| **[AI設計](docs/design/AI設計.md)** | **AI/MLの全体像 — 3層アーキテクチャ・利用箇所マップ・コスト管理（ADR横断の要約）** |
 
 ---
 
@@ -438,7 +472,45 @@ KEM_DDENKI/
 | **マルチテナント** | TenantModel ベースで会社単位のデータ分離。全テーブルに `company_id` |
 | **監査証跡** | django-simple-history で全モデルの変更履歴を自動記録 |
 | **ロールベース権限** | 社長/役員/現場担当/事務/協力会社/開発者の6ロール × モジュール別 R/W/A |
-| **テスト駆動** | 281件のテストでテナント分離・自動仕訳・権限を検証 |
+| **テスト駆動** | 441件のテストでテナント分離・自動仕訳・権限・パーサーを検証 |
+| **金額は Decimal のみ** | float 禁止。丸め誤差で原価計算が狂うことを構造的に防ぐ |
+| **expand/contract マイグレーション** | 破壊的変更を単一リリースで行わない |
+| **AI 3層分離** | Embedding(高速) → ローカルLLM(中速) → Claude API(高精度) でコストと速度を最適化 |
+
+---
+
+## 業務フロー概要
+
+```
+入札案件の発見 → 見積・積算 → 入札 → 落札 → 現場管理 → 原価管理 → 完了
+      │              │          │        │         │          │
+      ▼              ▼          ▼        ▼         ▼          ▼
+ ┌─────────┐  ┌─────────┐  ┌──────┐ ┌──────┐ ┌────────┐ ┌──────┐
+ │i-ppi    │  │積算     │  │入札  │ │現場  │ │日報    │ │原価  │
+ │自動取得  │→│品目名寄せ│→│案件  │→│自動  │→│残業    │→│予実  │
+ │公告PDF  │  │歩掛計算  │  │管理  │ │登録  │ │自動計算│ │管理  │
+ │資格照合  │  │内訳書   │  │      │ │      │ │KY管理  │ │アラート│
+ └─────────┘  └─────────┘  └──────┘ └──────┘ └────────┘ └──────┘
+       ↑                                          │
+  cron が2日に1回                        承認→原価自動仕訳
+  自動実行
+```
+
+各モジュールは独立して使えますが、上の流れで連携すると手作業が大幅に減ります。
+落札した案件は自動で現場として登録され、日報の承認は原価トランザクションを自動生成します。
+
+---
+
+## 自動化・定期タスク
+
+| タスク | スケジュール | 内容 |
+|--------|------------|------|
+| 入札案件スクレイピング | 2日に1回 朝7時 | i-ppi.jp + 個別サイトから新着案件を取得 |
+| 書類アラート送信 | 毎日 朝8時 | 資格期限・健診期限・証明書未提出を通知 |
+| 自動デプロイ | 2分おき | GitHub の変更を検知して本番/開発に反映 |
+| 日次バックアップ | 毎日 12:30 | PostgreSQL のフルバックアップ |
+
+定期タスクは Docker の `cron` コンテナで実行されます（`docker compose logs cron` で確認可能）。
 
 ---
 
@@ -447,18 +519,36 @@ KEM_DDENKI/
 | 項目 | 数 |
 |------|-----|
 | Django アプリ | 19 |
-| モデル | 82 |
+| モデル | 83 |
 | ビュー関数 | 244 |
 | URL パターン | 243 |
 | HTML テンプレート | 158 |
-| テスト | 281 |
+| テスト | 441 |
 | services.py（ロジック層） | 12 + パッケージ2 |
-| マイグレーション | 68 |
-| Python 行数（migrations 除く） | 26,483 |
-| 設計資料 | 7 |
+| マイグレーション | 74 |
+| ADR（設計判断記録） | 8 |
+| Python 行数（migrations 除く） | 36,440 |
+| 設計資料 | 8 |
 
-> 上の数値は `cab9609`（`developer`）時点の実測値です。アプリやモデルを足したら
+> 上の数値は `0d4bd1d`（`developer`、2026-08-14）時点の実測値です。アプリやモデルを足したら
 > [開発者マップ](index.html) の「30秒で掴む」と合わせて更新してください。
+
+---
+
+## ADR（Architecture Decision Records）
+
+設計上の判断とその根拠を記録したドキュメント。新機能の追加やアーキテクチャ変更時に参照してください。
+
+| ADR | タイトル | 概要 |
+|-----|---------|------|
+| [ADR-0005](docs/saas/adr/ADR-0005-ml-cost-prediction.md) | LightGBM コスト予測 | 軽量・説明可能な ML モデルで原価予測 |
+| [ADR-0006](docs/saas/adr/ADR-0006-claude-api-integration.md) | Claude API 統合 | Haiku(抽出) / Sonnet(分析) の使い分け・コスト追跡 |
+| [ADR-0007](docs/saas/adr/ADR-0007-genba-memo-2026-08.md) | 現場ヒアリング統合 | 現場作業の手入力を Process モデルに反映 |
+| [ADR-0008](docs/saas/adr/ADR-0008-estimation-app.md) | 積算アプリ設計 | 品目名寄せ・労務単価・歩掛の段階的構築 |
+| [ADR-0009](docs/saas/adr/ADR-0009-bid-detail-and-category-filter.md) | 入札詳細・カテゴリフィルタ | 詳細ページ巡回と土木/舗装の除外ロジック |
+| [ADR-0010](docs/saas/adr/ADR-0010-ai-inference-tiering.md) | AI 推論3層分離 | Embedding → ローカルLLM → Claude API のコスト最適化 |
+| [ADR-0011](docs/saas/adr/ADR-0011-bid-qualification-and-announcement.md) | 入札資格・公告解析 | PDF から参加資格を抽出し、自社資格と自動照合 |
+| [ADR-0012](docs/saas/adr/ADR-0012-garbled-announcement-llm-fallback.md) | 文字化けPDF → LLM | ToUnicode 欠損PDFを Claude Sonnet で解読 |
 
 ---
 
@@ -470,7 +560,10 @@ KEM_DDENKI/
 | **[docs/developer_guide.md](docs/developer_guide.md)** | **開発者向け1枚まとめ（編集→確認→承認→本番反映）** |
 | **[docs/server_operations.md](docs/server_operations.md)** | **サーバーPCの運用（自動起動・自動デプロイ・バックアップ）** |
 | [docs/design/](docs/design/) | 設計資料一式（7点） |
+| **[docs/design/AI設計.md](docs/design/AI設計.md)** | **AI/ML全体像（3層アーキテクチャ・利用箇所・コスト管理）** |
+| [docs/saas/adr/](docs/saas/adr/) | ADR（設計判断記録）8件 |
 | [docs/git_workflow.md](docs/git_workflow.md) | Git運用ルール・ブランチ戦略 |
 | [docs/branch_protection_setup.md](docs/branch_protection_setup.md) | main ブランチ保護（PM承認の強制）— リポジトリ管理者向け |
 | [docs/tailscale_setup.md](docs/tailscale_setup.md) | 社外アクセス（Tailscale VPN）セットアップ |
 | [docs/geps_setup.md](docs/geps_setup.md) | GEPSメール連携セットアップ |
+| [saas/CLAUDE.md](saas/CLAUDE.md) | 実装時の開発規律（絶対ルール9項目）|
