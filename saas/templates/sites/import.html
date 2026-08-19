@@ -53,6 +53,13 @@
             <td><b>その他の読み取り項目</b></td>
             <td>上記以外で「項目名と値」に見える記載を<b>全シートから</b>すべて拾います</td>
           </tr>
+          <tr>
+            <td><b>見積明細・材料</b></td>
+            <td>
+              <b>名称 / 品名 / 材料名</b> と <b>数量・単価・金額</b> の見出しがある表を明細として読みます
+              （規格・単位・備考も拾います）
+            </td>
+          </tr>
         </tbody>
       </table>
     </div>
@@ -291,6 +298,90 @@
         </p>
         {{ form.extracted_details.errors }}
       </div>
+
+      <input type="hidden" name="lines_json" value="{{ lines_json }}">
+
+      {% if line_rows %}
+      <div class="card" style="margin:24px 0 0;">
+        <div class="card-header">
+          <h2>読み取った見積明細（{{ line_rows|length }} 件）</h2>
+        </div>
+        <div class="card-body" style="padding-bottom:8px;">
+          <label style="display:flex;align-items:flex-start;gap:8px;font-size:.9rem;cursor:pointer;">
+            <input type="checkbox" name="register_lines" value="1" checked style="margin-top:3px;">
+            <span>
+              <b>この明細を見積として登録する</b><br>
+              <span style="font-size:.82rem;color:var(--text-muted);">
+                現場に紐づく自社発行の見積として登録します。外すと現場だけを登録します。
+              </span>
+            </span>
+          </label>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>名称</th><th>規格</th>
+                <th style="text-align:right;">数量</th><th>単位</th>
+                <th style="text-align:right;">単価</th><th style="text-align:right;">金額</th>
+                <th>材料マスタ</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in line_rows %}
+              <tr>
+                <td>{{ row.name }}</td>
+                <td>{{ row.spec|default:"-" }}</td>
+                <td style="text-align:right;">{% if row.quantity != None %}{{ row.quantity|floatformat:"-2" }}{% else %}-{% endif %}</td>
+                <td>{{ row.unit|default:"-" }}</td>
+                <td style="text-align:right;">{% if row.unit_price != None %}¥{{ row.unit_price|floatformat:0 }}{% else %}-{% endif %}</td>
+                <td style="text-align:right;font-weight:600;">{% if row.amount != None %}¥{{ row.amount|floatformat:0 }}{% else %}-{% endif %}</td>
+                <td>
+                  {% if row.material %}
+                    <span style="color:var(--success);">{{ row.material.name }}</span>
+                  {% else %}
+                    <span style="color:var(--text-muted);">未登録</span>
+                  {% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+            <tfoot>
+              <tr>
+                <th colspan="5" style="text-align:right;">明細の合計</th>
+                <th style="text-align:right;">¥{{ line_total|floatformat:0 }}</th>
+                <th></th>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+        <div class="card-body" style="padding-top:12px;">
+          <p style="font-size:.82rem;color:var(--text-muted);margin:0;">
+            {% if unmatched_count %}
+              <b>{{ unmatched_count }} 件</b>は材料マスタに引き当てられませんでした。
+              明細には読み取った名称がそのまま残るので、登録は問題なく進みます。
+              材料マスタを整備すると、次回から自動で紐づきます（取り込みでは材料を自動作成しません）。
+            {% else %}
+              すべての明細を材料マスタに引き当てました。
+            {% endif %}
+            明細の合計は見積書の合計欄と一致しないことがあります（値引きや消費税は明細に含まれないため）。
+          </p>
+        </div>
+      </div>
+      {% elif filename %}
+      <div class="card" style="margin:24px 0 0;border-left:3px solid var(--warning, #d0a215);">
+        <div class="card-body">
+          <p style="margin:0;font-size:.88rem;">
+            <b>明細は読み取れませんでした。</b>
+            <span style="color:var(--text-muted);">
+              「名称／品名／材料名」と「数量・単価・金額」の見出しがある表が見つからなかった場合、
+              数字を推測で拾わず何も読まない作りにしています。現場の登録はこのまま進められます。
+              明細は登録後に見積画面から追加してください。
+            </span>
+          </p>
+        </div>
+      </div>
+      {% endif %}
 
       <div class="form-actions">
         <button type="submit" class="btn btn-primary">この内容で現場を登録</button>
