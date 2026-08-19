@@ -1,12 +1,23 @@
 import tempfile
+from datetime import date
 from pathlib import Path
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.db import transaction
 from django.shortcuts import get_object_or_404, redirect, render
 
+from apps.materials.services import (
+    create_quotation_from_lines,
+    match_lines_to_materials,
+)
 from apps.sites.forms import EstimateUploadForm, ProcessForm, SiteForm
-from apps.sites.importer import FIELD_LABELS, parse_estimate_file
+from apps.sites.importer import FIELD_LABELS, parse_rows, read_rows
+from apps.sites.line_items import (
+    deserialize_lines,
+    extract_lines,
+    serialize_lines,
+)
 from apps.sites.models import EstimateImport, Process, Site
 from apps.sites.services import (
     APPLY_FIELDS,
@@ -62,8 +73,14 @@ def site_create(request):
 def _parse_uploaded_estimate(request, uploaded):
     """アップロードされた見積ファイルを一時ファイルに落として読み取る。
 
-    読み取りに失敗しても例外は投げず、メッセージを出して None を返す。
+    見出し項目と明細行の両方を、**1回の読み込み**から取る。PDF を2回開くと
+    その分だけ待たされるため。
+
+    読み取りに失敗しても例外は投げず、メッセージを出して (None, []) を返す。
     取り込み口で500にするより、手入力に切り替えられるほうが現場は困らない。
+
+    Returns:
+        (見出し項目の dict または None, 明細のリスト)
     """
     suffix = Path(uploaded.name).suffix.lower()
     with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
@@ -71,12 +88,46 @@ def _parse_uploaded_estimate(request, uploaded):
             tmp.write(chunk)
         tmp_path = tmp.name
     try:
-        return parse_estimate_file(tmp_path, suffix)
+        rows = read_rows(tmp_path, suffix)
+        return parse_rows(rows), extract_lines(rows)
     except Exception as e:  # noqa: BLE001 — 読み取り失敗は画面に出して続行させる
         messages.error(request, f"ファイルを読み取れませんでした: {e}")
-        return None
+        return None, []
     finally:
         Path(tmp_path).unlink(missing_ok=True)
+
+
+def _register_estimate_lines(request, site, company, filename):
+    """確認画面から戻ってきた明細を、自社発行の見積として登録する。
+
+    明細を登録しない選択もできるので、チェックが無ければ何もしない。
+    材料マスタの引き当ては**ここでサーバ側からやり直す**。画面が持ち回るのは
+    名称などの文字列だけで、材料の pk は往復させない。
+
+    Returns:
+        作成した Quotation。登録しなかった場合は None。
+    """
+    if not request.POST.get("register_lines"):
+        return None
+
+    lines = deserialize_lines(request.POST.get("lines_json", ""))
+    if not lines:
+        return None
+
+    matched = match_lines_to_materials(company, lines)
+    quotation, _items = create_quotation_from_lines(
+        company=company,
+        user=request.user,
+        site=site,
+        customer=site.customer,
+        lines=matched,
+        # 見積書に見積日の記載を求めない（ラベルが定まらないため）。
+        # 取り込んだ日を入れ、必要なら見積画面で直してもらう。
+        quotation_date=date.today(),
+        quotation_number=site.code,
+        source_filename=filename,
+    )
+    return quotation
 
 
 @login_required
@@ -91,6 +142,7 @@ def site_import(request):
     upload_form = EstimateUploadForm()
     site_form = None
     parsed = None
+    parsed_lines: list[dict] = []
     parsed_customer_name = ""
     filename = ""
 
@@ -99,26 +151,41 @@ def site_import(request):
         parsed_customer_name = request.POST.get("parsed_customer_name", "")
         filename = request.POST.get("filename", "")
         if site_form.is_valid():
-            site = site_form.save(commit=False)
-            site.company = company
-            site.created_by = request.user
-            site.save()
-            # 取込履歴は確定時だけ残す。読み取りを試しただけの操作は業務上の
-            # 出来事ではないので、履歴に混ぜるとノイズになる。
-            EstimateImport.objects.create(
-                company=company,
-                created_by=request.user,
-                customer=site.customer,
-                customer_name_raw=parsed_customer_name,
-                site=site,
-                filename=filename,
-                estimate_number=site.code,
-                amount=site.contract_amount,
-                payment_terms=site.payment_terms,
-            )
-            messages.success(
-                request, f"見積ファイルから現場「{site.name}」を登録しました。"
-            )
+            # 現場・取込履歴・見積明細はまとめて入るか、まとめて入らないか。
+            # 現場だけできて明細が落ちると、同じファイルを入れ直したときに
+            # 現場が二重になる。
+            with transaction.atomic():
+                site = site_form.save(commit=False)
+                site.company = company
+                site.created_by = request.user
+                site.save()
+                # 取込履歴は確定時だけ残す。読み取りを試しただけの操作は業務上の
+                # 出来事ではないので、履歴に混ぜるとノイズになる。
+                EstimateImport.objects.create(
+                    company=company,
+                    created_by=request.user,
+                    customer=site.customer,
+                    customer_name_raw=parsed_customer_name,
+                    site=site,
+                    filename=filename,
+                    estimate_number=site.code,
+                    amount=site.contract_amount,
+                    payment_terms=site.payment_terms,
+                )
+                quotation = _register_estimate_lines(
+                    request, site, company, filename,
+                )
+
+            if quotation is not None:
+                messages.success(
+                    request,
+                    f"見積ファイルから現場「{site.name}」と"
+                    f"見積明細 {quotation.items.count()} 件を登録しました。",
+                )
+            else:
+                messages.success(
+                    request, f"見積ファイルから現場「{site.name}」を登録しました。"
+                )
             return redirect("sites:detail", pk=site.pk)
         messages.error(request, "入力内容を確認してください。")
 
@@ -127,7 +194,7 @@ def site_import(request):
         if upload_form.is_valid():
             uploaded = upload_form.cleaned_data["file"]
             filename = uploaded.name
-            parsed = _parse_uploaded_estimate(request, uploaded)
+            parsed, parsed_lines = _parse_uploaded_estimate(request, uploaded)
 
         if parsed:
             parsed_customer_name = parsed.get("customer_name") or ""
@@ -158,12 +225,20 @@ def site_import(request):
         else None
     )
 
+    # 材料マスタの引き当ては表示のためだけに行う。確定時はサーバ側で
+    # やり直すので、ここでの結果を持ち回ることはしない。
+    line_rows = match_lines_to_materials(company, parsed_lines) if parsed_lines else []
+
     return render(request, "sites/import.html", {
         "upload_form": upload_form,
         "form": site_form,
         "filename": filename,
         "parsed_customer_name": parsed_customer_name,
         "customer_matched": customer_matched,
+        "line_rows": line_rows,
+        "line_total": sum((r["amount"] or 0) for r in line_rows),
+        "unmatched_count": sum(1 for r in line_rows if r["material"] is None),
+        "lines_json": serialize_lines(parsed_lines) if parsed_lines else "",
         "read_rows": (
             [(FIELD_LABELS[k], parsed[k]) for k in parsed["found"]] if parsed else []
         ),
@@ -236,7 +311,9 @@ def site_estimate_import(request, pk):
         if upload_form.is_valid():
             uploaded = upload_form.cleaned_data["file"]
             filename = uploaded.name
-            parsed = _parse_uploaded_estimate(request, uploaded)
+            # この画面は既にある現場の項目を埋めるためのもの。明細は
+            # 新規登録（site_import）側で扱うので、ここでは使わない。
+            parsed, _lines = _parse_uploaded_estimate(request, uploaded)
 
         if parsed:
             parsed_customer_name = parsed.get("customer_name") or ""
