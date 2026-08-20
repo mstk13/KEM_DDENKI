@@ -5,7 +5,9 @@ from pathlib import Path
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
+from django.db.models import ProtectedError
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 
 from apps.materials.services import (
     create_quotation_from_lines,
@@ -23,6 +25,7 @@ from apps.sites.services import (
     APPLY_FIELDS,
     apply_estimate_to_site,
     build_estimate_diff,
+    collect_site_deletion_impact,
     estimate_values_for_site,
     find_customer_by_name,
     get_site_summary,
@@ -357,12 +360,48 @@ def site_edit(request, pk):
 
 @login_required
 def site_delete(request, pk):
+    """現場を削除する。一覧・詳細のどちらからでも入れる。
+
+    現場は全業務データの起点なので、削除は日報・実行予算・原価・発注まで
+    カスケードする。取り消せないため、確認画面で**何件消えるかを実数で**
+    見せてから POST を受ける。
+    """
     site = get_object_or_404(Site, pk=pk)
+
+    # 一覧から来たならキャンセルで一覧へ戻す。詳細は削除後に消えるので、
+    # 戻り先はこの2つに限定する（外部URLを受け取らないのでリダイレクト先は安全）。
+    from_list = request.GET.get("from") == "list"
+    back_url = reverse("sites:list") if from_list else reverse(
+        "sites:detail", args=[site.pk]
+    )
+
+    try:
+        impact = collect_site_deletion_impact(site)
+    except ProtectedError as exc:
+        impact = None
+        protected_error = exc
+    else:
+        protected_error = None
+
     if request.method == "POST":
-        site.delete()
-        messages.success(request, f"現場「{site.name}」を削除しました。")
+        if protected_error is not None:
+            messages.error(
+                request,
+                f"現場「{site.name}」は他のデータから参照されているため削除できません。",
+            )
+            return redirect(back_url)
+        name = site.name
+        with transaction.atomic():
+            site.delete()
+        messages.success(request, f"現場「{name}」を削除しました。")
         return redirect("sites:list")
-    return render(request, "sites/confirm_delete.html", {"site": site})
+
+    return render(request, "sites/confirm_delete.html", {
+        "site": site,
+        "impact": impact,
+        "impact_blocked": protected_error is not None,
+        "back_url": back_url,
+    })
 
 
 @login_required
