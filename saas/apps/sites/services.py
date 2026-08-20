@@ -7,7 +7,9 @@
 from datetime import date
 from decimal import Decimal, InvalidOperation
 
+from django.db import router
 from django.db.models import Avg, Sum
+from django.db.models.deletion import Collector
 
 from apps.costs.models import BudgetItem, CostTransaction
 from apps.masters.models import Customer
@@ -67,6 +69,42 @@ def get_site_summary(site):
         "worker_count": site.assignments.values("worker").distinct().count(),
         "report_count": site.daily_reports.count(),
     }
+
+
+def collect_site_deletion_impact(site):
+    """現場を削除したときに一緒に消えるレコードを、モデルごとに数える。
+
+    Django の Collector を使うのは、現場→日報→日報使用材料 のような**多段の
+    カスケードまで数える**ため。site.daily_reports.count() のように related_name を
+    数え上げる実装だと2段目以降を取りこぼし、確認画面が実際より軽い被害に見える。
+
+    Returns: [{"label": 表示名, "count": 件数}, ...] を件数の多い順で返す。
+    """
+    collector = Collector(using=router.db_for_write(type(site), instance=site))
+    collector.collect([site])
+
+    counts: dict[type, int] = {}
+
+    # data には、削除にシグナルや追加のカスケードが要るモデルが入る。
+    for model, instances in collector.data.items():
+        if model is not type(site):
+            counts[model] = counts.get(model, 0) + len(instances)
+
+    # 1クエリで消せるモデルは data ではなく fast_deletes に QuerySet で入る。
+    # 原価データのように simple-history を持たないモデルがこちらに回るため、
+    # 両方見ないと確認画面から丸ごと抜け落ちる。
+    for queryset in collector.fast_deletes:
+        model = queryset.model
+        if model is not type(site):
+            counts[model] = counts.get(model, 0) + queryset.count()
+
+    rows = [
+        {"label": model._meta.verbose_name, "count": count}
+        for model, count in counts.items()
+        if count
+    ]
+    rows.sort(key=lambda row: (-row["count"], str(row["label"])))
+    return rows
 
 
 # ---------------------------------------------------------------------------

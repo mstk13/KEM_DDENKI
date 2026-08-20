@@ -37,6 +37,8 @@
           <td style="white-space:nowrap;">
             <a href="{% url 'sites:estimate_import' site.pk %}" class="btn btn-outline btn-sm">見積取込</a>
             <a href="{% url 'sites:edit' site.pk %}" class="btn btn-outline btn-sm">編集</a>
+            <a href="{% url 'sites:delete' site.pk %}?from=list" class="btn btn-outline btn-sm"
+               style="color:var(--danger,#ef4444);">削除</a>
           </td>
         </tr>
         {% empty %}

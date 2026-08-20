@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import json
 import re
+import tempfile
 import unicodedata
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
@@ -268,3 +269,20 @@ def deserialize_lines(raw: str) -> list[dict]:
             "remarks": _nfkc(entry.get("remarks"))[:300],
         })
     return lines
+
+
+def parse_uploaded_lines(uploaded) -> list[dict]:
+    """アップロードされたファイルを一時ファイルに落として明細を読む。
+
+    読み取り失敗は呼び出し側で扱えるよう例外のまま投げる（画面に理由を
+    出したいため）。ヘッダが見つからなかっただけなら空リストが返る。
+    """
+    suffix = Path(uploaded.name).suffix.lower()
+    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+        for chunk in uploaded.chunks():
+            tmp.write(chunk)
+        tmp_path = tmp.name
+    try:
+        return parse_estimate_lines(tmp_path, suffix)
+    finally:
+        Path(tmp_path).unlink(missing_ok=True)
