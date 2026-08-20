@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% block title %}見積書から実行予算を登録 — {{ APP_NAME }}{% endblock %}
+{% block topbar_title %}現場見積もり/実経費{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>見積書から実行予算を登録</h1>
+  <a href="{% url 'costs:list' %}" class="btn btn-outline btn-sm">一覧に戻る</a>
+</div>
+
+<p style="font-size:.85rem;color:var(--text-muted);margin-bottom:16px;">
+  読み込んだファイル: <b>{{ filename }}</b> ／ 登録先の現場: <b>{{ site.name }}</b>
+</p>
+
+<div class="card">
+  <div class="card-header">
+    <h2>読み取った明細（{{ lines|length }} 件）</h2>
+  </div>
+  <div class="card-body" style="padding-bottom:8px;">
+    <p style="font-size:.85rem;color:var(--text-muted);margin:0;">
+      工種と原価区分には受け口で選んだ既定値
+      （<b>{{ default_work_type.name }}</b> / <b>{{ default_cost_category.name }}</b>）
+      が入っています。違う行だけ変えてください。
+      <b>チェックを外した行は登録しません。</b>
+    </p>
+  </div>
+
+  <form method="post" action="{% url 'costs:budget_import' %}">
+    {% csrf_token %}
+    <input type="hidden" name="step" value="confirm">
+    <input type="hidden" name="site" value="{{ site.pk }}">
+    <input type="hidden" name="lines_json" value="{{ lines_json }}">
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:40px;">登録</th>
+            <th>名称</th>
+            <th style="text-align:right;">数量</th>
+            <th>単位</th>
+            <th style="text-align:right;">単価</th>
+            <th style="text-align:right;">金額</th>
+            <th style="min-width:160px;">工種</th>
+            <th style="min-width:140px;">原価区分</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for index, line in lines %}
+          <tr>
+            <td style="text-align:center;">
+              <input type="checkbox" name="include_{{ index }}" value="1" checked>
+            </td>
+            <td>
+              {{ line.name }}
+              {% if line.spec %}<br><span style="font-size:.8rem;color:var(--text-muted);">{{ line.spec }}</span>{% endif %}
+            </td>
+            <td style="text-align:right;">{% if line.quantity != None %}{{ line.quantity|floatformat:"-2" }}{% else %}-{% endif %}</td>
+            <td>{{ line.unit|default:"-" }}</td>
+            <td style="text-align:right;">{% if line.unit_price != None %}¥{{ line.unit_price|floatformat:0 }}{% else %}-{% endif %}</td>
+            <td style="text-align:right;font-weight:600;">{% if line.amount != None %}¥{{ line.amount|floatformat:0 }}{% else %}-{% endif %}</td>
+            <td>
+              <select name="work_type_{{ index }}" class="form-control">
+                {% for w in work_types %}
+                <option value="{{ w.pk }}" {% if w.pk == default_work_type.pk %}selected{% endif %}>{{ w.name }}</option>
+                {% endfor %}
+              </select>
+            </td>
+            <td>
+              <select name="cost_category_{{ index }}" class="form-control">
+                {% for c in cost_categories %}
+                <option value="{{ c.pk }}" {% if c.pk == default_cost_category.pk %}selected{% endif %}>{{ c.name }}</option>
+                {% endfor %}
+              </select>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+        <tfoot>
+          <tr>
+            <th colspan="5" style="text-align:right;">明細の合計</th>
+            <th style="text-align:right;">¥{{ line_total|floatformat:0 }}</th>
+            <th colspan="2"></th>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+
+    <div class="card-body">
+      <p style="font-size:.8rem;color:var(--text-muted);margin:0 0 12px;">
+        数量・単価が「-」の行は、見積書に「一式」などで金額しか書かれていなかったものです。
+        数量と単価は 0 で登録され、<b>金額は読み取った値がそのまま入ります</b>ので予算合計はずれません。
+        明細の合計は見積書の合計欄と一致しないことがあります（値引きや消費税は明細に含まれないため）。
+      </p>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">この内容で実行予算に登録</button>
+        <a href="{% url 'costs:list' %}" class="btn btn-outline">やめる</a>
+      </div>
+    </div>
+  </form>
+</div>
+{% endblock %}

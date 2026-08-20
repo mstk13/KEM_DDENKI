@@ -5,10 +5,20 @@ from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 
 from apps.core.json_utils import json_for_script
-from apps.costs.forms import BudgetItemForm, ManualCostForm
+from apps.costs.forms import BudgetImportForm, BudgetItemForm, ManualCostForm
 from apps.costs.models import CostAccessGrant, CostTransaction
-from apps.costs.services import get_monthly_cost_trend, get_site_cost_summary
+from apps.costs.services import (
+    create_budget_items_from_lines,
+    get_monthly_cost_trend,
+    get_site_cost_summary,
+)
+from apps.masters.models import CostCategory, WorkType
 from apps.permissions.decorators import module_permission_required
+from apps.sites.line_items import (
+    deserialize_lines,
+    parse_uploaded_lines,
+    serialize_lines,
+)
 from apps.sites.models import Site
 
 
@@ -44,6 +54,8 @@ def cost_list(request):
 
     return render(request, "costs/list.html", {
         "site_summaries": site_summaries,
+        # 見積書の受け口。読み取りは costs:budget_import が受ける。
+        "import_form": BudgetImportForm(company=request.user.company),
     })
 
 
@@ -216,3 +228,110 @@ def cost_access_revoke(request, pk):
         grant.delete()
         messages.success(request, f"{user_name} のアクセス権を取り消しました。")
     return redirect("costs:access_list")
+
+
+@login_required
+@module_permission_required("costs", "write")
+def budget_import(request):
+    """見積書（PDF / Excel / CSV）を読んで実行予算を起こす。
+
+    現場見積もり TOP の受け口から来る。読み取り → 確認 → 登録 の2段構え。
+    見積取り込み（sites:import）と同じ明細パーサを使うが、あちらは現場と
+    見積を作るのに対し、こちらは**既にある現場の実行予算**を作る。
+
+    工種と原価区分は見積書に書かれていないので、確認画面で行ごとに選ぶ。
+    受け口で選んだ既定値が全行に入った状態で出るので、違う行だけ直せばよい。
+    """
+    company = request.user.company
+
+    if request.method != "POST":
+        return redirect("costs:list")
+
+    # ---- 確認画面からの登録 ----
+    if request.POST.get("step") == "confirm":
+        site = get_object_or_404(
+            Site.unscoped, company=company, pk=request.POST.get("site"),
+        )
+        lines = deserialize_lines(request.POST.get("lines_json", ""))
+        rows = _rows_with_classification(request, company, lines)
+
+        if not rows:
+            messages.info(request, "登録する行が選ばれていなかったので、何も追加していません。")
+            return redirect("costs:list")
+
+        items = create_budget_items_from_lines(
+            company=company, user=request.user, site=site, rows=rows,
+        )
+        messages.success(
+            request,
+            f"見積書から現場「{site.name}」の実行予算を {len(items)} 件登録しました。",
+        )
+        return redirect("costs:detail", site_id=site.pk)
+
+    # ---- 受け口からの読み取り ----
+    form = BudgetImportForm(request.POST, request.FILES, company=company)
+    if not form.is_valid():
+        for errors in form.errors.values():
+            for error in errors:
+                messages.error(request, error)
+        return redirect("costs:list")
+
+    try:
+        lines = parse_uploaded_lines(form.cleaned_data["file"])
+    except Exception as e:  # noqa: BLE001 — 読み取り失敗は画面に出して続行させる
+        messages.error(request, f"ファイルを読み取れませんでした: {e}")
+        return redirect("costs:list")
+
+    if not lines:
+        messages.warning(
+            request,
+            "明細を読み取れませんでした。"
+            "「名称／品名／材料名」と「数量・単価・金額」の見出しがある表が"
+            "見つからない場合、数字を推測で拾わない作りにしています。",
+        )
+        return redirect("costs:list")
+
+    site = form.cleaned_data["site"]
+    default_work_type = form.cleaned_data["default_work_type"]
+    default_cost_category = form.cleaned_data["default_cost_category"]
+
+    return render(request, "costs/budget_import.html", {
+        "site": site,
+        "filename": form.cleaned_data["file"].name,
+        "lines": list(enumerate(lines)),
+        "lines_json": serialize_lines(lines),
+        "line_total": sum((line["amount"] or 0) for line in lines),
+        "default_work_type": default_work_type,
+        "default_cost_category": default_cost_category,
+        # unscoped: 取り込み経路は company を明示して絞る。
+        "work_types": WorkType.unscoped.filter(company=company, is_active=True),
+        "cost_categories": CostCategory.objects.all(),
+    })
+
+
+def _rows_with_classification(request, company, lines):
+    """確認画面で選ばれた工種・原価区分を明細に添える。
+
+    チェックの外れた行は落とす。工種や原価区分を引けなかった行も落とす
+    （他社の工種の pk を送られても拾わないよう company で絞って引く）。
+    """
+    # unscoped: 取り込み経路は company を明示して絞る。
+    work_types = {
+        w.pk: w for w in WorkType.unscoped.filter(company=company, is_active=True)
+    }
+    categories = {c.pk: c for c in CostCategory.objects.all()}
+
+    rows = []
+    for index, line in enumerate(lines):
+        if not request.POST.get(f"include_{index}"):
+            continue
+        work_type = work_types.get(_as_pk(request.POST.get(f"work_type_{index}")))
+        category = categories.get(_as_pk(request.POST.get(f"cost_category_{index}")))
+        if work_type is None or category is None:
+            continue
+        rows.append({**line, "work_type": work_type, "cost_category": category})
+    return rows
+
+
+def _as_pk(raw):
+    return int(raw) if raw and str(raw).isdigit() else None
