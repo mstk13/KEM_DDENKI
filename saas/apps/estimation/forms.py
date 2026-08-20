@@ -281,7 +281,7 @@ class BoqLineForm(forms.ModelForm):
     class Meta:
         model = BoqLine
         fields = [
-            "level", "sort_order", "name", "spec", "unit",
+            "level", "parent", "sort_order", "name", "spec", "unit",
             "quantity", "unit_price", "amount",
             "estimation_item", "work_rate", "remarks",
         ]
@@ -289,7 +289,7 @@ class BoqLineForm(forms.ModelForm):
             "remarks": forms.Textarea(attrs={"class": "form-control", "rows": 2}),
         }
 
-    def __init__(self, *args, company=None, project=None, **kwargs):
+    def __init__(self, *args, company=None, project=None, site=None, **kwargs):
         super().__init__(*args, **kwargs)
         if company:
             # unscoped: フォーム初期化時に会社を明示フィルタするため
@@ -300,6 +300,21 @@ class BoqLineForm(forms.ModelForm):
             self.fields["work_rate"].queryset = WorkRate.unscoped.filter(
                 company=project.company, standard=project.standard,
             ) if project.standard else WorkRate.objects.none()
+        else:
+            # 現場から作る内訳書は積算基準に紐づかないので歩掛は選ばせない。
+            self.fields["work_rate"].queryset = WorkRate.objects.none()
+
+        # 親明細は同じ内訳書の中からしか選べない。
+        # ここを絞らないと他現場の明細にぶら下げられてしまう。
+        owner = {"project": project} if project is not None else {"site": site}
+        if any(v is not None for v in owner.values()):
+            queryset = BoqLine.objects.filter(**owner).order_by("sort_order")
+            if self.instance.pk:
+                queryset = queryset.exclude(pk=self.instance.pk)
+            self.fields["parent"].queryset = queryset
+        else:
+            self.fields["parent"].queryset = BoqLine.objects.none()
+
         for _name, field in self.fields.items():
             if not isinstance(field.widget, forms.Textarea):
                 field.widget.attrs.setdefault("class", "form-control")
@@ -348,4 +363,82 @@ class PurchaseCSVImportForm(forms.Form):
         label="名寄せを同時実行",
         required=False,
         initial=True,
+    )
+
+
+# ===================================================================
+# 内訳書の表形式入力（現場詳細から使う）
+# ===================================================================
+
+
+class BoqLineRowForm(forms.ModelForm):
+    """内訳書を表形式で編集するための1行分。
+
+    親子は選ばせない。行の並びと階層から組み立て直す（`rebuild_tree`）。
+    表の中に「親明細」のセレクトを置くと、行を並べ替えるたびに
+    人が親を選び直すことになり、まず維持できない。
+    """
+
+    class Meta:
+        model = BoqLine
+        fields = [
+            "level", "name", "spec", "unit",
+            "quantity", "unit_price", "amount", "remarks",
+        ]
+        widgets = {
+            "remarks": forms.TextInput(attrs={"class": "form-control"}),
+            "name": forms.TextInput(attrs={"class": "form-control", "placeholder": "名称"}),
+            "spec": forms.TextInput(attrs={"class": "form-control", "placeholder": "仕様"}),
+            "unit": forms.TextInput(attrs={"class": "form-control", "placeholder": "単位"}),
+            "quantity": forms.NumberInput(attrs={"class": "form-control", "step": "0.001"}),
+            "unit_price": forms.NumberInput(attrs={"class": "form-control", "step": "1"}),
+            "amount": forms.NumberInput(attrs={"class": "form-control", "step": "1"}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["level"].widget.attrs.setdefault("class", "form-control")
+        # 空行を送っても検証で弾かれないようにする。
+        # 「5行ぶんの入力欄を出しておいて2行だけ埋める」が普通の使い方。
+        for name in self.fields:
+            self.fields[name].required = False
+
+    def clean(self):
+        cleaned = super().clean()
+        name = (cleaned.get("name") or "").strip()
+        if not name:
+            # 名称が空の行は入力されなかった行として捨てる。
+            return cleaned
+        if not cleaned.get("level"):
+            # 階層の指定が無ければ、数量か単価があるものを内訳明細書とみなす。
+            has_numbers = any(
+                cleaned.get(key) is not None
+                for key in ("quantity", "unit_price", "amount")
+            )
+            cleaned["level"] = (
+                BoqLine.MEISAI_LEVEL if has_numbers else BoqLine.Level.KAMOKU
+            )
+        return cleaned
+
+
+BoqLineRowFormSet = forms.modelformset_factory(
+    BoqLine, form=BoqLineRowForm, extra=5, can_delete=True,
+)
+
+
+class BoqImportForm(forms.Form):
+    """内訳書ファイル（Excel / PDF）の取込。"""
+
+    upload = forms.FileField(
+        label="内訳書ファイル",
+        help_text="Excel(.xlsx) または PDF(.pdf)。名称・数量・単価・金額の列がある表を読みます。",
+        widget=forms.ClearableFileInput(attrs={
+            "class": "form-control", "accept": ".xlsx,.xlsm,.pdf",
+        }),
+    )
+    replace = forms.BooleanField(
+        label="既存の内訳書を置き換える",
+        required=False,
+        initial=True,
+        help_text="外すと今ある明細の後ろに追加します。同じファイルを2回読むと行が重複します。",
     )

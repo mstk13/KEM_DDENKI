@@ -203,9 +203,13 @@ class EstimationProjectAdmin(SimpleHistoryAdmin):
 
 @admin.register(BoqLine)
 class BoqLineAdmin(SimpleHistoryAdmin):
-    list_display = ("name", "level", "project", "unit", "quantity", "amount", "company")
+    # 持ち主は積算案件か現場のどちらか。両方出さないとどちらに属する明細か
+    # 一覧で分からない。
+    list_display = (
+        "name", "level", "project", "site", "unit", "quantity", "amount", "company",
+    )
     list_filter = ("level", "company")
-    search_fields = ("name",)
+    search_fields = ("name", "site__name", "project__name")
 
 
 @admin.register(PurchaseRecord)
