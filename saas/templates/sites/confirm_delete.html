@@ -8,15 +8,38 @@
 </div>
 
 <div class="card" style="padding:24px;">
-  <p style="font-size:16px;">以下の現場を削除しますか？関連する日報・原価データも全て削除されます。</p>
+  <p style="font-size:16px;">以下の現場を削除しますか？<strong>この操作は取り消せません。</strong></p>
   <div style="background:var(--bg-warning,#fff3cd);padding:16px;border-radius:8px;margin:16px 0;">
     <strong>{{ site.name }}</strong><br>
     <small>コード: {{ site.code }} / 状態: {{ site.get_status_display }}</small>
   </div>
-  <form method="post" style="display:flex;gap:12px;margin-top:16px;">
+
+  {% if impact_blocked %}
+    <p style="color:var(--danger,#ef4444);">
+      この現場は他のデータから参照されているため削除できません。
+      先に参照元のデータを整理してください。
+    </p>
+  {% elif impact %}
+    <p style="margin-bottom:8px;">この現場に紐づく次のデータも同時に削除されます。</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>データ</th><th style="text-align:right;">件数</th></tr></thead>
+        <tbody>
+          {% for row in impact %}
+          <tr><td>{{ row.label }}</td><td style="text-align:right;">{{ row.count }} 件</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <p>この現場に紐づくデータはありません。現場だけが削除されます。</p>
+  {% endif %}
+
+  <form method="post" action="" style="display:flex;gap:12px;margin-top:24px;">
     {% csrf_token %}
-    <button type="submit" class="btn" style="background:#ef4444;color:#fff;">削除する</button>
-    <a href="{% url 'sites:detail' site.pk %}" class="btn btn-outline">キャンセル</a>
+    <button type="submit" class="btn" style="background:#ef4444;color:#fff;"
+            {% if impact_blocked %}disabled{% endif %}>削除する</button>
+    <a href="{{ back_url }}" class="btn btn-outline">キャンセル</a>
   </form>
 </div>
 {% endblock %}
