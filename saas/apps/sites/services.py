@@ -17,7 +17,7 @@ from apps.sites.importer import normalize_company_name
 
 
 def find_customer_by_name(company, raw_name):
-    """見積書の宛名から得意先マスタを引き当てる。見つからなければ None。
+    """見積書の宛名から顧客マスタを引き当てる。見つからなければ None。
 
     「株式会社ABC」「(株)ABC」「㈱ ABC」を同じものとして扱う。
     自動作成はしない — 表記ゆれで重複マスタが増えるほうが後で困るため、
@@ -36,6 +36,44 @@ def find_customer_by_name(company, raw_name):
         if normalize_company_name(customer.name) == key:
             return customer
     return None
+
+
+def _next_customer_code(company) -> str:
+    """顧客マスタの空いているコードを返す。(company, code) が一意なので衝突を避ける。"""
+    # unscoped: テナントコンテキスト未設定の経路からも呼ぶため company を明示する。
+    used = set(Customer.unscoped.filter(company=company).values_list("code", flat=True))
+    n = 1
+    while True:
+        code = f"C{n:04d}"
+        if code not in used:
+            return code
+        n += 1
+
+
+def resolve_or_create_customer(company, raw_name, created_by=None):
+    """入力された会社名から顧客を引き当てる。未登録なら顧客マスタに登録して返す。
+
+    現場の「顧客」欄を後から自由に書き換えられるようにするための入口。
+
+    取り込み側（find_customer_by_name）が自動作成しないのは、機械が読み取った宛名で
+    表記ゆれの重複マスタが増えるのを避けるため。ここは**人が明示的に打った名前**なので
+    事情が違い、自動作成してよい。ただし重複を作らないよう、引き当ては取り込みと
+    **同じ正規化キー**で行う（「株式会社ABC」と「(株)ABC」は同じ顧客に寄せる）。
+    """
+    name = (raw_name or "").strip()
+    if not name:
+        return None
+
+    existing = find_customer_by_name(company, name)
+    if existing:
+        return existing
+
+    return Customer.unscoped.create(
+        company=company,
+        code=_next_customer_code(company),
+        name=name,
+        created_by=created_by,
+    )
 
 
 def get_site_summary(site):
@@ -120,7 +158,7 @@ def collect_site_deletion_impact(site):
 APPLY_FIELDS: tuple[tuple[str, str], ...] = (
     ("code", "現場コード（見積番号）"),
     ("name", "現場名（工事件名）"),
-    ("customer", "得意先"),
+    ("customer", "顧客"),
     ("contract_amount", "受注金額"),
     ("payment_terms", "支払条件"),
     ("address", "施工場所"),
@@ -146,7 +184,7 @@ _MAX_LENGTHS = {
 
 
 def _customer_or_none(company, raw_pk):
-    """得意先の pk 文字列から得意先を引く。他社のものは引かない。"""
+    """顧客の pk 文字列から顧客を引く。他社のものは引かない。"""
     if not str(raw_pk).isdigit():
         return None
     # unscoped: 取り込み経路はテナントコンテキスト未設定で通ることがあるため
@@ -247,7 +285,7 @@ def build_estimate_diff(site, values, company) -> list[dict]:
             continue
         new_display = _new_display(field, values[field], company)
         if not new_display:
-            # 得意先を引き当てられなかった等。出しても選べないので落とす。
+            # 顧客を引き当てられなかった等。出しても選べないので落とす。
             continue
         current = _current_display(site, field)
 

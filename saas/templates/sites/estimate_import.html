@@ -71,12 +71,10 @@
 <div class="card" style="margin-bottom:20px;border-left:3px solid var(--danger);">
   <div class="card-body">
     <p style="margin:0;font-size:.9rem;">
-      <b style="color:var(--danger);">宛名「{{ parsed_customer_name }}」は得意先マスタに登録されていません。</b><br>
-      得意先はこの画面では変えられません。
-      <a href="{% url 'masters:customer_create' %}" target="_blank" rel="noopener">得意先を登録</a>
-      してから読み込み直すか、
-      <a href="{% url 'sites:edit' site.pk %}">現場の編集</a>で選んでください。
-      （取り込みでは得意先を自動作成しません）
+      <b style="color:var(--danger);">宛名「{{ parsed_customer_name }}」は顧客マスタに登録されていません。</b><br>
+      顧客はこの画面では変えられません。
+      <a href="{% url 'sites:edit' site.pk %}">現場の編集</a>で会社名を入力してください
+      （未登録の名前なら顧客マスタにも登録されます）。
     </p>
   </div>
 </div>

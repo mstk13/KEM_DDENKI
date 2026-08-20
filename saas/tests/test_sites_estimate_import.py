@@ -402,7 +402,7 @@ class TestImportView:
         body = self._upload(client, tmp_path).content.decode("utf-8")
 
         assert "株式会社サンプル建設" in body
-        assert "得意先マスタに登録されていません" in body
+        assert "顧客マスタに登録されていません" in body
         set_current_company(None)
 
     def test_lists_fields_that_need_manual_entry(
@@ -475,7 +475,8 @@ class TestImportView:
             "step": "confirm",
             "code": "Q-2026-0142",
             "name": "○○ビル 電気設備改修工事",
-            "customer": customer.pk,
+            # 顧客欄は自由入力になったので、pk ではなく会社名を送る。
+            "customer_name": customer.name,
             "status": Site.Status.ESTIMATING,
             "contract_amount": 3480000,
             "payment_terms": "月末締め翌月末現金払い",
@@ -507,7 +508,8 @@ class TestImportView:
             "parsed_customer_name": "株式会社サンプル建設",
             "code": "Q-2026-0142",
             "name": "○○ビル 電気設備改修工事",
-            "customer": customer.pk,
+            # 顧客欄は自由入力になったので、pk ではなく会社名を送る。
+            "customer_name": customer.name,
             "status": Site.Status.ESTIMATING,
             "contract_amount": 3480000,
             "payment_terms": "月末締め翌月末現金払い",

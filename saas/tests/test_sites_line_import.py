@@ -274,7 +274,8 @@ class TestImportViewWithLines:
             "step": "confirm",
             "code": "Q-2026-0142",
             "name": "○○ビル 電気設備改修工事",
-            "customer": customer.pk,
+            # 顧客欄は自由入力になったので、pk ではなく会社名を送る。
+            "customer_name": customer.name,
             "status": Site.Status.ESTIMATING,
             "contract_amount": 3480000,
             "lines_json": lines_json,

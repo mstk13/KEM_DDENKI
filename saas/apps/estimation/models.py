@@ -340,7 +340,7 @@ class Orderer(TenantModel):
         null=True,
         blank=True,
         related_name="orderer_profiles",
-        verbose_name="得意先マスタ",
+        verbose_name="顧客マスタ",
     )
     is_active = models.BooleanField("有効", default=True)
     notes = models.TextField("備考", blank=True)

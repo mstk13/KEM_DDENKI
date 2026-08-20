@@ -49,7 +49,7 @@ def find_material_by_name(company, raw_name):
     自動作成はしない — 表記ゆれで重複マスタが増えるほうが後で困る。
     引き当てられなかったものは確認画面に「未登録」として並べ、人が
     マスタを作るか自由入力のままにするかを選ぶ。
-    得意先の引き当て（sites.services.find_customer_by_name）と同じ方針。
+    顧客の引き当て（sites.services.find_customer_by_name）と同じ方針。
     """
     key = normalize_material_name(raw_name)
     if not key:

@@ -56,7 +56,7 @@ def build_cost_optimization_prompt(site_summary, similar_sites, prediction=None)
 
 ## 現場情報
 - 現場名: {site['name']}
-- 得意先: {site['customer'] or '未設定'}
+- 顧客: {site['customer'] or '未設定'}
 - 受注金額: {site['contract_amount']:,.0f}円
 - 工期: {site['start_date']} 〜 {site['end_date']}
 - 進捗: 工期{features['elapsed_ratio']:.0%}経過 / 予算{features['consumption_ratio']:.0%}消化

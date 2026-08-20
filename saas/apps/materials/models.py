@@ -40,7 +40,7 @@ class Material(TenantModel):
 
 
 class Quotation(TenantModel):
-    """見積。仕入先から取得した見積書と、自社が得意先に出した見積の両方を持つ。
+    """見積。仕入先から取得した見積書と、自社が顧客に出した見積の両方を持つ。
 
     元は仕入先からの受領見積だけを想定していたが、見積ファイル（ライデンの
     Excel/CSV・見積書 PDF）の取り込みで自社発行の見積も同じ形で扱えるように
@@ -63,7 +63,7 @@ class Quotation(TenantModel):
         max_length=16,
         choices=Kind.choices,
         default=Kind.RECEIVED,
-        help_text="仕入先から受領した見積か、自社が得意先へ出した見積か。",
+        help_text="仕入先から受領した見積か、自社が顧客へ出した見積か。",
     )
     site = models.ForeignKey(
         "sites.Site",
@@ -88,7 +88,7 @@ class Quotation(TenantModel):
         null=True,
         blank=True,
         related_name="quotations",
-        verbose_name="得意先",
+        verbose_name="顧客",
         help_text="自社発行の見積のときの宛先。受領見積では空。",
     )
     quotation_number = models.CharField(
@@ -131,7 +131,7 @@ class Quotation(TenantModel):
 
     @property
     def counterparty_name(self) -> str:
-        """相手先の表示名。向きによって仕入先／得意先のどちらかを出す。"""
+        """相手先の表示名。向きによって仕入先／顧客のどちらかを出す。"""
         party = self.customer if self.kind == self.Kind.ISSUED else self.supplier
         return str(party) if party else "相手先未設定"
 
