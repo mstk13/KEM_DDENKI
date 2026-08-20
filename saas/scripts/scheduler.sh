@@ -94,6 +94,7 @@ log "=== 定時実行サービス起動 ==="
 log "  現在時刻 $(date '+%F %T %Z')"
 log "  scrape_bids          2日に1回 07:00 以降"
 log "  send_document_alerts 毎日     08:00 以降"
+log "  verify_item_matching 日曜     03:00 以降"
 log "  判定間隔 ${INTERVAL}秒 / 記録 ${STATE_DIR}"
 
 while true; do
@@ -113,6 +114,20 @@ while true; do
     if [ "$minutes" -ge 480 ] &&
        [ "$(read_state send_document_alerts)" != "$today" ]; then
         run_job send_document_alerts "send_document_alerts" send_document_alerts
+    fi
+
+    # verify_item_matching: 日曜の 03:00 以降に1回（ADR-0010 層Bの回帰検証）
+    #
+    # ローカル推論の精度が落ちていないかを、人間が承認した ItemAlias を
+    # 正解データにして測る。承認済みが1件も無ければ何もせず終わるので、
+    # 見積アプリを使い始めるまでは無害な空振りになる。
+    #
+    # 夜間に寄せているのは GPU の前景利用と取り合わないため。
+    # ローカル推論のみで API は叩かないので課金は発生しない（電気代だけ）。
+    # 正答率が 0.8 を割ったら終了コード1になり、このログに失敗として残る。
+    if [ "$minutes" -ge 180 ] && [ "$(date +%u)" = "7" ] &&
+       [ "$(read_state verify_item_matching)" != "$today" ]; then
+        run_job verify_item_matching "verify_item_matching"             verify_item_matching --min-accuracy 0.8
     fi
 
     [ "$ONCE" = "1" ] && exit 0
