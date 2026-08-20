@@ -34,11 +34,37 @@ git switch -C developer ...   # ❌ developer は常設ブランチ。作り直�
 
 ## main へのマージ
 
+**`developer` を直接 PR の head にしない。** リリース用の一時ブランチを切って、
+それを `main` へ出す。
+
+```bash
+git fetch origin
+git switch -c release/2026-08-20 origin/developer
+git push -u origin release/2026-08-20
+gh pr create --base main --head release/2026-08-20
+```
+
 1. `developer` で開発環境の動作を確認する
-2. `developer` → `main` の Pull Request を作る
-3. CI（ruff / マイグレーション整合性 / テスト）が緑になるのを待つ
-4. **PM が Approve する**
-5. PM がマージする → 本番に自動反映
+2. `developer` から `release/YYYY-MM-DD` を切って push する
+3. `release/YYYY-MM-DD` → `main` の Pull Request を作る
+4. CI（ruff / マイグレーション整合性 / テスト）が緑になるのを待つ
+5. **PM が Approve する**
+6. PM がマージする → 本番に自動反映（リリースブランチは自動削除される）
+
+### なぜ一時ブランチを挟むのか
+
+リポジトリの **Automatically delete head branches が有効**になっている。
+これはマージ済みの作業ブランチを自動で片付けるための設定だが、
+**head になったブランチを種類を問わず削除する**。
+
+`developer` → `main` の PR を出すと head が `developer` になるため、
+マージと同時に **`developer` が消える**。実際に 2026-08-20 の PR #45 で発生し、
+開発環境の自動デプロイが約18分間 `git fetch` に失敗し続けた。
+
+本来はブランチ保護で削除を禁じるところだが、**private リポジトリの
+ブランチ保護・ruleset は有料プラン限定**（無料プランでは HTTP 403）。
+そのため設定ではなく手順で回避する。head を捨ててよい一時ブランチにすれば、
+自動削除は一時ブランチだけを消し、`developer` は残る。
 
 このルールを GitHub 側で強制する設定は [main ブランチ保護の設定](branch_protection_setup.md) を参照してください。
 （未設定のあいだは、ルールは強制されずお願いベースになります）
