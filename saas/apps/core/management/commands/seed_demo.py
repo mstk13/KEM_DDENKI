@@ -378,7 +378,7 @@ class Command(BaseCommand):
     def _site_defs(self):
         t = self.today
         return [
-            # (コード, 現場名, 得意先, 状態, 受注金額, 開始, 終了, 工種)
+            # (コード, 現場名, 顧客, 状態, 受注金額, 開始, 終了, 工種)
             (
                 "S26-001", "市立第三中学校 電気設備改修工事", "C003", "in_progress",
                 12800000, t - timedelta(days=45), t + timedelta(days=30),
@@ -1070,7 +1070,7 @@ class Command(BaseCommand):
         c = self.company
         rows = [
             ("工種", WorkType.unscoped.filter(company=c).count()),
-            ("得意先", Customer.unscoped.filter(company=c).count()),
+            ("顧客", Customer.unscoped.filter(company=c).count()),
             ("仕入先", Supplier.unscoped.filter(company=c).count()),
             ("材料", Material.unscoped.filter(company=c).count()),
             ("現場", Site.unscoped.filter(company=c).count()),

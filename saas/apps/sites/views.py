@@ -9,10 +9,12 @@ from django.db.models import ProtectedError
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 
+from apps.costs.services import get_site_cost_summary
 from apps.materials.services import (
     create_quotation_from_lines,
     match_lines_to_materials,
 )
+from apps.permissions.services import has_module_permission
 from apps.sites.forms import EstimateUploadForm, ProcessForm, SiteForm
 from apps.sites.importer import FIELD_LABELS, parse_rows, read_rows
 from apps.sites.line_items import (
@@ -45,9 +47,24 @@ def site_detail(request, pk):
     site = get_object_or_404(Site, pk=pk)
     processes = site.processes.select_related("work_type").order_by("display_order")
     summary = get_site_summary(site)
+
+    # 見積もり/実経費は現場詳細に統合したが、原価は誰でも見てよい情報ではない。
+    # costs モジュールと同じ判定（社長・役員・developer・社員番号G始まり・個別許可）を
+    # 通す。権限が無ければ金額系は一切コンテキストに載せない。
+    can_view_costs = has_module_permission(request.user, "costs", "read")
+    cost_summary = get_site_cost_summary(site) if can_view_costs else None
+
+    # get_site_summary は工程進捗などと一緒に金額も返す。権限が無いユーザーには
+    # テンプレートに渡さない（従来は原価合計・粗利が全社員に見えていた）。
+    if not can_view_costs:
+        for money_key in ("total_cost", "budget_total", "gross_profit", "margin_rate"):
+            summary.pop(money_key, None)
+
     return render(request, "sites/detail.html", {
         "site": site,
         "processes": processes,
+        "can_view_costs": can_view_costs,
+        "cost_summary": cost_summary,
         "purchase_orders": site.purchase_orders.select_related("supplier").order_by(
             "-order_date"
         ),
@@ -61,7 +78,7 @@ def site_detail(request, pk):
 @login_required
 def site_create(request):
     if request.method == "POST":
-        form = SiteForm(request.POST, company=request.user.company)
+        form = SiteForm(request.POST, company=request.user.company, user=request.user)
         if form.is_valid():
             site = form.save(commit=False)
             site.company = request.user.company
@@ -150,7 +167,7 @@ def site_import(request):
     filename = ""
 
     if request.method == "POST" and request.POST.get("step") == "confirm":
-        site_form = SiteForm(request.POST, company=company)
+        site_form = SiteForm(request.POST, company=company, user=request.user)
         parsed_customer_name = request.POST.get("parsed_customer_name", "")
         filename = request.POST.get("filename", "")
         if site_form.is_valid():
@@ -207,7 +224,10 @@ def site_import(request):
                 initial={
                     "code": parsed.get("code") or "",
                     "name": parsed.get("name") or "",
-                    "customer": matched.pk if matched else None,
+                    # 引き当てできたときだけ名前を入れる。読み取った宛名をそのまま
+                    # 初期値にすると、確定時に機械が読んだ表記のまま顧客マスタが
+                    # できてしまう（取り込みで自動作成しない方針を保つ）。
+                    "customer_name": matched.name if matched else "",
                     "payment_terms": parsed.get("payment_terms") or "",
                     "estimate_valid_until": parsed.get("estimate_valid_until") or "",
                     "contract_amount": parsed.get("contract_amount") or 0,
@@ -349,7 +369,9 @@ def site_estimate_import(request, pk):
 def site_edit(request, pk):
     site = get_object_or_404(Site, pk=pk)
     if request.method == "POST":
-        form = SiteForm(request.POST, instance=site, company=request.user.company)
+        form = SiteForm(
+            request.POST, instance=site, company=request.user.company, user=request.user,
+        )
         if form.is_valid():
             form.save()
             return redirect("sites:detail", pk=site.pk)

@@ -58,10 +58,10 @@ class CostCategory(TimeStampedModel):
 
 
 class Customer(TenantModel):
-    """得意先マスタ。"""
+    """顧客マスタ。"""
 
     code = models.CharField("コード", max_length=50)
-    name = models.CharField("得意先名", max_length=200)
+    name = models.CharField("顧客名", max_length=200)
     representative = models.CharField("代表者名", max_length=100, blank=True)
     contact_person = models.CharField("担当者名", max_length=100, blank=True)
     phone = models.CharField("電話番号", max_length=30, blank=True)
@@ -80,8 +80,8 @@ class Customer(TenantModel):
     history = HistoricalRecords()
 
     class Meta:
-        verbose_name = "得意先"
-        verbose_name_plural = "得意先"
+        verbose_name = "顧客"
+        verbose_name_plural = "顧客"
         unique_together = [("company", "code")]
 
     def __str__(self):
@@ -158,7 +158,7 @@ class BusinessCard(TenantModel):
         null=True,
         blank=True,
         related_name="business_cards",
-        verbose_name="得意先",
+        verbose_name="顧客",
     )
     supplier = models.ForeignKey(
         Supplier,

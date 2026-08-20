@@ -24,7 +24,7 @@ class Site(TenantModel):
         null=True,
         blank=True,
         related_name="sites",
-        verbose_name="得意先",
+        verbose_name="顧客",
     )
     work_types = models.ManyToManyField(
         "masters.WorkType",
@@ -49,7 +49,7 @@ class Site(TenantModel):
         "支払条件",
         max_length=200,
         blank=True,
-        help_text="空欄なら得意先の標準支払条件を使う。",
+        help_text="空欄なら顧客の標準支払条件を使う。",
     )
     estimate_valid_until = models.CharField(
         "見積有効期限",
@@ -94,7 +94,7 @@ class Site(TenantModel):
 
     @property
     def effective_payment_terms(self) -> str:
-        """実際に適用される支払条件。現場に指定が無ければ得意先の標準を使う。"""
+        """実際に適用される支払条件。現場に指定が無ければ顧客の標準を使う。"""
         if self.payment_terms:
             return self.payment_terms
         return self.customer.payment_terms if self.customer else ""
@@ -104,8 +104,8 @@ class EstimateImport(TenantModel):
     """見積ファイルの取込履歴。
 
     「いつ・誰が・どのファイルから・どの宛名で」取り込んだかを残す。
-    得意先を引き当てられなかった場合も customer_name_raw に宛名を残すので、
-    後から得意先マスタに登録する候補として使える。
+    顧客を引き当てられなかった場合も customer_name_raw に宛名を残すので、
+    後から顧客マスタに登録する候補として使える。
     """
 
     customer = models.ForeignKey(
@@ -114,7 +114,7 @@ class EstimateImport(TenantModel):
         null=True,
         blank=True,
         related_name="estimate_imports",
-        verbose_name="得意先",
+        verbose_name="顧客",
     )
     customer_name_raw = models.CharField(
         "読み取った宛名", max_length=200, blank=True,
@@ -146,7 +146,7 @@ class EstimateImport(TenantModel):
 
     @property
     def is_unmatched(self) -> bool:
-        """宛名は読めたのに得意先を引き当てられなかったか。登録候補の判定に使う。"""
+        """宛名は読めたのに顧客を引き当てられなかったか。登録候補の判定に使う。"""
         return self.customer_id is None and bool(self.customer_name_raw)
 
 
