@@ -5,6 +5,10 @@
     # 承認済み ItemAlias を正解にする（実データがある環境）
     python manage.py verify_item_matching --company 1 --providers local
 
+    # 承認済みデータを持つテナントすべてを測る（定時実行はこれ）
+    # 対象が無ければ何もせず終了コード0で終わる
+    python manage.py verify_item_matching --min-accuracy 0.8
+
     # ゴールデンフィクスチャで測る（実データが無くても回る）
     python manage.py verify_item_matching --company 1 \
         --fixture tests/fixtures/item_matching_pairs.json
@@ -31,7 +35,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from unittest.mock import patch
 
-from django.core.management.base import BaseCommand
+from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
 from apps.estimation.models import EstimationItem, ItemAlias
@@ -55,8 +59,9 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument(
-            "--company", type=int, required=True,
-            help="対象テナントの Company ID",
+            "--company", type=int,
+            help="対象テナントの Company ID。省略すると承認済みエイリアスを"
+                 "持つテナントすべてを順に測る（定時実行用）",
         )
         parser.add_argument(
             "--providers", default="local",
@@ -77,13 +82,56 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
-        company = Company.objects.get(pk=options["company"])
         providers = [p.strip() for p in options["providers"].split(",") if p.strip()]
 
-        if options["fixture"]:
-            self._handle_fixture(company, providers, options)
-            return
+        if options["fixture"] and not options["company"]:
+            # フィクスチャは承認済みデータの有無と無関係に走るため、
+            # どのテナントに評価用の品目を作るかを決められない。
+            raise CommandError("--fixture を使うときは --company を指定してください。")
 
+        if options["company"]:
+            companies = [Company.objects.get(pk=options["company"])]
+        else:
+            companies = self._companies_with_gold()
+            if not companies:
+                # 定時実行から呼ばれる。測れるデータが無いのは異常ではないので
+                # 静かに終わる（終了コード0）。
+                self.stdout.write(
+                    "承認済みの ItemAlias を持つテナントがありません。"
+                    "測れるデータが貯まるまで何もしません。"
+                )
+                return
+            self.stdout.write(
+                f"対象テナント: {len(companies)}社"
+                f"（承認済みエイリアスを持つもの）\n"
+            )
+
+        failed = False
+        for company in companies:
+            if options["fixture"]:
+                self._handle_fixture(company, providers, options)
+                continue
+            try:
+                self._handle_company(company, providers, options)
+            except SystemExit:
+                failed = True
+        if failed:
+            raise SystemExit(1)
+
+    @staticmethod
+    def _companies_with_gold():
+        """承認済みエイリアスを持つテナントを返す。"""
+        ids = (
+            ItemAlias.unscoped.filter(  # unscoped: 全テナントを横断して探す
+                status=ItemAlias.Status.APPROVED,
+                estimation_item__isnull=False,
+            )
+            .values_list("company_id", flat=True)
+            .distinct()
+        )
+        return list(Company.objects.filter(pk__in=list(ids)).order_by("pk"))
+
+    def _handle_company(self, company, providers, options):
         # 正解データ: 人間が承認したエイリアスのみ。
         gold = list(
             ItemAlias.unscoped.filter(  # unscoped: company を明示指定
