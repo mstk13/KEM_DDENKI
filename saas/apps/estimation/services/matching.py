@@ -6,7 +6,7 @@
   2. 正規化名完全一致 (confidence=90)
   3. 仕様属性一致 (confidence=70)
   4. 埋め込み類似度一致 (confidence=65〜85)   ← ADR-0010 層A
-  5. LLM による候補提示 (confidence=30〜60)
+  5. LLM による候補提示 (confidence=30〜60)   ← ADR-0010 層B
 
 1〜2 以外は必ず人間の承認を要求する。
 
@@ -206,6 +206,118 @@ def _get_api_key():
     return api_key
 
 
+# ローカルに振る候補数の上限。
+# ctx=8192 に品目JSONを詰め込むと溢れて精度が落ちるため、
+# 戦略4が絞り込めたときだけローカルを使い、
+# 「先頭100件」へのフォールバック時は素直に API を使う。
+LOCAL_MAX_CANDIDATES = 20
+
+
+def _build_match_schema(codes: list[str]) -> dict:
+    """候補コードを enum で拘束した JSON Schema を作る。
+
+    このタスクの出力は「有限個の候補コードから選ぶ」だけなので、
+    選択肢そのものをスキーマに埋め込める。存在しないコードを
+    でっち上げる余地が無くなり、8Bクラスでも構造が崩れない。
+    labor_pdf の自由記述抽出（ローカル F1 0.64）とは難易度が違う。
+
+    **`reason` は意図的に含めない。** プロンプトは理由を求めているが、
+    本文はどこでも読んでおらず、日本語の説明文が出力の大半を占めていた。
+    スキーマから外すとモデルは書かなくなる。実測（qwen3:8b / ウォーム）で
+    出力 303→62 トークン、1件あたり 5.4秒→1.4秒。選ぶコードは変わらない。
+    bulk_match が数千件を回すことを考えると、この差はそのまま実時間に効く。
+    """
+    return {
+        "type": "object",
+        "properties": {
+            "matches": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "candidate_code": {"type": "string", "enum": codes},
+                        "confidence": {"type": "number"},
+                    },
+                    "required": ["candidate_code", "confidence"],
+                },
+            },
+        },
+        "required": ["matches"],
+    }
+
+
+def _ask_local(prompt: str, codes: list[str]) -> dict | None:
+    """ローカル推論に問い合わせる（ADR-0010 層B）。失敗時は None。"""
+    from apps.ai.services import local_llm
+
+    if len(codes) > LOCAL_MAX_CANDIDATES:
+        logger.info(
+            "候補が%d件でローカルの上限(%d)を超えるためAPIを使います。",
+            len(codes), LOCAL_MAX_CANDIDATES,
+        )
+        return None
+
+    result = local_llm.chat_json(
+        prompt,
+        _build_match_schema(codes),
+        system_prompt=LLM_SYSTEM_PROMPT,
+    )
+    if result is None:
+        return None
+
+    logger.info(
+        "LLMマッチング(ローカル %s): input=%s, output=%s",
+        result["model_id"], result["input_tokens"], result["output_tokens"],
+    )
+    return result["parsed"]
+
+
+def _ask_claude(prompt: str) -> dict | None:
+    """Claude API に問い合わせる。失敗時は None。"""
+    if not HAS_ANTHROPIC:
+        return None
+
+    api_key = _get_api_key()
+    if not api_key:
+        return None
+
+    client = anthropic.Anthropic(api_key=api_key)
+
+    try:
+        response = client.messages.create(
+            model="claude-haiku-4-5",
+            max_tokens=1000,
+            system=[{
+                "type": "text",
+                "text": LLM_SYSTEM_PROMPT,
+                "cache_control": {"type": "ephemeral"},
+            }],
+            messages=[{"role": "user", "content": prompt}],
+        )
+
+        result_text = response.content[0].text
+        logger.info(
+            f"LLMマッチング(API): input={response.usage.input_tokens}, "
+            f"output={response.usage.output_tokens}"
+        )
+
+        # JSONパース
+        if "```json" in result_text:
+            start = result_text.index("```json") + len("```json")
+            end = result_text.index("```", start)
+            result_text = result_text[start:end].strip()
+        elif "```" in result_text:
+            start = result_text.index("```") + len("```")
+            end = result_text.index("```", start)
+            result_text = result_text[start:end].strip()
+
+        return json.loads(result_text)
+
+    except Exception as e:
+        logger.warning(f"LLMマッチングエラー: {e}")
+        return None
+
+
 def _match_by_llm(
     raw_name: str,
     normalized_name: str,
@@ -213,20 +325,17 @@ def _match_by_llm(
     *,
     candidate_items: list | None = None,
 ):
-    """Claude API で候補を提示する。上位1件を返す。
+    """LLM で候補を提示する。上位1件を返す。
 
     candidate_items が渡された場合はそれを候補リストとして使う。
     戦略4（埋め込み）が絞り込んだ上位k件を渡す想定で、
     「先頭100件」を送るより精度が上がり、入力トークンも減る。
     渡されない場合は従来どおり先頭100件にフォールバックする。
+
+    実行先はローカル優先（ADR-0010 層B）。到達不可・候補過多・
+    スキーマ違反のいずれでも Claude API に落ちるので、機能は落ちない。
+    bulk_match は数千件を回すため、ここがローカル化の効き所になる。
     """
-    if not HAS_ANTHROPIC:
-        return None, Decimal("0")
-
-    api_key = _get_api_key()
-    if not api_key:
-        return None, Decimal("0")
-
     if candidate_items:
         items = candidate_items
     else:
@@ -248,65 +357,35 @@ def _match_by_llm(
         }
         for item in items
     ]
+    codes = [c["code"] for c in candidates]
 
-    client = anthropic.Anthropic(api_key=api_key)
+    prompt = LLM_USER_PROMPT.format(
+        raw_name=raw_name,
+        normalized_name=normalized_name,
+        candidates_json=json.dumps(candidates, ensure_ascii=False, indent=2),
+    )
+
+    data = _ask_local(prompt, codes)
+    if data is None:
+        data = _ask_claude(prompt)
+    if data is None:
+        return None, Decimal("0")
+
+    matches = data.get("matches", [])
+    if not matches:
+        return None, Decimal("0")
+
+    # 最も信頼度の高い候補
+    best = max(matches, key=lambda m: m.get("confidence", 0))
+    code = best.get("candidate_code", "")
+    confidence = Decimal(str(min(best.get("confidence", 0.3), 0.6))) * 100
 
     try:
-        response = client.messages.create(
-            model="claude-haiku-4-5",
-            max_tokens=1000,
-            system=[{
-                "type": "text",
-                "text": LLM_SYSTEM_PROMPT,
-                "cache_control": {"type": "ephemeral"},
-            }],
-            messages=[{
-                "role": "user",
-                "content": LLM_USER_PROMPT.format(
-                    raw_name=raw_name,
-                    normalized_name=normalized_name,
-                    candidates_json=json.dumps(candidates, ensure_ascii=False, indent=2),
-                ),
-            }],
+        item = EstimationItem.unscoped.get(  # unscoped: company を明示指定
+            company=company, code=code, is_active=True,
         )
-
-        result_text = response.content[0].text
-        logger.info(
-            f"LLMマッチング: input={response.usage.input_tokens}, "
-            f"output={response.usage.output_tokens}"
-        )
-
-        # JSONパース
-        if "```json" in result_text:
-            start = result_text.index("```json") + len("```json")
-            end = result_text.index("```", start)
-            result_text = result_text[start:end].strip()
-        elif "```" in result_text:
-            start = result_text.index("```") + len("```")
-            end = result_text.index("```", start)
-            result_text = result_text[start:end].strip()
-
-        data = json.loads(result_text)
-        matches = data.get("matches", [])
-
-        if not matches:
-            return None, Decimal("0")
-
-        # 最も信頼度の高い候補
-        best = max(matches, key=lambda m: m.get("confidence", 0))
-        code = best.get("candidate_code", "")
-        confidence = Decimal(str(min(best.get("confidence", 0.3), 0.6))) * 100
-
-        try:
-            item = EstimationItem.unscoped.get(  # unscoped: company を明示指定
-                company=company, code=code, is_active=True,
-            )
-            return item, confidence
-        except EstimationItem.DoesNotExist:
-            return None, Decimal("0")
-
-    except Exception as e:
-        logger.warning(f"LLMマッチングエラー: {e}")
+        return item, confidence
+    except EstimationItem.DoesNotExist:
         return None, Decimal("0")
 
 

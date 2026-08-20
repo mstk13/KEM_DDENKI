@@ -70,6 +70,20 @@ services:
       DB_HOST: db
       DB_PORT: "5432"
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      # ローカル推論（ADR-0010）。Ollama はホストの Windows 側で動くため
+      # コンテナからは host.docker.internal で到達する。
+      # 未設定でも settings.py の既定で動く（層Aは有効・層Bは無効）。
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      OLLAMA_EMBED_ENABLED: ${OLLAMA_EMBED_ENABLED:-True}
+      # OLLAMA_KEEP_ALIVE はここで渡してはならない。
+      # ホストのシステム環境変数に OLLAMA_KEEP_ALIVE=0 が入っており、
+      # compose の変数展開はシェル環境を .env より優先するため、
+      # ${OLLAMA_KEEP_ALIVE:-5m} と書いても必ず 0 が入ってしまう。
+      # それでは PR #37（settings.py の既定を 5m にしてホスト設定を打ち消す）が
+      # 無効化され、毎リクエストでモデルがアンロードされる（実測 0.27秒→3.3秒）。
+      # 渡さなければ settings.py の既定 5m がそのまま効く。
+      OLLAMA_CHAT_ENABLED: ${OLLAMA_CHAT_ENABLED:-False}
+      OLLAMA_CHAT_MODEL: ${OLLAMA_CHAT_MODEL:-qwen3:8b}
       EMAIL_BACKEND: ${EMAIL_BACKEND:-django.core.mail.backends.console.EmailBackend}
       EMAIL_HOST: ${EMAIL_HOST:-}
       EMAIL_PORT: ${EMAIL_PORT:-587}
@@ -106,6 +120,20 @@ services:
       DB_HOST: db
       DB_PORT: "5432"
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      # ローカル推論（ADR-0010）。Ollama はホストの Windows 側で動くため
+      # コンテナからは host.docker.internal で到達する。
+      # 未設定でも settings.py の既定で動く（層Aは有効・層Bは無効）。
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      OLLAMA_EMBED_ENABLED: ${OLLAMA_EMBED_ENABLED:-True}
+      # OLLAMA_KEEP_ALIVE はここで渡してはならない。
+      # ホストのシステム環境変数に OLLAMA_KEEP_ALIVE=0 が入っており、
+      # compose の変数展開はシェル環境を .env より優先するため、
+      # ${OLLAMA_KEEP_ALIVE:-5m} と書いても必ず 0 が入ってしまう。
+      # それでは PR #37（settings.py の既定を 5m にしてホスト設定を打ち消す）が
+      # 無効化され、毎リクエストでモデルがアンロードされる（実測 0.27秒→3.3秒）。
+      # 渡さなければ settings.py の既定 5m がそのまま効く。
+      OLLAMA_CHAT_ENABLED: ${OLLAMA_CHAT_ENABLED:-False}
+      OLLAMA_CHAT_MODEL: ${OLLAMA_CHAT_MODEL:-qwen3:8b}
       EMAIL_BACKEND: ${EMAIL_BACKEND:-django.core.mail.backends.console.EmailBackend}
       EMAIL_HOST: ${EMAIL_HOST:-}
       EMAIL_PORT: ${EMAIL_PORT:-587}
