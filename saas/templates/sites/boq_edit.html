@@ -1,0 +1,167 @@
+{% extends "base.html" %}
+{% block title %}内訳書の編集 - {{ site.name }}{% endblock %}
+{% block topbar_title %}内訳書・内訳明細書{% endblock %}
+
+{% block content %}
+<div class="page-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+  <div>
+    <h1>内訳書・内訳明細書</h1>
+    <p style="color:var(--text-muted);margin:4px 0 0;">{{ site.code }} {{ site.name }}</p>
+  </div>
+  <a href="{% url 'sites:detail' site.pk %}" class="btn btn-outline btn-sm">現場詳細へ戻る</a>
+</div>
+
+<div class="card">
+  <div class="card-body" style="padding-bottom:0;">
+    <p style="color:var(--text-muted);font-size:.85rem;margin:0 0 12px;">
+      名称ごとに仕様・数量・単位・単価・金額を入力してください。
+      <b>金額は数量×単価で自動計算</b>されます（一式計上のように数量や単価が
+      無い場合は金額に直接入力できます）。
+      階層は上から順に読み、<b>並び順と階層から親子関係を組み立て直します</b>。
+      名称が空の行は保存されません。
+    </p>
+  </div>
+
+  <form method="post">
+    {% csrf_token %}
+    {{ formset.management_form }}
+    {% if formset.non_form_errors %}
+    <div class="alert alert-danger" style="margin:0 14px 12px;">{{ formset.non_form_errors }}</div>
+    {% endif %}
+
+    <div class="table-wrap">
+      <table id="boq-edit-table">
+        <thead>
+          <tr>
+            <th style="min-width:150px;">階層</th>
+            <th style="min-width:200px;">名称</th>
+            <th style="min-width:180px;">仕様</th>
+            <th style="min-width:80px;">単位</th>
+            <th style="min-width:110px;">数量</th>
+            <th style="min-width:110px;">単価</th>
+            <th style="min-width:130px;">金額</th>
+            <th style="min-width:150px;">備考</th>
+            <th style="min-width:60px;">削除</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for form in formset %}
+          <tr class="boq-row">
+            {{ form.id }}
+            <td>{{ form.level }}</td>
+            <td>{{ form.name }}{% if form.name.errors %}<div class="form-error">{{ form.name.errors }}</div>{% endif %}</td>
+            <td>{{ form.spec }}</td>
+            <td>{{ form.unit }}</td>
+            <td>{{ form.quantity }}</td>
+            <td>{{ form.unit_price }}</td>
+            <td>{{ form.amount }}</td>
+            <td>{{ form.remarks }}</td>
+            <td style="text-align:center;">
+              {% if form.instance.pk %}{{ form.DELETE }}{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+        <tfoot>
+          <tr>
+            <th colspan="6" style="text-align:right;">合計</th>
+            <th id="boq-total" style="text-align:right;">0</th>
+            <th colspan="2"></th>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+
+    <div style="padding:14px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+      <button type="button" id="boq-add-row" class="btn btn-outline btn-sm">+ 行を追加</button>
+      <span style="color:var(--text-muted);font-size:.8rem;">
+        足りなければ行を増やせます。保存すると空行は捨てられます。
+      </span>
+      <button type="submit" class="btn btn-primary" style="margin-left:auto;">保存する</button>
+    </div>
+  </form>
+</div>
+
+<script>
+(function () {
+  var table = document.getElementById('boq-edit-table');
+  if (!table) return;
+  var body = table.querySelector('tbody');
+  var totalCell = document.getElementById('boq-total');
+  var totalForms = document.getElementById('id_form-TOTAL_FORMS');
+
+  function fieldsOf(row) {
+    return {
+      quantity: row.querySelector('[name$="-quantity"]'),
+      unitPrice: row.querySelector('[name$="-unit_price"]'),
+      amount: row.querySelector('[name$="-amount"]'),
+      del: row.querySelector('[name$="-DELETE"]')
+    };
+  }
+
+  // 金額 = 数量 × 単価。人が金額を直接直した行は上書きしない。
+  function recalcRow(row) {
+    var f = fieldsOf(row);
+    if (!f.quantity || !f.unitPrice || !f.amount) return;
+    if (f.amount.dataset.touched === '1') return;
+    var q = parseFloat(f.quantity.value);
+    var p = parseFloat(f.unitPrice.value);
+    if (isNaN(q) || isNaN(p)) return;
+    f.amount.value = Math.round(q * p);
+  }
+
+  function recalcTotal() {
+    var rows = body.querySelectorAll('tr.boq-row');
+    var sum = 0;
+    for (var i = 0; i < rows.length; i++) {
+      var f = fieldsOf(rows[i]);
+      if (f.del && f.del.checked) continue;
+      var v = parseFloat(f.amount ? f.amount.value : '');
+      if (!isNaN(v)) sum += v;
+    }
+    totalCell.textContent = sum.toLocaleString('ja-JP');
+  }
+
+  body.addEventListener('input', function (e) {
+    var row = e.target.closest('tr.boq-row');
+    if (!row) return;
+    if (e.target.name && e.target.name.endsWith('-amount')) {
+      e.target.dataset.touched = '1';
+    } else {
+      recalcRow(row);
+    }
+    recalcTotal();
+  });
+  body.addEventListener('change', recalcTotal);
+
+  // 行の追加。最後の行を複製して連番を振り直す。
+  document.getElementById('boq-add-row').addEventListener('click', function () {
+    var rows = body.querySelectorAll('tr.boq-row');
+    var last = rows[rows.length - 1];
+    var clone = last.cloneNode(true);
+    var index = parseInt(totalForms.value, 10);
+
+    var inputs = clone.querySelectorAll('input, select, textarea');
+    for (var i = 0; i < inputs.length; i++) {
+      var el = inputs[i];
+      if (el.name) el.name = el.name.replace(/-\d+-/, '-' + index + '-');
+      if (el.id) el.id = el.id.replace(/-\d+-/, '-' + index + '-');
+      if (el.type === 'checkbox') {
+        el.checked = false;
+      } else if (el.tagName !== 'SELECT') {
+        el.value = '';
+      }
+      delete el.dataset.touched;
+    }
+    // 既存行の複製だと id（主キー）が残り、別の行を上書きしてしまう。
+    var pk = clone.querySelector('[name$="-id"]');
+    if (pk) pk.value = '';
+
+    body.appendChild(clone);
+    totalForms.value = index + 1;
+  });
+
+  recalcTotal();
+})();
+</script>
+{% endblock %}

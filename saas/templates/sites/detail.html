@@ -212,6 +212,72 @@
   </div>
 </div>
 
+{# 内訳書・内訳明細書。上位3階層が内訳書、細目別が内訳明細書。
+   同じツリーの深さ違いなので1つの表で出し、細目別だけ見たいときは
+   「内訳明細書だけ表示」で絞る。 #}
+<div class="card" style="margin-top:20px;">
+  <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+    <h2>内訳書・内訳明細書</h2>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;">
+      <a href="{% url 'sites:boq_import' site.pk %}" class="btn btn-outline btn-sm">ファイルから取り込む</a>
+      {% if boq_lines %}
+      <a href="{% url 'sites:boq_export' site.pk %}" class="btn btn-outline btn-sm">Excel出力</a>
+      {% endif %}
+      <a href="{% url 'sites:boq_edit' site.pk %}" class="btn btn-primary btn-sm">表形式で編集</a>
+    </div>
+  </div>
+
+  {% if boq_lines %}
+  <div style="padding:10px 14px;display:flex;gap:16px;flex-wrap:wrap;align-items:center;border-bottom:1px solid var(--gray-200);">
+    <label style="display:flex;align-items:center;gap:6px;font-size:.85rem;cursor:pointer;">
+      <input type="checkbox" id="boq-meisai-only"> 内訳明細書だけ表示
+    </label>
+    <span style="font-size:.85rem;color:var(--text-muted);">
+      全 {{ boq_lines|length }} 行 / うち内訳明細書 {{ boq_meisai_count }} 行
+    </span>
+    <span style="margin-left:auto;font-weight:600;">合計 &yen;{{ boq_total|floatformat:0 }}</span>
+  </div>
+
+  <div class="table-wrap">
+    <table id="boq-table">
+      <thead>
+        <tr>
+          <th>階層</th><th>名称</th><th>仕様</th><th>単位</th>
+          <th style="text-align:right;">数量</th>
+          <th style="text-align:right;">単価</th>
+          <th style="text-align:right;">金額</th>
+          <th>備考</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for line in boq_lines %}
+        <tr data-meisai="{{ line.is_meisai|yesno:"1,0" }}"
+            {% if not line.is_meisai %}style="font-weight:600;background:var(--bg-secondary);"{% endif %}>
+          <td style="font-size:12px;white-space:nowrap;">{{ line.get_level_display }}</td>
+          <td style="padding-left:{% widthratio line.indent_depth 1 16 %}px;">{{ line.name }}</td>
+          <td>{{ line.spec|default:"-" }}</td>
+          <td>{{ line.unit|default:"-" }}</td>
+          {# 一式計上など数量・単価が無い行がある。0 と書くと読めた 0 に見える。 #}
+          <td style="text-align:right;">{% if line.quantity is not None %}{{ line.quantity|floatformat:"-3" }}{% else %}-{% endif %}</td>
+          <td style="text-align:right;">{% if line.unit_price is not None %}{{ line.unit_price|floatformat:0 }}{% else %}-{% endif %}</td>
+          <td style="text-align:right;">{% if line.amount is not None %}&yen;{{ line.amount|floatformat:0 }}{% else %}-{% endif %}</td>
+          <td>{{ line.remarks|default:"-" }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty" style="padding:20px;">
+    <p>
+      この現場の内訳書はまだありません。
+      Excel・PDF の内訳書を「ファイルから取り込む」で読み込むか、
+      「表形式で編集」から直接入力してください。
+    </p>
+  </div>
+  {% endif %}
+</div>
+
 {# 見積内訳。取り込んだ見積書の明細を、見積詳細へ移らずここで開けるようにする。 #}
 <div class="card" style="margin-top:20px;">
   <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;">
@@ -316,4 +382,20 @@
     </table>
   </div>
 </div>
+
+<script>
+// 「内訳明細書だけ表示」。上位階層（種目・科目・中科目）の行を隠す。
+(function () {
+  var toggle = document.getElementById('boq-meisai-only');
+  if (!toggle) return;
+  toggle.addEventListener('change', function () {
+    var rows = document.querySelectorAll('#boq-table tbody tr');
+    for (var i = 0; i < rows.length; i++) {
+      var isMeisai = rows[i].dataset.meisai === '1';
+      rows[i].style.display = (toggle.checked && !isMeisai) ? 'none' : '';
+    }
+  });
+})();
+</script>
+
 {% endblock %}

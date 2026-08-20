@@ -1,5 +1,6 @@
 import tempfile
 from datetime import date
+from decimal import Decimal
 from pathlib import Path
 
 from django.contrib import messages
@@ -11,6 +12,10 @@ from django.urls import reverse
 
 from apps.costs.models import BudgetItem
 from apps.costs.services import get_site_cost_summary
+from apps.estimation.forms import BoqImportForm, BoqLineRowFormSet
+from apps.estimation.models import BoqLine
+from apps.estimation.services import boq_import
+from apps.estimation.services.boq_import import rebuild_tree
 from apps.materials.services import (
     create_quotation_from_lines,
     match_lines_to_materials,
@@ -72,6 +77,8 @@ def site_detail(request, pk):
         else None
     )
 
+    boq_lines = list(_site_boq_lines(site))
+
     return render(request, "sites/detail.html", {
         "site": site,
         "processes": processes,
@@ -90,6 +97,10 @@ def site_detail(request, pk):
             .order_by("-quotation_date")
         ),
         "budget_items": budget_items,
+        # 内訳書・内訳明細書。階層ツリーなので parent も一緒に引く。
+        "boq_lines": boq_lines,
+        "boq_total": _boq_total(boq_lines),
+        "boq_meisai_count": sum(1 for line in boq_lines if line.is_meisai),
         **summary,
     })
 
@@ -498,3 +509,135 @@ def process_delete(request, pk):
         messages.success(request, f"工程「{process.name}」を削除しました。")
         return redirect("sites:detail", pk=site_pk)
     return render(request, "sites/process_confirm_delete.html", {"process": process})
+
+
+# ===================================================================
+# 内訳書・内訳明細書（ADR-0016）
+#
+# BoqLine は元々 estimation.EstimationProject 専用だったが、積算案件は
+# 発注機関が必須のため民間工事の現場では作れなかった。現場に直接
+# ぶら下げられるようにしたので、現場詳細から一通り操作できるようにする。
+# ===================================================================
+
+
+def _site_boq_lines(site):
+    """現場の内訳書を表示順で返す。"""
+    return (
+        BoqLine.objects.filter(site=site)
+        .select_related("parent")
+        .order_by("sort_order", "pk")
+    )
+
+
+def _boq_total(lines):
+    """内訳書の合計。
+
+    最上位（親を持たない）行だけを足す。種目・科目を立てた内訳書で
+    全行を足すと、上位行と細目で二重に数えることになる。
+    """
+    return sum(
+        (line.amount or Decimal("0")) for line in lines if line.parent_id is None
+    )
+
+
+@login_required
+def site_boq_edit(request, pk):
+    """内訳書を表形式でまとめて編集する。"""
+    site = get_object_or_404(Site, pk=pk)
+    queryset = _site_boq_lines(site)
+
+    if request.method == "POST":
+        formset = BoqLineRowFormSet(request.POST, queryset=queryset)
+        if formset.is_valid():
+            with transaction.atomic():
+                for index, form in enumerate(formset.forms, start=1):
+                    if form in formset.deleted_forms:
+                        if form.instance.pk:
+                            form.instance.delete()
+                        continue
+                    if not (form.cleaned_data.get("name") or "").strip():
+                        # 入力されなかった空行。保存もエラーにもしない。
+                        continue
+
+                    line = form.save(commit=False)
+                    line.site = site
+                    line.project = None
+                    line.company = site.company
+                    line.sort_order = index
+                    if line.amount is None:
+                        line.calc_amount()
+                    line.save()
+
+                rebuild_tree(list(_site_boq_lines(site)))
+
+            messages.success(request, "内訳書を保存しました。")
+            return redirect("sites:detail", pk=site.pk)
+    else:
+        formset = BoqLineRowFormSet(queryset=queryset)
+
+    return render(request, "sites/boq_edit.html", {
+        "site": site,
+        "formset": formset,
+        "levels": BoqLine.Level.choices,
+    })
+
+
+@login_required
+def site_boq_import(request, pk):
+    """内訳書ファイル（Excel / PDF）を取り込む。"""
+    site = get_object_or_404(Site, pk=pk)
+    result = None
+
+    if request.method == "POST":
+        form = BoqImportForm(request.POST, request.FILES)
+        if form.is_valid():
+            uploaded = form.cleaned_data["upload"]
+            result = boq_import.parse_upload(uploaded.name, uploaded.read())
+
+            for warning in result.warnings:
+                messages.warning(request, warning)
+
+            if result.drafts:
+                created = boq_import.load_drafts(
+                    result.drafts,
+                    company=site.company,
+                    site=site,
+                    user=request.user,
+                    replace=form.cleaned_data["replace"],
+                )
+                messages.success(
+                    request,
+                    f"{uploaded.name} から {created} 行を取り込みました"
+                    f"（うち内訳明細書 {result.meisai_count} 行）。",
+                )
+                return redirect("sites:detail", pk=site.pk)
+
+            messages.error(request, "取り込める明細がありませんでした。")
+    else:
+        form = BoqImportForm()
+
+    return render(request, "sites/boq_import.html", {
+        "site": site,
+        "form": form,
+        "result": result,
+    })
+
+
+@login_required
+def site_boq_export(request, pk):
+    """現場の内訳書を Excel でダウンロードする。"""
+    from django.http import HttpResponse
+
+    from apps.estimation.services.boq_export import export_boq_to_excel
+
+    site = get_object_or_404(Site, pk=pk)
+    excel_bytes = export_boq_to_excel(site=site)
+    response = HttpResponse(
+        excel_bytes,
+        content_type=(
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        ),
+    )
+    filename = f"boq_site_{site.code or site.pk}.xlsx"
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    return response
