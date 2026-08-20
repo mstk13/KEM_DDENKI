@@ -41,7 +41,7 @@
         <thead><tr><th>現場の項目</th><th>ファイル側の見出し</th></tr></thead>
         <tbody>
           <tr><td>現場コード</td><td>見積番号 / 見積No / 見積書番号</td></tr>
-          <tr><td>得意先</td><td><b>「○○ 御中」</b>の会社名</td></tr>
+          <tr><td>顧客</td><td><b>「○○ 御中」</b>の会社名</td></tr>
           <tr><td>支払条件</td><td>支払条件 / お支払い条件 / 支払方法</td></tr>
           <tr><td>現場名</td><td>工事件名 / 件名 / 工事名 / 工事名称</td></tr>
           <tr><td>受注金額</td><td>見積金額 / 合計金額</td></tr>
@@ -77,7 +77,7 @@
   <div class="card-header"><h2>最近の取込</h2></div>
   <div class="table-wrap">
     <table>
-      <thead><tr><th>取込日時</th><th>ファイル名</th><th>見積番号</th><th>得意先</th><th>登録した現場</th></tr></thead>
+      <thead><tr><th>取込日時</th><th>ファイル名</th><th>見積番号</th><th>顧客</th><th>登録した現場</th></tr></thead>
       <tbody>
         {% for imp in recent_imports %}
         <tr>
@@ -89,7 +89,7 @@
               <a href="{% url 'masters:customer_detail' imp.customer.pk %}">{{ imp.customer.name }}</a>
             {% elif imp.is_unmatched %}
               <span style="color:var(--danger);">{{ imp.customer_name_raw }}</span>
-              <a href="{% url 'masters:customer_create' %}" class="btn btn-outline btn-sm">得意先に登録</a>
+              <a href="{% url 'masters:customer_create' %}" class="btn btn-outline btn-sm">顧客に登録</a>
             {% else %}-{% endif %}
           </td>
           <td>{% if imp.site %}<a href="{% url 'sites:detail' imp.site.pk %}">{{ imp.site.name }}</a>{% else %}-{% endif %}</td>
@@ -100,7 +100,7 @@
   </div>
   <div class="card-body" style="padding-top:0;">
     <p style="font-size:.8rem;color:var(--text-muted);margin:0;">
-      赤い宛名は得意先マスタに引き当てられなかったものです。登録すると次回から自動で紐づきます。
+      赤い宛名は顧客マスタに引き当てられなかったものです。登録すると次回から自動で紐づきます。
     </p>
   </div>
 </div>
@@ -158,10 +158,10 @@
 <div class="card" style="margin-bottom:20px;border-left:3px solid var(--danger);">
   <div class="card-body">
     <p style="margin:0;font-size:.9rem;">
-      <b style="color:var(--danger);">「{{ parsed_customer_name }}」は得意先マスタに登録されていません。</b><br>
-      下の「得意先」で選び直すか、
-      <a href="{% url 'masters:customer_create' %}" target="_blank" rel="noopener">得意先を登録</a>
-      してからこの画面で選んでください。（取り込みでは得意先を自動作成しません）
+      <b style="color:var(--danger);">「{{ parsed_customer_name }}」は顧客マスタに登録されていません。</b><br>
+      下の「顧客」欄に会社名を入力してください（未登録の名前なら顧客マスタにも登録されます）。<br>
+      <span style="color:var(--text-muted);">読み取った宛名は自動では入れていません。表記ゆれのまま
+      マスタができるのを防ぐため、入力はご自身で確認したうえで行ってください。</span>
     </p>
   </div>
 </div>
@@ -169,7 +169,7 @@
 <div class="card" style="margin-bottom:20px;border-left:3px solid var(--success);">
   <div class="card-body">
     <p style="margin:0;font-size:.9rem;">
-      宛名「{{ parsed_customer_name }}」を得意先
+      宛名「{{ parsed_customer_name }}」を顧客
       <b>{{ customer_matched.name }}</b> に引き当てました。違う場合は下で選び直してください。
     </p>
   </div>
@@ -203,9 +203,10 @@
 
       <div class="form-row">
         <div class="form-group">
-          <label for="id_customer">得意先</label>
-          {{ form.customer }}
-          {{ form.customer.errors }}
+          <label for="id_customer_name">顧客</label>
+          {{ form.customer_name }}
+          {% include 'sites/_customer_datalist.html' %}
+          {{ form.customer_name.errors }}
         </div>
         <div class="form-group">
           <label for="id_status">状態</label>
@@ -230,7 +231,7 @@
                  value="{{ form.payment_terms.value|default:'' }}"
                  placeholder="例: 月末締め翌月末現金払い">
           <p style="font-size:.78rem;color:var(--text-muted);margin:4px 0 0;">
-            空欄なら得意先の標準支払条件を使います。
+            空欄なら顧客の標準支払条件を使います。
           </p>
           {{ form.payment_terms.errors }}
         </div>

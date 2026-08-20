@@ -112,7 +112,7 @@ def migrate_clients(conn, company, dry_run=False):
         )
         count += 1
 
-    print(f"  得意先: {count}件 移行")
+    print(f"  顧客: {count}件 移行")
     return count
 
 

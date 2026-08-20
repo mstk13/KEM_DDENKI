@@ -21,14 +21,14 @@
     <div class="card-header"><h2>基本情報</h2></div>
     <dl class="detail-grid">
       <dt>現場コード</dt><dd>{{ site.code }}</dd>
-      <dt>得意先</dt><dd>{{ site.customer|default:"-" }}</dd>
+      <dt>顧客</dt><dd>{{ site.customer|default:"-" }}</dd>
       <dt>状態</dt><dd>{{ site.get_status_display }}</dd>
       <dt>受注金額</dt><dd>{{ site.contract_amount|floatformat:0 }} 円</dd>
       <dt>支払条件</dt>
       <dd>
         {% if site.payment_terms %}{{ site.payment_terms }}
         {% elif site.effective_payment_terms %}{{ site.effective_payment_terms }}
-          <span class="badge badge-gray">得意先の標準</span>
+          <span class="badge badge-gray">顧客の標準</span>
         {% else %}-{% endif %}
       </dd>
       <dt>工期</dt><dd>{{ site.start_date|default:"-" }} 〜 {{ site.end_date|default:"" }}</dd>
@@ -40,6 +40,7 @@
     </dl>
   </div>
 
+  {% if can_view_costs %}
   <div class="card">
     <div class="card-header"><h2>原価サマリ</h2></div>
     <div class="card-body">
@@ -59,7 +60,76 @@
       </div>
     </div>
   </div>
+  {% endif %}
 </div>
+
+{% if can_view_costs %}
+{# 見積もり/実経費。専用画面へ行かなくても現場詳細で消化状況が分かるようにする。 #}
+<div class="card" style="margin-top:20px;">
+  <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;">
+    <h2>見積もり/実経費</h2>
+    <div>
+      <a href="{% url 'costs:detail' site.pk %}" class="btn btn-outline btn-sm">詳細画面へ</a>
+      <a href="{% url 'sites:estimate_import' site.pk %}" class="btn btn-primary btn-sm">見積ファイルを取り込む</a>
+    </div>
+  </div>
+  <div class="card-body">
+    <div class="stats" style="margin-bottom:16px;">
+      <div class="stat-card blue">
+        <div class="stat-label">見積もり合計</div>
+        <div class="stat-value blue">&yen;{{ cost_summary.budget_total|floatformat:0 }}</div>
+      </div>
+      <div class="stat-card {% if cost_summary.consumption_pct >= 100 %}red{% elif cost_summary.consumption_pct >= 90 %}orange{% else %}default{% endif %}">
+        <div class="stat-label">実経費合計</div>
+        <div class="stat-value">&yen;{{ cost_summary.cost_total|floatformat:0 }}</div>
+      </div>
+      <div class="stat-card {% if cost_summary.consumption_pct >= 100 %}red{% elif cost_summary.consumption_pct >= 90 %}orange{% else %}green{% endif %}">
+        <div class="stat-label">消化率</div>
+        <div class="stat-value">{{ cost_summary.consumption_pct }}%</div>
+      </div>
+      <div class="stat-card {% if cost_summary.margin_rate and cost_summary.margin_rate < 0 %}red{% else %}green{% endif %}">
+        <div class="stat-label">粗利率</div>
+        <div class="stat-value">{{ cost_summary.margin_rate|default:"&mdash;" }}%</div>
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>区分</th>
+            <th style="text-align:right;">見積もり</th>
+            <th style="text-align:right;">実経費</th>
+            <th style="text-align:right;">消化率</th>
+            <th>状態</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for cat in cost_summary.by_category %}
+          <tr>
+            <td>{{ cat.category }}</td>
+            <td style="text-align:right;">&yen;{{ cat.budget|floatformat:0 }}</td>
+            <td style="text-align:right;">&yen;{{ cat.actual|floatformat:0 }}</td>
+            <td style="text-align:right;font-weight:600;">{{ cat.pct }}%</td>
+            <td>
+              {% if cat.pct >= 100 %}<span class="badge badge-red">超過</span>
+              {% elif cat.pct >= 90 %}<span class="badge badge-orange">警告</span>
+              {% elif cat.pct >= 75 %}<span class="badge badge-yellow">注意</span>
+              {% else %}<span class="badge badge-green">正常</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="5" style="text-align:center;color:var(--gray-400);padding:20px;">
+            見積もりが登録されていません。「見積ファイルを取り込む」から実行予算を起こせます。
+          </td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endif %}
 
 {% if site.extracted_details or site.estimate_imports.exists %}
 <div class="card" style="margin-top:20px;">

@@ -1,0 +1,4 @@
+{# 顧客名の入力候補。datalist なので、ここに無い会社名も送信できる（保存時に顧客マスタへ登録される）。 #}
+<datalist id="customer-name-options">
+  {% for name in form.customer_choices %}<option value="{{ name }}"></option>{% endfor %}
+</datalist>
