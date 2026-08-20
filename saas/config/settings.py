@@ -189,6 +189,17 @@ OLLAMA_EMBED_ENABLED = os.environ.get(
 # ホストの設定を変更せずにこちらで上書きする。
 OLLAMA_KEEP_ALIVE = os.environ.get("OLLAMA_KEEP_ALIVE", "5m")
 
+# 層B（生成モデル）。層Aの埋め込みと違い、既定は無効。
+# 精度をタスクごとに実測して確認してから有効化する運用にする
+# （労務単価表では決定論的パーサ 1.000 に対しローカル 0.64 だった）。
+OLLAMA_CHAT_MODEL = os.environ.get("OLLAMA_CHAT_MODEL", "qwen3:8b")
+OLLAMA_CHAT_TIMEOUT = int(os.environ.get("OLLAMA_CHAT_TIMEOUT", "300"))
+OLLAMA_CHAT_ENABLED = os.environ.get(
+    "OLLAMA_CHAT_ENABLED", "False"
+).lower() in ("true", "1", "yes")
+# 8B + KVキャッシュが GPU に収まる上限。伸ばすと CPU に溢れて速度が落ちる。
+OLLAMA_CHAT_NUM_CTX = int(os.environ.get("OLLAMA_CHAT_NUM_CTX", "8192"))
+
 # ---- Email (SMTP) ----
 EMAIL_BACKEND = os.environ.get(
     "EMAIL_BACKEND",
