@@ -9,6 +9,7 @@ from django.db.models import ProtectedError
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 
+from apps.costs.models import BudgetItem
 from apps.costs.services import get_site_cost_summary
 from apps.materials.services import (
     create_quotation_from_lines,
@@ -60,6 +61,17 @@ def site_detail(request, pk):
         for money_key in ("total_cost", "budget_total", "gross_profit", "margin_rate"):
             summary.pop(money_key, None)
 
+    # 実行予算の明細（見積もりの内訳）。区分別の集計だけでは「何にいくら見た
+    # のか」が分からないので、項目行そのものも出す。原価と同じ扱いなので
+    # 権限が無ければ引かない。
+    budget_items = (
+        BudgetItem.objects.filter(site=site)
+        .select_related("work_type", "cost_category")
+        .order_by("cost_category__display_order", "work_type__code", "pk")
+        if can_view_costs
+        else None
+    )
+
     return render(request, "sites/detail.html", {
         "site": site,
         "processes": processes,
@@ -68,9 +80,16 @@ def site_detail(request, pk):
         "purchase_orders": site.purchase_orders.select_related("supplier").order_by(
             "-order_date"
         ),
-        "quotations": site.quotations.select_related("supplier").order_by(
-            "-quotation_date"
+        # 見積内訳。明細まで現場詳細で開けるようにするので prefetch する
+        # （見積ごとに N+1 で明細を引くと、取り込んだ現場で一気に重くなる）。
+        # customer も select_related する。自社発行の見積は supplier が空で、
+        # 相手先は customer 側に入っているため。
+        "quotations": (
+            site.quotations.select_related("supplier", "customer")
+            .prefetch_related("items__material")
+            .order_by("-quotation_date")
         ),
+        "budget_items": budget_items,
         **summary,
     })
 

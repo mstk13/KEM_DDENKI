@@ -127,6 +127,39 @@
         </tbody>
       </table>
     </div>
+
+    {% if budget_items %}
+    {# 区分別の集計だけでは「何にいくら見たのか」が分からないので、項目行も出す。 #}
+    <details style="margin-top:16px;border:1px solid var(--gray-200);border-radius:6px;">
+      <summary style="padding:10px 14px;cursor:pointer;font-weight:600;">
+        実行予算の内訳（{{ budget_items|length }} 件）
+      </summary>
+      <div class="table-wrap" style="border-top:1px solid var(--gray-200);">
+        <table>
+          <thead>
+            <tr>
+              <th>原価区分</th><th>工種</th><th>項目名</th>
+              <th style="text-align:right;">数量</th><th>単位</th>
+              <th style="text-align:right;">単価</th><th style="text-align:right;">金額</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for b in budget_items %}
+            <tr>
+              <td>{{ b.cost_category.name }}</td>
+              <td>{{ b.work_type.name }}</td>
+              <td>{{ b.name|default:"-" }}</td>
+              <td style="text-align:right;">{{ b.quantity|floatformat:"-2" }}</td>
+              <td>{{ b.unit|default:"-" }}</td>
+              <td style="text-align:right;">{{ b.unit_price|floatformat:"-2" }}</td>
+              <td style="text-align:right;">&yen;{{ b.amount|floatformat:0 }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </details>
+    {% endif %}
   </div>
 </div>
 {% endif %}
@@ -179,6 +212,68 @@
   </div>
 </div>
 
+{# 見積内訳。取り込んだ見積書の明細を、見積詳細へ移らずここで開けるようにする。 #}
+<div class="card" style="margin-top:20px;">
+  <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;">
+    <h2>見積内訳</h2>
+    <a href="{% url 'sites:estimate_import' site.pk %}" class="btn btn-outline btn-sm">見積ファイルを取り込む</a>
+  </div>
+  <div class="card-body">
+    {% for q in quotations %}
+    <details class="quotation-breakdown" style="border:1px solid var(--gray-200);border-radius:6px;margin-bottom:10px;" {% if forloop.first %}open{% endif %}>
+      <summary style="padding:10px 14px;cursor:pointer;display:flex;flex-wrap:wrap;gap:10px;align-items:center;">
+        {% if q.kind == 'issued' %}<span class="badge badge-blue">自社発行</span>
+        {% else %}<span class="badge badge-gray">受領</span>{% endif %}
+        <b>{{ q.quotation_number|default:"見積番号なし" }}</b>
+        <span style="color:var(--text-muted);">{{ q.counterparty_name }}</span>
+        <span style="color:var(--text-muted);">{{ q.quotation_date }}</span>
+        <span style="margin-left:auto;font-weight:600;">&yen;{{ q.total_amount|floatformat:0 }}</span>
+      </summary>
+      <div class="table-wrap" style="border-top:1px solid var(--gray-200);">
+        <table>
+          <thead>
+            <tr>
+              <th>名称</th><th>規格・仕様</th>
+              <th style="text-align:right;">数量</th><th>単位</th>
+              <th style="text-align:right;">単価</th><th style="text-align:right;">金額</th>
+              <th>備考</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for item in q.items.all %}
+            <tr>
+              <td>{{ item.material.name|default:item.material_name|default:"-" }}</td>
+              <td>{{ item.spec|default:"-" }}</td>
+              {# 一式計上など、数量・単価が読めない行がある。0 と書くと読めた 0 に見える。 #}
+              <td style="text-align:right;">{{ item.quantity|floatformat:"-2"|default:"-" }}</td>
+              <td>{{ item.unit|default:"-" }}</td>
+              <td style="text-align:right;">{{ item.unit_price|floatformat:"-2"|default:"-" }}</td>
+              <td style="text-align:right;">&yen;{{ item.amount|floatformat:0 }}</td>
+              <td>{{ item.remarks|default:"-" }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="7" style="text-align:center;color:var(--gray-400);padding:16px;">
+              この見積に明細がありません。
+            </td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div style="padding:10px 14px;">
+        <a href="{% url 'materials:quotation_detail' q.pk %}" class="btn btn-outline btn-sm">明細を編集</a>
+        {% if q.source_filename %}
+        <span style="font-size:.8rem;color:var(--text-muted);margin-left:8px;">取込元: {{ q.source_filename }}</span>
+        {% endif %}
+      </div>
+    </details>
+    {% empty %}
+    <div class="empty" style="padding:20px;">
+      <p>この現場に紐づく見積はまだありません。「見積ファイルを取り込む」から明細ごと登録できます。</p>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
 <div class="card" style="margin-top:20px;">
   <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;">
     <h2>材料の受発注</h2>
@@ -205,10 +300,11 @@
         <tr>
           <td><span class="badge badge-gray">見積</span></td>
           <td>{{ q.quotation_date }}</td>
-          <td>{{ q.supplier }}</td>
+          {# 自社発行の見積は supplier が空で相手先は顧客側に入る。 #}
+          <td>{{ q.counterparty_name }}</td>
           <td>{{ q.total_amount|floatformat:0 }} 円</td>
           <td>{{ q.get_status_display }}</td>
-          <td></td>
+          <td><a href="{% url 'materials:quotation_detail' q.pk %}" class="btn btn-outline btn-sm">明細</a></td>
         </tr>
         {% endfor %}
         {% if not purchase_orders and not quotations %}
