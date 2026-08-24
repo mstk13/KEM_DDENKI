@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}内訳書の取込 - {{ site.name }}{% endblock %}
+{% block topbar_title %}内訳書の取込{% endblock %}
+
+{% block content %}
+<div class="page-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+  <div>
+    <h1>内訳書ファイルの取込</h1>
+    <p style="color:var(--text-muted);margin:4px 0 0;">{{ site.code }} {{ site.name }}</p>
+  </div>
+  <a href="{% url 'sites:detail' site.pk %}" class="btn btn-outline btn-sm">現場詳細へ戻る</a>
+</div>
+
+<div class="card" style="max-width:760px;">
+  <div class="card-body">
+    <form method="post" enctype="multipart/form-data">
+      {% csrf_token %}
+
+      <div class="form-group">
+        <label for="{{ form.upload.id_for_label }}">{{ form.upload.label }}</label>
+        {{ form.upload }}
+        <div class="form-hint">{{ form.upload.help_text }}</div>
+        {% if form.upload.errors %}<div class="form-error">{{ form.upload.errors }}</div>{% endif %}
+      </div>
+
+      <div class="form-group">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+          {{ form.replace }} {{ form.replace.label }}
+        </label>
+        <div class="form-hint">{{ form.replace.help_text }}</div>
+      </div>
+
+      <button type="submit" class="btn btn-primary">読み込む</button>
+    </form>
+  </div>
+</div>
+
+<div class="card" style="max-width:760px;margin-top:16px;">
+  <div class="card-header"><h2 style="font-size:1rem;">読み取れるファイルについて</h2></div>
+  <div class="card-body" style="font-size:.88rem;color:var(--text-secondary);">
+    <ul style="margin:0;padding-left:1.2em;line-height:1.9;">
+      <li><b>Excel(.xlsx)</b> … 全シートを順に見て、<b>名称</b>と
+          <b>数量・単価・金額のいずれか</b>を持つ見出し行の表を読みます。
+          表紙や集計だけのシートは読み飛ばします。</li>
+      <li><b>PDF(.pdf)</b> … 罫線のある表を読みます。
+          <b>スキャン画像のPDFは文字が取れないため読めません</b>。
+          その場合は Excel での取込をお試しください。</li>
+      <li>列見出しの表記ゆれ（規格／規格・仕様／摘要 など）は吸収します。</li>
+      <li><b>小計・合計の行は取り込みません</b>（二重計上になるため）。</li>
+      <li>「一式」など数量が読めない行は、数量を空のまま金額だけ取り込みます。</li>
+      <li>階層は「階層」列 → 名称のインデント → 数量・単価の有無、の順で判定します。</li>
+    </ul>
+  </div>
+</div>
+
+{% if result and result.warnings %}
+<div class="card" style="max-width:760px;margin-top:16px;">
+  <div class="card-header"><h2 style="font-size:1rem;">読み取り結果</h2></div>
+  <div class="card-body">
+    <ul style="margin:0;padding-left:1.2em;">
+      {% for warning in result.warnings %}<li>{{ warning }}</li>{% endfor %}
+    </ul>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

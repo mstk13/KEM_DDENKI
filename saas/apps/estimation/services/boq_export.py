@@ -40,12 +40,18 @@ def _level_indent(level: str) -> str:
     return indents.get(level, "")
 
 
-def export_boq_to_excel(project: EstimationProject) -> bytes:
-    """積算案件の内訳書を Excel に出力する。
+def export_boq_to_excel(project: EstimationProject = None, *, site=None) -> bytes:
+    """内訳書を Excel に出力する。
+
+    持ち主は積算案件か現場のどちらか（BoqLine と同じ）。
+    現場から出す場合、発注機関・入札公告日は現場が持たないため
+    表紙の項目名を現場向けに差し替える。
 
     Returns:
         Excel ファイルのバイト列
     """
+    if (project is None) == (site is None):
+        raise ValueError("project か site のどちらか一方を指定してください。")
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = "内訳書"
@@ -58,17 +64,24 @@ def export_boq_to_excel(project: EstimationProject) -> bytes:
     qty_format = "#,##0.000"
 
     # --- 表紙情報 ---
-    ws["A1"] = "工事名称"
-    ws["B1"] = project.name
-    ws["A2"] = "発注機関"
-    ws["B2"] = project.orderer.name
-    ws["A3"] = "入札公告日"
-    ws["B3"] = str(project.bid_announcement_date or "")
-    ws["A4"] = "主たる工事種別"
-    ws["B4"] = project.get_primary_work_category_display()
+    if project is not None:
+        cover = [
+            ("工事名称", project.name),
+            ("発注機関", project.orderer.name),
+            ("入札公告日", str(project.bid_announcement_date or "")),
+            ("主たる工事種別", project.get_primary_work_category_display()),
+        ]
+    else:
+        cover = [
+            ("工事名称", site.name),
+            ("現場コード", site.code or ""),
+            ("発注元", getattr(site.customer, "name", "") or ""),
+            ("工期", f"{site.start_date or ''} 〜 {site.end_date or ''}"),
+        ]
 
-    for r in range(1, 5):
-        ws.cell(row=r, column=1).font = Font(bold=True, size=10)
+    for row_index, (label, value) in enumerate(cover, start=1):
+        ws.cell(row=row_index, column=1, value=label).font = Font(bold=True, size=10)
+        ws.cell(row=row_index, column=2, value=value)
 
     # --- 内訳書本体 ---
     header_row = 6
@@ -78,8 +91,9 @@ def export_boq_to_excel(project: EstimationProject) -> bytes:
     _apply_header_style(ws, header_row, len(headers))
 
     # 明細行の出力（ツリー順）
+    owner = {"project": project} if project is not None else {"site": site}
     lines = BoqLine.objects.filter(
-        project=project,
+        **owner,
     ).select_related("estimation_item").order_by("sort_order")
 
     # ツリー構造を平坦化（parent=None が最上位）
@@ -125,9 +139,12 @@ def export_boq_to_excel(project: EstimationProject) -> bytes:
         row += 1
 
     # --- 合計行 ---
+    # 最上位（親を持たない）行の金額を足す。
+    # 「種目別だけを足す」にすると、種目を立てずに細目だけ並べた内訳書
+    # ——現場から直接作る場合はこれが普通——で合計が0円になる。
     total = sum(
         line.amount for line in flat_lines
-        if line.amount and line.level == "shumoku"
+        if line.amount and line.parent_id is None
     )
     ws.cell(row=row + 1, column=2, value="合計").font = Font(bold=True, size=11)
     c = ws.cell(row=row + 1, column=7, value=int(total))

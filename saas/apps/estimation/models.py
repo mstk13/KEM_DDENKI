@@ -848,6 +848,16 @@ class BoqLine(TenantModel):
 
     S5: 階層名は標準書式に準拠（種目別→科目別→中科目別→細目別）。
     parent FK による自己参照ツリー。
+
+    上位3階層（種目別・科目別・中科目別）が一般に言う「内訳書」、
+    最下層の細目別が「内訳明細書」にあたる。同じツリーの深さの違いなので
+    モデルは分けない。表示側で `is_meisai` を見て呼び分ける。
+
+    **持ち主は積算案件か現場のどちらか。** 元は積算案件（EstimationProject）
+    専用だったが、EstimationProject は発注機関（Orderer）が必須のため、
+    民間工事のように発注機関を持たない現場では内訳書を作れなかった。
+    現場詳細から直接ぶら下げられるように site を追加し、project を任意にした。
+    どちらか一方は必ず入る（DB 制約 boqline_owner_required で担保）。
     """
 
     class Level(models.TextChoices):
@@ -856,9 +866,18 @@ class BoqLine(TenantModel):
         CHUKAMOKU = "chukamoku", "中科目別内訳書"
         SAIMOKU = "saimoku", "細目別内訳書"
 
+    #: 「内訳明細書」として扱う階層。
+    MEISAI_LEVEL = Level.SAIMOKU
+
     project = models.ForeignKey(
         EstimationProject, on_delete=models.CASCADE,
+        null=True, blank=True,
         related_name="boq_lines", verbose_name="積算案件",
+    )
+    site = models.ForeignKey(
+        "sites.Site", on_delete=models.CASCADE,
+        null=True, blank=True,
+        related_name="boq_lines", verbose_name="現場",
     )
     parent = models.ForeignKey(
         "self", on_delete=models.CASCADE,
@@ -898,13 +917,44 @@ class BoqLine(TenantModel):
     class Meta:
         verbose_name = "内訳書明細"
         verbose_name_plural = "内訳書明細"
-        ordering = ["project", "sort_order"]
+        ordering = ["project", "site", "sort_order"]
+        constraints = [
+            # 持ち主のいない明細を作らせない。両方に入れるのも禁じる
+            # （どちらの内訳書に出すべきか決まらなくなるため）。
+            models.CheckConstraint(
+                condition=(
+                    models.Q(project__isnull=False, site__isnull=True)
+                    | models.Q(project__isnull=True, site__isnull=False)
+                ),
+                name="boqline_owner_required",
+            ),
+        ]
 
     def __str__(self):
         return f"[{self.get_level_display()}] {self.name}"
 
+    @property
+    def is_meisai(self) -> bool:
+        """内訳明細書（細目別）の行か。"""
+        return self.level == self.MEISAI_LEVEL
+
+    @property
+    def indent_depth(self) -> int:
+        """表示インデントの段数。テンプレートで階層を判定させないための逃がし。"""
+        return {
+            self.Level.SHUMOKU: 0,
+            self.Level.KAMOKU: 1,
+            self.Level.CHUKAMOKU: 2,
+            self.Level.SAIMOKU: 3,
+        }.get(self.level, 0)
+
     def calc_amount(self):
-        """数量×単価で金額を計算する。"""
+        """数量×単価で金額を計算する。
+
+        一式計上のように数量か単価が空の行は金額を上書きしない。
+        取り込んだ内訳書には金額だけが入っている行が普通にあり、
+        ここで None を代入すると読めていた金額を捨てることになる。
+        """
         if self.quantity is not None and self.unit_price is not None:
             self.amount = self.quantity * self.unit_price
         return self.amount
