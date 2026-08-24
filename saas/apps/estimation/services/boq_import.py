@@ -64,6 +64,9 @@ COLUMN_ALIASES = {
 # 名称列がこの語だけの行は小計行。明細として取り込むと二重計上になる。
 SUBTOTAL_WORDS = ("小計", "合計", "計", "総計", "小　計", "合　計", "計上額")
 
+# 小計行を括る括弧。名称と一緒に読むので、照合前に外す。
+BRACKET_CHARS = "【】〔〕[]［］（）()《》〈〉「」"
+
 # 「一式」は数量が読めない行。0 を入れると読めた 0 と区別できなくなる。
 LUMP_SUM_WORDS = ("一式", "1式", "式")
 
@@ -94,6 +97,22 @@ LEVEL_BY_DEPTH = [
 # インデント何文字で1段とみなすか。Excel の手入力は全角空白1つ、
 # 半角空白2つのどちらもよく使われる。
 INDENT_UNIT = 2
+
+# セルから最初の数値を切り出す。NFKC 済みの文字列に当てる。
+NUMBER_RE = re.compile(r"-?\d[\d,]*(?:\.\d+)?")
+
+# 同上。NFKC 前の生文字列に当てるので全角の数字・記号も受ける。
+RAW_NUMBER_RE = re.compile(
+    r"[-－]?[\d０-９][\d０-９,，]*"
+    r"(?:[.．][\d０-９]+)?"
+)
+
+# ページ見出し。同じ PDF に両方あるとき、内訳書は内訳明細書の集計なので
+# 取り込むと二重計上になる。より具体的な「内訳明細書」から先に照合する。
+DETAIL_PAGE_TITLES = ("内訳明細書", "細目別内訳書")
+SUMMARY_PAGE_TITLES = (
+    "内訳書", "種目別内訳書", "科目別内訳書", "中科目別内訳書",
+)
 
 
 @dataclass
@@ -174,20 +193,42 @@ def _to_decimal(value) -> Decimal | None:
     if any(word in text for word in LUMP_SUM_WORDS) and not re.search(r"\d", text):
         return None
 
-    # カンマ・通貨記号・単位を落とす。負号と小数点は残す。
-    cleaned = re.sub(r"[,¥￥円\s]", "", text)
-    cleaned = re.sub(r"[^0-9.\-]", "", cleaned)
-    if cleaned in ("", "-", ".", "-."):
+    # **数字以外を消すのではなく、最初の数値だけを取り出す。**
+    # 消す方式だと単位記号が数量に混ざる。NFKC は ㎡ を "m2"、㎥ を "m3" に
+    # 展開するため、英字だけ落とすと「0.66㎡」が 0.662 になっていた。
+    # 金額は ¥ しか付かないので気づかれず、数量×単価だけが合わなくなる。
+    matched = NUMBER_RE.search(text)
+    if not matched:
         return None
     try:
-        return Decimal(cleaned)
+        return Decimal(matched.group().replace(",", ""))
     except InvalidOperation:
         return None
 
 
+def _split_unit(value) -> str:
+    """数量セルに同居している単位を取り出す。読めなければ空文字。
+
+    単位列を持たない様式では「0.66㎥(立方メートル)」のように数量と単位が
+    同じセルに入る。数値の後ろに残った文字を単位とみなす。
+
+    NFKC を通さないのは、㎥ を "m3" に崩さないため。カッコ書きの読み仮名
+    （立方メートル）は単位そのものではないので落とす。
+    """
+    if not isinstance(value, str):
+        return ""
+    matched = RAW_NUMBER_RE.search(value)
+    if not matched:
+        return ""
+    tail = value[matched.end():].strip()
+    tail = re.split(r"[(（\[［]", tail)[0].strip()
+    return tail[:50]
+
+
 def _is_subtotal(name: str) -> bool:
     compact = name.replace(" ", "").replace("　", "")
-    return compact in SUBTOTAL_WORDS
+    # 「【合計】」のように括る様式がある。括弧を外してから照合する。
+    return compact.strip(BRACKET_CHARS) in SUBTOTAL_WORDS
 
 
 # ---------------------------------------------------------------------------
@@ -221,21 +262,52 @@ def _find_header(rows: list[list], scan_limit: int = 30) -> tuple[int, dict] | N
     return None
 
 
+def _levels_by_rank(rank_count: int, *, deepest_is_priced: bool) -> list[str]:
+    """インデントの段の**順位**を階層に割り当てる。
+
+    幅の絶対値ではなく順位で見るので、2段の様式でも4段の様式でも
+    同じ規則で読める（実ファイルのインデント幅はばらつく）。
+
+    - いちばん浅い段は種目別
+    - いちばん深い段は、そこに数量×単価のそろう行があれば細目別に固定する
+    - 間の段を科目別・中科目別で順に埋め、あふれたら中科目別にまとめる
+    """
+    levels: list[str | None] = [None] * rank_count
+    levels[0] = BoqLine.Level.SHUMOKU
+
+    ceiling = LEVEL_BY_DEPTH.index(BoqLine.Level.SAIMOKU)
+    if deepest_is_priced:
+        levels[-1] = BoqLine.Level.SAIMOKU
+        # 間の段が細目別まで届くと、最深段と見分けがつかなくなる。
+        ceiling = LEVEL_BY_DEPTH.index(BoqLine.Level.CHUKAMOKU)
+
+    depth = 1
+    for index in range(1, rank_count):
+        if levels[index] is not None:
+            continue
+        levels[index] = LEVEL_BY_DEPTH[min(depth, ceiling)]
+        depth += 1
+    return levels  # type: ignore[return-value]
+
+
 def _resolve_level(raw_name: str, level_label: str, *,
-                   is_priced: bool, has_numbers: bool, uses_indent: bool) -> str:
+                   is_priced: bool, has_numbers: bool, uses_indent: bool,
+                   rank_level: str | None = None, is_leaf: bool = False) -> str:
     """階層を決める。
 
     優先順:
 
     1. 「階層」列があればそれに従う
-    2. **数量と単価がそろっている行は細目別（内訳明細書）。**
-       内訳明細書とは「数量×単価で金額を積む階層」のことなので、
-       インデントの深さではなくこの有無で決めるのが実態に合う。
-       実ファイルのインデントは 2段だったり4段だったりばらつくため、
-       段数だけで見ると最下層が細目別にならない
-    3. インデントを使っている様式なら段数（ただし上位3階層まで。
-       細目別は 2 で決まるので、ここでは見出しの深さだけを決める）
+    2. **インデントを使う様式なら、段の順位から決める**（`_levels_by_rank`）。
+       ただし最上位段より深く、下に行を持たない（葉の）行で
+       数量×単価がそろっていれば細目別に落とす。
+       E→a→施工費 のように途中で終わる枝の末端を拾うため
+    3. インデントの段が1種類しか無い様式は、数量と単価がそろう行を細目別
     4. どれも無ければ、金額などがある行を細目別、無い行を科目別
+
+    **2 を 3 より先に見るのが要点。** 逆にすると、種目行にも
+    「数量1・単価・金額」を入れる様式（金額＝単価の集計行）で
+    全行が細目別になり、階層がまるごと潰れる。
 
     **インデントを使うかは表全体で決める。** 行ごとに判断すると、
     最上位行（インデント0）だけが別の規則で判定され、
@@ -245,6 +317,12 @@ def _resolve_level(raw_name: str, level_label: str, *,
         key = level_label.replace(" ", "").replace("　", "")
         if key in LEVEL_BY_LABEL:
             return LEVEL_BY_LABEL[key]
+
+    if rank_level is not None:
+        if (is_priced and is_leaf
+                and rank_level != BoqLine.Level.SHUMOKU):
+            return BoqLine.Level.SAIMOKU
+        return rank_level
 
     if is_priced:
         return BoqLine.Level.SAIMOKU
@@ -295,12 +373,41 @@ def rows_to_drafts(rows: list[list], *, origin: str = "") -> ParseResult:
 
         collected.append((offset, row, raw_name, name))
 
-    uses_indent = any(_indent_depth(raw_name) > 0 for _, _, raw_name, _ in collected)
+    depths = [_indent_depth(raw_name) for _, _, raw_name, _ in collected]
+    uses_indent = any(d > 0 for d in depths)
 
-    for offset, row, raw_name, name in collected:
+    # 値ではなく順位で段を持つ。幅は様式ごとにばらつくが、順序は変わらない。
+    ranks = sorted(set(depths))
+    rank_of = {depth: index for index, depth in enumerate(ranks)}
+
+    # 段が1種類しか無い表は「インデントで階層を表している」とは言えない。
+    # 順位を使わず、これまでどおり数量×単価の有無で判定させる。
+    levels_by_rank = None
+    if len(ranks) > 1:
+        deepest_is_priced = any(
+            _to_decimal(cell(row, "quantity")) is not None
+            and _to_decimal(cell(row, "unit_price")) is not None
+            for (_, row, _, _), depth in zip(collected, depths)
+            if depth == ranks[-1]
+        )
+        levels_by_rank = _levels_by_rank(
+            len(ranks), deepest_is_priced=deepest_is_priced,
+        )
+
+    for index, ((offset, row, raw_name, name), depth) in enumerate(
+        zip(collected, depths)
+    ):
         quantity = _to_decimal(cell(row, "quantity"))
         unit_price = _to_decimal(cell(row, "unit_price"))
         amount = _to_decimal(cell(row, "amount"))
+
+        # 次の行が自分と同じか浅い段なら、この行に子は無い（枝の末端）。
+        is_leaf = index + 1 >= len(depths) or depths[index + 1] <= depth
+
+        unit = _text(cell(row, "unit"))
+        if not unit:
+            # 単位列を持たない様式では数量セルに単位が同居している。
+            unit = _split_unit(cell(row, "quantity"))
 
         result.drafts.append(BoqDraft(
             level=_resolve_level(
@@ -311,10 +418,15 @@ def rows_to_drafts(rows: list[list], *, origin: str = "") -> ParseResult:
                     v is not None for v in (quantity, unit_price, amount)
                 ),
                 uses_indent=uses_indent,
+                rank_level=(
+                    levels_by_rank[rank_of[depth]]
+                    if levels_by_rank is not None else None
+                ),
+                is_leaf=is_leaf,
             ),
             name=name,
             spec=_text(cell(row, "spec")),
-            unit=_text(cell(row, "unit")),
+            unit=unit,
             quantity=quantity,
             unit_price=unit_price,
             amount=amount,
@@ -373,33 +485,258 @@ def parse_excel(data: bytes) -> ParseResult:
 # ---------------------------------------------------------------------------
 
 
+def _page_kind(page) -> str | None:
+    """ページ見出しから「内訳書」か「内訳明細書」かを見る。読めなければ None。
+
+    同じ PDF に両方が綴じられているのが普通で、内訳書は内訳明細書の集計。
+    両方取り込むと同じ工種が二重に入り、合計も二重計上になる。
+    """
+    head = "\n".join((page.extract_text() or "").splitlines()[:3])
+    if any(title in head for title in DETAIL_PAGE_TITLES):
+        return "detail"
+    if any(title in head for title in SUMMARY_PAGE_TITLES):
+        return "summary"
+    return None
+
+
+def _dropped_row_count(table: list[list]) -> int:
+    """名称が空で捨てられる行の数。罫線から表が取り切れたかの目安にする。"""
+    found = _find_header(table)
+    if not found:
+        return 0
+    header_index, mapping = found
+    name_col = mapping["name"]
+
+    dropped = 0
+    for row in table[header_index + 1:]:
+        if not any(_text(c) for c in row):
+            continue
+        name = _text(row[name_col]) if name_col < len(row) else ""
+        if not name:
+            dropped += 1
+    return dropped
+
+
+def _column_bounds(page) -> list[float]:
+    """縦罫線の x 座標。列の境界として使う。"""
+    bounds: list[float] = []
+    for x in sorted({round(edge["x0"], 1) for edge in page.edges
+                     if edge["orientation"] == "v"}):
+        if not bounds or x - bounds[-1] > 2:
+            bounds.append(x)
+    return bounds
+
+
+def _table_span(page) -> tuple[float, float]:
+    """縦罫線が通っている範囲。表の上端と下端とみなす。
+
+    ページ番号や「※印は軽減税率対象です」といった脚注は表の外にあり、
+    そのまま拾うと名称列の最左になって段の順位を1つずつずらす。
+    """
+    verticals = [e for e in page.edges if e["orientation"] == "v"]
+    if not verticals:
+        return (0.0, float(page.height))
+    return (
+        min(e["top"] for e in verticals),
+        max(e["bottom"] for e in verticals),
+    )
+
+
+def _row_tolerance(tops: list[float]) -> float:
+    """同じ行とみなす縦方向の許容幅。行送りの半分弱を採る。
+
+    折り返した単位（「0.66㎥(」＋「立方メートル)」）を同じ行に寄せつつ、
+    次の行を巻き込まない幅にする。
+    """
+    gaps = sorted(
+        round(b - a, 1) for a, b in zip(tops, tops[1:]) if b - a > 1
+    )
+    if not gaps:
+        return 3.0
+    # 最頻の行送り。外れ値に引きずられないよう中央値を使う。
+    pitch = gaps[len(gaps) // 2]
+    return max(3.0, pitch * 0.45)
+
+
+def _rows_from_words(page) -> list[list[str]]:
+    """罫線の列位置と語の座標から表を組み直す。
+
+    縞模様の背景を敷いた PDF では罫線が1行おきにしか引かれず、
+    `extract_tables()` は罫線の無い行の7列ぶんを1セルに潰す。
+    潰れた行は名称列が空になり、明細として丸ごと捨てられていた。
+
+    列の境界は縦罫線から採る（縦罫線は表全体に通っている）。
+    見出しラベルの位置は使わない。「名称」は列の中央に置かれるのに
+    中身は左詰めで、境界を取り違えるため。
+
+    名称列の左端位置は段の深さそのものなので、順位ぶんの全角空白を
+    先頭に足して返す。以降は Excel と同じインデント判定に乗る。
+    """
+    bounds = _column_bounds(page)
+    if len(bounds) < 3:
+        return []
+
+    top, bottom = _table_span(page)
+    words = [
+        w for w in page.extract_words()
+        if top - 2 <= w["top"] and w["bottom"] <= bottom + 2
+    ]
+    if not words:
+        return []
+
+    def column_of(word) -> int | None:
+        center = (word["x0"] + word["x1"]) / 2
+        for index in range(len(bounds) - 1):
+            if bounds[index] <= center < bounds[index + 1]:
+                return index
+        return None
+
+    words = sorted(words, key=lambda w: (w["top"], w["x0"]))
+    tolerance = _row_tolerance(sorted({round(w["top"], 1) for w in words}))
+
+    clusters: list[tuple[float, dict[int, list]]] = []
+    for word in words:
+        column = column_of(word)
+        if column is None:
+            continue
+        if clusters and word["top"] - clusters[-1][0] <= tolerance:
+            clusters[-1][1].setdefault(column, []).append(word)
+        else:
+            clusters.append((word["top"], {column: [word]}))
+
+    column_count = len(bounds) - 1
+    rows = [
+        [
+            " ".join(w["text"] for w in sorted(cells.get(c, []),
+                                               key=lambda w: w["x0"]))
+            for c in range(column_count)
+        ]
+        for _, cells in clusters
+    ]
+
+    found = _find_header(rows)
+    if not found:
+        return []
+    header_index, mapping = found
+    name_col = mapping["name"]
+
+    # 名称列の左端を段として拾い、順位ぶんの全角空白に置き換える。
+    def left_of(cells) -> float | None:
+        words_in_name = cells.get(name_col)
+        if not words_in_name:
+            return None
+        return round(min(w["x0"] for w in words_in_name), 1)
+
+    body = clusters[header_index + 1:]
+    lefts: list[float] = []
+    for _, cells in body:
+        left = left_of(cells)
+        if left is not None and not any(abs(left - seen) <= 3 for seen in lefts):
+            lefts.append(left)
+    lefts.sort()
+
+    for offset, (_, cells) in enumerate(body, start=header_index + 1):
+        left = left_of(cells)
+        if left is None:
+            continue
+        rank = next(
+            (i for i, seen in enumerate(lefts) if abs(left - seen) <= 3), 0
+        )
+        rows[offset][name_col] = "　" * rank + rows[offset][name_col]
+
+    return rows
+
+
+def _usable_row_count(rows: list[list]) -> int:
+    """名称が読める明細行の数。どの読み方を採るかの比較に使う。"""
+    found = _find_header(rows)
+    if not found:
+        return 0
+    header_index, mapping = found
+    name_col = mapping["name"]
+    return sum(
+        1 for row in rows[header_index + 1:]
+        if name_col < len(row) and _text(row[name_col])
+    )
+
+
+def _page_rows(page) -> list[list]:
+    """1ページぶんの表を行×列で返す。"""
+    tables = page.extract_tables() or []
+    rows: list[list] = []
+    for table in tables:
+        rows.extend(table)
+
+    # 罫線から行を取りこぼしていれば、語の座標から組み直す。
+    if not tables or any(_dropped_row_count(t) for t in tables):
+        rescued = _rows_from_words(page)
+        if _usable_row_count(rescued) > _usable_row_count(rows):
+            logger.info(
+                "p.%s を語の座標から組み直しました: %d行 → %d行",
+                page.page_number,
+                _usable_row_count(rows), _usable_row_count(rescued),
+            )
+            return rescued
+    return rows
+
+
 def parse_pdf(data: bytes) -> ParseResult:
     """PDF の内訳書を読む。
 
     まず pdfplumber の表抽出で決定論的に読む。表として取れなかった
     ページだけ、ADR-0010 層Bのローカル推論に回す。
+
+    **同じ列構成のページは1つの表として繋いでから読む。** 内訳書は
+    ページを跨いで続き、階層はページ内では閉じない。ページごとに読むと、
+    ページ末尾の行が「下に行が無い＝枝の末端」に見えて階層を取り違える。
     """
     if not HAS_PDFPLUMBER:
         return ParseResult(warnings=["pdfplumber が利用できません。"])
 
     result = ParseResult()
     unreadable_pages = []
+    # 列構成ごとにページを束ねる: [(見出しの対応, 先頭ページ, 行)]
+    groups: list[tuple[tuple, int, list[list]]] = []
 
     try:
         with pdfplumber.open(io.BytesIO(data)) as pdf:
-            for page in pdf.pages:
-                tables = page.extract_tables() or []
-                page_drafts = []
-                for table in tables:
-                    parsed = rows_to_drafts(table, origin=f"[p.{page.page_number}] ")
-                    page_drafts.extend(parsed.drafts)
+            kinds = [_page_kind(page) for page in pdf.pages]
+            # 内訳書は内訳明細書の集計。両方あるなら明細書だけを取り込む。
+            skip_summary = "detail" in kinds and "summary" in kinds
+            # 見出しでページを見分けられる PDF なら、見出しの無いページは
+            # 表紙・鑑とみなして黙って飛ばす。Excel の表紙シートと同じ扱い。
+            titled = any(kind is not None for kind in kinds)
 
-                if page_drafts:
-                    result.drafts.extend(page_drafts)
-                elif (page.extract_text() or "").strip():
-                    unreadable_pages.append(page)
+            for page, kind in zip(pdf.pages, kinds):
+                if skip_summary and kind == "summary":
+                    logger.info(
+                        "p.%s は内訳書（集計）なので読み飛ばします", page.page_number,
+                    )
+                    continue
+
+                rows = _page_rows(page)
+                found = _find_header(rows) if rows else None
+                if not found or _usable_row_count(rows) == 0:
+                    if titled and kind is None:
+                        continue
+                    if (page.extract_text() or "").strip():
+                        unreadable_pages.append(page)
+                    continue
+
+                header_index, mapping = found
+                key = tuple(sorted(mapping.items()))
+                if groups and groups[-1][0] == key:
+                    # 続きのページ。繰り返しの見出し行から下だけを足す。
+                    groups[-1][2].extend(rows[header_index + 1:])
+                else:
+                    groups.append((key, page.page_number, list(rows)))
     except Exception as e:  # noqa: BLE001 - 壊れたPDFは理由を出して返す
         return ParseResult(warnings=[f"PDF を開けませんでした: {e}"])
+
+    for _, first_page, rows in groups:
+        parsed = rows_to_drafts(rows, origin=f"[p.{first_page}~] ")
+        result.drafts.extend(parsed.drafts)
+        result.warnings.extend(parsed.warnings)
 
     for page in unreadable_pages:
         drafts = _structure_page_with_llm(page)

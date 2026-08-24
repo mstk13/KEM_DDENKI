@@ -9,6 +9,7 @@
 
 import io
 from decimal import Decimal
+from types import SimpleNamespace
 
 import openpyxl
 import pytest
@@ -330,6 +331,332 @@ class TestParseUploadDispatch:
         result = boq_import.parse_upload("内訳書.docx", b"")
         assert result.drafts == []
         assert result.warnings
+
+
+# ---------------------------------------------------------------------------
+# PDF 取込
+# ---------------------------------------------------------------------------
+#
+# 実物の見積書PDFを持ち込まずに、実ファイルで踏んだ壊れ方を再現する。
+#
+# - 縞模様の背景を敷いた PDF は罫線が1行おきにしか引かれず、
+#   `extract_tables()` が罫線の無い行の全列を1セルに潰す
+# - 内訳書と内訳明細書が同じPDFに綴じられている
+# - 単位列を持たず、数量セルに「0.66㎥(立方メートル)」と入る
+# - 階層は名称の左端位置で示され、種目行にも「数量1・単価・金額」が入る
+
+TABLE_TOP = 100.0
+ROW_PITCH = 20.0
+# 縦罫線の位置。No / 名称 / 仕様 / 数量 / 単価 / 金額 / 備考 の7列。
+COLUMN_RULES = [30.0, 60.0, 260.0, 450.0, 530.0, 610.0, 690.0, 810.0]
+# 名称列の左端。段の深さをここで表す様式。
+NAME_INDENTS = [65.0, 75.0, 85.0, 95.0]
+
+
+def _word(text, x0, top):
+    return {
+        "text": text, "x0": x0, "x1": x0 + max(len(text) * 5.0, 5.0),
+        "top": top, "bottom": top + 10.0,
+    }
+
+
+class _FakePage:
+    """pdfplumber の Page のうち、取込が触る部分だけを持つ差し替え。
+
+    `rows` は (段, No, 名称, 仕様, 数量, 単価, 金額) のならび。
+    """
+
+    HEADER = ["No", "名称", "仕様", "数量", "単価", "金額", "備考"]
+
+    def __init__(self, title, rows, *, page_number=1,
+                 footer="※印は軽減税率対象です"):
+        self.title = title
+        self.rows = rows
+        self.page_number = page_number
+        self.footer = footer
+        self.height = 600.0
+
+    # -- 座標 ---------------------------------------------------------------
+
+    @property
+    def _bottom(self):
+        return TABLE_TOP + (len(self.rows) + 1) * ROW_PITCH
+
+    @property
+    def edges(self):
+        edges = [
+            {"orientation": "v", "x0": x, "x1": x,
+             "top": TABLE_TOP, "bottom": self._bottom}
+            for x in COLUMN_RULES
+        ]
+        edges += [
+            {"orientation": "h", "x0": COLUMN_RULES[0], "x1": COLUMN_RULES[-1],
+             "top": y, "bottom": y}
+            for y in (TABLE_TOP, self._bottom)
+        ]
+        return edges
+
+    def extract_words(self):
+        words = [
+            _word(label, COLUMN_RULES[i] + 5.0, TABLE_TOP + 4.0)
+            for i, label in enumerate(self.HEADER)
+        ]
+        for index, row in enumerate(self.rows):
+            depth, no, name, spec, qty, price, amount = row
+            top = TABLE_TOP + (index + 1) * ROW_PITCH + 4.0
+            if no:
+                words.append(_word(no, COLUMN_RULES[0] + 5.0, top))
+            words.append(_word(name, NAME_INDENTS[depth], top))
+            for column, value in ((2, spec), (3, qty), (4, price), (5, amount)):
+                if value:
+                    words.append(_word(value, COLUMN_RULES[column] + 5.0, top))
+        # 表の外の脚注。名称列の最左になって段の順位をずらしていた。
+        words.append(_word(self.footer, COLUMN_RULES[0], self._bottom + 30.0))
+        return words
+
+    # -- pdfplumber の API --------------------------------------------------
+
+    def extract_text(self):
+        lines = [self.title, "○○工事 一式", " ".join(self.HEADER)]
+        lines += [" ".join(str(v) for v in row[1:] if v) for row in self.rows]
+        lines.append(self.footer)
+        return "\n".join(lines)
+
+    def extract_tables(self):
+        """罫線が1行おきにしか引かれない表を返す。
+
+        奇数行は7列ぶんが1セルに潰れ、名称列が空になる。
+        """
+        table = [list(self.HEADER)]
+        for index, row in enumerate(self.rows):
+            cells = [row[1], row[2], row[3], row[4], row[5], row[6], ""]
+            if index % 2:
+                jammed = " ".join(c for c in cells if c)
+                table.append([jammed, "", "", "", "", "", ""])
+            else:
+                table.append(cells)
+        return [table]
+
+
+class _FakePdf:
+    def __init__(self, pages):
+        self.pages = pages
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+
+@pytest.fixture
+def fake_pdf(monkeypatch):
+    def install(pages):
+        for number, page in enumerate(pages, start=1):
+            page.page_number = number
+        monkeypatch.setattr(boq_import, "HAS_PDFPLUMBER", True)
+        monkeypatch.setattr(
+            boq_import, "pdfplumber",
+            SimpleNamespace(open=lambda _data: _FakePdf(pages)),
+        )
+        return pages
+    return install
+
+
+SUMMARY_ROWS = [
+    (0, "A", "舗装工", "", "1", "¥ 70,000", "¥ 70,000"),
+    (0, "B", "掘削工事", "", "1", "¥ 96,080", "¥ 96,080"),
+]
+DETAIL_ROWS_1 = [
+    (0, "A", "舗装工", "", "1", "¥ 70,000", "¥ 70,000"),
+    (1, "a", "アスファルト撤去工", "", "1", "¥ 70,000", "¥ 70,000"),
+    (2, "1", "アスファルトカッター工", "", "1", "¥ 26,000", "¥ 26,000"),
+    (3, "1", "施工費", "約10.4m/カッター工", "10.4m", "¥ 2,500", "¥ 26,000"),
+]
+DETAIL_ROWS_2 = [
+    (2, "2", "アスファルト撤去", "", "1", "¥ 44,000", "¥ 44,000"),
+    (3, "1", "施工費", "約6.4m²", "6.4㎡", "¥ 6,875", "¥ 44,000"),
+    (0, "B", "掘削工事", "", "1", "¥ 96,080", "¥ 96,080"),
+    (1, "a", "掘削工", "", "1", "¥ 96,080", "¥ 96,080"),
+    (2, "1", "施工費", "2.88㎥", "2.88㎥(", "¥ 33,361", "¥ 96,080"),
+    (0, "", "【合計】", "", "", "", "¥ 166,080"),
+]
+
+
+def _ninomiya_pages():
+    return [
+        _FakePage("内訳書", SUMMARY_ROWS),
+        _FakePage("内訳明細書", DETAIL_ROWS_1),
+        _FakePage("内訳明細書", DETAIL_ROWS_2),
+    ]
+
+
+class TestQuantityWithUnitInSameCell:
+    """単位列を持たない様式。数量セルに単位が同居する。"""
+
+    @pytest.mark.parametrize(("raw", "quantity", "unit"), [
+        ("0.66㎡", Decimal("0.66"), "㎡"),
+        ("2.88㎥", Decimal("2.88"), "㎥"),
+        ("6.4㎡", Decimal("6.4"), "㎡"),
+        ("0.66㎥(\n立方メートル)", Decimal("0.66"), "㎥"),
+        ("10.4m", Decimal("10.4"), "m"),
+        ("8本", Decimal("8"), "本"),
+        ("1式", Decimal("1"), "式"),
+    ])
+    def test_unit_does_not_leak_into_the_number(self, raw, quantity, unit):
+        """NFKC は ㎡ を "m2"、㎥ を "m3" に展開する。
+
+        数字以外を消す実装では、その "2" "3" が数量の末尾に残り
+        「0.66㎡」が 0.662 になっていた。金額は ¥ しか付かないので
+        気づかれず、数量×単価だけが合わなくなる。
+        """
+        assert boq_import._to_decimal(raw) == quantity
+        assert boq_import._split_unit(raw) == unit
+
+    def test_unit_column_wins_when_present(self):
+        data = _excel_bytes([
+            ["名称", "単位", "数量", "単価", "金額"],
+            ["VVFケーブル", "m", 1200, 150, 180000],
+        ])
+        result = boq_import.parse_excel(data)
+        assert result.drafts[0].unit == "m"
+
+
+class TestSubtotalBrackets:
+    @pytest.mark.parametrize("name", ["【合計】", "【小計】", "（合計）", "[計]"])
+    def test_bracketed_subtotal_is_detected(self, name):
+        """「【合計】」と括る様式がある。取り込むと二重計上になる。"""
+        assert boq_import._is_subtotal(name) is True
+
+
+class TestPageKind:
+    @pytest.mark.parametrize(("title", "kind"), [
+        ("内訳明細書", "detail"),
+        ("細目別内訳書", "detail"),
+        ("内訳書", "summary"),
+        ("種目別内訳書", "summary"),
+        ("御見積書", None),
+    ])
+    def test_kind_from_heading(self, title, kind):
+        assert boq_import._page_kind(_FakePage(title, SUMMARY_ROWS)) == kind
+
+
+class TestRowsFromWords:
+    def test_every_row_is_recovered(self):
+        """罫線が1行おきの表でも、語の座標から全行を組み直せる。"""
+        page = _FakePage("内訳明細書", DETAIL_ROWS_1)
+
+        collapsed = page.extract_tables()[0]
+        assert boq_import._dropped_row_count(collapsed) == 2
+
+        rows = boq_import._rows_from_words(page)
+        assert boq_import._usable_row_count(rows) == len(DETAIL_ROWS_1)
+
+    def test_footer_outside_the_table_is_ignored(self):
+        """脚注を拾うと名称列の最左になり、段の順位が1つずつずれる。"""
+        page = _FakePage("内訳明細書", DETAIL_ROWS_1)
+        rows = boq_import._rows_from_words(page)
+
+        assert all("※印" not in "".join(row) for row in rows)
+
+    def test_name_indent_is_restored(self):
+        """名称列の左端を全角空白に置き換え、Excel と同じ判定に乗せる。"""
+        page = _FakePage("内訳明細書", DETAIL_ROWS_1)
+        rows = boq_import._rows_from_words(page)
+        header_index, mapping = boq_import._find_header(rows)
+        names = [row[mapping["name"]] for row in rows[header_index + 1:]]
+
+        assert [boq_import._indent_depth(n) for n in names] == [0, 1, 2, 3]
+
+
+class TestPdfImport:
+    def test_striped_pdf_keeps_every_row(self, fake_pdf):
+        """罫線が1行おきでも行が落ちない。落ちた行は名称が空で捨てられていた。"""
+        fake_pdf(_ninomiya_pages())
+        result = boq_import.parse_pdf(b"")
+
+        assert result.warnings == []
+        # 【合計】の1行だけが小計行として落ちる。
+        assert len(result.drafts) == len(DETAIL_ROWS_1) + len(DETAIL_ROWS_2) - 1
+
+    def test_summary_pages_are_skipped(self, fake_pdf):
+        """内訳書は内訳明細書の集計。両方取り込むと二重計上になる。"""
+        fake_pdf(_ninomiya_pages())
+        result = boq_import.parse_pdf(b"")
+
+        shumoku = [d for d in result.drafts if d.level == BoqLine.Level.SHUMOKU]
+        assert [d.name for d in shumoku] == ["舗装工", "掘削工事"]
+        assert sum(d.amount for d in shumoku) == Decimal("166080")
+
+    def test_summary_only_pdf_is_still_read(self, fake_pdf):
+        """内訳明細書が無いなら内訳書を読む。飛ばすのは重複するときだけ。"""
+        fake_pdf([_FakePage("内訳書", SUMMARY_ROWS)])
+        result = boq_import.parse_pdf(b"")
+
+        assert [d.name for d in result.drafts] == ["舗装工", "掘削工事"]
+
+    def test_hierarchy_survives_a_summary_style_sheet(self, fake_pdf):
+        """種目行にも「数量1・単価・金額」が入る様式で階層が潰れない。
+
+        数量と単価がそろう行を細目別とする規則だけで判定していた頃は、
+        集計行も明細行も区別できず全行が細目別になっていた。
+        """
+        fake_pdf(_ninomiya_pages())
+        result = boq_import.parse_pdf(b"")
+
+        assert [(d.name, d.level) for d in result.drafts] == [
+            ("舗装工", BoqLine.Level.SHUMOKU),
+            ("アスファルト撤去工", BoqLine.Level.KAMOKU),
+            ("アスファルトカッター工", BoqLine.Level.CHUKAMOKU),
+            ("施工費", BoqLine.Level.SAIMOKU),
+            ("アスファルト撤去", BoqLine.Level.CHUKAMOKU),
+            ("施工費", BoqLine.Level.SAIMOKU),
+            ("掘削工事", BoqLine.Level.SHUMOKU),
+            ("掘削工", BoqLine.Level.KAMOKU),
+            # 3階層で終わる枝。末端で数量×単価を積むので細目別。
+            ("施工費", BoqLine.Level.SAIMOKU),
+        ]
+
+    def test_hierarchy_continues_across_pages(self, fake_pdf):
+        """ページを跨いだ続きの行を、枝の末端と取り違えない。
+
+        ページごとに読むと、ページ末尾の行が「下に行が無い＝末端」に
+        見えて細目別に落ちていた。
+        """
+        fake_pdf(_ninomiya_pages())
+        result = boq_import.parse_pdf(b"")
+
+        # p.2 の末尾（施工費）と p.3 の先頭（アスファルト撤去）
+        assert result.drafts[3].level == BoqLine.Level.SAIMOKU
+        assert result.drafts[4].level == BoqLine.Level.CHUKAMOKU
+
+    def test_quantity_and_unit_are_read_from_one_cell(self, fake_pdf):
+        fake_pdf(_ninomiya_pages())
+        result = boq_import.parse_pdf(b"")
+
+        meisai = [d for d in result.drafts if d.level == BoqLine.Level.SAIMOKU]
+        assert [(d.quantity, d.unit) for d in meisai] == [
+            (Decimal("10.4"), "m"),
+            (Decimal("6.4"), "㎡"),
+            (Decimal("2.88"), "㎥"),
+        ]
+
+    def test_amounts_match_quantity_times_unit_price(self, fake_pdf):
+        fake_pdf(_ninomiya_pages())
+        result = boq_import.parse_pdf(b"")
+
+        for draft in result.drafts:
+            if draft.level != BoqLine.MEISAI_LEVEL:
+                continue
+            assert round(draft.quantity * draft.unit_price) == draft.amount
+
+    def test_cover_page_does_not_warn(self, fake_pdf):
+        """表紙は内訳書のページではない。Excel の表紙シートと同じ扱い。"""
+        pages = _ninomiya_pages()
+        pages.insert(0, _FakePage("御見積書", []))
+        fake_pdf(pages)
+
+        assert boq_import.parse_pdf(b"").warnings == []
 
 
 # ---------------------------------------------------------------------------
