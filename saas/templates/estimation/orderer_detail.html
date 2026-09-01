@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+{% block title %}{{ orderer.name }} — {{ APP_NAME }}{% endblock %}
+{% block topbar_title %}発注機関{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>{{ orderer.name }}</h1>
+  <div style="display:flex;gap:8px;">
+    <a href="{% url 'estimation:orderer_edit' orderer.pk %}" class="btn btn-outline">編集</a>
+    <a href="{% url 'estimation:datasource_create' orderer.pk %}" class="btn btn-primary">+ データソースを追加</a>
+  </div>
+</div>
+
+{# --- 基本情報 --- #}
+<div class="card" style="margin-bottom:20px;">
+  <div class="card-body">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;">
+      <div>
+        <div style="color:var(--text-secondary);font-size:13px;">機関種別</div>
+        <div>{{ orderer.get_kind_display }}</div>
+      </div>
+      <div>
+        <div style="color:var(--text-secondary);font-size:13px;">積算体系</div>
+        <div>{{ orderer.get_system_type_display }}</div>
+      </div>
+      <div>
+        <div style="color:var(--text-secondary);font-size:13px;">都道府県</div>
+        <div>{{ orderer.prefecture|default:"-" }}</div>
+      </div>
+      <div>
+        <div style="color:var(--text-secondary);font-size:13px;">顧客マスタ</div>
+        <div>{{ orderer.customer.name|default:"-" }}</div>
+      </div>
+    </div>
+    {% if orderer.standard_url %}
+    <div style="margin-top:12px;">
+      <div style="color:var(--text-secondary);font-size:13px;">積算基準URL</div>
+      <div><a href="{{ orderer.standard_url }}" target="_blank" rel="noopener">{{ orderer.standard_url }}</a></div>
+    </div>
+    {% endif %}
+    {% if orderer.notes %}
+    <div style="margin-top:12px;">
+      <div style="color:var(--text-secondary);font-size:13px;">備考</div>
+      <div>{{ orderer.notes }}</div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+{# --- データソース一覧 --- #}
+<h2>データソース</h2>
+<p style="color:var(--text-secondary);margin-bottom:16px;">
+  この発注機関が使用する積算データの情報源と、国交省共通基準との差異を管理します。
+</p>
+
+{% for ds in data_sources %}
+<div class="card" style="margin-bottom:16px;">
+  <div class="card-body">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;">
+      <div>
+        <h3 style="margin:0;">{{ ds.get_category_display }}</h3>
+        <div style="font-size:14px;color:var(--text-secondary);">{{ ds.name }}</div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        {% if ds.scope == 'common' %}
+          <span class="badge badge-green">国共通</span>
+        {% elif ds.scope == 'partial' %}
+          <span class="badge badge-orange">一部独自</span>
+        {% elif ds.scope == 'orderer_own' %}
+          <span class="badge badge-red">独自基準</span>
+        {% else %}
+          <span class="badge" style="background:#e5e7eb;color:#6b7280;">未確認</span>
+        {% endif %}
+        <a href="{% url 'estimation:datasource_edit' ds.pk %}" class="btn btn-outline btn-sm">編集</a>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;font-size:14px;">
+      <div>
+        <div style="color:var(--text-secondary);font-size:12px;">更新頻度</div>
+        <div>{{ ds.get_update_cycle_display }}</div>
+      </div>
+      <div>
+        <div style="color:var(--text-secondary);font-size:12px;">提供形式</div>
+        <div>{{ ds.get_data_format_display }}</div>
+      </div>
+      <div>
+        <div style="color:var(--text-secondary);font-size:12px;">無償/有償</div>
+        <div>{% if ds.is_free %}無償公開{% else %}<span style="color:var(--red);">有償</span>{% endif %}</div>
+      </div>
+      <div>
+        <div style="color:var(--text-secondary);font-size:12px;">最新取得年度</div>
+        <div>{{ ds.fiscal_year|default:"-" }}</div>
+      </div>
+      <div>
+        <div style="color:var(--text-secondary);font-size:12px;">最終確認日</div>
+        <div>{{ ds.last_checked_at|default:"-" }}</div>
+      </div>
+    </div>
+
+    {% if ds.source_url %}
+    <div style="margin-top:10px;">
+      <div style="color:var(--text-secondary);font-size:12px;">公開URL</div>
+      <a href="{{ ds.source_url }}" target="_blank" rel="noopener" style="font-size:13px;">{{ ds.source_url }}</a>
+    </div>
+    {% endif %}
+
+    {% if ds.diff_summary %}
+    <div style="margin-top:10px;padding:10px;background:var(--bg-secondary);border-radius:6px;border-left:3px solid var(--orange);">
+      <div style="color:var(--text-secondary);font-size:12px;font-weight:600;">共通基準との違い</div>
+      <div style="font-size:14px;">{{ ds.diff_summary }}</div>
+    </div>
+    {% endif %}
+
+    {% if ds.notes %}
+    <div style="margin-top:8px;font-size:13px;color:var(--text-secondary);">{{ ds.notes }}</div>
+    {% endif %}
+  </div>
+</div>
+{% endfor %}
+
+{# --- 未登録カテゴリ --- #}
+{% if missing_categories %}
+<div class="card" style="border:2px dashed var(--border-color);">
+  <div class="card-body">
+    <h3 style="margin-top:0;color:var(--text-secondary);">未登録のデータ区分</h3>
+    <p style="color:var(--text-secondary);font-size:13px;">以下のデータ区分がまだ登録されていません。クリックして追加できます。</p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      {% for code, label in missing_categories %}
+      <a href="{% url 'estimation:datasource_create' orderer.pk %}?category={{ code }}" class="btn btn-outline btn-sm">+ {{ label }}</a>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<div style="margin-top:20px;">
+  <a href="{% url 'estimation:datasource_matrix' %}" class="btn btn-outline">マトリクス表示に戻る</a>
+  <a href="{% url 'estimation:orderer_list' %}" class="btn btn-outline">発注機関一覧に戻る</a>
+</div>
+{% endblock %}

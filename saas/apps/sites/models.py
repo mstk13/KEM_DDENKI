@@ -24,7 +24,7 @@ class Site(TenantModel):
         null=True,
         blank=True,
         related_name="sites",
-        verbose_name="得意先",
+        verbose_name="顧客",
     )
     work_types = models.ManyToManyField(
         "masters.WorkType",
@@ -44,6 +44,24 @@ class Site(TenantModel):
         max_digits=14,
         decimal_places=0,
         default=0,
+    )
+    payment_terms = models.CharField(
+        "支払条件",
+        max_length=200,
+        blank=True,
+        help_text="空欄なら顧客の標準支払条件を使う。",
+    )
+    estimate_valid_until = models.CharField(
+        "見積有効期限",
+        max_length=100,
+        blank=True,
+        help_text="日付とは限らず「発行後30日間」等と書かれることがあるため文字列で持つ。",
+    )
+    note = models.TextField("備考", blank=True)
+    extracted_details = models.TextField(
+        "その他の読み取り項目",
+        blank=True,
+        help_text="見積ファイルから読み取った、上の項目に当てはまらない記載を1行1件で残す。",
     )
     start_date = models.DateField("工期開始", null=True, blank=True)
     end_date = models.DateField("工期終了", null=True, blank=True)
@@ -73,6 +91,63 @@ class Site(TenantModel):
 
     def __str__(self):
         return self.name
+
+    @property
+    def effective_payment_terms(self) -> str:
+        """実際に適用される支払条件。現場に指定が無ければ顧客の標準を使う。"""
+        if self.payment_terms:
+            return self.payment_terms
+        return self.customer.payment_terms if self.customer else ""
+
+
+class EstimateImport(TenantModel):
+    """見積ファイルの取込履歴。
+
+    「いつ・誰が・どのファイルから・どの宛名で」取り込んだかを残す。
+    顧客を引き当てられなかった場合も customer_name_raw に宛名を残すので、
+    後から顧客マスタに登録する候補として使える。
+    """
+
+    customer = models.ForeignKey(
+        "masters.Customer",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="estimate_imports",
+        verbose_name="顧客",
+    )
+    customer_name_raw = models.CharField(
+        "読み取った宛名", max_length=200, blank=True,
+    )
+    site = models.ForeignKey(
+        Site,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="estimate_imports",
+        verbose_name="登録した現場",
+    )
+    filename = models.CharField("ファイル名", max_length=255, blank=True)
+    estimate_number = models.CharField("見積番号", max_length=100, blank=True)
+    amount = models.DecimalField(
+        "見積金額", max_digits=14, decimal_places=0, null=True, blank=True,
+    )
+    payment_terms = models.CharField("支払条件", max_length=200, blank=True)
+
+    history = HistoricalRecords()
+
+    class Meta:
+        verbose_name = "見積取込履歴"
+        verbose_name_plural = "見積取込履歴"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.filename} → {self.customer_name_raw or '宛名不明'}"
+
+    @property
+    def is_unmatched(self) -> bool:
+        """宛名は読めたのに顧客を引き当てられなかったか。登録候補の判定に使う。"""
+        return self.customer_id is None and bool(self.customer_name_raw)
 
 
 class Process(TenantModel):

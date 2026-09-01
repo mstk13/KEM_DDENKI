@@ -8,7 +8,10 @@
   <div>
     <a href="{% url 'ai:cost_optimization' site.pk %}" class="btn btn-primary btn-sm">AIコスト分析</a>
     <a href="{% url 'ai:schedule_suggestion' site.pk %}" class="btn btn-outline btn-sm">AI工程提案</a>
+    <a href="{% url 'sites:estimate_import' site.pk %}" class="btn btn-outline btn-sm">見積ファイルを取り込む</a>
     <a href="{% url 'sites:edit' site.pk %}" class="btn btn-outline btn-sm">編集</a>
+    <a href="{% url 'sites:delete' site.pk %}" class="btn btn-outline btn-sm"
+       style="color:var(--danger,#ef4444);">削除</a>
     <a href="{% url 'sites:list' %}" class="btn btn-outline btn-sm">一覧に戻る</a>
   </div>
 </div>
@@ -18,16 +21,26 @@
     <div class="card-header"><h2>基本情報</h2></div>
     <dl class="detail-grid">
       <dt>現場コード</dt><dd>{{ site.code }}</dd>
-      <dt>得意先</dt><dd>{{ site.customer|default:"-" }}</dd>
+      <dt>顧客</dt><dd>{{ site.customer|default:"-" }}</dd>
       <dt>状態</dt><dd>{{ site.get_status_display }}</dd>
       <dt>受注金額</dt><dd>{{ site.contract_amount|floatformat:0 }} 円</dd>
+      <dt>支払条件</dt>
+      <dd>
+        {% if site.payment_terms %}{{ site.payment_terms }}
+        {% elif site.effective_payment_terms %}{{ site.effective_payment_terms }}
+          <span class="badge badge-gray">顧客の標準</span>
+        {% else %}-{% endif %}
+      </dd>
       <dt>工期</dt><dd>{{ site.start_date|default:"-" }} 〜 {{ site.end_date|default:"" }}</dd>
       <dt>現場担当者</dt><dd>{{ site.manager|default:"-" }}</dd>
       <dt>見積担当者</dt><dd>{{ site.estimator|default:"-" }}</dd>
+      <dt>見積有効期限</dt><dd>{{ site.estimate_valid_until|default:"-" }}</dd>
       <dt>住所</dt><dd>{{ site.address|default:"-" }}</dd>
+      <dt>備考</dt><dd style="white-space:pre-wrap;">{{ site.note|default:"-" }}</dd>
     </dl>
   </div>
 
+  {% if can_view_costs %}
   <div class="card">
     <div class="card-header"><h2>原価サマリ</h2></div>
     <div class="card-body">
@@ -47,7 +60,127 @@
       </div>
     </div>
   </div>
+  {% endif %}
 </div>
+
+{% if can_view_costs %}
+{# 見積もり/実経費。専用画面へ行かなくても現場詳細で消化状況が分かるようにする。 #}
+<div class="card" style="margin-top:20px;">
+  <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;">
+    <h2>見積もり/実経費</h2>
+    <div>
+      <a href="{% url 'costs:detail' site.pk %}" class="btn btn-outline btn-sm">詳細画面へ</a>
+      <a href="{% url 'sites:estimate_import' site.pk %}" class="btn btn-primary btn-sm">見積ファイルを取り込む</a>
+    </div>
+  </div>
+  <div class="card-body">
+    <div class="stats" style="margin-bottom:16px;">
+      <div class="stat-card blue">
+        <div class="stat-label">見積もり合計</div>
+        <div class="stat-value blue">&yen;{{ cost_summary.budget_total|floatformat:0 }}</div>
+      </div>
+      <div class="stat-card {% if cost_summary.consumption_pct >= 100 %}red{% elif cost_summary.consumption_pct >= 90 %}orange{% else %}default{% endif %}">
+        <div class="stat-label">実経費合計</div>
+        <div class="stat-value">&yen;{{ cost_summary.cost_total|floatformat:0 }}</div>
+      </div>
+      <div class="stat-card {% if cost_summary.consumption_pct >= 100 %}red{% elif cost_summary.consumption_pct >= 90 %}orange{% else %}green{% endif %}">
+        <div class="stat-label">消化率</div>
+        <div class="stat-value">{{ cost_summary.consumption_pct }}%</div>
+      </div>
+      <div class="stat-card {% if cost_summary.margin_rate and cost_summary.margin_rate < 0 %}red{% else %}green{% endif %}">
+        <div class="stat-label">粗利率</div>
+        <div class="stat-value">{{ cost_summary.margin_rate|default:"&mdash;" }}%</div>
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>区分</th>
+            <th style="text-align:right;">見積もり</th>
+            <th style="text-align:right;">実経費</th>
+            <th style="text-align:right;">消化率</th>
+            <th>状態</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for cat in cost_summary.by_category %}
+          <tr>
+            <td>{{ cat.category }}</td>
+            <td style="text-align:right;">&yen;{{ cat.budget|floatformat:0 }}</td>
+            <td style="text-align:right;">&yen;{{ cat.actual|floatformat:0 }}</td>
+            <td style="text-align:right;font-weight:600;">{{ cat.pct }}%</td>
+            <td>
+              {% if cat.pct >= 100 %}<span class="badge badge-red">超過</span>
+              {% elif cat.pct >= 90 %}<span class="badge badge-orange">警告</span>
+              {% elif cat.pct >= 75 %}<span class="badge badge-yellow">注意</span>
+              {% else %}<span class="badge badge-green">正常</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="5" style="text-align:center;color:var(--gray-400);padding:20px;">
+            見積もりが登録されていません。「見積ファイルを取り込む」から実行予算を起こせます。
+          </td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    {% if budget_items %}
+    {# 区分別の集計だけでは「何にいくら見たのか」が分からないので、項目行も出す。 #}
+    <details style="margin-top:16px;border:1px solid var(--gray-200);border-radius:6px;">
+      <summary style="padding:10px 14px;cursor:pointer;font-weight:600;">
+        実行予算の内訳（{{ budget_items|length }} 件）
+      </summary>
+      <div class="table-wrap" style="border-top:1px solid var(--gray-200);">
+        <table>
+          <thead>
+            <tr>
+              <th>原価区分</th><th>工種</th><th>項目名</th>
+              <th style="text-align:right;">数量</th><th>単位</th>
+              <th style="text-align:right;">単価</th><th style="text-align:right;">金額</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for b in budget_items %}
+            <tr>
+              <td>{{ b.cost_category.name }}</td>
+              <td>{{ b.work_type.name }}</td>
+              <td>{{ b.name|default:"-" }}</td>
+              <td style="text-align:right;">{{ b.quantity|floatformat:"-2" }}</td>
+              <td>{{ b.unit|default:"-" }}</td>
+              <td style="text-align:right;">{{ b.unit_price|floatformat:"-2" }}</td>
+              <td style="text-align:right;">&yen;{{ b.amount|floatformat:0 }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </details>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
+{% if site.extracted_details or site.estimate_imports.exists %}
+<div class="card" style="margin-top:20px;">
+  <div class="card-header"><h2>見積ファイルからの取り込み</h2></div>
+  <div class="card-body">
+    {% for imp in site.estimate_imports.all %}
+    <p style="font-size:.85rem;color:var(--text-muted);margin:0 0 10px;">
+      {{ imp.created_at|date:"Y-m-d H:i" }} に <b>{{ imp.filename }}</b> から取り込み
+      （宛名「{{ imp.customer_name_raw|default:"不明" }}」／取込者 {{ imp.created_by|default:"-" }}）
+    </p>
+    {% endfor %}
+    {% if site.extracted_details %}
+    <h3 style="font-size:.9rem;margin:0 0 6px;">その他の読み取り項目</h3>
+    <pre style="white-space:pre-wrap;font-size:.85rem;margin:0;background:var(--gray-50,#f7fafc);padding:10px;border-radius:4px;">{{ site.extracted_details }}</pre>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
 
 <div class="card" style="margin-top:20px;">
   <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;">
@@ -79,6 +212,134 @@
   </div>
 </div>
 
+{# 内訳書・内訳明細書。上位3階層が内訳書、細目別が内訳明細書。
+   同じツリーの深さ違いなので1つの表で出し、細目別だけ見たいときは
+   「内訳明細書だけ表示」で絞る。 #}
+<div class="card" style="margin-top:20px;">
+  <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+    <h2>内訳書・内訳明細書</h2>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;">
+      <a href="{% url 'sites:boq_import' site.pk %}" class="btn btn-outline btn-sm">ファイルから取り込む</a>
+      {% if boq_lines %}
+      <a href="{% url 'sites:boq_export' site.pk %}" class="btn btn-outline btn-sm">Excel出力</a>
+      {% endif %}
+      <a href="{% url 'sites:boq_edit' site.pk %}" class="btn btn-primary btn-sm">表形式で編集</a>
+    </div>
+  </div>
+
+  {% if boq_lines %}
+  <div style="padding:10px 14px;display:flex;gap:16px;flex-wrap:wrap;align-items:center;border-bottom:1px solid var(--gray-200);">
+    <label style="display:flex;align-items:center;gap:6px;font-size:.85rem;cursor:pointer;">
+      <input type="checkbox" id="boq-meisai-only"> 内訳明細書だけ表示
+    </label>
+    <span style="font-size:.85rem;color:var(--text-muted);">
+      全 {{ boq_lines|length }} 行 / うち内訳明細書 {{ boq_meisai_count }} 行
+    </span>
+    <span style="margin-left:auto;font-weight:600;">合計 &yen;{{ boq_total|floatformat:0 }}</span>
+  </div>
+
+  <div class="table-wrap">
+    <table id="boq-table">
+      <thead>
+        <tr>
+          <th>階層</th><th>名称</th><th>仕様</th><th>単位</th>
+          <th style="text-align:right;">数量</th>
+          <th style="text-align:right;">単価</th>
+          <th style="text-align:right;">金額</th>
+          <th>備考</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for line in boq_lines %}
+        <tr data-meisai="{{ line.is_meisai|yesno:"1,0" }}"
+            {% if not line.is_meisai %}style="font-weight:600;background:var(--bg-secondary);"{% endif %}>
+          <td style="font-size:12px;white-space:nowrap;">{{ line.get_level_display }}</td>
+          <td style="padding-left:{% widthratio line.indent_depth 1 16 %}px;">{{ line.name }}</td>
+          <td>{{ line.spec|default:"-" }}</td>
+          <td>{{ line.unit|default:"-" }}</td>
+          {# 一式計上など数量・単価が無い行がある。0 と書くと読めた 0 に見える。 #}
+          <td style="text-align:right;">{% if line.quantity is not None %}{{ line.quantity|floatformat:"-3" }}{% else %}-{% endif %}</td>
+          <td style="text-align:right;">{% if line.unit_price is not None %}{{ line.unit_price|floatformat:0 }}{% else %}-{% endif %}</td>
+          <td style="text-align:right;">{% if line.amount is not None %}&yen;{{ line.amount|floatformat:0 }}{% else %}-{% endif %}</td>
+          <td>{{ line.remarks|default:"-" }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty" style="padding:20px;">
+    <p>
+      この現場の内訳書はまだありません。
+      Excel・PDF の内訳書を「ファイルから取り込む」で読み込むか、
+      「表形式で編集」から直接入力してください。
+    </p>
+  </div>
+  {% endif %}
+</div>
+
+{# 見積内訳。取り込んだ見積書の明細を、見積詳細へ移らずここで開けるようにする。 #}
+<div class="card" style="margin-top:20px;">
+  <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;">
+    <h2>見積内訳</h2>
+    <a href="{% url 'sites:estimate_import' site.pk %}" class="btn btn-outline btn-sm">見積ファイルを取り込む</a>
+  </div>
+  <div class="card-body">
+    {% for q in quotations %}
+    <details class="quotation-breakdown" style="border:1px solid var(--gray-200);border-radius:6px;margin-bottom:10px;" {% if forloop.first %}open{% endif %}>
+      <summary style="padding:10px 14px;cursor:pointer;display:flex;flex-wrap:wrap;gap:10px;align-items:center;">
+        {% if q.kind == 'issued' %}<span class="badge badge-blue">自社発行</span>
+        {% else %}<span class="badge badge-gray">受領</span>{% endif %}
+        <b>{{ q.quotation_number|default:"見積番号なし" }}</b>
+        <span style="color:var(--text-muted);">{{ q.counterparty_name }}</span>
+        <span style="color:var(--text-muted);">{{ q.quotation_date }}</span>
+        <span style="margin-left:auto;font-weight:600;">&yen;{{ q.total_amount|floatformat:0 }}</span>
+      </summary>
+      <div class="table-wrap" style="border-top:1px solid var(--gray-200);">
+        <table>
+          <thead>
+            <tr>
+              <th>名称</th><th>規格・仕様</th>
+              <th style="text-align:right;">数量</th><th>単位</th>
+              <th style="text-align:right;">単価</th><th style="text-align:right;">金額</th>
+              <th>備考</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for item in q.items.all %}
+            <tr>
+              <td>{{ item.material.name|default:item.material_name|default:"-" }}</td>
+              <td>{{ item.spec|default:"-" }}</td>
+              {# 一式計上など、数量・単価が読めない行がある。0 と書くと読めた 0 に見える。 #}
+              <td style="text-align:right;">{{ item.quantity|floatformat:"-2"|default:"-" }}</td>
+              <td>{{ item.unit|default:"-" }}</td>
+              <td style="text-align:right;">{{ item.unit_price|floatformat:"-2"|default:"-" }}</td>
+              <td style="text-align:right;">&yen;{{ item.amount|floatformat:0 }}</td>
+              <td>{{ item.remarks|default:"-" }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="7" style="text-align:center;color:var(--gray-400);padding:16px;">
+              この見積に明細がありません。
+            </td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div style="padding:10px 14px;">
+        <a href="{% url 'materials:quotation_detail' q.pk %}" class="btn btn-outline btn-sm">明細を編集</a>
+        {% if q.source_filename %}
+        <span style="font-size:.8rem;color:var(--text-muted);margin-left:8px;">取込元: {{ q.source_filename }}</span>
+        {% endif %}
+      </div>
+    </details>
+    {% empty %}
+    <div class="empty" style="padding:20px;">
+      <p>この現場に紐づく見積はまだありません。「見積ファイルを取り込む」から明細ごと登録できます。</p>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
 <div class="card" style="margin-top:20px;">
   <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;">
     <h2>材料の受発注</h2>
@@ -105,10 +366,11 @@
         <tr>
           <td><span class="badge badge-gray">見積</span></td>
           <td>{{ q.quotation_date }}</td>
-          <td>{{ q.supplier }}</td>
+          {# 自社発行の見積は supplier が空で相手先は顧客側に入る。 #}
+          <td>{{ q.counterparty_name }}</td>
           <td>{{ q.total_amount|floatformat:0 }} 円</td>
           <td>{{ q.get_status_display }}</td>
-          <td></td>
+          <td><a href="{% url 'materials:quotation_detail' q.pk %}" class="btn btn-outline btn-sm">明細</a></td>
         </tr>
         {% endfor %}
         {% if not purchase_orders and not quotations %}
@@ -120,4 +382,20 @@
     </table>
   </div>
 </div>
+
+<script>
+// 「内訳明細書だけ表示」。上位階層（種目・科目・中科目）の行を隠す。
+(function () {
+  var toggle = document.getElementById('boq-meisai-only');
+  if (!toggle) return;
+  toggle.addEventListener('change', function () {
+    var rows = document.querySelectorAll('#boq-table tbody tr');
+    for (var i = 0; i < rows.length; i++) {
+      var isMeisai = rows[i].dataset.meisai === '1';
+      rows[i].style.display = (toggle.checked && !isMeisai) ? 'none' : '';
+    }
+  });
+})();
+</script>
+
 {% endblock %}

@@ -50,13 +50,13 @@ def _has_role(user, role_code):
 @login_required
 def document_alert_dashboard(request):
     """事務員向け: 証明書・健診書類の未添付一覧。"""
-    from dateutil.relativedelta import relativedelta
+    from apps.core.date_utils import add_months, add_years
 
     if not (_is_admin(request.user) or _has_role(request.user, "office_staff")):
         raise PermissionDenied("この画面は事務員・管理者のみ閲覧できます。")
 
     today = date.today()
-    due_threshold = today + relativedelta(months=2)
+    due_threshold = add_months(today, 2)
 
     # 証明書未添付の資格
     missing_certs = (
@@ -81,7 +81,7 @@ def document_alert_dashboard(request):
     for row in latest_dates:
         if not row["worker__is_active"]:
             continue
-        next_due = row["latest"] + relativedelta(years=1)
+        next_due = add_years(row["latest"], 1)
         if next_due <= due_threshold:
             worker = Worker.objects.filter(pk=row["worker"]).first()
             if worker:
@@ -314,10 +314,15 @@ def worker_edit(request, pk):
 
 @login_required
 def evaluation_list(request):
+    from apps.workers.eval_data import get_available_roles
+
     evaluations = WorkerEvaluation.objects.select_related(
         "worker", "worker__job_title", "worker__position", "evaluated_by",
     ).order_by("-period", "worker__name")
-    return render(request, "workers/evaluations.html", {"evaluations": evaluations})
+    return render(request, "workers/evaluations.html", {
+        "evaluations": evaluations,
+        "sheet_roles": get_available_roles(request.user.company),
+    })
 
 
 @login_required
@@ -346,7 +351,8 @@ def evaluation_create(request):
         period = request.POST.get("period", "")
 
         # ステップ3: アンケート回答を保存
-        if worker_id and "total_score" in request.POST:
+        # 総合評点は廃止したため、必ず送信される総合コメント欄の有無で判定する
+        if worker_id and "total_comment" in request.POST:
             worker = get_object_or_404(Worker, pk=worker_id)
             responses = {}
             overall_responses = {}
@@ -739,6 +745,69 @@ def eval_survey_pdf(request):
         )
         safe_name = f"eval_survey_{evaluator.pk}.pdf"
         display_name = f"評価アンケート_{evaluator.name}.pdf"
+
+    response = HttpResponse(pdf_bytes, content_type="application/pdf")
+    response["Content-Disposition"] = (
+        f"attachment; filename=\"{safe_name}\"; "
+        f"filename*=UTF-8''{quote(display_name)}"
+    )
+    return response
+
+
+@login_required
+def eval_role_sheet_pdf(request):
+    """役職別の人材評価シート（白紙）をPDFで出力する。
+
+    ?role=電工 のように指定すると、その職種のシートだけを出力する。
+    指定しない場合は全職種を1つのPDFにまとめる（職種ごとに改ページ）。
+    """
+    from urllib.parse import quote
+
+    from apps.workers.eval_data import get_available_roles, get_sections_for_role
+    from apps.workers.pdf_template import generate_evaluator_pdf
+
+    company = request.user.company
+    template = EvaluationTemplate.unscoped.filter(
+        company=company, is_active=True,
+    ).order_by("-created_at").first()
+
+    if not template:
+        messages.error(request, "評価テンプレートが未作成です。")
+        return redirect("workers:evaluations")
+
+    available = get_available_roles(company)
+    role = request.GET.get("role", "").strip()
+    if role and role not in available:
+        messages.error(request, f"職種「{role}」の評価項目がありません。")
+        return redirect("workers:evaluations")
+
+    roles = [role] if role else available
+    if not roles:
+        messages.error(request, "職種別の評価項目が登録されていません。")
+        return redirect("workers:evaluations")
+
+    period = request.GET.get("period", "")
+
+    targets_with_data = []
+    for r in roles:
+        data = get_sections_for_role(r, company)
+        targets_with_data.append({
+            # 氏名を空にすると、PDF側が役職別の白紙シートとして描画する
+            "worker_name": "",
+            "job_title": r,
+            "survey_items": _get_eval_items_with_max_score(data),
+            "scale": data["scale"],
+            "question_scale": data["question_scale"],
+        })
+
+    pdf_bytes = generate_evaluator_pdf(template, "", targets_with_data, period)
+
+    if role:
+        safe_name = "eval_sheet_role.pdf"
+        display_name = f"人材評価シート_{role}.pdf"
+    else:
+        safe_name = "eval_sheet_all_roles.pdf"
+        display_name = "人材評価シート_全役職.pdf"
 
     response = HttpResponse(pdf_bytes, content_type="application/pdf")
     response["Content-Disposition"] = (

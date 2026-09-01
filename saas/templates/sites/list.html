@@ -5,14 +5,17 @@
 {% block content %}
 <div class="page-header">
   <h1>現場一覧</h1>
-  <a href="{% url 'sites:create' %}" class="btn btn-primary">+ 現場を登録</a>
+  <div>
+    <a href="{% url 'sites:import' %}" class="btn btn-outline">見積ファイルから登録</a>
+    <a href="{% url 'sites:create' %}" class="btn btn-primary">+ 現場を登録</a>
+  </div>
 </div>
 
 <div class="card">
   <div class="table-wrap table-slide">
     <table>
       <thead>
-        <tr><th>コード</th><th>現場名</th><th>得意先</th><th>状態</th><th>受注金額</th><th>工期</th><th></th></tr>
+        <tr><th>コード</th><th>現場名</th><th>顧客</th><th>状態</th><th>受注金額</th><th>工期</th><th></th></tr>
       </thead>
       <tbody>
         {% for site in sites %}
@@ -31,7 +34,12 @@
           </td>
           <td>{{ site.contract_amount|floatformat:0 }} 円</td>
           <td>{{ site.start_date|default:"-" }} 〜 {{ site.end_date|default:"" }}</td>
-          <td><a href="{% url 'sites:edit' site.pk %}" class="btn btn-outline btn-sm">編集</a></td>
+          <td style="white-space:nowrap;">
+            <a href="{% url 'sites:estimate_import' site.pk %}" class="btn btn-outline btn-sm">見積取込</a>
+            <a href="{% url 'sites:edit' site.pk %}" class="btn btn-outline btn-sm">編集</a>
+            <a href="{% url 'sites:delete' site.pk %}?from=list" class="btn btn-outline btn-sm"
+               style="color:var(--danger,#ef4444);">削除</a>
+          </td>
         </tr>
         {% empty %}
         <tr><td colspan="7"><div class="empty"><div class="empty-icon">&#x1f3d7;&#xfe0f;</div><p>現場が登録されていません</p></div></td></tr>

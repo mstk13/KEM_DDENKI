@@ -73,6 +73,17 @@
         <label for="id_address">住所</label>
         {{ form.address }}
       </div>
+      {# 支払条件は顧客のみ。発注先フォームには無いので存在するときだけ出す。 #}
+      {% if form.payment_terms %}
+      <div class="form-group">
+        <label for="id_payment_terms">標準支払条件</label>
+        {{ form.payment_terms }}
+        <p style="font-size:.78rem;color:var(--text-muted);margin:4px 0 0;">
+          この顧客の既定値。現場ごとに違う場合は現場側で上書きします。
+        </p>
+        {{ form.payment_terms.errors }}
+      </div>
+      {% endif %}
       <div class="form-group">
         <label for="id_note">備考</label>
         {{ form.note }}

@@ -51,6 +51,10 @@ services:
       redis:
         condition: service_healthy
     environment:
+      # コンテナの既定は UTC。Django の TIME_ZONE は Asia/Tokyo だが、
+      # date.today() のような素の Python はコンテナの時計を見るため、
+      # 朝9時前は前日として扱われる。OSの時計もJSTに揃える。
+      TZ: ${TZ:-Asia/Tokyo}
       DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:-change-me-in-production}
       DJANGO_DEBUG: ${DJANGO_DEBUG:-True}
       DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1}
@@ -66,6 +70,20 @@ services:
       DB_HOST: db
       DB_PORT: "5432"
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      # ローカル推論（ADR-0010）。Ollama はホストの Windows 側で動くため
+      # コンテナからは host.docker.internal で到達する。
+      # 未設定でも settings.py の既定で動く（層Aは有効・層Bは無効）。
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      OLLAMA_EMBED_ENABLED: ${OLLAMA_EMBED_ENABLED:-True}
+      # OLLAMA_KEEP_ALIVE はここで渡してはならない。
+      # ホストのシステム環境変数に OLLAMA_KEEP_ALIVE=0 が入っており、
+      # compose の変数展開はシェル環境を .env より優先するため、
+      # ${OLLAMA_KEEP_ALIVE:-5m} と書いても必ず 0 が入ってしまう。
+      # それでは PR #37（settings.py の既定を 5m にしてホスト設定を打ち消す）が
+      # 無効化され、毎リクエストでモデルがアンロードされる（実測 0.27秒→3.3秒）。
+      # 渡さなければ settings.py の既定 5m がそのまま効く。
+      OLLAMA_CHAT_ENABLED: ${OLLAMA_CHAT_ENABLED:-False}
+      OLLAMA_CHAT_MODEL: ${OLLAMA_CHAT_MODEL:-qwen3:8b}
       EMAIL_BACKEND: ${EMAIL_BACKEND:-django.core.mail.backends.console.EmailBackend}
       EMAIL_HOST: ${EMAIL_HOST:-}
       EMAIL_PORT: ${EMAIL_PORT:-587}
@@ -80,6 +98,57 @@ services:
       - .:/app
       - media_data:/app/media
     command: ["gunicorn", "config.wsgi:application", "--bind", "0.0.0.0:8000", "--workers", "4", "--threads", "2"]
+
+  # --- 定期タスク（入札案件取得・アラート送信） ---
+  cron:
+    build: .
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      # 定時実行の時刻判定はコンテナの date を見る。UTC のままだと
+      # 07:00 / 08:00 が JST の 16:00 / 17:00 に走ってしまう。
+      TZ: ${TZ:-Asia/Tokyo}
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:-change-me-in-production}
+      DJANGO_DEBUG: "False"
+      DB_NAME: kensetsu_saas
+      DB_USER: postgres
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      DB_HOST: db
+      DB_PORT: "5432"
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      # ローカル推論（ADR-0010）。Ollama はホストの Windows 側で動くため
+      # コンテナからは host.docker.internal で到達する。
+      # 未設定でも settings.py の既定で動く（層Aは有効・層Bは無効）。
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      OLLAMA_EMBED_ENABLED: ${OLLAMA_EMBED_ENABLED:-True}
+      # OLLAMA_KEEP_ALIVE はここで渡してはならない。
+      # ホストのシステム環境変数に OLLAMA_KEEP_ALIVE=0 が入っており、
+      # compose の変数展開はシェル環境を .env より優先するため、
+      # ${OLLAMA_KEEP_ALIVE:-5m} と書いても必ず 0 が入ってしまう。
+      # それでは PR #37（settings.py の既定を 5m にしてホスト設定を打ち消す）が
+      # 無効化され、毎リクエストでモデルがアンロードされる（実測 0.27秒→3.3秒）。
+      # 渡さなければ settings.py の既定 5m がそのまま効く。
+      OLLAMA_CHAT_ENABLED: ${OLLAMA_CHAT_ENABLED:-False}
+      OLLAMA_CHAT_MODEL: ${OLLAMA_CHAT_MODEL:-qwen3:8b}
+      EMAIL_BACKEND: ${EMAIL_BACKEND:-django.core.mail.backends.console.EmailBackend}
+      EMAIL_HOST: ${EMAIL_HOST:-}
+      EMAIL_PORT: ${EMAIL_PORT:-587}
+      EMAIL_USE_TLS: ${EMAIL_USE_TLS:-False}
+      EMAIL_USE_SSL: ${EMAIL_USE_SSL:-False}
+      EMAIL_HOST_USER: ${EMAIL_HOST_USER:-}
+      EMAIL_HOST_PASSWORD: ${EMAIL_HOST_PASSWORD:-}
+      DEFAULT_FROM_EMAIL: ${DEFAULT_FROM_EMAIL:-noreply@kem-ddenki.com}
+    volumes:
+      - .:/app
+      - media_data:/app/media
+    # 定時実行。cron は使わない（理由は scripts/scheduler.sh の冒頭に記載）。
+    # 判定ロジックが分岐と状態を持つようになったため、compose に直書きせず
+    # スクリプトへ出した。単体で起動確認できる（SCHEDULER_DRY_RUN=1 等）。
+    entrypoint: ["sh", "/app/scripts/scheduler.sh"]
 
   # --- Cloudflare Tunnel（社外アクセス用・任意） ---
   # 使用する場合は .env に CLOUDFLARE_TUNNEL_TOKEN を設定してください。

@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}仕入実績CSVインポート — {{ APP_NAME }}{% endblock %}
+{% block topbar_title %}積算{% endblock %}
+
+{% block content %}
+<div class="page-header"><h1>仕入実績 CSVインポート</h1></div>
+<div class="card" style="margin-bottom:20px;"><div class="card-body">
+  <p style="color:var(--text-secondary);">
+    CSVヘッダー: <code>仕入日,品名,品番,数量,単位,単価,金額,仕入先名,備考</code><br>
+    日付形式: YYYY-MM-DD または YYYY/MM/DD
+  </p>
+</div></div>
+<div class="card"><div class="card-body">
+  <form method="post" enctype="multipart/form-data">{% csrf_token %}
+    <div class="form-group">
+      <label>{{ form.file.label }}</label>{{ form.file }}{{ form.file.errors }}
+      <small>{{ form.file.help_text }}</small>
+    </div>
+    <div class="form-group">
+      <label>{{ form.auto_match }} 名寄せを同時実行</label>
+    </div>
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">インポート実行</button>
+      <a href="{% url 'estimation:purchase_list' %}" class="btn btn-outline">キャンセル</a>
+    </div>
+  </form>
+</div></div>
+{% endblock %}

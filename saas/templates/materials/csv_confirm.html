@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}CSV確認 — 発注書作成 — {{ APP_NAME }}{% endblock %}
+{% block topbar_title %}材料管理{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>CSV取込内容の確認</h1>
+  <a href="{% url 'materials:csv_import' %}" class="btn btn-outline">← やり直す</a>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <h2>取込内容（{{ csv_filename }}）— {{ parsed_items|length }}件</h2>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>No.</th>
+          <th>品名</th>
+          <th style="text-align:right;">数量</th>
+          <th>単位</th>
+          <th style="text-align:right;">単価</th>
+          <th style="text-align:right;">税率</th>
+          <th style="text-align:right;">金額</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in parsed_items %}
+        <tr>
+          <td>{{ forloop.counter }}</td>
+          <td>{{ item.name }}</td>
+          <td style="text-align:right;">{{ item.quantity }}</td>
+          <td>{{ item.unit }}</td>
+          <td style="text-align:right;">{{ item.unit_price|floatformat:0 }}</td>
+          <td style="text-align:right;">{{ item.tax_rate }}</td>
+          <td style="text-align:right;font-weight:600;">{{ item.amount|floatformat:0 }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="7"><div class="empty"><p>明細が見つかりませんでした。CSV形式を確認してください。</p></div></td></tr>
+        {% endfor %}
+      </tbody>
+      {% if parsed_items %}
+      <tfoot>
+        <tr style="font-weight:600;">
+          <td colspan="6" style="text-align:right;">小計</td>
+          <td style="text-align:right;">{{ subtotal|floatformat:0 }}</td>
+        </tr>
+      </tfoot>
+      {% endif %}
+    </table>
+  </div>
+</div>
+
+{% if parsed_items %}
+<form method="post" action="{% url 'materials:csv_import' %}" style="margin-top:20px;">
+  {% csrf_token %}
+  <input type="hidden" name="confirm_import" value="1">
+  <input type="hidden" name="supplier_id" value="{{ supplier_id }}">
+  <input type="hidden" name="site_id" value="{{ site_id }}">
+  <input type="hidden" name="items_json" value="{{ items_json }}">
+  <div style="display:flex;gap:12px;">
+    <button type="submit" class="btn btn-primary">この内容で発注書を作成</button>
+    <a href="{% url 'materials:csv_import' %}" class="btn btn-outline">キャンセル</a>
+  </div>
+</form>
+{% endif %}
+{% endblock %}

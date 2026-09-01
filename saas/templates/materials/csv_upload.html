@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}CSV取込 — 発注書作成 — {{ APP_NAME }}{% endblock %}
+{% block topbar_title %}材料管理{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>仕入先CSVから発注書を作成</h1>
+  <a href="{% url 'materials:po_list' %}" class="btn btn-outline">← 発注一覧</a>
+</div>
+
+<div class="card">
+  <div class="card-header"><h2>CSVファイルをアップロード</h2></div>
+  <form method="post" enctype="multipart/form-data" style="padding:24px;">
+    {% csrf_token %}
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;align-items:flex-end;">
+      <div>
+        <label class="form-label">現場</label>
+        <select name="site" class="form-control" required>
+          <option value="">選択してください</option>
+          {% for s in sites %}
+          <option value="{{ s.pk }}" {% if selected_site_id and s.pk|stringformat:"d" == selected_site_id|stringformat:"d" %}selected{% endif %}>{{ s.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="form-label">仕入先</label>
+        <select name="supplier" class="form-control" required>
+          <option value="">選択してください</option>
+          {% for sup in suppliers %}
+          <option value="{{ sup.pk }}">{{ sup.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="form-label">CSVファイル</label>
+        <input type="file" name="csv_file" class="form-control" accept=".csv,.txt" required>
+      </div>
+    </div>
+    <p style="color:#666;margin-top:12px;font-size:0.9em;">
+      CSVの想定カラム: 品名, 数量, 単位, 単価, 税率（税率は省略可、デフォルト10%）<br>
+      文字コード: UTF-8 / Shift_JIS / CP932 に自動対応
+    </p>
+    <button type="submit" class="btn btn-primary" style="margin-top:16px;">アップロードして確認</button>
+  </form>
+</div>
+{% endblock %}

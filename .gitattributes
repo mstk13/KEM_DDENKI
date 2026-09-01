@@ -1,7 +1,16 @@
 # Linux コンテナ内で実行されるファイルは必ず LF にする。
 # Windows で core.autocrlf=true のままチェックアウトすると CRLF になり、
 # `exec ./entrypoint.sh: no such file or directory`（/bin/sh\r を探す）で失敗する。
+# Python も LF に固定する。Windows 側のスクリプトでファイルを書き換えると
+# 既定で CRLF になり、3行の修正が「全行変更」の差分になってレビューできない。
+*.py text eol=lf
 *.sh text eol=lf
 Dockerfile text eol=lf
 docker-compose*.yml text eol=lf
 *.conf text eol=lf
+# テンプレートも同じ理由で LF に固定する。Windows から書き換えると
+# CRLF になり、数行の追加が「全行変更」になってレビューできなくなる。
+*.html text eol=lf
+*.css text eol=lf
+*.js text eol=lf
+*.md text eol=lf

@@ -33,5 +33,5 @@ def get_supplier_rating_summary(supplier):
 
 
 def get_customer_site_history(customer):
-    """得意先の現場一覧（取引履歴）を取得する。"""
+    """顧客の現場一覧（取引履歴）を取得する。"""
     return customer.sites.order_by("-created_at")

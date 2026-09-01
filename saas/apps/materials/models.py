@@ -40,7 +40,17 @@ class Material(TenantModel):
 
 
 class Quotation(TenantModel):
-    """見積。仕入先から取得した見積書を管理する。"""
+    """見積。仕入先から取得した見積書と、自社が顧客に出した見積の両方を持つ。
+
+    元は仕入先からの受領見積だけを想定していたが、見積ファイル（ライデンの
+    Excel/CSV・見積書 PDF）の取り込みで自社発行の見積も同じ形で扱えるように
+    kind で向きを分けた。明細（QuotationItem）と材料マスタの引き当ては
+    どちらの向きでも同じものを使う。
+    """
+
+    class Kind(models.TextChoices):
+        RECEIVED = "received", "仕入先から受領"
+        ISSUED = "issued", "自社が発行"
 
     class Status(models.TextChoices):
         DRAFT = "draft", "依頼中"
@@ -48,6 +58,13 @@ class Quotation(TenantModel):
         ACCEPTED = "accepted", "採用"
         REJECTED = "rejected", "不採用"
 
+    kind = models.CharField(
+        "見積の向き",
+        max_length=16,
+        choices=Kind.choices,
+        default=Kind.RECEIVED,
+        help_text="仕入先から受領した見積か、自社が顧客へ出した見積か。",
+    )
     site = models.ForeignKey(
         "sites.Site",
         on_delete=models.CASCADE,
@@ -59,8 +76,27 @@ class Quotation(TenantModel):
     supplier = models.ForeignKey(
         "masters.Supplier",
         on_delete=models.CASCADE,
+        null=True,
+        blank=True,
         related_name="quotations",
         verbose_name="仕入先",
+        help_text="受領見積のときの相手先。自社発行の見積では空。",
+    )
+    customer = models.ForeignKey(
+        "masters.Customer",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="quotations",
+        verbose_name="顧客",
+        help_text="自社発行の見積のときの宛先。受領見積では空。",
+    )
+    quotation_number = models.CharField(
+        "見積番号", max_length=100, blank=True,
+    )
+    source_filename = models.CharField(
+        "取込元ファイル名", max_length=255, blank=True,
+        help_text="見積ファイルから取り込んだ場合に残す。手入力なら空。",
     )
     quotation_date = models.DateField("見積日")
     valid_until = models.DateField("有効期限", null=True, blank=True)
@@ -91,7 +127,13 @@ class Quotation(TenantModel):
         verbose_name_plural = "見積"
 
     def __str__(self):
-        return f"見積-{self.pk} {self.supplier} ({self.quotation_date})"
+        return f"見積-{self.pk} {self.counterparty_name} ({self.quotation_date})"
+
+    @property
+    def counterparty_name(self) -> str:
+        """相手先の表示名。向きによって仕入先／顧客のどちらかを出す。"""
+        party = self.customer if self.kind == self.Kind.ISSUED else self.supplier
+        return str(party) if party else "相手先未設定"
 
 
 class QuotationItem(TenantModel):
@@ -112,13 +154,24 @@ class QuotationItem(TenantModel):
         verbose_name="材料（マスタ）",
     )
     material_name = models.CharField("材料名（自由入力）", max_length=200, blank=True)
-    quantity = models.DecimalField("数量", max_digits=10, decimal_places=2)
-    unit_price = models.DecimalField("単価", max_digits=12, decimal_places=2)
+    spec = models.CharField("規格・仕様", max_length=300, blank=True)
+    unit = models.CharField("単位", max_length=50, blank=True)
+    # 取り込んだ見積書には金額だけで数量・単価が無い行がある（一式計上など）。
+    # 0 を入れると「単価0円」という読めてもいない数字が残るので null を許す。
+    quantity = models.DecimalField(
+        "数量", max_digits=10, decimal_places=2, null=True, blank=True,
+    )
+    unit_price = models.DecimalField(
+        "単価", max_digits=12, decimal_places=2, null=True, blank=True,
+    )
     amount = models.DecimalField("金額", max_digits=14, decimal_places=0, default=0)
+    remarks = models.CharField("備考", max_length=300, blank=True)
+    sort_order = models.IntegerField("表示順", default=0)
 
     class Meta:
         verbose_name = "見積明細"
         verbose_name_plural = "見積明細"
+        ordering = ["quotation", "sort_order", "pk"]
 
     def __str__(self):
         name = self.material.name if self.material else self.material_name
@@ -156,6 +209,12 @@ class PurchaseOrder(TenantModel):
         verbose_name="元見積",
     )
     order_date = models.DateField("発注日")
+    delivery_date = models.DateField("納期", null=True, blank=True)
+    subject = models.CharField("件名", max_length=300, blank=True)
+    payment_terms = models.CharField(
+        "支払条件", max_length=200, blank=True, default="月末締翌月末払",
+    )
+    notes = models.TextField("特記事項", blank=True)
     ordered_by = models.ForeignKey(
         "accounts.User",
         on_delete=models.SET_NULL,
@@ -212,14 +271,27 @@ class PurchaseOrderItem(TenantModel):
     material = models.ForeignKey(
         Material,
         on_delete=models.CASCADE,
+        null=True,
+        blank=True,
         related_name="order_items",
         verbose_name="材料",
     )
+    material_name = models.CharField(
+        "材料名（自由入力）", max_length=200, blank=True,
+        help_text="マスタにない場合の自由入力用",
+    )
     quantity = models.DecimalField("数量", max_digits=10, decimal_places=2)
+    unit = models.CharField("単位", max_length=50, blank=True)
     unit_price = models.DecimalField("単価", max_digits=12, decimal_places=2)
+    tax_rate = models.DecimalField(
+        "税率", max_digits=5, decimal_places=2, default=0.10,
+        help_text="例: 0.10 = 10%",
+    )
     work_type = models.ForeignKey(
         "masters.WorkType",
-        on_delete=models.CASCADE,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
         related_name="purchase_order_items",
         verbose_name="工種",
     )
@@ -234,8 +306,14 @@ class PurchaseOrderItem(TenantModel):
     def amount(self):
         return self.quantity * self.unit_price
 
+    @property
+    def display_name(self):
+        if self.material:
+            return self.material.name
+        return self.material_name
+
     def __str__(self):
-        return f"{self.purchase_order} - {self.material}"
+        return f"{self.purchase_order} - {self.display_name}"
 
 
 class Delivery(TenantModel):
@@ -351,3 +429,125 @@ class Inventory(TenantModel):
     def __str__(self):
         location = self.site.name if self.site else "本社倉庫"
         return f"{self.material.name} @ {location}: {self.quantity}"
+
+
+class MaterialSupplier(TenantModel):
+    """材料×仕入先の紐付け。材料ごとにどの仕入先から仕入れられるかを管理する。
+
+    Material に対して複数の Supplier を登録でき、
+    標準単価・標準納期・最小発注数量などを記録する。
+    """
+
+    material = models.ForeignKey(
+        Material,
+        on_delete=models.CASCADE,
+        related_name="suppliers",
+        verbose_name="材料",
+    )
+    supplier = models.ForeignKey(
+        "masters.Supplier",
+        on_delete=models.CASCADE,
+        related_name="material_supplies",
+        verbose_name="仕入先",
+    )
+    supplier_code = models.CharField(
+        "仕入先品番", max_length=100, blank=True,
+        help_text="この仕入先でのカタログ品番",
+    )
+    standard_unit_price = models.DecimalField(
+        "標準単価", max_digits=12, decimal_places=2,
+        null=True, blank=True,
+    )
+    lead_time_days = models.IntegerField(
+        "標準納期（日）", null=True, blank=True,
+        help_text="発注から納品までの標準日数",
+    )
+    min_order_qty = models.DecimalField(
+        "最小発注数量", max_digits=10, decimal_places=2,
+        null=True, blank=True,
+    )
+    is_preferred = models.BooleanField(
+        "推奨仕入先", default=False,
+        help_text="この材料の優先的な仕入先",
+    )
+    is_active = models.BooleanField("有効", default=True)
+    notes = models.TextField("備考", blank=True)
+
+    history = HistoricalRecords()
+
+    class Meta:
+        verbose_name = "材料仕入先"
+        verbose_name_plural = "材料仕入先"
+        unique_together = [("company", "material", "supplier")]
+
+    def __str__(self):
+        return f"{self.material.name} ← {self.supplier.name}"
+
+
+class ProcurementRecord(TenantModel):
+    """調達実績。現場ごとに何をどこから仕入れたかの記録。
+
+    発注→納品の検収完了時に自動生成される。
+    実際の納期（リードタイム）を記録し、仕入先の評価に使う。
+    """
+
+    site = models.ForeignKey(
+        "sites.Site",
+        on_delete=models.CASCADE,
+        related_name="procurement_records",
+        verbose_name="現場",
+    )
+    material = models.ForeignKey(
+        Material,
+        on_delete=models.CASCADE,
+        related_name="procurement_records",
+        verbose_name="材料",
+    )
+    supplier = models.ForeignKey(
+        "masters.Supplier",
+        on_delete=models.CASCADE,
+        related_name="procurement_records",
+        verbose_name="仕入先",
+    )
+    purchase_order = models.ForeignKey(
+        PurchaseOrder,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="procurement_records",
+        verbose_name="元発注書",
+    )
+    ordered_date = models.DateField("発注日")
+    delivered_date = models.DateField("納品日", null=True, blank=True)
+    actual_lead_days = models.IntegerField(
+        "実納期（日）", null=True, blank=True,
+        help_text="発注日から納品日までの実日数",
+    )
+    ordered_qty = models.DecimalField("発注数量", max_digits=10, decimal_places=2)
+    delivered_qty = models.DecimalField(
+        "納品数量", max_digits=10, decimal_places=2,
+        null=True, blank=True,
+    )
+    unit_price_paid = models.DecimalField(
+        "仕入単価", max_digits=12, decimal_places=2,
+    )
+    notes = models.TextField("備考", blank=True)
+
+    history = HistoricalRecords()
+
+    class Meta:
+        verbose_name = "調達実績"
+        verbose_name_plural = "調達実績"
+        indexes = [
+            models.Index(fields=["company", "material", "supplier"]),
+            models.Index(fields=["company", "site"]),
+        ]
+
+    def __str__(self):
+        return f"{self.site.name} {self.material.name} ← {self.supplier.name}"
+
+    def calc_lead_days(self):
+        """実納期を計算する。"""
+        if self.ordered_date and self.delivered_date:
+            self.actual_lead_days = (self.delivered_date - self.ordered_date).days
+        return self.actual_lead_days

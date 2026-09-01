@@ -1,0 +1,395 @@
+{% extends "base.html" %}
+{% block title %}見積ファイルから現場を登録 — {{ APP_NAME }}{% endblock %}
+{% block topbar_title %}現場管理{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>見積ファイルから現場を登録</h1>
+  <a href="{% url 'sites:list' %}" class="btn btn-outline btn-sm">一覧に戻る</a>
+</div>
+
+{% if not form %}
+{# ---- ステップ1: ファイルを選ぶ ---- #}
+<div class="card">
+  <div class="card-header"><h2>ファイルを選ぶ</h2></div>
+  <div class="card-body">
+    <p style="font-size:.88rem;color:var(--text-muted);margin-bottom:16px;">
+      ライデンから書き出した CSV / Excel、または見積書の PDF を読み込みます。
+      読み取れた項目は次の画面に入った状態で出ます。
+      <b>読み取れなかった項目は、その画面で入力してください。</b>
+    </p>
+    <form method="post" enctype="multipart/form-data">
+      {% csrf_token %}
+      <div class="form-group">
+        <label for="id_file">見積ファイル（.csv / .xlsx / .pdf）</label>
+        {{ upload_form.file }}
+        {{ upload_form.file.errors }}
+      </div>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">読み取る</button>
+        <a href="{% url 'sites:create' %}" class="btn btn-outline">ファイルを使わず手入力する</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card" style="margin-top:20px;">
+  <div class="card-header"><h2>ファイルから読み取る項目</h2></div>
+  <div class="card-body">
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>現場の項目</th><th>ファイル側の見出し</th></tr></thead>
+        <tbody>
+          <tr><td>現場コード</td><td>見積番号 / 見積No / 見積書番号</td></tr>
+          <tr><td>顧客</td><td><b>「○○ 御中」</b>の会社名</td></tr>
+          <tr><td>支払条件</td><td>支払条件 / お支払い条件 / 支払方法</td></tr>
+          <tr><td>現場名</td><td>工事件名 / 件名 / 工事名 / 工事名称</td></tr>
+          <tr><td>受注金額</td><td>見積金額 / 合計金額</td></tr>
+          <tr><td>住所</td><td>施工場所 / 工事場所 / 所在地</td></tr>
+          <tr><td>工期</td><td>工期 / 工事期間</td></tr>
+          <tr><td>見積有効期限</td><td>見積有効期限 / 有効期限 / 有効期間</td></tr>
+          <tr><td>備考</td><td>備考 / 摘要 / 特記事項</td></tr>
+          <tr>
+            <td><b>その他の読み取り項目</b></td>
+            <td>上記以外で「項目名と値」に見える記載を<b>全シートから</b>すべて拾います</td>
+          </tr>
+          <tr>
+            <td><b>見積明細・材料</b></td>
+            <td>
+              <b>名称 / 品名 / 材料名</b> と <b>数量・単価・金額</b> の見出しがある表を明細として読みます
+              （規格・単位・備考も拾います）
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p style="font-size:.82rem;color:var(--text-muted);margin-top:12px;">
+      見出しの位置ではなく名前で探すため、列の並びが違っても読めます。
+      表記がここに無い場合は読み飛ばして空欄にするので、確認画面で入力してください。
+      Excel は全シートを見ます（表紙に見出し、別シートに明細、という作りでも読めます）。
+      古い形式(.xls)は読めないので .xlsx で保存し直してください。
+    </p>
+  </div>
+</div>
+
+{% if recent_imports %}
+<div class="card" style="margin-top:20px;">
+  <div class="card-header"><h2>最近の取込</h2></div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>取込日時</th><th>ファイル名</th><th>見積番号</th><th>顧客</th><th>登録した現場</th></tr></thead>
+      <tbody>
+        {% for imp in recent_imports %}
+        <tr>
+          <td>{{ imp.created_at|date:"Y-m-d H:i" }}</td>
+          <td>{{ imp.filename|default:"-" }}</td>
+          <td>{{ imp.estimate_number|default:"-" }}</td>
+          <td>
+            {% if imp.customer %}
+              <a href="{% url 'masters:customer_detail' imp.customer.pk %}">{{ imp.customer.name }}</a>
+            {% elif imp.is_unmatched %}
+              <span style="color:var(--danger);">{{ imp.customer_name_raw }}</span>
+              <a href="{% url 'masters:customer_create' %}" class="btn btn-outline btn-sm">顧客に登録</a>
+            {% else %}-{% endif %}
+          </td>
+          <td>{% if imp.site %}<a href="{% url 'sites:detail' imp.site.pk %}">{{ imp.site.name }}</a>{% else %}-{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="card-body" style="padding-top:0;">
+    <p style="font-size:.8rem;color:var(--text-muted);margin:0;">
+      赤い宛名は顧客マスタに引き当てられなかったものです。登録すると次回から自動で紐づきます。
+    </p>
+  </div>
+</div>
+{% endif %}
+
+{% else %}
+{# ---- ステップ2: 内容を確認して登録 ---- #}
+
+{% if filename %}
+<p style="font-size:.85rem;color:var(--text-muted);margin-bottom:16px;">
+  読み込んだファイル: <b>{{ filename }}</b>
+</p>
+{% endif %}
+
+{% if read_rows or missing_labels %}
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px;">
+  <div class="card" style="margin:0;">
+    <div class="card-header"><h2>ファイルから読み取れた項目</h2></div>
+    <div class="card-body">
+      {% if read_rows %}
+      <dl class="detail-grid">
+        {% for label, value in read_rows %}
+        <dt>{{ label }}</dt><dd>{{ value }}</dd>
+        {% endfor %}
+      </dl>
+      {% else %}
+      <p style="font-size:.85rem;color:var(--text-muted);">
+        読み取れた項目はありませんでした。下のフォームにすべて入力してください。
+      </p>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="card" style="margin:0;">
+    <div class="card-header"><h2>手入力が必要な項目</h2></div>
+    <div class="card-body">
+      {% if missing_labels %}
+      <p style="font-size:.85rem;color:var(--text-muted);margin-bottom:10px;">
+        ファイルから読み取れませんでした。下のフォームで入力してください。
+      </p>
+      <ul style="margin:0;padding-left:1.2rem;font-size:.9rem;">
+        {% for label in missing_labels %}<li>{{ label }}</li>{% endfor %}
+      </ul>
+      {% else %}
+      <p style="font-size:.85rem;color:var(--success);">
+        すべての項目を読み取れました。内容を確認して登録してください。
+      </p>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{% if parsed_customer_name and not customer_matched %}
+<div class="card" style="margin-bottom:20px;border-left:3px solid var(--danger);">
+  <div class="card-body">
+    <p style="margin:0;font-size:.9rem;">
+      <b style="color:var(--danger);">「{{ parsed_customer_name }}」は顧客マスタに登録されていません。</b><br>
+      下の「顧客」欄に会社名を入力してください（未登録の名前なら顧客マスタにも登録されます）。<br>
+      <span style="color:var(--text-muted);">読み取った宛名は自動では入れていません。表記ゆれのまま
+      マスタができるのを防ぐため、入力はご自身で確認したうえで行ってください。</span>
+    </p>
+  </div>
+</div>
+{% elif customer_matched %}
+<div class="card" style="margin-bottom:20px;border-left:3px solid var(--success);">
+  <div class="card-body">
+    <p style="margin:0;font-size:.9rem;">
+      宛名「{{ parsed_customer_name }}」を顧客
+      <b>{{ customer_matched.name }}</b> に引き当てました。違う場合は下で選び直してください。
+    </p>
+  </div>
+</div>
+{% endif %}
+
+<div class="card">
+  <div class="card-header"><h2>内容を確認して登録</h2></div>
+  <div class="card-body">
+    <form method="post">
+      {% csrf_token %}
+      <input type="hidden" name="step" value="confirm">
+      <input type="hidden" name="parsed_customer_name" value="{{ parsed_customer_name }}">
+      <input type="hidden" name="filename" value="{{ filename }}">
+      {{ form.non_field_errors }}
+
+      <div class="form-row">
+        <div class="form-group">
+          <label for="id_code">現場コード（見積番号）</label>
+          <input type="text" name="code" id="id_code" class="form-control"
+                 value="{{ form.code.value|default:'' }}" required>
+          {{ form.code.errors }}
+        </div>
+        <div class="form-group">
+          <label for="id_name">現場名（件名）</label>
+          <input type="text" name="name" id="id_name" class="form-control"
+                 value="{{ form.name.value|default:'' }}" required>
+          {{ form.name.errors }}
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label for="id_customer_name">顧客</label>
+          {{ form.customer_name }}
+          {% include 'sites/_customer_datalist.html' %}
+          {{ form.customer_name.errors }}
+        </div>
+        <div class="form-group">
+          <label for="id_status">状態</label>
+          {{ form.status }}
+          {{ form.status.errors }}
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label for="id_contract_amount">受注金額</label>
+          <input type="number" name="contract_amount" id="id_contract_amount" class="form-control"
+                 value="{{ form.contract_amount.value|default:'0' }}">
+          <p style="font-size:.78rem;color:var(--text-muted);margin:4px 0 0;">
+            見積金額を入れてあります。受注時に確定した金額と違う場合は直してください。
+          </p>
+          {{ form.contract_amount.errors }}
+        </div>
+        <div class="form-group">
+          <label for="id_payment_terms">支払条件</label>
+          <input type="text" name="payment_terms" id="id_payment_terms" class="form-control"
+                 value="{{ form.payment_terms.value|default:'' }}"
+                 placeholder="例: 月末締め翌月末現金払い">
+          <p style="font-size:.78rem;color:var(--text-muted);margin:4px 0 0;">
+            空欄なら顧客の標準支払条件を使います。
+          </p>
+          {{ form.payment_terms.errors }}
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label for="id_start_date">工期開始</label>
+          <input type="date" name="start_date" id="id_start_date" class="form-control"
+                 value="{{ form.start_date.value|default:'' }}">
+          {{ form.start_date.errors }}
+        </div>
+        <div class="form-group">
+          <label for="id_end_date">工期終了</label>
+          <input type="date" name="end_date" id="id_end_date" class="form-control"
+                 value="{{ form.end_date.value|default:'' }}">
+          {{ form.end_date.errors }}
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label for="id_manager">現場担当者</label>
+          {{ form.manager }}
+          {{ form.manager.errors }}
+        </div>
+        <div class="form-group">
+          <label for="id_estimator">見積担当者</label>
+          {{ form.estimator }}
+          {{ form.estimator.errors }}
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label for="id_estimate_valid_until">見積有効期限</label>
+          <input type="text" name="estimate_valid_until" id="id_estimate_valid_until"
+                 class="form-control" value="{{ form.estimate_valid_until.value|default:'' }}"
+                 placeholder="例: 2026/09/30、発行後30日間">
+          {{ form.estimate_valid_until.errors }}
+        </div>
+        <div class="form-group">
+          <label for="id_address">施工場所</label>
+          <textarea name="address" id="id_address" class="form-control" rows="2">{{ form.address.value|default:'' }}</textarea>
+          {{ form.address.errors }}
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="id_note">備考</label>
+        <textarea name="note" id="id_note" class="form-control" rows="3">{{ form.note.value|default:'' }}</textarea>
+        {{ form.note.errors }}
+      </div>
+
+      <div class="form-group">
+        <label for="id_extracted_details">その他の読み取り項目</label>
+        <textarea name="extracted_details" id="id_extracted_details" class="form-control" rows="8">{{ form.extracted_details.value|default:'' }}</textarea>
+        <p style="font-size:.78rem;color:var(--text-muted);margin:4px 0 0;">
+          {% if detail_rows %}
+            上の項目に当てはまらない記載を全シートから {{ detail_rows|length }} 件拾いました。
+            不要な行は消してから登録してください。
+          {% else %}
+            上の項目に当てはまる以外の記載は見つかりませんでした。必要なら追記できます。
+          {% endif %}
+        </p>
+        {{ form.extracted_details.errors }}
+      </div>
+
+      <input type="hidden" name="lines_json" value="{{ lines_json }}">
+
+      {% if line_rows %}
+      <div class="card" style="margin:24px 0 0;">
+        <div class="card-header">
+          <h2>読み取った見積明細（{{ line_rows|length }} 件）</h2>
+        </div>
+        <div class="card-body" style="padding-bottom:8px;">
+          <label style="display:flex;align-items:flex-start;gap:8px;font-size:.9rem;cursor:pointer;">
+            <input type="checkbox" name="register_lines" value="1" checked style="margin-top:3px;">
+            <span>
+              <b>この明細を見積として登録する</b><br>
+              <span style="font-size:.82rem;color:var(--text-muted);">
+                現場に紐づく自社発行の見積として登録します。外すと現場だけを登録します。
+              </span>
+            </span>
+          </label>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>名称</th><th>規格</th>
+                <th style="text-align:right;">数量</th><th>単位</th>
+                <th style="text-align:right;">単価</th><th style="text-align:right;">金額</th>
+                <th>材料マスタ</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in line_rows %}
+              <tr>
+                <td>{{ row.name }}</td>
+                <td>{{ row.spec|default:"-" }}</td>
+                <td style="text-align:right;">{% if row.quantity != None %}{{ row.quantity|floatformat:"-2" }}{% else %}-{% endif %}</td>
+                <td>{{ row.unit|default:"-" }}</td>
+                <td style="text-align:right;">{% if row.unit_price != None %}¥{{ row.unit_price|floatformat:0 }}{% else %}-{% endif %}</td>
+                <td style="text-align:right;font-weight:600;">{% if row.amount != None %}¥{{ row.amount|floatformat:0 }}{% else %}-{% endif %}</td>
+                <td>
+                  {% if row.material %}
+                    <span style="color:var(--success);">{{ row.material.name }}</span>
+                  {% else %}
+                    <span style="color:var(--text-muted);">未登録</span>
+                  {% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+            <tfoot>
+              <tr>
+                <th colspan="5" style="text-align:right;">明細の合計</th>
+                <th style="text-align:right;">¥{{ line_total|floatformat:0 }}</th>
+                <th></th>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+        <div class="card-body" style="padding-top:12px;">
+          <p style="font-size:.82rem;color:var(--text-muted);margin:0;">
+            {% if unmatched_count %}
+              <b>{{ unmatched_count }} 件</b>は材料マスタに引き当てられませんでした。
+              明細には読み取った名称がそのまま残るので、登録は問題なく進みます。
+              材料マスタを整備すると、次回から自動で紐づきます（取り込みでは材料を自動作成しません）。
+            {% else %}
+              すべての明細を材料マスタに引き当てました。
+            {% endif %}
+            明細の合計は見積書の合計欄と一致しないことがあります（値引きや消費税は明細に含まれないため）。
+          </p>
+        </div>
+      </div>
+      {% elif filename %}
+      <div class="card" style="margin:24px 0 0;border-left:3px solid var(--warning, #d0a215);">
+        <div class="card-body">
+          <p style="margin:0;font-size:.88rem;">
+            <b>明細は読み取れませんでした。</b>
+            <span style="color:var(--text-muted);">
+              「名称／品名／材料名」と「数量・単価・金額」の見出しがある表が見つからなかった場合、
+              数字を推測で拾わず何も読まない作りにしています。現場の登録はこのまま進められます。
+              明細は登録後に見積画面から追加してください。
+            </span>
+          </p>
+        </div>
+      </div>
+      {% endif %}
+
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">この内容で現場を登録</button>
+        <a href="{% url 'sites:import' %}" class="btn btn-outline">別のファイルを読み込む</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

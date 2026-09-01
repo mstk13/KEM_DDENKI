@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}{% if is_new %}積算基準を登録{% else %}積算基準を編集{% endif %} — {{ APP_NAME }}{% endblock %}
+{% block topbar_title %}{% if is_new %}積算基準を登録{% else %}積算基準を編集{% endif %}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>{% if is_new %}積算基準を登録{% else %}{{ standard.name }} を編集{% endif %}</h1>
+</div>
+
+<div class="card">
+  <div class="card-body">
+    <form method="post" enctype="multipart/form-data">
+      {% csrf_token %}
+      <div class="form-row">
+        <div class="form-group">
+          <label for="id_orderer">発注機関</label>
+          {{ form.orderer }}
+          {{ form.orderer.errors }}
+        </div>
+        <div class="form-group">
+          <label for="id_fiscal_year">年度（西暦）</label>
+          {{ form.fiscal_year }}
+          {{ form.fiscal_year.errors }}
+        </div>
+      </div>
+      <div class="form-group">
+        <label for="id_name">基準名</label>
+        {{ form.name }}
+        {{ form.name.errors }}
+      </div>
+      <div class="form-group">
+        <label for="id_source_url">出典URL</label>
+        {{ form.source_url }}
+        {{ form.source_url.errors }}
+      </div>
+      <div class="form-group">
+        <label for="id_source_file">原本ファイル（PDF等）</label>
+        {{ form.source_file }}
+        {{ form.source_file.errors }}
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="id_effective_from">適用開始日</label>
+          {{ form.effective_from }}
+          {{ form.effective_from.errors }}
+        </div>
+        <div class="form-group">
+          <label for="id_effective_to">適用終了日</label>
+          {{ form.effective_to }}
+          {{ form.effective_to.errors }}
+        </div>
+        <div class="form-group">
+          <label for="id_status">状態</label>
+          {{ form.status }}
+          {{ form.status.errors }}
+        </div>
+      </div>
+      <div class="form-group">
+        <label for="id_notes">備考</label>
+        {{ form.notes }}
+        {{ form.notes.errors }}
+      </div>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">保存</button>
+        <a href="{% url 'estimation:standard_list' %}" class="btn btn-outline">キャンセル</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

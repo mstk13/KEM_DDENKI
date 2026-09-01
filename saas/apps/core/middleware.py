@@ -1,5 +1,5 @@
 """
-テナント分離ミドルウェア。
+テナント分離ミドルウェア + キャッシュ制御。
 
 認証済みユーザーの company をリクエストごとに contextvar へセットする。
 """
@@ -7,6 +7,26 @@
 from django.core.exceptions import PermissionDenied
 
 from apps.core.tenant_context import set_current_company
+
+
+class NoCacheMiddleware:
+    """HTMLレスポンスにキャッシュ無効化ヘッダーを付与する。
+
+    動的データを常にDBから取得させるため、ブラウザキャッシュを防ぐ。
+    静的ファイル（CSS/JS/画像）はwhitenoiseが配信するため影響しない。
+    """
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        response = self.get_response(request)
+        content_type = response.get("Content-Type", "")
+        if "text/html" in content_type:
+            response["Cache-Control"] = "no-cache, no-store, must-revalidate"
+            response["Pragma"] = "no-cache"
+            response["Expires"] = "0"
+        return response
 
 # URLパスの先頭 → アプリコード のマッピング
 _PATH_TO_APP = {

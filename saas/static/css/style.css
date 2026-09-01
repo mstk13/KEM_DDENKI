@@ -408,6 +408,34 @@ tbody tr:last-child td { border-bottom: none; }
   background: var(--white); color: var(--text-primary);
 }
 .form-control:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 3px rgba(26,39,68,.12); }
+.form-control[readonly] { background: var(--bg); color: var(--text-secondary); }
+.form-hint { margin-top: 5px; font-size: .78rem; color: var(--text-muted); line-height: 1.6; }
+/* 事務の日報で「現場追加」ボタンから増やしていくブロック */
+.site-block {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px 18px;
+  margin-bottom: 14px;
+  background: var(--surface-hover);
+}
+.site-block-head {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 12px;
+}
+.site-block-no { font-size: 15px; font-weight: 600; color: var(--text-primary); }
+/* チェックボックスで複数選ぶ欄（日報の作業員など）。指でも押しやすい間隔にする */
+.form-group ul { list-style: none; display: flex; flex-wrap: wrap; gap: 8px 16px; }
+.form-group ul li label {
+  display: flex; align-items: center; gap: 8px;
+  margin: 0; padding: 8px 14px;
+  border: 1.5px solid var(--border); border-radius: var(--radius-sm);
+  font-size: 15px; font-weight: 500; cursor: pointer;
+  background: var(--white); transition: var(--transition);
+}
+.form-group ul li label:hover { border-color: var(--accent); }
+.form-group ul li label:has(input:checked) {
+  border-color: var(--brand); background: var(--brand-light); color: var(--brand);
+}
 .form-control::placeholder { color: var(--text-muted); }
 select.form-control { appearance: auto; }
 textarea.form-control { min-height: 88px; resize: vertical; line-height: 1.6; }
@@ -476,6 +504,45 @@ textarea.form-control { min-height: 88px; resize: vertical; line-height: 1.6; }
 .gantt .bar-custom .bar-wrapper:hover .bar-progress { fill: var(--accent); }
 .gantt .bar-milestone .bar-progress { fill: var(--warning); }
 .gantt .bar-blue .bar-progress { fill: var(--info); }
+
+/* ---- 開発管理ガント ---- */
+/* プロジェクトのステータスで色分けする。クラス名は
+   devkanri/services.get_project_gantt_data の custom_class と対応。 */
+.gantt-legend {
+  display: inline-flex; align-items: center; gap: 6px;
+  margin-left: auto; font-size: .8rem; color: var(--text-muted);
+}
+.gantt-legend .legend-swatch { margin-left: 6px; }
+
+/* バー本体（.bar）に濃い色を置き、進捗（.bar-progress）はさらに濃くする。
+   淡い地色＋濃い進捗にすると、進捗0%のプロジェクトが地色だけになり
+   ほぼ白のバーになって「登録されていない」ように見えてしまうため。 */
+.gantt .bar-dev-planning .bar { fill: #9ca3af; }
+.gantt .bar-dev-planning .bar-progress { fill: #4b5563; }
+.legend-swatch.bar-dev-planning { background: #9ca3af; }
+
+.gantt .bar-dev-in_progress .bar { fill: #60a5fa; }
+.gantt .bar-dev-in_progress .bar-progress { fill: #1d4ed8; }
+.legend-swatch.bar-dev-in_progress { background: #60a5fa; }
+
+.gantt .bar-dev-completed .bar { fill: #34d399; }
+.gantt .bar-dev-completed .bar-progress { fill: #047857; }
+.legend-swatch.bar-dev-completed { background: #34d399; }
+
+.gantt .bar-dev-suspended .bar { fill: #fb923c; }
+.gantt .bar-dev-suspended .bar-progress { fill: #c2410c; }
+.legend-swatch.bar-dev-suspended { background: #fb923c; }
+
+/* 日付が未設定で推定表示しているバーは、確定した工期と見分けられるようにする。
+   バーが濃くなったので、輪郭は白の破線にして上に載せる。 */
+.gantt .bar-dev-inferred .bar {
+  stroke: var(--white); stroke-width: 2; stroke-dasharray: 5 3;
+}
+.legend-swatch.bar-dev-inferred {
+  background: repeating-linear-gradient(
+    45deg, #9ca3af, #9ca3af 3px, var(--white) 3px, var(--white) 6px
+  );
+}
 
 /* ---- 工期比較ガント ---- */
 /* 現場ごとに色を割り当て、同じ現場の工程が同色でまとまるようにする。

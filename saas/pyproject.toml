@@ -48,6 +48,14 @@ extend-exclude = ["*/migrations/*"]
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]
 
+[tool.ruff.lint.per-file-ignores]
+# 発注書PDFに刷り込む約款の条文。原文どおり1行で持つ。
+# 折り返すと出力される文面が変わりかねないので行長は見ない。
+"apps/materials/services.py" = ["E501"]
+# LLM に渡すプロンプトの本文。折り返すと改行が増えて指示が変わるため同上。
+"apps/estimation/services/labor_pdf.py" = ["E501"]
+"apps/bids/announcement_llm.py" = ["E501"]
+
 [tool.mypy]
 python_version = "3.12"
 plugins = ["mypy_django_plugin.main"]

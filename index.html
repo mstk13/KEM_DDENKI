@@ -1,0 +1,1038 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KEM_DDENKI 開発者マップ</title>
+<style>
+  :root{
+    --bg:#ffffff; --bg-alt:#f6f8fa; --bg-code:#f0f3f6;
+    --text:#1f2328; --text-muted:#59636e; --border:#d1d9e0;
+    --accent:#0969da; --accent-soft:#ddf4ff;
+    --warn:#9a6700; --warn-soft:#fff8c5;
+    --danger:#cf222e; --danger-soft:#ffebe9;
+    --ok:#1a7f37; --ok-soft:#dafbe1;
+    --sidebar:260px;
+  }
+  :root:not([data-theme="light"]){ }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#0d1117; --bg-alt:#151b23; --bg-code:#151b23;
+      --text:#e6edf3; --text-muted:#9198a1; --border:#3d444d;
+      --accent:#4493f8; --accent-soft:#121d2f;
+      --warn:#d29922; --warn-soft:#282215;
+      --danger:#f85149; --danger-soft:#25171c;
+      --ok:#3fb950; --ok-soft:#12261e;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#0d1117; --bg-alt:#151b23; --bg-code:#151b23;
+    --text:#e6edf3; --text-muted:#9198a1; --border:#3d444d;
+    --accent:#4493f8; --accent-soft:#121d2f;
+    --warn:#d29922; --warn-soft:#282215;
+    --danger:#f85149; --danger-soft:#25171c;
+    --ok:#3fb950; --ok-soft:#12261e;
+  }
+
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth; scroll-padding-top:1rem}
+  body{
+    margin:0; background:var(--bg); color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Hiragino Sans","Noto Sans JP",Meiryo,sans-serif;
+    line-height:1.75; font-size:15px;
+  }
+  a{color:var(--accent)}
+  code{
+    font-family:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+    background:var(--bg-code); padding:.15em .4em; border-radius:4px; font-size:.88em;
+    border:1px solid var(--border);
+  }
+  pre{
+    background:var(--bg-code); border:1px solid var(--border); border-radius:8px;
+    padding:14px 16px; overflow-x:auto; font-size:.85rem; line-height:1.6;
+  }
+  pre code{background:none; border:none; padding:0}
+
+  /* ---- layout ---- */
+  .wrap{display:flex; align-items:flex-start; max-width:1400px; margin:0 auto}
+  nav.toc{
+    width:var(--sidebar); flex:0 0 var(--sidebar); position:sticky; top:0;
+    height:100vh; overflow-y:auto; padding:28px 16px 60px 24px;
+    border-right:1px solid var(--border); background:var(--bg-alt);
+  }
+  nav.toc h2{font-size:.78rem; letter-spacing:.08em; text-transform:uppercase;
+    color:var(--text-muted); margin:22px 0 8px}
+  nav.toc h2:first-of-type{margin-top:14px}
+  nav.toc a{display:block; padding:4px 8px; border-radius:6px; text-decoration:none;
+    color:var(--text); font-size:.87rem; border-left:2px solid transparent}
+  nav.toc a:hover{background:var(--accent-soft)}
+  nav.toc a.active{background:var(--accent-soft); border-left-color:var(--accent); font-weight:600}
+  .brand{font-weight:700; font-size:1.02rem; line-height:1.4; margin-bottom:2px}
+  .brand small{display:block; font-weight:400; color:var(--text-muted); font-size:.76rem}
+
+  main{flex:1 1 auto; min-width:0; padding:32px 40px 120px}
+  section{scroll-margin-top:20px; margin-bottom:56px}
+  h1{font-size:1.9rem; line-height:1.35; margin:0 0 6px; letter-spacing:-.01em}
+  h2{font-size:1.35rem; margin:0 0 4px; padding-bottom:8px; border-bottom:1px solid var(--border)}
+  h3{font-size:1.02rem; margin:28px 0 6px}
+  .lede{color:var(--text-muted); margin:0 0 24px}
+  section > p:first-of-type{margin-top:14px}
+
+  /* ---- components ---- */
+  table{border-collapse:collapse; width:100%; font-size:.88rem; margin:14px 0}
+  th,td{border:1px solid var(--border); padding:7px 11px; text-align:left; vertical-align:top}
+  th{background:var(--bg-alt); font-weight:600; white-space:nowrap}
+  td code{white-space:nowrap}
+  .table-scroll{overflow-x:auto; max-width:100%}
+
+  .grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:12px; margin:18px 0}
+  .stat{border:1px solid var(--border); border-radius:8px; padding:12px 14px; background:var(--bg-alt)}
+  .stat .n{font-size:1.6rem; font-weight:700; line-height:1.2; font-variant-numeric:tabular-nums}
+  .stat .l{font-size:.8rem; color:var(--text-muted)}
+
+  .note{border-left:3px solid var(--accent); background:var(--accent-soft);
+    padding:12px 16px; border-radius:0 8px 8px 0; margin:16px 0; font-size:.9rem}
+  .note.warn{border-left-color:var(--warn); background:var(--warn-soft)}
+  .note.danger{border-left-color:var(--danger); background:var(--danger-soft)}
+  .note.ok{border-left-color:var(--ok); background:var(--ok-soft)}
+  .note p:first-child{margin-top:0} .note p:last-child{margin-bottom:0}
+  .note strong{font-weight:700}
+
+  .fig{margin:20px 0; border:1px solid var(--border); border-radius:10px;
+    background:var(--bg-alt); padding:8px 8px 4px}
+  .fig .mermaid{overflow-x:auto; text-align:center; background:transparent}
+  .fig figcaption{font-size:.8rem; color:var(--text-muted); padding:2px 10px 8px; text-align:left}
+
+  .pill{display:inline-block; font-size:.72rem; padding:1px 8px; border-radius:999px;
+    border:1px solid var(--border); background:var(--bg); color:var(--text-muted);
+    vertical-align:middle; white-space:nowrap}
+  .pill.core{border-color:var(--accent); color:var(--accent); background:var(--accent-soft)}
+  .pill.hub{border-color:var(--ok); color:var(--ok); background:var(--ok-soft)}
+
+  .toggle{position:fixed; top:12px; right:16px; z-index:20; background:var(--bg-alt);
+    border:1px solid var(--border); color:var(--text); border-radius:8px;
+    padding:6px 12px; cursor:pointer; font-size:.8rem; font-family:inherit}
+
+  @media (max-width:920px){
+    .wrap{display:block}
+    nav.toc{position:static; width:auto; height:auto; border-right:none;
+      border-bottom:1px solid var(--border); padding:20px 20px 24px}
+    main{padding:24px 20px 80px}
+  }
+</style>
+</head>
+<body>
+
+<button class="toggle" id="themeToggle" type="button">◐ 表示切替</button>
+
+<div class="wrap">
+<nav class="toc">
+  <div class="brand">KEM_DDENKI<small>開発者マップ / developer ブランチ</small></div>
+
+  <h2>まず全体</h2>
+  <a href="#overview">1. 30秒で掴む</a>
+  <a href="#infra">2. 動いている場所</a>
+  <a href="#request">3. リクエストが通る道</a>
+
+  <h2>中身</h2>
+  <a href="#modules">4. 19アプリの地図</a>
+  <a href="#data">5. データモデル</a>
+  <a href="#flow-main">6. 業務の本流</a>
+  <a href="#flow-material">7. 材料と原価</a>
+  <a href="#flow-import">8. 見積ファイル取込</a>
+
+  <h2>基盤</h2>
+  <a href="#tenant">9. マルチテナント</a>
+  <a href="#auth">10. ログインと権限</a>
+  <a href="#notify">11. 通知とAI</a>
+
+  <h2>開発</h2>
+  <a href="#deploy">12. push から反映まで</a>
+  <a href="#where">13. どこを触ると何が動くか</a>
+  <a href="#pitfalls">14. 踏んだ落とし穴</a>
+  <a href="#docs">15. 他の資料</a>
+</nav>
+
+<main>
+
+<h1>KEM_DDENKI 開発者マップ</h1>
+<p class="lede">
+  ケンモチ電機の業務管理システム（Django 5.2 / Python 3.12）の全体像を、図で1枚に収めたページです。
+  「何がどこにあり、どう繋がっていて、触ったら何が動くのか」を掴むことを目的にしています。
+</p>
+
+<!-- ===================================================================== -->
+<section id="overview">
+<h2>1. 30秒で掴む</h2>
+
+<p>
+  電気工事会社の業務を <strong>現場（Site）を軸に一本化</strong> した社内SaaSです。
+  入札で案件を取り、現場になり、日報が積み上がり、原価に落ちる ── この一本の流れが背骨で、
+  他のモジュールはすべてこの背骨のどこかに接続しています。
+</p>
+
+<div class="grid">
+  <div class="stat"><div class="n">19</div><div class="l">Django アプリ</div></div>
+  <div class="stat"><div class="n">82</div><div class="l">モデル</div></div>
+  <div class="stat"><div class="n">244</div><div class="l">ビュー関数</div></div>
+  <div class="stat"><div class="n">243</div><div class="l">URL パターン</div></div>
+  <div class="stat"><div class="n">158</div><div class="l">HTML テンプレート</div></div>
+  <div class="stat"><div class="n">281</div><div class="l">テスト</div></div>
+  <div class="stat"><div class="n">68</div><div class="l">マイグレーション</div></div>
+  <div class="stat"><div class="n">26,483</div><div class="l">Python 行数（migrations 除く）</div></div>
+</div>
+
+<div class="note warn">
+  <p><strong>README の「数値サマリ」は古いです。</strong>
+  そこには「15アプリ / 72テスト」と書かれていますが、実測は上のとおりです。
+  README を直すときはこのページも合わせて更新してください。</p>
+</div>
+
+<h3>設計の芯にある3つのルール</h3>
+<table>
+  <tr><th style="width:32%">ルール</th><th>なぜ</th></tr>
+  <tr>
+    <td><strong>ロジックは <code>services.py</code></strong></td>
+    <td>ビューは薄く保つ。将来 DRF → Next.js に移すとき、ビューを捨てても業務ロジックが残るように。</td>
+  </tr>
+  <tr>
+    <td><strong>業種名をコードに書かない</strong></td>
+    <td>「電気工事」を分岐条件にしない。業種差は <code>WorkType</code> マスタのデータで表現する。他社に売るときの分岐爆発を避けるため。</td>
+  </tr>
+  <tr>
+    <td><strong>金額は Decimal のみ</strong></td>
+    <td><code>float</code> 禁止。原価・予実は 工種 × 原価区分 の粒度を崩さない。</td>
+  </tr>
+</table>
+</section>
+
+<!-- ===================================================================== -->
+<section id="infra">
+<h2>2. 動いている場所</h2>
+
+<p>
+  1台のサーバーPC（ホスト名 <code>desktop-rmsk0vg</code>）の上で、
+  <strong>本番と開発の2スタックが並行して動いています</strong>。
+  外に出る口は Tailscale だけで、tailnet の中からしか到達できません。
+</p>
+
+<figure class="fig">
+<pre class="mermaid">
+flowchart TB
+  subgraph U["利用者"]
+    PC["PC ブラウザ"]
+    SP["スマホ ブラウザ"]
+    DC["Discord<br/>（開発管理の通知先）"]
+  end
+
+  TS["Tailscale serve<br/>HTTPS 終端・tailnet 内限定"]
+
+  subgraph SRV["サーバーPC desktop-rmsk0vg"]
+    direction LR
+    subgraph PROD["本番スタック（compose: saas）"]
+      PW["Django :8000"]
+      PD[("PostgreSQL :5432")]
+      PR[("Redis :6379")]
+      PW --- PD
+      PW --- PR
+    end
+    subgraph DEV["開発スタック（compose: kemdev）"]
+      DW["Django :8001"]
+      DD[("PostgreSQL :5433")]
+      DR[("Redis :6380")]
+      DW --- DD
+      DW --- DR
+    end
+    AD["autodeploy.sh<br/>2分おきポーリング"]
+    BK["毎日 12:30 バックアップ<br/>D:/backup/kem_ddenki"]
+  end
+
+  GH["GitHub<br/>mstk13/KEM_DDENKI"]
+
+  PC --> TS
+  SP --> TS
+  TS -->|"/"| PW
+  TS -->|":8443"| DW
+  DC -.-> DW
+
+  GH -->|"main"| AD
+  GH -->|"developer"| AD
+  AD --> PROD
+  AD --> DEV
+  PD --> BK
+</pre>
+<figcaption>本番は <code>main</code>、開発は <code>developer</code> がそれぞれ自動反映される。Cloudflare Tunnel の設定が残っているが未使用。</figcaption>
+</figure>
+
+<div class="table-scroll">
+<table>
+  <tr><th></th><th>本番</th><th>開発</th></tr>
+  <tr><th>フォルダ</th><td><code>projects\KEM_DDENKI</code></td><td><code>projects\KEM_DDENKI_dev</code></td></tr>
+  <tr><th>ブランチ</th><td><code>main</code></td><td><code>developer</code></td></tr>
+  <tr><th>Compose プロジェクト</th><td><code>saas</code></td><td><code>kemdev</code></td></tr>
+  <tr><th>Web / DB / Redis</th><td>8000 / 5432 / 6379</td><td>8001 / 5433 / 6380</td></tr>
+  <tr><th>URL</th><td><code>https://desktop-rmsk0vg.tail8efe0d.ts.net/</code></td><td>同ホスト <code>:8443/</code></td></tr>
+</table>
+</div>
+
+<div class="note danger">
+  <p><strong>編集は <code>projects\KEM_DDENKI_work</code> で行ってください。</strong>
+  上の2つは自動デプロイが2分おきに <code>git reset --hard</code> + <code>clean</code> する
+  <em>GitHub の鏡</em>です。そこで編集した内容は次のデプロイで消えます。</p>
+</div>
+
+<h3>今どのコミットが動いているか</h3>
+<p>
+  <code>/health/</code> が DB 到達性と稼働中のコミットを返します。push した変更が反映済みかはここで判断できます。
+</p>
+<pre><code>$ curl https://desktop-rmsk0vg.tail8efe0d.ts.net:8443/health/
+{"status": "ok", "commit": "edd17bd", "branch": "developer", "deployed_at": "2026-08-13 14:32:03"}</code></pre>
+<p style="font-size:.86rem;color:var(--text-muted)">
+  コンテナには <code>saas/</code> しかマウントされておらず <code>.git</code> を読めないため、
+  autodeploy が反映のたびに <code>deployed_version.txt</code> を書き出しています（<code>config/urls.py</code>）。
+</p>
+</section>
+
+<!-- ===================================================================== -->
+<section id="request">
+<h2>3. リクエストが通る道</h2>
+
+<p>
+  ログイン済みの利用者が画面を1枚開くまでに、必ず2つのミドルウェアを通ります。
+  <strong>ここを理解していないと「なぜ他社のデータが見えないのか」「なぜ404になるのか」が分かりません。</strong>
+</p>
+
+<figure class="fig">
+<pre class="mermaid">
+sequenceDiagram
+  autonumber
+  participant B as ブラウザ
+  participant TM as TenantMiddleware
+  participant AM as AppPermissionMiddleware
+  participant V as ビュー
+  participant M as モデル層<br/>CompanyScopedManager
+  participant DB as PostgreSQL
+
+  B->>TM: GET /sites/12/
+  TM->>TM: request.user.company を<br/>contextvar にセット
+  TM->>AM: 次へ
+  AM->>AM: パス /sites/ → app_code "sites"
+  alt 管理者（superuser / 社員番号 Y始まり）
+    AM->>V: 素通り
+  else 権限が無い
+    AM-->>B: 403 / 404
+  else 許可あり
+    AM->>V: 次へ
+  end
+  V->>M: Site.objects.get(pk=12)
+  M->>M: contextvar の company で<br/>自動的に WHERE company_id=? を追加
+  M->>DB: SELECT ... WHERE company_id=?
+  DB-->>V: 自社のデータだけ
+  V-->>B: HTML
+  Note over TM: finally で contextvar を必ず reset<br/>（スレッド使い回しでの漏れ防止）
+</pre>
+<figcaption>テナント分離は「ビューが気をつける」のではなく、マネージャ層で機械的に効く。</figcaption>
+</figure>
+
+<h3>覚えておく2つのマネージャ</h3>
+<table>
+  <tr><th style="width:26%">呼び方</th><th>ふるまい</th><th>使いどころ</th></tr>
+  <tr>
+    <td><code>Model.objects</code></td>
+    <td>contextvar の company で自動フィルタ</td>
+    <td><strong>原則こちら。</strong>画面から来る処理はすべて</td>
+  </tr>
+  <tr>
+    <td><code>Model.unscoped</code></td>
+    <td>フィルタしない（全テナント）</td>
+    <td>テナントコンテキスト未設定の経路、バッチ、越境集計。<strong>使うなら <code>company=</code> を明示し、理由をコメントに書く</strong></td>
+  </tr>
+</table>
+
+<div class="note">
+  <p>ミドルウェアの免除パス: <code>/</code>, <code>/admin/</code>, <code>/login/</code>, <code>/logout/</code>,
+  <code>/health/</code>, <code>/static/</code>, <code>/media/</code>
+  （<code>apps/core/middleware.py</code>）。</p>
+</div>
+</section>
+
+<!-- ===================================================================== -->
+<section id="modules">
+<h2>4. 19アプリの地図</h2>
+
+<p>
+  <code>saas/apps/</code> 以下に19個。<span class="pill core">基盤</span> は他が乗る土台、
+  <span class="pill hub">ハブ</span> は業務データの合流点です。
+</p>
+
+<figure class="fig">
+<pre class="mermaid">
+flowchart LR
+  subgraph BASE["基盤（業務ロジックを持たない）"]
+    core["core<br/>TenantModel / 管理層 / MW"]
+    tenants["tenants<br/>Company / CompanyApp"]
+    accounts["accounts<br/>User / Department"]
+    permissions["permissions<br/>Role / ModulePermission"]
+    masters["masters<br/>工種 / 原価区分 / 得意先 / 仕入先"]
+  end
+
+  subgraph CORE["業務の背骨"]
+    bids["bids<br/>入札案件"]
+    estimation["estimation<br/>積算・内訳書"]
+    sites["sites<br/>現場・工程"]
+    reports["reports<br/>日報・KY"]
+    costs["costs<br/>予算・原価"]
+  end
+
+  subgraph AROUND["現場にぶら下がるもの"]
+    materials["materials<br/>材料・発注・在庫"]
+    schedules["schedules<br/>工期・ガント"]
+    workers["workers<br/>作業員・資格"]
+    attendance["attendance<br/>勤怠"]
+    evaluation["evaluation<br/>人材評価"]
+  end
+
+  subgraph SUPPORT["横断・支援"]
+    notifications["notifications<br/>通知・アラート"]
+    ai["ai<br/>LLM / 予測"]
+    sales["sales<br/>営業来訪"]
+    devkanri["devkanri<br/>開発カンバン"]
+  end
+
+  core --> tenants
+  core --> sites
+  masters --> sites
+  masters --> costs
+  masters --> materials
+
+  bids -->|"落札で自動作成"| sites
+  estimation -.->|"積算値の参照"| sites
+  sites --> reports
+  sites --> schedules
+  sites --> materials
+  reports -->|"承認で仕訳"| costs
+  materials -->|"検収で仕訳"| costs
+  workers --> reports
+  workers --> attendance
+  workers --> evaluation
+
+  costs --> notifications
+  schedules --> notifications
+  workers --> notifications
+  bids --> notifications
+  sites --> ai
+  costs --> ai
+</pre>
+<figcaption>実線は実データが流れる向き。<code>bids → sites</code> と <code>reports/materials → costs</code> の3本が業務上いちばん重要な結線。</figcaption>
+</figure>
+
+<div class="table-scroll">
+<table>
+  <tr><th>アプリ</th><th>URL</th><th>主なモデル</th><th>役割</th></tr>
+  <tr><td><code>core</code> <span class="pill core">基盤</span></td><td>—</td><td>TenantModel, TimeStampedModel</td><td>テナント分離・監査フィールド・ミドルウェア・ダッシュボード</td></tr>
+  <tr><td><code>tenants</code> <span class="pill core">基盤</span></td><td>—</td><td>Company, CompanyApp</td><td>会社と有効アプリ（機能アクセスと課金判定の単一情報源）</td></tr>
+  <tr><td><code>accounts</code> <span class="pill core">基盤</span></td><td><code>/login/</code></td><td>Department</td><td>社員番号ログイン・カスタム User</td></tr>
+  <tr><td><code>permissions</code> <span class="pill core">基盤</span></td><td><code>/settings/permissions/</code></td><td>Role, ModulePermission, UserRole</td><td>ロール × モジュールの R/W/A マトリクス</td></tr>
+  <tr><td><code>masters</code> <span class="pill core">基盤</span></td><td><code>/masters/</code></td><td>WorkType, CostCategory, Customer, Supplier, BusinessCard, WorkStandard</td><td>全社マスタ。業種差はここのデータで吸収する</td></tr>
+  <tr><td><code>sites</code> <span class="pill hub">ハブ</span></td><td><code>/sites/</code></td><td>Site, Process, EstimateImport</td><td><strong>全業務データの起点。</strong>案件＝現場を1:1で扱う</td></tr>
+  <tr><td><code>reports</code> <span class="pill hub">ハブ</span></td><td><code>/reports/</code></td><td>DailyReport, DailyReportMaterial, SafetyTemplate, SafetyRecord</td><td>日報（管理/事務/電工/IT の4種別）・KY記入チェック</td></tr>
+  <tr><td><code>costs</code> <span class="pill hub">ハブ</span></td><td><code>/costs/</code></td><td>BudgetItem, CostTransaction, CostAccessGrant</td><td>予実。工種 × 原価区分 の粒度で持つ</td></tr>
+  <tr><td><code>bids</code></td><td><code>/bids/</code></td><td>BidProject, BidCost, BidCompetitor, ScrapeTarget, Qualification, UnitPrice</td><td>入札案件の取得（スクレイピング）〜落札→現場自動作成</td></tr>
+  <tr><td><code>estimation</code></td><td><code>/estimation/</code></td><td>Orderer, WageFloor, EstimationProject, BoqLine, CostComparison</td><td>積算。労務単価取込・内訳書 Excel 出力・差分分析</td></tr>
+  <tr><td><code>materials</code></td><td><code>/materials/</code></td><td>Material, Quotation, PurchaseOrder, Delivery, Inventory, MaterialSupplier, ProcurementRecord</td><td>見積比較 → 発注 → 納品検収 → 在庫。PDF 生成あり</td></tr>
+  <tr><td><code>schedules</code></td><td><code>/schedules/</code></td><td>Phase, Milestone, Assignment, PhaseTemplate</td><td>ガントチャート・配置カレンダー・工程テンプレート</td></tr>
+  <tr><td><code>workers</code></td><td><code>/workers/</code></td><td>Worker, JobTitle, Position, WorkerQualification, HealthCheckup</td><td>作業員・資格期限（5段階アラート）・スキルマップ・健康診断</td></tr>
+  <tr><td><code>attendance</code></td><td><code>/attendance/</code></td><td>AttendReport, AttendEntry, AttendSettings</td><td>勤怠集計</td></tr>
+  <tr><td><code>evaluation</code></td><td><code>/evaluation/</code></td><td>EvalItem, Evaluation, EvalScore, EvalOverall</td><td>人材評価（評価項目・アンケート・総合評価）</td></tr>
+  <tr><td><code>notifications</code></td><td><code>/notifications/</code></td><td>Notification, AlertRule, AlertLog</td><td>全モジュール共通の通知センターとアラート判定</td></tr>
+  <tr><td><code>ai</code></td><td><code>/ai/</code></td><td>AILog, AIBatchRequest, AIFeedback</td><td>Claude によるコスト分析・工程提案、LightGBM 予測</td></tr>
+  <tr><td><code>sales</code></td><td><code>/sales/</code></td><td>SalesVisit</td><td>営業来訪記録</td></tr>
+  <tr><td><code>devkanri</code></td><td><code>/dev/</code></td><td>DevProject, DevTask, DevComment, Meyasubako</td><td>開発カンバン・Discord webhook 通知</td></tr>
+</table>
+</div>
+</section>
+
+<!-- ===================================================================== -->
+<section id="data">
+<h2>5. データモデル</h2>
+
+<p>
+  82モデルすべては載せません。<strong>Site を中心にした主要な結線</strong>だけを示します。
+  全テーブルが <code>company_id</code> を持ち、ほぼ全モデルに django-simple-history の履歴テーブルが付きます。
+</p>
+
+<figure class="fig">
+<pre class="mermaid">
+erDiagram
+  Company ||--o{ CompanyApp : "有効アプリ"
+  Company ||--o{ Site : ""
+  Company ||--o{ Worker : ""
+
+  Customer ||--o{ Site : "得意先"
+  BidProject ||--o| Site : "落札で自動作成"
+
+  Site ||--o{ Process : "工程"
+  Site ||--o{ EstimateImport : "見積取込履歴"
+  Site ||--o{ DailyReport : "日報"
+  Site ||--o{ BudgetItem : "予算"
+  Site ||--o{ CostTransaction : "原価"
+  Site ||--o{ PurchaseOrder : "発注"
+  Site ||--o{ Quotation : "見積"
+  Site ||--o{ Phase : "工期"
+  Site ||--o{ Assignment : "配置"
+
+  Worker ||--o{ DailyReport : "作業員"
+  Worker ||--o{ WorkerQualification : "資格"
+  Worker ||--o{ Assignment : ""
+
+  DailyReport ||--o{ DailyReportMaterial : "使用材料"
+  DailyReport ||--o| CostTransaction : "承認で労務費"
+
+  PurchaseOrder ||--o{ PurchaseOrderItem : "明細"
+  PurchaseOrderItem ||--o| CostTransaction : "検収で材料費"
+  PurchaseOrder ||--o{ Delivery : "納品"
+
+  WorkType ||--o{ CostTransaction : "工種"
+  CostCategory ||--o{ CostTransaction : "原価区分"
+  WorkType ||--o{ BudgetItem : ""
+  CostCategory ||--o{ BudgetItem : ""
+
+  Supplier ||--o{ PurchaseOrder : "仕入先"
+  Material ||--o{ PurchaseOrderItem : ""
+</pre>
+<figcaption>予算（BudgetItem）と実績（CostTransaction）が同じ 工種 × 原価区分 の軸を持つことで、予実比較が成立している。</figcaption>
+</figure>
+
+<div class="note">
+  <p><strong>新しいモデルを足すときの決まり</strong>：<code>TenantModel</code> を継承し、
+  <code>HistoricalRecords()</code> を付け、admin 登録・テナント越境テスト・マイグレーションを
+  <em>同じ PR</em> に入れる。</p>
+</div>
+</section>
+
+<!-- ===================================================================== -->
+<section id="flow-main">
+<h2>6. 業務の本流</h2>
+
+<p>
+  入札で取った案件が、現場になり、日報が積み上がり、原価に落ちるまで。
+  <strong>この図がこのシステムの背骨です。</strong>
+</p>
+
+<figure class="fig">
+<pre class="mermaid">
+flowchart TB
+  S1["入札案件を取得<br/><small>スクレイピング or 手入力</small>"]
+  S2{"落札した?"}
+  S3["BidProject.status = WON"]
+  S4["<b>現場 Site を自動作成</b><br/>code=BID-＜pk＞ / status=受注済"]
+  S5["全社員へ通知"]
+  S6["見積ファイルを取り込んで<br/>金額・工期・施工場所を埋める"]
+  S7["工程 Process / 工期 Phase を組む"]
+  S8["作業員を配置 Assignment"]
+  S9["日報 DailyReport を書く<br/><small>下書き → 提出済</small>"]
+  S10{"承認?"}
+  S11["status=承認済<br/><b>労務費 CostTransaction を自動生成</b>"]
+  S12["予算 BudgetItem と突き合わせ<br/>消化率を計算"]
+  S13["75/80/90/100% で<br/>原価アラート"]
+
+  S1 --> S2
+  S2 -->|"No"| SX["status = LOST"]
+  S2 -->|"Yes"| S3 --> S4 --> S5
+  S4 --> S6 --> S7 --> S8 --> S9 --> S10
+  S10 -->|"差戻し"| S9
+  S10 -->|"承認"| S11 --> S12 --> S13
+</pre>
+<figcaption><code>bids/services.py: mark_as_won</code> → <code>create_site_from_won_bid</code> → <code>reports/services.py: approve_report</code> → <code>costs/services.py: create_labor_cost_from_report</code></figcaption>
+</figure>
+
+<h3>日報の承認が原価を作る</h3>
+<p>
+  ここが「入力が会計に変わる」唯一の瞬間なので、触るときは慎重に。
+</p>
+<pre><code># apps/reports/services.py
+def approve_report(report, approved_by):
+    """日報を承認し、労務費を計上する。"""
+    report.status = DailyReport.Status.APPROVED
+    report.approved_by = approved_by
+    report.approved_at = timezone.now()
+    report.save()
+    create_labor_cost_from_report(report)   # ← CostTransaction が生まれる
+    return report</code></pre>
+
+<div class="note warn">
+  <p>原価データの訂正は <strong>行を消さず <code>create_reversal()</code> で逆仕訳を立てます</strong>
+  （<code>CostTransaction.SourceType.REVERSAL</code>）。監査証跡を壊さないためです。</p>
+</div>
+
+<h3>日報は4種別ある</h3>
+<table>
+  <tr><th>種別</th><th>誰が書くか</th></tr>
+  <tr><td><code>electrician</code> 電工</td><td>現場作業員。既定値</td></tr>
+  <tr><td><code>management</code> 管理</td><td>現場管理</td></tr>
+  <tr><td><code>office</code> 事務</td><td>社員番号 G/S/A/P の人。1枚に複数現場を書ける</td></tr>
+  <tr><td><code>it</code> IT</td><td>開発担当</td></tr>
+</table>
+</section>
+
+<!-- ===================================================================== -->
+<section id="flow-material">
+<h2>7. 材料と原価</h2>
+
+<p>材料はもう一本の原価の入口です。労務費と違い、<strong>検収の瞬間</strong>に仕訳が立ちます。</p>
+
+<figure class="fig">
+<pre class="mermaid">
+flowchart LR
+  M1["仕入先へ見積依頼<br/>Quotation"]
+  M2["見積比較<br/><small>compare_quotations</small>"]
+  M3["発注 PurchaseOrder<br/>+ 明細 PurchaseOrderItem"]
+  M4["発注書 PDF 生成"]
+  M5["納品 Delivery"]
+  M6["<b>検収 inspect_delivery</b>"]
+  M7["材料費 CostTransaction"]
+  M8["在庫 Inventory 更新"]
+  M9["調達実績 ProcurementRecord"]
+  M10["日報に使用材料を記録<br/>DailyReportMaterial"]
+
+  M1 --> M2 --> M3 --> M4
+  M3 --> M5 --> M6
+  M6 --> M7
+  M6 --> M8
+  M6 --> M9
+  M8 -.-> M10
+</pre>
+<figcaption><code>materials/services.py: inspect_delivery</code> が検収の入口。<code>extract_delivery_items_from_image</code> で納品書画像からの読み取りもある。</figcaption>
+</figure>
+
+<h3>原価の発生源は5種類</h3>
+<table>
+  <tr><th><code>CostTransaction.SourceType</code></th><th>どこから来るか</th></tr>
+  <tr><td><code>daily_report</code> 日報（労務費）</td><td>日報の承認</td></tr>
+  <tr><td><code>po_item</code> 発注明細（材料費）</td><td>納品の検収</td></tr>
+  <tr><td><code>outsourcing</code> 外注</td><td>手入力</td></tr>
+  <tr><td><code>expense</code> 経費</td><td>手入力</td></tr>
+  <tr><td><code>reversal</code> 逆仕訳</td><td>訂正時に自動生成</td></tr>
+</table>
+</section>
+
+<!-- ===================================================================== -->
+<section id="flow-import">
+<h2>8. 見積ファイル取込</h2>
+
+<p>
+  ライデン（積算ソフト）が書き出す Excel / CSV、または見積書 PDF から現場の数値を起こす経路です。
+  <strong>入口は2つあり、目的が違います。</strong>
+</p>
+
+<figure class="fig">
+<pre class="mermaid">
+flowchart TB
+  F["見積ファイル<br/>.xlsx / .xlsm / .csv / .pdf"]
+  P["parse_estimate_file<br/><small>apps/sites/importer.py</small>"]
+
+  subgraph A["入口1: 現場を新しく作る"]
+    A1["/sites/import/"]
+    A2["確認画面で全項目を編集"]
+    A3["Site を新規作成"]
+  end
+
+  subgraph B["入口2: 既にある現場に入れる"]
+    B1["/sites/＜pk＞/estimate-import/"]
+    B2["項目ごとに 現在値 vs ファイル値 を並べる"]
+    B3["チェックした項目だけ反映"]
+  end
+
+  H["EstimateImport<br/>取込履歴"]
+
+  F --> P
+  P --> A1 --> A2 --> A3 --> H
+  P --> B1 --> B2 --> B3 --> H
+  W["落札で自動作成された現場<br/>（金額・工期が空）"] -.->|"ここを埋める"| B1
+</pre>
+<figcaption>入口2は 2026-08-13 追加。落札→自動作成された現場に後から数値を入れるための経路。</figcaption>
+</figure>
+
+<h3>読み取りの方針</h3>
+<table>
+  <tr><th style="width:34%">方針</th><th>理由</th></tr>
+  <tr><td>列位置ではなく<strong>ラベル名</strong>で探す</td><td>ライデンの版や書き出し方で列の並びが変わるため</td></tr>
+  <tr><td>読めなければ <code>None</code> のまま返す</td><td>推測で埋めるより空欄のほうが安全。確認画面で人が入れる</td></tr>
+  <tr><td>値は 同セル → 右 → 下 の順に探す</td><td>「見積番号：12345」も「ラベル / 値が隣接」も「見出しの下」も実在するため</td></tr>
+  <tr><td>Excel は全シートを見る</td><td>表紙に見出し・別シートに明細、という作りが多い</td></tr>
+  <tr><td>得意先は<strong>自動作成しない</strong></td><td>表記ゆれで重複マスタが増えるほうが後で困る。引き当てられなければ人に選ばせる</td></tr>
+  <tr><td>既存現場への反映は<strong>既定で空欄だけ</strong></td><td>現場担当が直した値を取り込みで黙って上書きしないため。備考は置き換えず追記</td></tr>
+</table>
+
+<div class="note">
+  <p><code>.xls</code>（旧形式）は openpyxl が読めないため、拡張子の時点で
+  「<code>.xlsx</code> で保存し直してください」と案内して弾いています。</p>
+</div>
+</section>
+
+<!-- ===================================================================== -->
+<section id="tenant">
+<h2>9. マルチテナント</h2>
+
+<p>会社単位でデータを分ける仕組みは4層に分かれています。</p>
+
+<figure class="fig">
+<pre class="mermaid">
+flowchart TB
+  L1["<b>1. モデル層</b><br/>TenantModel を継承すると company FK が付く"]
+  L2["<b>2. マネージャ層</b><br/>CompanyScopedManager が WHERE company_id=? を自動付与"]
+  L3["<b>3. ミドルウェア層</b><br/>TenantMiddleware がリクエストごとに contextvar をセット"]
+  L4["<b>4. 機能層</b><br/>CompanyApp / @app_required で有効アプリを判定"]
+  T["テナント越境テスト<br/><small>tests/test_tenant_isolation.py</small>"]
+
+  L1 --> L2 --> L3 --> L4
+  T -.->|"各層を検証"| L1
+  T -.-> L2
+  T -.-> L4
+</pre>
+<figcaption>1〜3で「見えない」を担保し、4で「そもそも機能を売っていない会社に出さない」を担保する。</figcaption>
+</figure>
+
+<h3>有効アプリ（課金と機能の単一情報源）</h3>
+<p><code>CompanyApp.APP_CODES</code> は6つ。ここが <code>is_enabled=False</code> なら
+<code>@app_required</code> が 404 を返します。</p>
+<table>
+  <tr><th>コード</th><th>名前</th></tr>
+  <tr><td><code>jinzai</code></td><td>人材管理</td></tr>
+  <tr><td><code>hyoka</code></td><td>人材評価</td></tr>
+  <tr><td><code>koutei</code></td><td>工期・工程管理</td></tr>
+  <tr><td><code>zairyo</code></td><td>材料管理</td></tr>
+  <tr><td><code>nippou</code></td><td>日報管理</td></tr>
+  <tr><td><code>genka</code></td><td>原価・予実管理</td></tr>
+</table>
+<p style="font-size:.86rem;color:var(--text-muted)">
+  <code>CompanyApp</code> 自体はテナント横断で参照するため、例外的に <code>objects</code> も
+  <code>UnscopedManager</code> になっています。
+</p>
+</section>
+
+<!-- ===================================================================== -->
+<section id="auth">
+<h2>10. ログインと権限</h2>
+
+<div class="note danger">
+  <p><strong>Django 標準のログインではありません。社員番号ベースです。</strong>
+  superuser を作っただけでは画面にログインできません（Worker レコードが要ります）。
+  テナントは <code>KEMMOCHI_DENKI</code>。</p>
+</div>
+
+<figure class="fig">
+<pre class="mermaid">
+flowchart TB
+  I["社員番号を入力"]
+  W{"Worker が<br/>存在する?"}
+  E1["「この社員番号は登録されていません」"]
+  P{"Position が<br/>社長?"}
+  A1["管理者パスワード<br/><small>settings.PRESIDENT_PIN</small>"]
+  S{"暗証番号<br/>設定済み?"}
+  A2["4桁の暗証番号"]
+  A3["社員番号のみでログイン<br/>→ 暗証番号の設定画面へ"]
+  OK["User を取得/作成<br/>company を contextvar にセット<br/>→ ダッシュボード"]
+
+  I --> W
+  W -->|"No"| E1
+  W -->|"Yes"| P
+  P -->|"Yes"| A1 --> OK
+  P -->|"No"| S
+  S -->|"Yes"| A2 --> OK
+  S -->|"No（初回）"| A3 --> OK
+</pre>
+<figcaption><code>apps/accounts/views.py: employee_login</code></figcaption>
+</figure>
+
+<h3>権限は2系統ある</h3>
+<table>
+  <tr><th style="width:30%">系統</th><th>効き方</th><th>実装</th></tr>
+  <tr>
+    <td><strong>アプリ権限</strong><br/>（URL単位）</td>
+    <td>作業員ごとに触れるモジュールを制限。<code>allowed_apps</code> が空なら制限なし</td>
+    <td><code>AppPermissionMiddleware</code></td>
+  </tr>
+  <tr>
+    <td><strong>ロール権限</strong><br/>（機能単位）</td>
+    <td>ロール × モジュールで R/W/A。原価は別途 <code>CostAccessGrant</code> で個別付与</td>
+    <td><code>permissions/services.py</code></td>
+  </tr>
+</table>
+<p style="font-size:.86rem;color:var(--text-muted)">
+  管理者の抜け道: <code>is_superuser</code>、または社員番号が <code>Y</code> で始まる Worker は
+  アプリ権限チェックを素通りします。
+</p>
+</section>
+
+<!-- ===================================================================== -->
+<section id="notify">
+<h2>11. 通知とAI</h2>
+
+<h3>通知は1か所に集約されている</h3>
+<p>
+  各モジュールは自前で通知せず、<code>notifications/services.py</code> の
+  <code>notify()</code> / <code>notify_multiple()</code> を呼びます。
+  重複送信は <code>AlertLog</code> で抑止されます。
+</p>
+<table>
+  <tr><th>アラート判定</th><th>内容</th></tr>
+  <tr><td><code>check_cost_alerts</code></td><td>予算消化率 75 / 80 / 90 / 100%</td></tr>
+  <tr><td><code>check_qualification_expiry_alerts</code></td><td>資格の期限切れ（5段階）</td></tr>
+  <tr><td><code>check_schedule_delay_alerts</code></td><td>工期の遅延</td></tr>
+  <tr><td><code>check_bid_deadline_alerts</code></td><td>入札の締切</td></tr>
+  <tr><td><code>check_certificate_missing_alerts</code></td><td>証明書の未提出</td></tr>
+  <tr><td><code>check_health_report_missing_alerts</code><br/><code>check_health_checkup_due_alerts</code></td><td>健康診断の未報告 / 受診期限</td></tr>
+</table>
+<p style="font-size:.86rem;color:var(--text-muted)">
+  開発管理（<code>devkanri</code>）だけは別系統で、Discord webhook にも飛ばします。
+</p>
+
+<h3>AI</h3>
+<table>
+  <tr><th>用途</th><th>実装</th></tr>
+  <tr><td>コスト分析・工程提案</td><td><code>ai/services/llm_advisor.py</code>（Anthropic Claude）</td></tr>
+  <tr><td>原価予測</td><td><code>ai/services/ml_predictor.py</code>（LightGBM）</td></tr>
+  <tr><td>コスト監視 / バッチ</td><td><code>cost_monitor.py</code>, <code>batch_handler.py</code></td></tr>
+  <tr><td>呼び出しログ</td><td><code>AILog</code> にモデル・バージョン・結果を残す。<code>AIFeedback</code> で人の評価も貯める</td></tr>
+</table>
+<p style="font-size:.86rem;color:var(--text-muted)">
+  現場詳細の「AIコスト分析」「AI工程提案」ボタンから入ります。
+</p>
+</section>
+
+<!-- ===================================================================== -->
+<section id="deploy">
+<h2>12. push から反映まで</h2>
+
+<figure class="fig">
+<pre class="mermaid">
+sequenceDiagram
+  autonumber
+  participant D as 開発者<br/>KEM_DDENKI_work
+  participant G as GitHub
+  participant A as autodeploy.sh<br/>（2分おき）
+  participant S as サーバーの鏡<br/>KEM_DDENKI_dev
+  participant C as Docker Compose
+
+  D->>D: 編集 → テスト → コミット
+  D->>G: git push origin developer
+  A->>G: git fetch（タイムアウト120秒）
+  alt 新しいコミットがある
+    A->>S: git reset --hard + clean
+    Note over S: ローカルの変更は破棄される
+    A->>S: deployed_version.txt を書き出す
+    A->>C: build → up -d → migrate
+    A->>C: /health/ を最大25回×6秒 確認
+    C-->>A: status ok と稼働コミットを返す
+  else 更新なし
+    A->>A: 無出力で終了
+  end
+</pre>
+<figcaption>Webhook ではなくポーリング方式。GitHub からサーバーへの到達性が不要なので、NAT の内側でそのまま動く。</figcaption>
+</figure>
+
+<div class="note warn">
+  <p><strong>autodeploy の実体は <code>~/kem-ops/autodeploy.sh</code>（リポジトリ外）です。</strong>
+  正はリポジトリの <code>tools/autodeploy/autodeploy.sh</code> で、実行のたびに常設コピーへ同期されます。
+  リポジトリ内を直接叩く構成にすると、巻き戻し時にスクリプトごと消えて停止します（実際に起きました）。</p>
+  <p>設定 <code>~/kem-ops/autodeploy.conf</code> / ログ <code>~/kem-ops/autodeploy.log</code>。</p>
+</div>
+
+<h3>テストの回し方</h3>
+<div class="note danger">
+  <p><strong>web コンテナに pytest と ruff は入っていません。</strong>
+  <code>docker compose exec web python -m pytest</code> は <code>No module named pytest</code> になります
+  （Dockerfile は本体依存しか入れず、両者は <code>pyproject.toml</code> の dev extras にあるため）。
+  使い捨てコンテナで回してください。</p>
+</div>
+<pre><code># PowerShell から（Git Bash だとパスが C:/Program Files/Git/app に化けて失敗します）
+docker run --rm --entrypoint sh `
+  -v "${env:USERPROFILE}\projects\KEM_DDENKI_work\saas:/app" -w /app `
+  -e USE_SQLITE=true -e PYTHONDONTWRITEBYTECODE=1 kemdev-web `
+  -c "pip install -q pytest pytest-django ruff; ruff check .; \
+      python manage.py collectstatic --noinput >/dev/null; \
+      python -m pytest tests/ -q"</code></pre>
+<ul style="font-size:.9rem">
+  <li><code>--entrypoint sh</code> は必須。付けないと <code>entrypoint.sh</code> が migrate と collectstatic を流してサーバーを起動してしまい、テストまで進みません。</li>
+  <li><code>collectstatic</code> を先に流さないと「Missing staticfiles manifest entry」でテンプレート描画テストが落ちます。</li>
+  <li>全体で約2分。</li>
+  <li>同じ形で <code>KEM_DDENKI_dev\saas</code> をマウントすると<strong>素の <code>origin/developer</code></strong> を検証できます。自分の変更が原因か上流由来かの切り分けに使えます。</li>
+</ul>
+
+<h3>ブランチ運用</h3>
+<table>
+  <tr><th>ブランチ</th><th>扱い</th></tr>
+  <tr><td><code>developer</code></td><td>開発の合流先。複数人が同時に push する。開発環境へ自動反映</td></tr>
+  <tr><td><code>main</code></td><td><strong>直接コミット禁止。</strong>PR + CI green + レビュー1名。本番へ自動反映</td></tr>
+</table>
+</section>
+
+<!-- ===================================================================== -->
+<section id="where">
+<h2>13. どこを触ると何が動くか</h2>
+
+<p>「この機能を直したい」から入るための早見表です。</p>
+
+<div class="table-scroll">
+<table>
+  <tr><th style="width:30%">やりたいこと</th><th>見る場所</th></tr>
+  <tr><td>画面の見た目を変える</td><td><code>saas/templates/&lt;app&gt;/*.html</code>（共通は <code>base.html</code>）</td></tr>
+  <tr><td>業務ルールを変える</td><td><code>saas/apps/&lt;app&gt;/services.py</code>。<strong>ビューには書かない</strong></td></tr>
+  <tr><td>入力項目を増やす</td><td><code>models.py</code> → <code>makemigrations</code> → <code>forms.py</code> → テンプレート</td></tr>
+  <tr><td>URL を足す</td><td><code>apps/&lt;app&gt;/urls.py</code>（ルートは <code>config/urls.py</code>）</td></tr>
+  <tr><td>ナビゲーションに出す</td><td><code>templates/base.html</code></td></tr>
+  <tr><td>原価の計上ルール</td><td><code>apps/costs/services.py</code></td></tr>
+  <tr><td>日報の承認</td><td><code>apps/reports/services.py: approve_report</code></td></tr>
+  <tr><td>落札から現場を作る内容</td><td><code>apps/bids/services.py: create_site_from_won_bid</code></td></tr>
+  <tr><td>見積ファイルの読み取り項目を足す</td><td><code>apps/sites/importer.py</code> の <code>LABELS</code> にラベル表記を追加</td></tr>
+  <tr><td>通知を足す</td><td><code>apps/notifications/services.py</code> の <code>notify_multiple()</code> を呼ぶ</td></tr>
+  <tr><td>権限を変える</td><td><code>apps/permissions/services.py</code> と <code>apps/core/middleware.py</code></td></tr>
+  <tr><td>入札サイトを増やす</td><td><code>apps/bids/scrapers/</code> にモジュールを足してレジストリに登録</td></tr>
+  <tr><td>テストを足す</td><td><code>saas/tests/test_&lt;領域&gt;.py</code>。<strong>越境テストは必須</strong></td></tr>
+</table>
+</div>
+</section>
+
+<!-- ===================================================================== -->
+<section id="pitfalls">
+<h2>14. 踏んだ落とし穴</h2>
+
+<p>すべて実際に起きたものです。同じ穴を掘り直さないために。</p>
+
+<table>
+  <tr><th style="width:34%">症状</th><th>原因と対処</th></tr>
+  <tr>
+    <td>編集した内容が消える</td>
+    <td><code>KEM_DDENKI</code> / <code>KEM_DDENKI_dev</code> で編集した。自動デプロイが2分おきに <code>reset --hard</code> する。<strong><code>_work</code> で編集する</strong></td>
+  </tr>
+  <tr>
+    <td>superuser を作ったのにログインできない</td>
+    <td>ログインは社員番号ベース。Worker レコードが要る</td>
+  </tr>
+  <tr>
+    <td>自動デプロイが止まった</td>
+    <td>リポジトリ内のスクリプトを直接叩く構成にして、巻き戻しでスクリプトごと消えた。常設コピー <code>~/kem-ops/</code> から動かす</td>
+  </tr>
+  <tr>
+    <td>自動デプロイが長時間ロックを保持</td>
+    <td>GitHub トークン失効で <code>git fetch</code> が入力待ちに。現在は待たずに失敗させて WARN を出す（2026-08-10 に38分ロックした）</td>
+  </tr>
+  <tr>
+    <td><code>No module named pytest</code></td>
+    <td>ランタイムイメージに dev 依存は入っていない。使い捨てコンテナで入れて回す</td>
+  </tr>
+  <tr>
+    <td>「Missing staticfiles manifest entry」でテストが落ちる</td>
+    <td><code>collectstatic</code> を先に流していない</td>
+  </tr>
+  <tr>
+    <td>自動生成コミットが壊れている</td>
+    <td>モデルを変えてマイグレーションを同梱し忘れている。<code>makemigrations --check --dry-run</code> を必ず流す</td>
+  </tr>
+  <tr>
+    <td>Windows でコンテナが起動しない</td>
+    <td>改行コードが CRLF。<code>entrypoint.sh</code> を Linux が実行できない。LF に固定する</td>
+  </tr>
+  <tr>
+    <td>Bash から <code>docker run -v "$PWD/..."</code> が失敗</td>
+    <td>Git Bash がパスを <code>C:/Program Files/Git/app</code> に変換する。<strong>PowerShell から実行する</strong></td>
+  </tr>
+  <tr>
+    <td>Docker のイメージ・ボリュームが消えた</td>
+    <td>2026-08-08 に発生（pgdata 消失・バックアップ無し）。以後は毎日 12:30 に <code>D:\backup\kem_ddenki\</code> へ自動バックアップ</td>
+  </tr>
+</table>
+
+<h3>不具合調査の順番</h3>
+<pre><code>docker compose logs web
+  → ~/kem-ops/autodeploy.log
+    → django_migrations テーブル
+      → Worker / Position</code></pre>
+</section>
+
+<!-- ===================================================================== -->
+<section id="docs">
+<h2>15. 他の資料</h2>
+
+<table>
+  <tr><th>資料</th><th>内容</th></tr>
+  <tr><td><code>README.md</code></td><td>利用者向けのアクセス方法 + 開発者向けクイックスタート</td></tr>
+  <tr><td><code>docs/developer_guide.md</code></td><td>編集 → 確認 → 承認 → 本番反映の1枚まとめ</td></tr>
+  <tr><td><code>docs/server_operations.md</code></td><td>サーバーPCの運用（自動起動・自動デプロイ・バックアップ）</td></tr>
+  <tr><td><code>docs/design/設計判断の根拠書.md</code></td><td><strong>初参加者はまずこれ。</strong>「なぜそう作ったか」</td></tr>
+  <tr><td><code>docs/design/DB設計書.md</code></td><td>テーブル定義・ER図・インデックス</td></tr>
+  <tr><td><code>docs/design/画面設計書.md</code></td><td>ワイヤーフレームと画面遷移</td></tr>
+  <tr><td><code>docs/git_workflow.md</code></td><td>ブランチ戦略</td></tr>
+  <tr><td><code>saas/CLAUDE.md</code></td><td>実装時の開発規律（絶対ルール9項目）</td></tr>
+  <tr><td><code>docs/saas/adr/</code></td><td>設計判断の記録。判断したら1ファイル足す</td></tr>
+</table>
+
+<div class="note">
+  <p>このページは <code>index.html</code> としてリポジトリ直下に置いてあります。
+  コードを変えたらここも直してください ── <strong>特に「19アプリの地図」と「数値サマリ」は、
+  アプリやモデルを足すとすぐ嘘になります。</strong></p>
+</div>
+</section>
+
+<p style="font-size:.8rem;color:var(--text-muted);border-top:1px solid var(--border);padding-top:16px">
+  作成 2026-08-13 / 対象コミット <code>edd17bd</code>（<code>developer</code>）。
+  数値は同コミットの実測値です。
+</p>
+
+</main>
+</div>
+
+<script type="module">
+  import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+
+  const root = document.documentElement;
+  const prefersDark = () =>
+    root.dataset.theme === "dark" ||
+    (!root.dataset.theme && window.matchMedia("(prefers-color-scheme: dark)").matches);
+
+  const render = () => {
+    document.querySelectorAll(".mermaid").forEach((el) => {
+      if (el.dataset.src) { el.innerHTML = el.dataset.src; }
+      else { el.dataset.src = el.innerHTML; }
+      el.removeAttribute("data-processed");
+    });
+    mermaid.initialize({
+      startOnLoad: false,
+      theme: prefersDark() ? "dark" : "default",
+      securityLevel: "loose",
+      flowchart: { htmlLabels: true, curve: "basis" },
+      themeVariables: { fontFamily: "-apple-system,BlinkMacSystemFont,Segoe UI,Hiragino Sans,Noto Sans JP,sans-serif" },
+    });
+    mermaid.run({ querySelector: ".mermaid" });
+  };
+  render();
+
+  // 表示切替（システム設定 → light → dark の順に回す）
+  document.getElementById("themeToggle").addEventListener("click", () => {
+    const now = root.dataset.theme;
+    root.dataset.theme = now === "dark" ? "light" : now === "light" ? "" : "dark";
+    if (!root.dataset.theme) root.removeAttribute("data-theme");
+    render();
+  });
+  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
+    if (!root.dataset.theme) render();
+  });
+
+  // 現在地をサイドバーに反映
+  const links = [...document.querySelectorAll("nav.toc a")];
+  const byId = new Map(links.map((a) => [a.getAttribute("href").slice(1), a]));
+  const obs = new IntersectionObserver(
+    (entries) => {
+      entries.forEach((e) => {
+        if (!e.isIntersecting) return;
+        links.forEach((a) => a.classList.remove("active"));
+        byId.get(e.target.id)?.classList.add("active");
+      });
+    },
+    { rootMargin: "0px 0px -75% 0px" }
+  );
+  document.querySelectorAll("section[id]").forEach((s) => obs.observe(s));
+</script>
+</body>
+</html>

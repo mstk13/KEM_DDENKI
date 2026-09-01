@@ -55,11 +55,13 @@ INSTALLED_APPS = [
     "apps.evaluation",
     "apps.attendance",
     "apps.ai",
+    "apps.estimation",
 ]
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
+    "apps.core.middleware.NoCacheMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -166,6 +168,37 @@ PRESIDENT_PIN = os.environ.get("PRESIDENT_PIN", "1234")
 AI_MONTHLY_BUDGET_JPY = int(os.environ.get("AI_MONTHLY_BUDGET_JPY", "4000"))
 # USD→JPYレート（概算。正確なレートは不要）
 AI_USD_TO_JPY_RATE = int(os.environ.get("AI_USD_TO_JPY_RATE", "152"))
+
+# ---- ローカル推論 (Ollama) ----
+# ADR-0010「AI推論の3層分割」の層A・層B。
+# Ollama はホストの Windows 側で稼働するため、コンテナからは
+# host.docker.internal で到達する。到達できない場合は各サービスが
+# 黙って Claude API へフォールバックするので、未設定でも動作する。
+OLLAMA_BASE_URL = os.environ.get(
+    "OLLAMA_BASE_URL", "http://host.docker.internal:11434"
+)
+OLLAMA_EMBED_MODEL = os.environ.get("OLLAMA_EMBED_MODEL", "bge-m3")
+OLLAMA_EMBED_TIMEOUT = int(os.environ.get("OLLAMA_EMBED_TIMEOUT", "60"))
+OLLAMA_EMBED_ENABLED = os.environ.get(
+    "OLLAMA_EMBED_ENABLED", "True"
+).lower() in ("true", "1", "yes")
+# モデルをVRAMに常駐させる時間。ホスト側のシステム環境変数に
+# OLLAMA_KEEP_ALIVE=0 が入っており、無指定だとリクエストのたびに
+# アンロードされて毎回の再ロードが応答時間に乗る（実測 3.3秒 → 0.27秒）。
+# リクエスト単位の keep_alive はサーバ側の環境変数より優先されるため、
+# ホストの設定を変更せずにこちらで上書きする。
+OLLAMA_KEEP_ALIVE = os.environ.get("OLLAMA_KEEP_ALIVE", "5m")
+
+# 層B（生成モデル）。層Aの埋め込みと違い、既定は無効。
+# 精度をタスクごとに実測して確認してから有効化する運用にする
+# （労務単価表では決定論的パーサ 1.000 に対しローカル 0.64 だった）。
+OLLAMA_CHAT_MODEL = os.environ.get("OLLAMA_CHAT_MODEL", "qwen3:8b")
+OLLAMA_CHAT_TIMEOUT = int(os.environ.get("OLLAMA_CHAT_TIMEOUT", "300"))
+OLLAMA_CHAT_ENABLED = os.environ.get(
+    "OLLAMA_CHAT_ENABLED", "False"
+).lower() in ("true", "1", "yes")
+# 8B + KVキャッシュが GPU に収まる上限。伸ばすと CPU に溢れて速度が落ちる。
+OLLAMA_CHAT_NUM_CTX = int(os.environ.get("OLLAMA_CHAT_NUM_CTX", "8192"))
 
 # ---- Email (SMTP) ----
 EMAIL_BACKEND = os.environ.get(

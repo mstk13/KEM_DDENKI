@@ -1,12 +1,13 @@
-from django.contrib.auth import get_user_model
-
 from django import forms
+from django.contrib.auth import get_user_model
 
 from apps.masters.models import Supplier, WorkType
 from apps.materials.models import (
     Delivery,
     DeliveryItem,
     Material,
+    MaterialSupplier,
+    ProcurementRecord,
     PurchaseOrder,
     PurchaseOrderItem,
     Quotation,
@@ -38,9 +39,14 @@ class MaterialForm(forms.ModelForm):
 class PurchaseOrderForm(forms.ModelForm):
     class Meta:
         model = PurchaseOrder
-        fields = ["site", "supplier", "quotation", "order_date", "ordered_by", "status", "file"]
+        fields = [
+            "site", "supplier", "quotation", "order_date", "delivery_date",
+            "subject", "payment_terms", "notes", "ordered_by", "status", "file",
+        ]
         widgets = {
             "order_date": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
+            "delivery_date": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
+            "notes": forms.Textarea(attrs={"class": "form-control", "rows": 2}),
         }
 
     def __init__(self, *args, company=None, **kwargs):
@@ -112,10 +118,16 @@ class QuotationItemForm(forms.ModelForm):
 class PurchaseOrderItemForm(forms.ModelForm):
     class Meta:
         model = PurchaseOrderItem
-        fields = ["material", "quantity", "unit_price", "work_type"]
+        fields = [
+            "material", "material_name", "quantity", "unit",
+            "unit_price", "tax_rate", "work_type",
+        ]
         widgets = {
             "quantity": forms.NumberInput(attrs={"class": "form-control", "step": "0.01"}),
             "unit_price": forms.NumberInput(attrs={"class": "form-control", "step": "0.01"}),
+            "tax_rate": forms.NumberInput(
+                attrs={"class": "form-control", "step": "0.01", "value": "0.10"},
+            ),
         }
 
     def __init__(self, *args, company=None, **kwargs):
@@ -126,9 +138,12 @@ class PurchaseOrderItemForm(forms.ModelForm):
             self.fields["material"].queryset = Material.unscoped.filter(
                 company=company, is_active=True,
             )
+            self.fields["material"].required = False
             self.fields["work_type"].queryset = WorkType.unscoped.filter(
                 company=company, is_active=True,
             )
+            self.fields["work_type"].required = False
+        self.fields["material_name"].help_text = "マスタにない場合は自由入力"
 
 
 class DeliveryItemForm(forms.ModelForm):
@@ -136,7 +151,9 @@ class DeliveryItemForm(forms.ModelForm):
         model = DeliveryItem
         fields = ["material", "ordered_qty", "delivered_qty", "is_ok"]
         widgets = {
-            "ordered_qty": forms.NumberInput(attrs={"class": "form-control", "step": "0.01", "readonly": "readonly"}),
+            "ordered_qty": forms.NumberInput(
+                attrs={"class": "form-control", "step": "0.01", "readonly": "readonly"}
+            ),
             "delivered_qty": forms.NumberInput(attrs={"class": "form-control", "step": "0.01"}),
         }
 
@@ -163,3 +180,53 @@ class DeliveryForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         for field in self.fields.values():
             field.widget.attrs.setdefault("class", "form-control")
+
+
+class MaterialSupplierForm(forms.ModelForm):
+    class Meta:
+        model = MaterialSupplier
+        fields = [
+            "supplier", "supplier_code", "standard_unit_price",
+            "lead_time_days", "min_order_qty", "is_preferred", "notes",
+        ]
+        widgets = {
+            "notes": forms.Textarea(attrs={"class": "form-control", "rows": 2}),
+        }
+
+    def __init__(self, *args, company=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        if company:
+            self.fields["supplier"].queryset = Supplier.unscoped.filter(
+                company=company, is_active=True,
+            )
+        for _name, field in self.fields.items():
+            if not isinstance(field.widget, (forms.Textarea, forms.CheckboxInput)):
+                field.widget.attrs.setdefault("class", "form-control")
+
+
+class ProcurementRecordForm(forms.ModelForm):
+    class Meta:
+        model = ProcurementRecord
+        fields = [
+            "site", "material", "supplier", "ordered_date", "delivered_date",
+            "ordered_qty", "delivered_qty", "unit_price_paid", "notes",
+        ]
+        widgets = {
+            "ordered_date": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
+            "delivered_date": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
+            "notes": forms.Textarea(attrs={"class": "form-control", "rows": 2}),
+        }
+
+    def __init__(self, *args, company=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        if company:
+            self.fields["site"].queryset = Site.unscoped.filter(company=company)
+            self.fields["material"].queryset = Material.unscoped.filter(
+                company=company, is_active=True,
+            )
+            self.fields["supplier"].queryset = Supplier.unscoped.filter(
+                company=company, is_active=True,
+            )
+        for _name, field in self.fields.items():
+            if not isinstance(field.widget, forms.Textarea):
+                field.widget.attrs.setdefault("class", "form-control")

@@ -5,15 +5,16 @@
 <div class="page-header">
   <h1>{{ customer.name }}</h1>
   <div>
+    {# 名刺の登録画面は URL が無いのでリンクしない。下の一覧は cards が渡されたときだけ出る。 #}
     <a href="{% url 'masters:customer_edit' customer.pk %}" class="btn btn-outline">編集</a>
-    <a href="{% url 'masters:card_create' %}?customer={{ customer.pk }}" class="btn btn-outline">名刺を追加</a>
+    <a href="{% url 'masters:customer_list' %}" class="btn btn-outline">一覧に戻る</a>
   </div>
 </div>
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
   <div class="card">
     <div class="card-header"><h2>基本情報</h2></div>
     <div style="padding:16px;">
-      <table style="width:100%;"><tr><th style="text-align:left;width:30%;">業種</th><td>{{ customer.industry|default:"—" }}</td></tr><tr><th style="text-align:left;">地域</th><td>{{ customer.region|default:"—" }}</td></tr><tr><th style="text-align:left;">電話</th><td>{{ customer.phone|default:"—" }}</td></tr><tr><th style="text-align:left;">メール</th><td>{{ customer.email|default:"—" }}</td></tr></table>
+      <table style="width:100%;"><tr><th style="text-align:left;width:30%;">業種</th><td>{{ customer.industry|default:"—" }}</td></tr><tr><th style="text-align:left;">地域</th><td>{{ customer.region|default:"—" }}</td></tr><tr><th style="text-align:left;">電話</th><td>{{ customer.phone|default:"—" }}</td></tr><tr><th style="text-align:left;">メール</th><td>{{ customer.email|default:"—" }}</td></tr><tr><th style="text-align:left;">標準支払条件</th><td>{{ customer.payment_terms|default:"—" }}</td></tr></table>
     </div>
   </div>
   <div class="card">
@@ -23,6 +24,30 @@
     </tbody></table></div>
   </div>
 </div>
+<div class="card" style="margin-top:20px;">
+  <div class="card-header"><h2>見積ファイルの取込履歴</h2></div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>取込日時</th><th>ファイル名</th><th>見積番号</th><th>読み取った宛名</th><th>金額</th><th>登録した現場</th><th>取込者</th></tr></thead>
+      <tbody>
+        {% for imp in estimate_imports %}
+        <tr>
+          <td>{{ imp.created_at|date:"Y-m-d H:i" }}</td>
+          <td>{{ imp.filename|default:"-" }}</td>
+          <td>{{ imp.estimate_number|default:"-" }}</td>
+          <td>{{ imp.customer_name_raw|default:"-" }}</td>
+          <td>{% if imp.amount %}{{ imp.amount|floatformat:0 }} 円{% else %}-{% endif %}</td>
+          <td>{% if imp.site %}<a href="{% url 'sites:detail' imp.site.pk %}">{{ imp.site.name }}</a>{% else %}-{% endif %}</td>
+          <td>{{ imp.created_by|default:"-" }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="7"><small>取込履歴なし</small></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
 {% if cards %}
 <div class="card" style="margin-top:20px;">
   <div class="card-header"><h2>名刺</h2></div>

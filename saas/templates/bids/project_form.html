@@ -26,9 +26,21 @@
       </div>
       <div class="form-row">
         <div class="form-group">
-          <label for="id_client">発注者</label>
+          <label for="id_client">発注機関</label>
           {{ form.client }}
           {{ form.client.errors }}
+        </div>
+        <div class="form-group">
+          <label for="id_agency_dept">担当部・事務所</label>
+          {{ form.agency_dept }}
+          {{ form.agency_dept.errors }}
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="id_location">工事場所</label>
+          {{ form.location }}
+          {{ form.location.errors }}
         </div>
         <div class="form-group">
           <label for="id_region">地域</label>
@@ -43,7 +55,31 @@
           {{ form.category.errors }}
         </div>
         <div class="form-group">
-          <label for="id_budget">予算額</label>
+          <label for="id_bid_method">入札契約方式</label>
+          {{ form.bid_method }}
+          {{ form.bid_method.errors }}
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="id_electronic_bid">電子入札対象</label>
+          {{ form.electronic_bid }}
+          {{ form.electronic_bid.errors }}
+        </div>
+        <div class="form-group">
+          <label for="id_design_no">設計書番号</label>
+          {{ form.design_no }}
+          {{ form.design_no.errors }}
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="id_announced_on">公告日</label>
+          {{ form.announced_on }}
+          {{ form.announced_on.errors }}
+        </div>
+        <div class="form-group">
+          <label for="id_budget">予算額（予定価格）</label>
           {{ form.budget }}
           {{ form.budget.errors }}
         </div>
@@ -55,10 +91,60 @@
           {{ form.deadline.errors }}
         </div>
         <div class="form-group">
-          <label for="id_source_url">情報源URL</label>
-          {{ form.source_url }}
-          {{ form.source_url.errors }}
+          <label for="id_opening_on">開札日</label>
+          {{ form.opening_on }}
+          {{ form.opening_on.errors }}
         </div>
+      </div>
+      <div class="form-group">
+        <label for="id_source_url">情報源URL</label>
+        {{ form.source_url }}
+        {{ form.source_url.errors }}
+      </div>
+      <h3 style="margin-top:20px;">工事概要・参加要件</h3>
+      <div class="form-group">
+        <label for="id_work_outline">工事概要</label>
+        {{ form.work_outline }}
+        {{ form.work_outline.errors }}
+      </div>
+      <div class="form-group">
+        <label for="id_requirements">参加要件</label>
+        {{ form.requirements }}
+        {{ form.requirements.errors }}
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="id_required_category">必要業種区分</label>
+          {{ form.required_category }}
+          {{ form.required_category.errors }}
+        </div>
+        <div class="form-group">
+          <label for="id_required_grade">必要等級（下限）</label>
+          {{ form.required_grade }}
+          {{ form.required_grade.errors }}
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="id_required_grades">必要等級（該当。例: BC）</label>
+          {{ form.required_grades }}
+          {{ form.required_grades.errors }}
+        </div>
+        <div class="form-group">
+          <label for="id_required_score">必要点数</label>
+          {{ form.required_score }}
+          {{ form.required_score.errors }}
+        </div>
+      </div>
+      <div class="form-group">
+        <label for="id_required_issuer_type">資格種別</label>
+        {{ form.required_issuer_type }}
+        {{ form.required_issuer_type.errors }}
+      </div>
+      <div class="form-group">
+        <label for="id_notes">備考</label>
+        {{ form.notes }}
+        {{ form.notes.errors }}
       </div>
 
       <h3 style="margin-top:20px;">原価情報</h3>

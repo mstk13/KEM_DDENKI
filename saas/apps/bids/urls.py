@@ -19,8 +19,10 @@ urlpatterns = [
     path("dashboard/", views.bid_dashboard, name="dashboard"),
     path("<int:pk>/mark-won/", views.bid_mark_won, name="mark_won"),
     path("<int:pk>/start-estimation/", views.bid_start_estimation, name="start_estimation"),
-    path("scrape/", views.scrape_target_list, name="scrape_target_list"),
-    path("scrape/new/", views.scrape_target_create, name="scrape_target_create"),
-    path("scrape/<int:pk>/edit/", views.scrape_target_edit, name="scrape_target_edit"),
-    path("scrape/<int:pk>/run/", views.scrape_target_run, name="scrape_target_run"),
+    # スクレイピングターゲット管理
+    path("scrape-targets/", views.scrape_target_list, name="scrape_target_list"),
+    path("scrape-targets/new/", views.scrape_target_create, name="scrape_target_create"),
+    path("scrape-targets/<int:pk>/edit/", views.scrape_target_edit, name="scrape_target_edit"),
+    path("scrape-targets/<int:pk>/run/", views.scrape_run, name="scrape_run"),
+    path("scrape-targets/run-all/", views.scrape_run_all, name="scrape_run_all"),
 ]

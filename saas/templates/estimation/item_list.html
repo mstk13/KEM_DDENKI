@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}積算品目一覧 — {{ APP_NAME }}{% endblock %}
+{% block topbar_title %}積算{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>積算品目一覧</h1>
+  <a href="{% url 'estimation:item_create' %}" class="btn btn-primary">+ 品目を登録</a>
+</div>
+
+<div class="card" style="margin-bottom:20px;">
+  <div class="card-body">
+    <form method="get" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;">
+      <div class="form-group" style="margin-bottom:0;">
+        <label>キーワード</label>
+        <input type="text" name="q" value="{{ q }}" class="form-control" placeholder="品目名">
+      </div>
+      <div class="form-group" style="margin-bottom:0;">
+        <label>区分</label>
+        <select name="category" class="form-control">
+          <option value="">すべて</option>
+          {% for val, label in categories %}
+          <option value="{{ val }}" {% if category == val %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group" style="margin-bottom:0;">
+        <label>状態</label>
+        <select name="status" class="form-control">
+          <option value="">すべて</option>
+          {% for val, label in statuses %}
+          <option value="{{ val }}" {% if status == val %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <button type="submit" class="btn btn-primary">検索</button>
+      <a href="{% url 'estimation:item_list' %}" class="btn btn-outline">リセット</a>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>コード</th><th>正規名称</th><th>区分</th><th>単位</th><th>参考単価</th><th>工種</th><th>状態</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for item in items %}
+        <tr>
+          <td><a href="{% url 'estimation:item_detail' item.pk %}">{{ item.code }}</a></td>
+          <td>{{ item.canonical_name }}</td>
+          <td>{{ item.get_category_display }}</td>
+          <td>{{ item.unit }}</td>
+          <td>{% if item.standard_price %}{{ item.standard_price|floatformat:0 }} 円{% else %}-{% endif %}</td>
+          <td>{{ item.work_type.name|default:"-" }}</td>
+          <td>
+            {% if item.status == 'draft' %}<span class="badge badge-gray">下書き</span>
+            {% elif item.status == 'reviewed' %}<span class="badge badge-orange">レビュー済</span>
+            {% elif item.status == 'approved' %}<span class="badge badge-green">承認済</span>
+            {% endif %}
+          </td>
+          <td><a href="{% url 'estimation:item_edit' item.pk %}" class="btn btn-outline btn-sm">編集</a></td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="8"><div class="empty"><div class="empty-icon">&#x1f4d0;</div><p>積算品目が登録されていません</p></div></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

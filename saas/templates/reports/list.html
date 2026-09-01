@@ -21,15 +21,6 @@
         </select>
       </div>
       <div class="form-group" style="margin-bottom:0;">
-        <label for="filter-type">種別</label>
-        <select id="filter-type" name="report_type" class="form-control">
-          <option value="">すべて</option>
-          {% for value, label in report_type_choices %}
-          <option value="{{ value }}" {% if selected_type == value %}selected{% endif %}>{{ label }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div class="form-group" style="margin-bottom:0;">
         <button type="submit" class="btn btn-outline">絞り込む</button>
       </div>
       {% if can_approve and submitted_count %}
@@ -48,7 +39,7 @@
       <table>
         <thead><tr>
           {% if can_approve %}<th style="width:32px;"><input type="checkbox" data-check-all="report_ids"></th>{% endif %}
-          <th>日付</th><th>種別</th><th>作業員</th><th>現場</th><th>工種</th><th>時間</th><th>協力会社</th><th>状態</th><th></th>
+          <th>日付</th><th>作業員</th><th>現場</th><th>工種</th><th>時間</th><th>協力会社</th><th>状態</th><th></th>
         </tr></thead>
         <tbody>
           {% for r in reports %}
@@ -61,7 +52,6 @@
             </td>
             {% endif %}
             <td>{{ r.report_date }}</td>
-            <td>{{ r.get_report_type_display }}</td>
             <td>{{ r.worker }}</td>
             <td>{{ r.site }}</td>
             <td>{{ r.work_type }}</td>
@@ -81,7 +71,7 @@
             </td>
           </tr>
           {% empty %}
-          <tr><td colspan="{% if can_approve %}10{% else %}9{% endif %}"><div class="empty"><div class="empty-icon">&#x1f4dd;</div><p>日報がありません</p></div></td></tr>
+          <tr><td colspan="{% if can_approve %}9{% else %}8{% endif %}"><div class="empty"><div class="empty-icon">&#x1f4dd;</div><p>日報がありません</p></div></td></tr>
           {% endfor %}
         </tbody>
       </table>

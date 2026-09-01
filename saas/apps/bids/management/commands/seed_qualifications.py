@@ -9,7 +9,6 @@ from django.core.management.base import BaseCommand
 from apps.bids.models import Qualification
 from apps.tenants.models import Company
 
-
 # 資格審査結果通知書（全省庁統一資格）
 # 発行番号：250128000135
 # 業者コード：0000206312
@@ -26,7 +25,10 @@ QUALIFICATIONS = [
         "valid_until": "2028-03-31",
         "application_type": "全省庁統一資格",
         "application_method": "",
-        "memo": "営業品目: 電気・通信用機器類／精密機器類／その他機器類／土木・建設・建築材料／その他",
+        "memo": (
+            "営業品目: 電気・通信用機器類／精密機器類／その他機器類／"
+            "土木・建設・建築材料／その他"
+        ),
     },
     {
         "issuer": "全省庁統一資格",

@@ -35,11 +35,20 @@
           {{ form.contract_amount.errors }}
         </div>
       </div>
+      <div class="form-group">
+        <label for="id_payment_terms">支払条件</label>
+        <input type="text" name="payment_terms" id="id_payment_terms" class="form-control" value="{{ form.payment_terms.value|default:'' }}" placeholder="例: 月末締め翌月末現金払い">
+        <p style="font-size:.78rem;color:var(--text-muted);margin:4px 0 0;">空欄なら顧客の標準支払条件を使います。</p>
+        {{ form.payment_terms.errors }}
+      </div>
       <div class="form-row">
         <div class="form-group">
-          <label for="id_customer">得意先</label>
-          {{ form.customer }}
-          {{ form.customer.errors }}
+          <label for="id_customer_name">顧客</label>
+          {{ form.customer_name }}
+          <p style="font-size:.78rem;color:var(--text-muted);margin:4px 0 0;">
+            登録済みの会社は候補から選べます。未登録の会社名を直接入力すると顧客マスタにも登録されます。
+          </p>
+          {{ form.customer_name.errors }}
         </div>
         <div class="form-group">
           <label for="id_manager">現場担当者</label>
@@ -58,9 +67,26 @@
         </div>
       </div>
       <div class="form-group">
-        <label for="id_address">住所</label>
+        <label for="id_estimate_valid_until">見積有効期限</label>
+        <input type="text" name="estimate_valid_until" id="id_estimate_valid_until" class="form-control" value="{{ form.estimate_valid_until.value|default:'' }}" placeholder="例: 2026/09/30、発行後30日間">
+        {{ form.estimate_valid_until.errors }}
+      </div>
+      <div class="form-group">
+        <label for="id_address">住所（施工場所）</label>
         <textarea name="address" id="id_address" class="form-control">{{ form.address.value|default:'' }}</textarea>
       </div>
+      <div class="form-group">
+        <label for="id_note">備考</label>
+        <textarea name="note" id="id_note" class="form-control" rows="3">{{ form.note.value|default:'' }}</textarea>
+        {{ form.note.errors }}
+      </div>
+      <div class="form-group">
+        <label for="id_extracted_details">その他の読み取り項目</label>
+        <textarea name="extracted_details" id="id_extracted_details" class="form-control" rows="6">{{ form.extracted_details.value|default:'' }}</textarea>
+        <p style="font-size:.78rem;color:var(--text-muted);margin:4px 0 0;">見積ファイルから読み取った、上の項目に当てはまらない記載。</p>
+        {{ form.extracted_details.errors }}
+      </div>
+      {% include 'sites/_customer_datalist.html' %}
       <div class="form-actions">
         <button type="submit" class="btn btn-primary">保存</button>
         <a href="{% url 'sites:list' %}" class="btn btn-outline">キャンセル</a>

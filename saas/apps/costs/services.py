@@ -200,3 +200,50 @@ def get_monthly_cost_trend(site, months=6):
         })
 
     return {"labels": labels, "datasets": datasets}
+
+
+# ---------------------------------------------------------------------------
+# 見積書からの実行予算の起こし
+# ---------------------------------------------------------------------------
+
+
+def create_budget_items_from_lines(*, company, user, site, rows):
+    """見積書から読み取った明細を実行予算として登録する。
+
+    工種と原価区分は見積書に書かれていないので、行ごとに指定されたものを
+    使う。**どちらか欠けた行は登録しない。** 予算・原価は工種 × 原価区分の
+    粒度で持つのが前提で、片方を空や既定値で埋めると予実の集計が崩れる。
+
+    Args:
+        rows: [{"name", "unit", "quantity", "unit_price", "amount",
+                "work_type", "cost_category"}, ...]
+              work_type / cost_category はモデルインスタンス。
+
+    Returns:
+        作成した BudgetItem のリスト。
+    """
+    items = []
+    for row in rows:
+        if row.get("work_type") is None or row.get("cost_category") is None:
+            continue
+        # BudgetItem の数量・単価は null を許さない（既定 0）。見積書に
+        # 「一式」で金額しか無い行があるため、読めなかったぶんは 0 で入れる。
+        # 金額は読めた値をそのまま使うので、予算合計はずれない。
+        items.append(BudgetItem(
+            company=company,
+            created_by=user,
+            site=site,
+            work_type=row["work_type"],
+            cost_category=row["cost_category"],
+            name=row.get("name") or "",
+            unit=row.get("unit") or "",
+            quantity=row.get("quantity") or 0,
+            unit_price=row.get("unit_price") or 0,
+            amount=row.get("amount") or 0,
+        ))
+
+    # bulk_create は simple-history の履歴を作らない。予算は誰がいつ入れたかを
+    # 追えないと困るので、件数が増えても1件ずつ save() する。
+    for item in items:
+        item.save()
+    return items

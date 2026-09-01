@@ -293,6 +293,208 @@ def po_item_delete(request, pk):
     return redirect("materials:po_detail", pk=po.pk)
 
 
+# ── 発注書 Excel 出力 ──
+
+
+@login_required
+def po_excel_download(request, pk):
+    """発注書 Excel ダウンロード。"""
+    from django.http import HttpResponse
+
+    from apps.materials.excel_service import generate_purchase_order_excel
+
+    po = get_object_or_404(
+        PurchaseOrder.objects.select_related("site", "supplier", "quotation"), pk=pk,
+    )
+    items = po.items.select_related("material", "work_type").all()
+
+    buf = generate_purchase_order_excel(po, items)
+    filename = f"発注書_PO-{po.pk:05d}_{po.order_date}.xlsx"
+    response = HttpResponse(
+        buf.getvalue(),
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    return response
+
+
+@login_required
+def po_acceptance_excel_download(request, pk):
+    """発注請書 Excel ダウンロード。"""
+    from django.http import HttpResponse
+
+    from apps.materials.excel_service import generate_purchase_order_acceptance_excel
+
+    po = get_object_or_404(
+        PurchaseOrder.objects.select_related("site", "supplier", "quotation"), pk=pk,
+    )
+    items = po.items.select_related("material", "work_type").all()
+
+    buf = generate_purchase_order_acceptance_excel(po, items)
+    filename = f"発注請書_PO-{po.pk:05d}_{po.order_date}.xlsx"
+    response = HttpResponse(
+        buf.getvalue(),
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    return response
+
+
+# ── 発注書 PDF 出力 ──
+
+
+@login_required
+def po_pdf_download(request, pk):
+    """発注書 PDF ダウンロード。"""
+    from django.http import HttpResponse
+
+    from apps.materials.services import generate_purchase_order_pdf
+
+    po = get_object_or_404(
+        PurchaseOrder.objects.select_related("site", "supplier", "quotation"), pk=pk,
+    )
+    items = po.items.select_related("material", "work_type").all()
+
+    response = HttpResponse(content_type="application/pdf")
+    filename = f"発注書_PO-{po.pk:05d}_{po.order_date}.pdf"
+    response["Content-Disposition"] = f'inline; filename="{filename}"'
+    generate_purchase_order_pdf(response, po, items, request.user)
+    return response
+
+
+@login_required
+def po_acceptance_pdf_download(request, pk):
+    """発注請書 PDF ダウンロード。"""
+    from django.http import HttpResponse
+
+    from apps.materials.services import generate_purchase_order_acceptance_pdf
+
+    po = get_object_or_404(
+        PurchaseOrder.objects.select_related("site", "supplier", "quotation"), pk=pk,
+    )
+    items = po.items.select_related("material", "work_type").all()
+
+    response = HttpResponse(content_type="application/pdf")
+    filename = f"発注請書_PO-{po.pk:05d}_{po.order_date}.pdf"
+    response["Content-Disposition"] = f'inline; filename="{filename}"'
+    generate_purchase_order_acceptance_pdf(response, po, items, request.user)
+    return response
+
+
+# ── CSV インポート ──
+
+
+@login_required
+def po_csv_import(request, site_id=None):
+    """仕入先CSVから発注書を作成する。
+
+    Step 1: CSVアップロード + 仕入先選択
+    Step 2: パース結果を確認 → 発注書作成
+    """
+    from apps.materials.excel_service import parse_supplier_csv
+    from apps.sites.models import Site
+
+    sites = Site.objects.order_by("name")
+    suppliers = []
+    from apps.masters.models import Supplier
+    suppliers = Supplier.unscoped.filter(
+        company=request.user.company, is_active=True,
+    ).order_by("name")
+
+    if request.method == "POST" and "csv_file" in request.FILES:
+        # Step 1: Parse CSV
+        import json
+        from decimal import Decimal
+
+        csv_file = request.FILES["csv_file"]
+        supplier_id = request.POST.get("supplier")
+        selected_site_id = request.POST.get("site") or site_id
+
+        parsed_items = parse_supplier_csv(csv_file)
+
+        # 金額を計算して付与
+        for item in parsed_items:
+            item["amount"] = int(item["quantity"] * item["unit_price"])
+
+        subtotal = sum(item["amount"] for item in parsed_items)
+
+        # JSON シリアライズ用にDecimal→str変換
+        items_for_json = [
+            {
+                "name": it["name"],
+                "quantity": str(it["quantity"]),
+                "unit": it["unit"],
+                "unit_price": str(it["unit_price"]),
+                "tax_rate": str(it["tax_rate"]),
+            }
+            for it in parsed_items
+        ]
+
+        return render(request, "materials/csv_confirm.html", {
+            "parsed_items": parsed_items,
+            "supplier_id": supplier_id,
+            "site_id": selected_site_id,
+            "sites": sites,
+            "suppliers": suppliers,
+            "csv_filename": csv_file.name,
+            "subtotal": subtotal,
+            "items_json": json.dumps(items_for_json, ensure_ascii=False),
+        })
+
+    if request.method == "POST" and "confirm_import" in request.POST:
+        # Step 2: Create PO from parsed data
+        import json
+        from datetime import date
+        from decimal import Decimal
+
+        supplier_id = request.POST.get("supplier_id")
+        selected_site_id = request.POST.get("site_id")
+        items_json = request.POST.get("items_json", "[]")
+
+        supplier = get_object_or_404(Supplier, pk=supplier_id)
+        site = get_object_or_404(Site, pk=selected_site_id) if selected_site_id else None
+
+        if not site:
+            messages.error(request, "現場を選択してください。")
+            return redirect("materials:csv_import")
+
+        # Create PurchaseOrder
+        po = PurchaseOrder(
+            company=request.user.company,
+            created_by=request.user,
+            site=site,
+            supplier=supplier,
+            order_date=date.today(),
+            subject=site.name,
+            payment_terms="月末締翌月末払",
+        )
+        po.save()
+
+        # Create items
+        items_data = json.loads(items_json)
+        for item_data in items_data:
+            PurchaseOrderItem.objects.create(
+                company=request.user.company,
+                created_by=request.user,
+                purchase_order=po,
+                material_name=item_data.get("name", ""),
+                quantity=Decimal(str(item_data.get("quantity", 0))),
+                unit=item_data.get("unit", ""),
+                unit_price=Decimal(str(item_data.get("unit_price", 0))),
+                tax_rate=Decimal(str(item_data.get("tax_rate", "0.10"))),
+            )
+
+        po.recalculate_total()
+        messages.success(request, f"発注書 PO-{po.pk:05d} を作成しました（{len(items_data)}件）。")
+        return redirect("materials:po_detail", pk=po.pk)
+
+    return render(request, "materials/csv_upload.html", {
+        "sites": sites,
+        "suppliers": suppliers,
+        "selected_site_id": site_id,
+    })
+
+
 # ── 納品・受領・検収 ──
 
 
@@ -432,3 +634,110 @@ def inventory_list(request):
         "material", "site"
     ).order_by("material__name", "site__name")
     return render(request, "materials/inventory_list.html", {"inventories": inventories})
+
+
+# ── 材料仕入先 ──
+
+
+@login_required
+def material_supplier_list(request, material_pk):
+    """材料の仕入先一覧。"""
+    from apps.materials.models import MaterialSupplier
+
+    material = get_object_or_404(Material, pk=material_pk)
+    suppliers = MaterialSupplier.objects.filter(
+        material=material,
+    ).select_related("supplier").order_by("-is_preferred", "supplier__name")
+    return render(request, "materials/material_supplier_list.html", {
+        "material": material,
+        "suppliers": suppliers,
+    })
+
+
+@login_required
+def material_supplier_add(request, material_pk):
+    """材料に仕入先を追加。"""
+    from apps.materials.forms import MaterialSupplierForm
+
+    material = get_object_or_404(Material, pk=material_pk)
+    if request.method == "POST":
+        form = MaterialSupplierForm(request.POST, company=request.user.company)
+        if form.is_valid():
+            ms = form.save(commit=False)
+            ms.material = material
+            ms.company = request.user.company
+            ms.created_by = request.user
+            ms.save()
+            messages.success(request, f"{ms.supplier.name} を追加しました。")
+            return redirect("materials:material_supplier_list", material_pk=material.pk)
+    else:
+        form = MaterialSupplierForm(company=request.user.company)
+    return render(request, "materials/material_supplier_form.html", {
+        "form": form, "material": material, "is_new": True,
+    })
+
+
+@login_required
+def material_supplier_edit(request, pk):
+    """材料仕入先の編集。"""
+    from apps.materials.forms import MaterialSupplierForm
+    from apps.materials.models import MaterialSupplier
+
+    ms = get_object_or_404(MaterialSupplier, pk=pk)
+    if request.method == "POST":
+        form = MaterialSupplierForm(request.POST, instance=ms, company=request.user.company)
+        if form.is_valid():
+            form.save()
+            return redirect("materials:material_supplier_list", material_pk=ms.material.pk)
+    else:
+        form = MaterialSupplierForm(instance=ms, company=request.user.company)
+    return render(request, "materials/material_supplier_form.html", {
+        "form": form, "material": ms.material, "is_new": False, "ms": ms,
+    })
+
+
+# ── 調達実績 ──
+
+
+@login_required
+def procurement_list(request):
+    """調達実績の一覧。現場・材料・仕入先でフィルタ。"""
+    from apps.materials.models import ProcurementRecord
+
+    records = ProcurementRecord.objects.select_related(
+        "site", "material", "supplier",
+    ).order_by("-ordered_date")
+
+    site_id = request.GET.get("site", "")
+    if site_id:
+        records = records.filter(site_id=int(site_id))
+
+    q = request.GET.get("q", "").strip()
+    if q:
+        records = records.filter(material__name__icontains=q)
+
+    return render(request, "materials/procurement_list.html", {
+        "records": records[:500], "q": q, "site_id": site_id,
+    })
+
+
+@login_required
+def procurement_create(request):
+    """調達実績の手入力。"""
+    from apps.materials.forms import ProcurementRecordForm
+
+    if request.method == "POST":
+        form = ProcurementRecordForm(request.POST, company=request.user.company)
+        if form.is_valid():
+            rec = form.save(commit=False)
+            rec.company = request.user.company
+            rec.created_by = request.user
+            rec.calc_lead_days()
+            rec.save()
+            messages.success(request, "調達実績を登録しました。")
+            return redirect("materials:procurement_list")
+    else:
+        form = ProcurementRecordForm(company=request.user.company)
+    return render(request, "materials/procurement_form.html", {
+        "form": form, "is_new": True,
+    })

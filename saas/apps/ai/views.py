@@ -7,6 +7,7 @@ from django.db.models.functions import TruncMonth
 from django.shortcuts import get_object_or_404, redirect, render
 
 from apps.ai.models import AIFeedback, AILog
+from apps.core.json_utils import json_for_script
 from apps.sites.models import Site
 
 logger = logging.getLogger(__name__)
@@ -113,7 +114,7 @@ def ai_dashboard(request):
 @login_required
 def cost_report(request):
     """APIコスト詳細レポート。タスク別・モデル別・日別・ユーザー別のグラフ付き。"""
-    import json as json_mod
+
     from apps.ai.services.cost_monitor import get_monthly_cost_jpy, get_monthly_cost_report
 
     budget_summary = get_monthly_cost_jpy(request.user.company)
@@ -147,10 +148,10 @@ def cost_report(request):
     return render(request, "ai/cost_report.html", {
         "budget_summary": budget_summary,
         "report": report,
-        "daily_chart_json": json_mod.dumps(daily_chart, ensure_ascii=False),
-        "task_chart_json": json_mod.dumps(task_chart, ensure_ascii=False),
-        "model_chart_json": json_mod.dumps(model_chart, ensure_ascii=False),
-        "user_chart_json": json_mod.dumps(user_chart, ensure_ascii=False),
+        "daily_chart_json": json_for_script(daily_chart),
+        "task_chart_json": json_for_script(task_chart),
+        "model_chart_json": json_for_script(model_chart),
+        "user_chart_json": json_for_script(user_chart),
     })
 
 
@@ -381,7 +382,10 @@ def schedule_suggestion(request, site_id):
                 request.user.company, site, "schedule_suggest",
                 request.POST.get("model", "haiku"), request.user,
             )
-            messages.success(request, f"バッチ処理を予約しました（{batch.scheduled_for:%m/%d %H:%M} 実行予定）。")
+            messages.success(
+                request,
+                f"バッチ処理を予約しました（{batch.scheduled_for:%m/%d %H:%M} 実行予定）。",
+            )
             return redirect("ai:batch_list")
 
         if not available:
@@ -437,7 +441,10 @@ def schedule_risk(request, site_id):
                 request.user.company, site, "schedule_risk",
                 request.POST.get("model", "haiku"), request.user,
             )
-            messages.success(request, f"バッチ処理を予約しました（{batch.scheduled_for:%m/%d %H:%M} 実行予定）。")
+            messages.success(
+                request,
+                f"バッチ処理を予約しました（{batch.scheduled_for:%m/%d %H:%M} 実行予定）。",
+            )
             return redirect("ai:batch_list")
 
         if not available:

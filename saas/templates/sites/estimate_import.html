@@ -1,0 +1,155 @@
+{% extends "base.html" %}
+{% block title %}見積ファイルを取り込む — {{ site.name }} — {{ APP_NAME }}{% endblock %}
+{% block topbar_title %}現場管理{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>見積ファイルを取り込む</h1>
+  <a href="{% url 'sites:detail' site.pk %}" class="btn btn-outline btn-sm">現場に戻る</a>
+</div>
+
+<p style="font-size:.88rem;color:var(--text-muted);margin-bottom:16px;">
+  現場: <b>{{ site.name }}</b>（{{ site.code }}／{{ site.get_status_display }}）
+</p>
+
+{% if not diff_rows %}
+{# ---- ステップ1: ファイルを選ぶ ---- #}
+<div class="card">
+  <div class="card-header"><h2>ファイルを選ぶ</h2></div>
+  <div class="card-body">
+    <p style="font-size:.88rem;color:var(--text-muted);margin-bottom:16px;">
+      ライデンから書き出した Excel / CSV、または見積書の PDF を読み込みます。
+      落札・受注で自動作成された現場は金額や工期が空のことが多いので、ここから埋められます。
+      <b>次の画面で、項目ごとに反映するかどうかを選べます。</b>
+      今の値をファイルの内容で勝手に置き換えることはありません。
+    </p>
+    <form method="post" enctype="multipart/form-data">
+      {% csrf_token %}
+      <div class="form-group">
+        <label for="id_file">見積ファイル（.csv / .xlsx / .pdf）</label>
+        {{ upload_form.file }}
+        {{ upload_form.file.errors }}
+      </div>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">読み取る</button>
+        <a href="{% url 'sites:edit' site.pk %}" class="btn btn-outline">ファイルを使わず手入力する</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+{% if past_imports %}
+<div class="card" style="margin-top:20px;">
+  <div class="card-header"><h2>この現場への取込履歴</h2></div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>取込日時</th><th>ファイル名</th><th>見積番号</th><th>金額</th><th>取込者</th></tr></thead>
+      <tbody>
+        {% for imp in past_imports %}
+        <tr>
+          <td>{{ imp.created_at|date:"Y-m-d H:i" }}</td>
+          <td>{{ imp.filename|default:"-" }}</td>
+          <td>{{ imp.estimate_number|default:"-" }}</td>
+          <td>{% if imp.amount %}{{ imp.amount|floatformat:0 }} 円{% else %}-{% endif %}</td>
+          <td>{{ imp.created_by|default:"-" }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{% else %}
+{# ---- ステップ2: 項目ごとに反映するか選ぶ ---- #}
+
+<p style="font-size:.85rem;color:var(--text-muted);margin-bottom:16px;">
+  読み込んだファイル: <b>{{ filename }}</b>
+</p>
+
+{% if customer_unmatched %}
+<div class="card" style="margin-bottom:20px;border-left:3px solid var(--danger);">
+  <div class="card-body">
+    <p style="margin:0;font-size:.9rem;">
+      <b style="color:var(--danger);">宛名「{{ parsed_customer_name }}」は顧客マスタに登録されていません。</b><br>
+      顧客はこの画面では変えられません。
+      <a href="{% url 'sites:edit' site.pk %}">現場の編集</a>で会社名を入力してください
+      （未登録の名前なら顧客マスタにも登録されます）。
+    </p>
+  </div>
+</div>
+{% endif %}
+
+<div class="card">
+  <div class="card-header"><h2>反映する項目を選ぶ</h2></div>
+  <div class="card-body">
+    <p style="font-size:.85rem;color:var(--text-muted);margin-bottom:14px;">
+      <b>今が空欄の項目だけ、はじめからチェックが入っています。</b>
+      既に値が入っている項目を書き換えたいときは、自分でチェックを入れてください。
+      チェックを外した項目は今の値のままです。
+    </p>
+    <form method="post">
+      {% csrf_token %}
+      <input type="hidden" name="step" value="confirm">
+      <input type="hidden" name="filename" value="{{ filename }}">
+      <input type="hidden" name="parsed_customer_name" value="{{ parsed_customer_name }}">
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th style="width:80px;">反映</th><th>項目</th><th>今の値</th><th>ファイルの値</th></tr>
+          </thead>
+          <tbody>
+            {% for row in diff_rows %}
+            <tr>
+              <td style="text-align:center;">
+                <input type="checkbox" name="apply" value="{{ row.field }}"
+                       id="apply_{{ row.field }}" {% if row.checked %}checked{% endif %}>
+                <input type="hidden" name="value_{{ row.field }}" value="{{ row.value }}">
+              </td>
+              <td><label for="apply_{{ row.field }}">{{ row.label }}</label></td>
+              <td style="color:var(--text-muted);white-space:pre-wrap;">{{ row.current|default:"（空欄）" }}</td>
+              <td style="white-space:pre-wrap;">
+                {{ row.new_display }}
+                {% if row.is_append %}<span class="badge badge-gray">追記</span>
+                {% elif row.unchanged %}<span class="badge badge-gray">同じ</span>
+                {% elif row.current %}<span class="badge badge-orange">書き換え</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <p style="font-size:.8rem;color:var(--text-muted);margin:12px 0 0;">
+        「追記」の項目（備考・その他の読み取り項目）は今の内容を消さず、
+        まだ書かれていない行だけを足します。
+      </p>
+
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">チェックした項目を現場に反映</button>
+        <a href="{% url 'sites:estimate_import' site.pk %}" class="btn btn-outline">別のファイルを読み込む</a>
+        <a href="{% url 'sites:detail' site.pk %}" class="btn btn-outline">やめる</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+{% if missing_labels %}
+<div class="card" style="margin-top:20px;">
+  <div class="card-header"><h2>ファイルから読み取れなかった項目</h2></div>
+  <div class="card-body">
+    <p style="font-size:.85rem;color:var(--text-muted);margin:0 0 10px;">
+      表記がこちらの想定と違うか、ファイルに書かれていない項目です。
+      必要なら<a href="{% url 'sites:edit' site.pk %}">現場の編集</a>から入力してください。
+    </p>
+    <ul style="margin:0;padding-left:1.2rem;font-size:.9rem;">
+      {% for label in missing_labels %}<li>{{ label }}</li>{% endfor %}
+    </ul>
+  </div>
+</div>
+{% endif %}
+
+{% endif %}
+{% endblock %}
