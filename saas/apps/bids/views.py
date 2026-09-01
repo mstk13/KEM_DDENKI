@@ -16,16 +16,37 @@ from apps.bids.forms import (
 )
 from apps.bids.models import BidProject, Qualification, UnitPrice
 from apps.bids.qualification import check_qualifications_for_projects
-from apps.bids.services import get_dashboard_stats, mark_as_won
+from apps.bids.services import get_dashboard_stats, mark_as_won, start_estimation
 
 
 @login_required
 def project_list(request):
+    today = datetime.date.today()
     qs = BidProject.objects.order_by("-created_at")
 
-    q = request.GET.get("q", "").strip()
-    status = request.GET.get("status", "").strip()
-    region = request.GET.get("region", "").strip()
+    # 入札期限切れかつ未確定の案件を除外（期限未設定・確定済みは表示）
+    settled = [BidProject.Status.BID, BidProject.Status.WON, BidProject.Status.LOST]
+    qs = qs.exclude(
+        Q(deadline__lt=today) & ~Q(status__in=settled)
+    )
+
+    # 検索フィルタ: GETパラメータがあればセッションに保存、なければセッションから復元
+    if "reset" in request.GET:
+        request.session.pop("bid_filter_q", None)
+        request.session.pop("bid_filter_status", None)
+        request.session.pop("bid_filter_region", None)
+        q, status, region = "", "", ""
+    elif request.GET:
+        q = request.GET.get("q", "").strip()
+        status = request.GET.get("status", "").strip()
+        region = request.GET.get("region", "").strip()
+        request.session["bid_filter_q"] = q
+        request.session["bid_filter_status"] = status
+        request.session["bid_filter_region"] = region
+    else:
+        q = request.session.get("bid_filter_q", "")
+        status = request.session.get("bid_filter_status", "")
+        region = request.session.get("bid_filter_region", "")
 
     if q:
         qs = qs.filter(Q(title__icontains=q) | Q(client__icontains=q))
@@ -113,6 +134,18 @@ def project_edit(request, pk):
         "form": form,
         "cost_form": cost_form,
     })
+
+
+@login_required
+def bid_start_estimation(request, pk):
+    """案件を見積中にし、現場を自動作成する。"""
+    if request.method != "POST":
+        return redirect("bids:project_detail", pk=pk)
+
+    project = get_object_or_404(BidProject, pk=pk)
+    site = start_estimation(project, created_by=request.user)
+    messages.success(request, f"現場「{site.name}」を見積中として登録しました。")
+    return redirect("bids:project_list")
 
 
 @login_required
