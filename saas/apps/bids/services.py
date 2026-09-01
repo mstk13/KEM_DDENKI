@@ -64,6 +64,30 @@ def mark_as_won(bid_project, created_by=None):
     return site
 
 
+def start_estimation(bid_project, created_by=None):
+    """案件を見積中にし、現場を自動作成する。"""
+    from apps.sites.models import Site
+
+    bid_project.status = BidProject.Status.CONSIDERING
+    bid_project.save(update_fields=["status"])
+
+    site = Site.unscoped.create(
+        company=bid_project.company,
+        code=f"EST-{bid_project.pk}",
+        name=bid_project.title,
+        address="",
+        status=Site.Status.ESTIMATING,
+        contract_amount=bid_project.budget,
+        created_by=created_by,
+    )
+
+    if bid_project.client_ref:
+        site.customer = bid_project.client_ref
+        site.save(update_fields=["customer"])
+
+    return site
+
+
 def get_dashboard_stats(company):
     """入札ダッシュボードの集計データを取得する。
 

@@ -29,7 +29,7 @@
         <input type="text" name="region" value="{{ region }}" class="form-control" placeholder="地域">
       </div>
       <button type="submit" class="btn btn-primary">検索</button>
-      <a href="{% url 'bids:project_list' %}" class="btn btn-outline">リセット</a>
+      <a href="{% url 'bids:project_list' %}?reset" class="btn btn-outline">リセット</a>
     </form>
   </div>
 </div>
@@ -64,7 +64,15 @@
           </td>
           <td>{{ p.budget|floatformat:0 }} 円</td>
           <td>{{ p.deadline|default:"-" }}</td>
-          <td><a href="{% url 'bids:project_edit' p.pk %}" class="btn btn-outline btn-sm">編集</a></td>
+          <td style="white-space:nowrap;">
+            <a href="{% url 'bids:project_edit' p.pk %}" class="btn btn-outline btn-sm">編集</a>
+            {% if p.status == 'new' or p.status == 'considering' %}
+            <form method="post" action="{% url 'bids:start_estimation' p.pk %}" style="display:inline;">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-primary btn-sm" onclick="return confirm('この案件を見積中として現場管理に登録しますか？')">見積もりへ</button>
+            </form>
+            {% endif %}
+          </td>
         </tr>
         {% empty %}
         <tr><td colspan="9"><div class="empty"><div class="empty-icon">&#x1f4cb;</div><p>入札案件が登録されていません</p></div></td></tr>
