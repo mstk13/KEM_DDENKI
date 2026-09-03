@@ -40,11 +40,11 @@
       <thead>
         <tr>
           <th>案件名</th><th>発注者</th><th>地域</th>
-          <th><a href="?sort={% if sort == 'category' %}-category{% else %}category{% endif %}&q={{ q }}&status={{ status }}&region={{ region }}">工事区分{% if sort == 'category' %} ▲{% elif sort == '-category' %} ▼{% endif %}</a></th>
+          <th><a href="?sort={% if sort == 'category' %}-category{% else %}category{% endif %}&q={{ q }}&status={{ status }}&region={{ region }}" style="color:#fff;text-decoration:underline;">工事区分{% if sort == 'category' %} ▲{% elif sort == '-category' %} ▼{% endif %}</a></th>
           <th>状態</th><th>資格判定</th>
           <th>予算額</th>
-          <th><a href="?sort={% if sort == 'announced' %}-announced{% else %}announced{% endif %}&q={{ q }}&status={{ status }}&region={{ region }}">公告日{% if sort == 'announced' %} ▲{% elif sort == '-announced' %} ▼{% endif %}</a></th>
-          <th><a href="?sort={% if sort == 'deadline' %}-deadline{% else %}deadline{% endif %}&q={{ q }}&status={{ status }}&region={{ region }}">入札期限{% if sort == 'deadline' %} ▲{% elif sort == '-deadline' %} ▼{% endif %}</a></th>
+          <th><a href="?sort={% if sort == 'announced' %}-announced{% else %}announced{% endif %}&q={{ q }}&status={{ status }}&region={{ region }}" style="color:#fff;text-decoration:underline;">公告日{% if sort == 'announced' %} ▲{% elif sort == '-announced' %} ▼{% endif %}</a></th>
+          <th><a href="?sort={% if sort == 'deadline' %}-deadline{% else %}deadline{% endif %}&q={{ q }}&status={{ status }}&region={{ region }}" style="color:#fff;text-decoration:underline;">入札期限{% if sort == 'deadline' %} ▲{% elif sort == '-deadline' %} ▼{% endif %}</a></th>
           <th>公告</th>
           <th></th>
         </tr>
