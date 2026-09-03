@@ -72,7 +72,7 @@ class BidProject(TenantModel):
     )
     region = models.CharField("地域", max_length=100, blank=True)
     category = models.CharField("工事種別", max_length=100, blank=True)
-    deadline = models.DateField("入札期限", null=True, blank=True)
+    deadline = models.DateTimeField("入札期限", null=True, blank=True)
     budget = models.DecimalField(
         "予算額",
         max_digits=14,
@@ -155,6 +155,14 @@ class BidProject(TenantModel):
     required_score = models.IntegerField(
         "必要点数", null=True, blank=True,
         help_text="総合審査数値・経営事項評価数値の下限",
+    )
+
+    # 公告の別表から抽出した手続きスケジュール
+    # [{"label": "申請書及び資料の受付期限", "datetime": "2026-08-07T15:00",
+    #   "detail": "電子入札システムで提出"}, ...]
+    bid_schedule = models.JSONField(
+        "入札手続スケジュール", default=list, blank=True,
+        help_text="公告の別表から抽出した各種期限と提出物",
     )
 
     history = HistoricalRecords()
