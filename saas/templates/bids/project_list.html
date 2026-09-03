@@ -38,7 +38,13 @@
   <div class="table-wrap">
     <table>
       <thead>
-        <tr><th>案件名</th><th>発注者</th><th>地域</th><th>工事種別</th><th>状態</th><th>資格判定</th><th>予算額</th><th>入札期限</th><th></th></tr>
+        <tr>
+          <th>案件名</th><th>発注者</th><th>地域</th>
+          <th><a href="?sort={% if sort == 'category' %}-category{% else %}category{% endif %}&q={{ q }}&status={{ status }}&region={{ region }}">工事種別{% if sort == 'category' %} ▲{% elif sort == '-category' %} ▼{% endif %}</a></th>
+          <th>状態</th><th>資格判定</th><th>予算額</th>
+          <th><a href="?sort={% if sort == 'deadline' %}-deadline{% else %}deadline{% endif %}&q={{ q }}&status={{ status }}&region={{ region }}">入札期限{% if sort == 'deadline' %} ▲{% elif sort == '-deadline' %} ▼{% endif %}</a></th>
+          <th></th>
+        </tr>
       </thead>
       <tbody>
         {% for p in projects %}
@@ -63,7 +69,7 @@
             {% endif %}
           </td>
           <td>{{ p.budget|floatformat:0 }} 円</td>
-          <td>{{ p.deadline|default:"-" }}</td>
+          <td>{% if p.deadline %}{{ p.deadline|date:"Y/m/d" }}{% if p.deadline.hour or p.deadline.minute %} {{ p.deadline|time:"H:i" }}{% endif %}{% else %}-{% endif %}</td>
           <td style="white-space:nowrap;">
             <a href="{% url 'bids:project_edit' p.pk %}" class="btn btn-outline btn-sm">編集</a>
             {% if p.status == 'new' or p.status == 'considering' %}

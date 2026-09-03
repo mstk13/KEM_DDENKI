@@ -365,6 +365,17 @@ def fill_announcement(project) -> bool:
     if result["required_score"] and project.required_score is None:
         project.required_score = result["required_score"]
         changed.append("required_score")
+    if result.get("bid_schedule") and not project.bid_schedule:
+        project.bid_schedule = result["bid_schedule"]
+        changed.append("bid_schedule")
+    if result.get("bid_deadline") and not project.deadline:
+        from datetime import datetime as _dt
+        try:
+            project.deadline = _dt.fromisoformat(result["bid_deadline"])
+        except (ValueError, TypeError):
+            pass
+        else:
+            changed.append("deadline")
 
     if not changed:
         return False

@@ -21,13 +21,14 @@ from apps.bids.services import get_dashboard_stats, mark_as_won, start_estimatio
 
 @login_required
 def project_list(request):
-    today = datetime.date.today()
+    from django.utils import timezone
+    now = timezone.now()
     qs = BidProject.objects.order_by("-created_at")
 
     # 入札期限切れかつ未確定の案件を除外（期限未設定・確定済みは表示）
     settled = [BidProject.Status.BID, BidProject.Status.WON, BidProject.Status.LOST]
     qs = qs.exclude(
-        Q(deadline__lt=today) & ~Q(status__in=settled)
+        Q(deadline__lt=now) & ~Q(status__in=settled)
     )
 
     # 検索フィルタ: GETパラメータがあればセッションに保存、なければセッションから復元
@@ -55,6 +56,32 @@ def project_list(request):
     if region:
         qs = qs.filter(region__icontains=region)
 
+    # ソート
+    sort = request.GET.get("sort", "").strip()
+    if sort:
+        request.session["bid_sort"] = sort
+    elif not request.GET or "reset" in request.GET:
+        request.session.pop("bid_sort", None)
+        sort = ""
+    else:
+        sort = request.session.get("bid_sort", "")
+
+    SORT_MAP = {
+        "deadline": "deadline",
+        "-deadline": "-deadline",
+        "category": "category",
+        "-category": "-category",
+        "created": "created_at",
+        "-created": "-created_at",
+    }
+    order_field = SORT_MAP.get(sort)
+    if order_field:
+        qs = qs.order_by(order_field, "-created_at")
+    else:
+        # デフォルト: 入札期限の早い順（nullは末尾）
+        from django.db.models import F
+        qs = qs.order_by(F("deadline").asc(nulls_last=True), "-created_at")
+
     # 一覧の資格バッジ用。資格マスタは1回だけ読む
     projects = list(qs)
     checks = check_qualifications_for_projects(projects, request.user.company)
@@ -66,6 +93,7 @@ def project_list(request):
         "q": q,
         "status": status,
         "region": region,
+        "sort": sort,
         "status_choices": BidProject.Status.choices,
     })
 
