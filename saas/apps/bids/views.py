@@ -71,6 +71,8 @@ def project_list(request):
         "-deadline": "-deadline",
         "category": "category",
         "-category": "-category",
+        "announced": "announced_on",
+        "-announced": "-announced_on",
         "created": "created_at",
         "-created": "-created_at",
     }
@@ -78,9 +80,9 @@ def project_list(request):
     if order_field:
         qs = qs.order_by(order_field, "-created_at")
     else:
-        # デフォルト: 入札期限の早い順（nullは末尾）
+        # デフォルト: 公告日の新しい順（nullは末尾）
         from django.db.models import F
-        qs = qs.order_by(F("deadline").asc(nulls_last=True), "-created_at")
+        qs = qs.order_by(F("announced_on").desc(nulls_last=True), "-created_at")
 
     # 一覧の資格バッジ用。資格マスタは1回だけ読む
     projects = list(qs)
