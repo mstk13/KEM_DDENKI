@@ -24,9 +24,6 @@
       <dt>入札契約方式</dt><dd>{{ project.bid_method|default:"-" }}</dd>
       <dt>電子入札対象</dt><dd>{{ project.electronic_bid|default:"-" }}</dd>
       <dt>設計書番号</dt><dd>{{ project.design_no|default:"-" }}</dd>
-      <dt>公告日</dt><dd>{{ project.announced_on|default:"-" }}</dd>
-      <dt>入札期限</dt><dd>{% if project.deadline %}{{ project.deadline|date:"Y/m/d" }}{% if project.deadline.hour or project.deadline.minute %} {{ project.deadline|time:"H:i" }}{% endif %}{% else %}-{% endif %}</dd>
-      <dt>開札日</dt><dd>{{ project.opening_on|default:"-" }}</dd>
       <dt>予定価格</dt><dd>{% if project.budget %}{{ project.budget|floatformat:0 }} 円{% else %}非公表 / 未取得{% endif %}</dd>
       <dt>状態</dt><dd>{{ project.get_status_display }}</dd>
       <dt>収集元</dt><dd>{{ project.get_source_type_display }}</dd>
@@ -107,13 +104,19 @@
   </div>
 </div>
 
-{% if project.bid_schedule %}
 <div class="card" style="margin-top:20px;">
-  <div class="card-header"><h2>入札手続スケジュール</h2></div>
+  <div class="card-header"><h2>重要日程</h2></div>
   <div class="table-wrap">
     <table>
-      <thead><tr><th>手続き</th><th>期限</th><th>備考</th></tr></thead>
+      <thead><tr><th>項目</th><th>日時</th><th>備考</th></tr></thead>
       <tbody>
+        {% if project.announced_on %}
+        <tr>
+          <td>公告日</td>
+          <td style="white-space:nowrap;">{{ project.announced_on|date:"Y/m/d" }}</td>
+          <td>-</td>
+        </tr>
+        {% endif %}
         {% for item in project.bid_schedule %}
         <tr>
           <td>{{ item.label }}</td>
@@ -121,11 +124,27 @@
           <td>{{ item.detail|default:"-" }}</td>
         </tr>
         {% endfor %}
+        {% if project.deadline and not project.bid_schedule %}
+        <tr>
+          <td>入札期限</td>
+          <td style="white-space:nowrap;">{{ project.deadline|date:"Y/m/d" }}{% if project.deadline.hour or project.deadline.minute %} {{ project.deadline|time:"H:i" }}{% endif %}</td>
+          <td>-</td>
+        </tr>
+        {% endif %}
+        {% if project.opening_on %}
+        <tr>
+          <td>開札日</td>
+          <td style="white-space:nowrap;">{{ project.opening_on|date:"Y/m/d" }}</td>
+          <td>-</td>
+        </tr>
+        {% endif %}
+        {% if not project.announced_on and not project.bid_schedule and not project.deadline and not project.opening_on %}
+        <tr><td colspan="3" style="text-align:center;color:var(--gray-400);padding:20px;">日程情報がありません</td></tr>
+        {% endif %}
       </tbody>
     </table>
   </div>
 </div>
-{% endif %}
 
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:20px;">
   <div class="card">

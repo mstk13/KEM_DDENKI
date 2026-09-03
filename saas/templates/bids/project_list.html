@@ -43,6 +43,7 @@
           <th><a href="?sort={% if sort == 'category' %}-category{% else %}category{% endif %}&q={{ q }}&status={{ status }}&region={{ region }}">工事種別{% if sort == 'category' %} ▲{% elif sort == '-category' %} ▼{% endif %}</a></th>
           <th>状態</th><th>資格判定</th><th>予算額</th>
           <th><a href="?sort={% if sort == 'deadline' %}-deadline{% else %}deadline{% endif %}&q={{ q }}&status={{ status }}&region={{ region }}">入札期限{% if sort == 'deadline' %} ▲{% elif sort == '-deadline' %} ▼{% endif %}</a></th>
+          <th>公告</th>
           <th></th>
         </tr>
       </thead>
@@ -69,7 +70,8 @@
             {% endif %}
           </td>
           <td>{{ p.budget|floatformat:0 }} 円</td>
-          <td>{% if p.deadline %}{{ p.deadline|date:"Y/m/d" }}{% if p.deadline.hour or p.deadline.minute %} {{ p.deadline|time:"H:i" }}{% endif %}{% else %}-{% endif %}</td>
+          <td style="white-space:nowrap;">{% if p.deadline %}{{ p.deadline|date:"Y/m/d" }}{% if p.deadline.hour or p.deadline.minute %} {{ p.deadline|time:"H:i" }}{% endif %}{% else %}-{% endif %}</td>
+          <td>{% if p.source_url %}<a href="{{ p.source_url }}" target="_blank" rel="noopener noreferrer" title="{{ p.source_url }}">PDF</a>{% else %}-{% endif %}</td>
           <td style="white-space:nowrap;">
             <a href="{% url 'bids:project_edit' p.pk %}" class="btn btn-outline btn-sm">編集</a>
             {% if p.status == 'new' or p.status == 'considering' %}
@@ -81,7 +83,7 @@
           </td>
         </tr>
         {% empty %}
-        <tr><td colspan="9"><div class="empty"><div class="empty-icon">&#x1f4cb;</div><p>入札案件が登録されていません</p></div></td></tr>
+        <tr><td colspan="10"><div class="empty"><div class="empty-icon">&#x1f4cb;</div><p>入札案件が登録されていません</p></div></td></tr>
         {% endfor %}
       </tbody>
     </table>
