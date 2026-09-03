@@ -146,14 +146,21 @@ def check_project(project, qualifications, today=None):
         if score:
             by_issuer.append((score, qual))
     if not by_issuer:
-        # 資格マスタは国の機関のみで、地方自治体は登録されていない。
-        # 登録が無いことを「資格なし」とは扱わない。案件は取り込んだうえで
-        # 要確認（eligible=None）にし、公告で確かめてもらう。
-        result["reason"] = (
-            f"「{bid_issuer}」の入札参加資格は登録されていません。"
-            "資格要件が無いものとして取り込んでいます。"
-            "参加できるかは公告の参加資格の記載で確認してください。"
-        )
+        # 資格マスタに1件以上登録がある場合、対応する資格が無い＝資格不足。
+        # 管轄区域外（例: 北関東防衛局の管轄に神奈川県が含まれない）も
+        # このケースに該当する。
+        has_any = any(q.issuer != UNIFIED_QUALIFICATION_ISSUER for q in qualifications)
+        if has_any:
+            result["eligible"] = False
+            result["reason"] = (
+                f"「{bid_issuer}」に対応する入札参加資格がありません。"
+                "管轄区域に自社の所在地が含まれていない可能性があります。"
+            )
+        else:
+            result["reason"] = (
+                f"入札参加資格が未登録です。"
+                "資格マスタに登録すると自動判定できます。"
+            )
         return result
 
     result["issuer_known"] = True
@@ -236,16 +243,12 @@ def check_project(project, qualifications, today=None):
     # 6. 点数の下限が書かれている場合（防衛省の総合審査数値・経営事項評価数値）
     if project.required_score:
         our_score = max(
-            [s for s in (best.total_score, best.keisin_score) if s is not None], default=None,
+            [s for s in (best.total_score, best.keisin_score) if s], default=None,
         )
         if our_score is None:
-            result["eligible"] = False
-            result["reason"] = (
-                f"{project.required_score}点以上が必要ですが、"
-                f"自社の点数が未登録です（{detail}）。"
-                "入札参加資格の画面で経審点・総合点を登録してください。"
+            result["checked"].append(
+                f"{project.required_score}点以上 → 自社の点数が未登録のため未確認"
             )
-            return result
         elif our_score < project.required_score:
             result["eligible"] = False
             result["reason"] = (
