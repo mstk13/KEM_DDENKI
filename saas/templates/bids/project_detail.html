@@ -26,7 +26,8 @@
       <dt>設計書番号</dt><dd>{{ project.design_no|default:"-" }}</dd>
       <dt>予定価格</dt><dd>{% if project.budget %}{{ project.budget|floatformat:0 }} 円{% else %}非公表 / 未取得{% endif %}</dd>
       <dt>状態</dt><dd>{{ project.get_status_display }}</dd>
-      <dt>収集元</dt><dd>{{ project.get_source_type_display }}</dd>
+      <dt>入札期限</dt><dd>{% if project.deadline %}{{ project.deadline|date:"Y/m/d" }}{% if project.deadline.hour or project.deadline.minute %} {{ project.deadline|time:"H:i" }}{% endif %}{% else %}-{% endif %}</dd>
+      <dt>開札日</dt><dd>{{ project.opening_on|default:"-" }}</dd>
       <dt>情報源URL</dt>
       <dd>
         {% if project.source_url %}
