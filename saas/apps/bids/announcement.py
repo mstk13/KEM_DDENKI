@@ -292,217 +292,324 @@ _ZENKAKU_NUM = str.maketrans("０１２３４５６７８９", "0123456789")
 _REIWA_DATE = re.compile(
     r"令和\s*[０-９\d]{1,2}\s*年\s*[０-９\d]{1,2}\s*月\s*[０-９\d]{1,2}\s*日"
 )
+# 同年X月Y日 のパターン（年を省略した参照）
+_SAME_YEAR_DATE = re.compile(
+    r"同年\s*[０-９\d]{1,2}\s*月\s*[０-９\d]{1,2}\s*日"
+)
 # HH時MM分 のパターン
 _TIME_HM = re.compile(r"[０-９\d]{1,2}\s*時\s*[０-９\d]{1,2}\s*分")
-
-# 別表で抽出したい手続き項目のキーワードと表示ラベル
-_SCHEDULE_KEYS = [
-    ("入札説明書の交付期間", "入札説明書の交付・受付期限"),
-    ("受付期間", "入札説明書の交付・受付期限"),
-    ("申請書及び資料の受付期限", "申請書・資料の受付期限"),
-    ("申請書.*受付", "申請書・資料の受付期限"),
-    ("歩掛見積参考資料の交付期間", "歩掛見積参考資料の交付期限"),
-    ("歩掛見積参考資料", "歩掛見積参考資料の交付期限"),
-    ("入札の締切", "入札の締切"),
-    ("入札締切", "入札の締切"),
-    ("開札", "開札"),
-]
+# HH時 のパターン（「分」省略）
+_TIME_H = re.compile(r"[０-９\d]{1,2}\s*時(?!\s*[０-９\d])")
+# 正午
+_NOON = re.compile(r"正午")
 
 
-def _parse_reiwa_datetime(text: str) -> str | None:
-    """テキストから令和の日付+時刻を ISO datetime 文字列に変換する。
-
-    「令和８年９月10日（木）12時00分」→ "2026-09-10T12:00"
-    時刻がなければ None。日付だけでは返さない（DateField と区別するため）。
-    """
+def _parse_date_str(text: str) -> "date | None":
+    """令和日付文字列を date オブジェクトに変換する。"""
     from datetime import date as _date
 
-    date_m = _REIWA_DATE.search(text)
-    if not date_m:
-        return None
-    raw = date_m.group().translate(_ZENKAKU_NUM)
+    raw = text.translate(_ZENKAKU_NUM)
     raw = re.sub(r"\s+", "", raw)
-    dm = re.match(r"令和(\d+)年(\d+)月(\d+)日", raw)
-    if not dm:
+    m = re.search(r"令和(\d+)年(\d+)月(\d+)日", raw)
+    if not m:
         return None
     try:
-        d = _date(2018 + int(dm.group(1)), int(dm.group(2)), int(dm.group(3)))
+        return _date(2018 + int(m.group(1)), int(m.group(2)), int(m.group(3)))
     except ValueError:
         return None
 
-    # 時刻を探す（日付の後ろのテキスト全体から）
-    after_date = text[date_m.end():]
-    time_m = _TIME_HM.search(after_date)
-    if time_m:
-        raw_t = time_m.group().translate(_ZENKAKU_NUM)
-        raw_t = re.sub(r"\s+", "", raw_t)
-        tm = re.match(r"(\d+)時(\d+)分", raw_t)
-        if tm:
-            return f"{d.isoformat()}T{int(tm.group(1)):02d}:{int(tm.group(2)):02d}"
 
+def _parse_same_year_date(text: str, ref_year: int) -> "date | None":
+    """「同年X月Y日」を参照年で解決する。"""
+    from datetime import date as _date
+
+    raw = text.translate(_ZENKAKU_NUM)
+    raw = re.sub(r"\s+", "", raw)
+    m = re.search(r"同年(\d+)月(\d+)日", raw)
+    if not m:
+        return None
+    try:
+        return _date(ref_year, int(m.group(1)), int(m.group(2)))
+    except ValueError:
+        return None
+
+
+def _extract_time(text: str) -> str:
+    """テキストから時刻を抽出する。「正午」「17時」「12時00分」に対応。
+
+    Returns: "HH:MM" または ""
+    """
+    if _NOON.search(text):
+        return "12:00"
+    m = _TIME_HM.search(text)
+    if m:
+        raw = m.group().translate(_ZENKAKU_NUM)
+        raw = re.sub(r"\s+", "", raw)
+        tm = re.match(r"(\d+)時(\d+)分", raw)
+        if tm:
+            return f"{int(tm.group(1)):02d}:{int(tm.group(2)):02d}"
+    m = _TIME_H.search(text)
+    if m:
+        raw = m.group().translate(_ZENKAKU_NUM).strip()
+        tm = re.match(r"(\d+)時", raw)
+        if tm:
+            return f"{int(tm.group(1)):02d}:00"
+    return ""
+
+
+def _make_datetime_str(d: "date", time_str: str) -> str:
+    """date と時刻文字列から ISO datetime を作る。"""
+    if time_str:
+        return f"{d.isoformat()}T{time_str}"
     return d.isoformat()
 
 
-def _parse_reiwa_date_only(text: str) -> str | None:
-    """日付のみ（時刻なし）の場合でも ISO date を返す。"""
-    from datetime import date as _date
-
-    date_m = _REIWA_DATE.search(text)
-    if not date_m:
-        return None
-    raw = date_m.group().translate(_ZENKAKU_NUM)
-    raw = re.sub(r"\s+", "", raw)
-    dm = re.match(r"令和(\d+)年(\d+)月(\d+)日", raw)
-    if not dm:
-        return None
-    try:
-        d = _date(2018 + int(dm.group(1)), int(dm.group(2)), int(dm.group(3)))
-        return d.isoformat()
-    except ValueError:
-        return None
-
-
 def _rejoin_split_dates(text: str) -> str:
-    """PDFテキスト抽出で行をまたいで分割された令和日付を結合する。
-
-    「令和\\n８年９月」→「令和８年９月」
-    「12 時 00\\n分」→「12 時 00 分」
-    """
-    # 「令和」で終わる行と次行の「X年」を結合
+    """PDFテキスト抽出で行をまたいで分割された令和日付を結合する。"""
     text = re.sub(r"令和\s*\n\s*(?=[０-９\d])", "令和", text)
-    # 「XX 時 YY」で終わる行と次行の「分」を結合
     text = re.sub(r"(\d{1,2}\s*時\s*\d{1,2})\s*\n\s*分", r"\1 分", text)
     return text
 
 
-def _clean_table_text(text: str) -> str:
-    """別表のPDFテキストからアーティファクトを除去する。
-
-    「（２）」のような節番号参照や余分な空白を潰し、
-    分断された令和日付を結合できるようにする。
-    """
-    # 「（１）」〜「（99）」のような節番号参照を除去
+def _clean_block(text: str) -> str:
+    """ブロックテキストからPDFアーティファクトを除去する。"""
     text = re.sub(r"（[０-９0-9]{1,2}）", " ", text)
-    # PDFの行折り返しで「令和」と「X年」の間に文字が挟まるケースを修復
-    # 「令和 付期間 ８年」→「令和８年」
     text = re.sub(
         r"令和\s+[^\d０-９]*?([０-９\d]{1,2}\s*年)",
         r"令和\1",
         text,
     )
-    # 連続する空白を1つに
     text = re.sub(r"\s+", " ", text)
     return text.strip()
 
 
-def _find_entry_block(lines: list[str], start: int) -> str:
-    """別表の1エントリ分のテキストブロックを取り出す。
+# 番号付き項目のパターン: ①② or (1)(2) or ア イ
+_NUMBERED_ITEM = re.compile(
+    r"(?:^|\n)\s*([①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮])\s*"
+)
 
-    次の「．」付き節番号が出るまでを1ブロックとする。
-    PDFアーティファクトを除去して日付パターンを正しくマッチさせる。
-    """
-    block_lines = [lines[start]]
-    for j in range(start + 1, min(start + 12, len(lines))):
-        line = lines[j].strip()
-        # 次のセクション番号（例: "４．入札手続等"）が来たら終了
-        if re.match(r"[０-９0-9]{1,2}[．.]", line):
-            break
-        block_lines.append(lines[j])
-    return _clean_table_text(" ".join(block_lines))
+# 別表の節番号（「４．入札手続等」など）
+_SECTION_NUM = re.compile(r"[０-９0-9]{1,2}[．.]")
+
+# 日付を含む項目として認識するキーワード（ラベルの正規化に使う）
+_LABEL_NORMALIZE = [
+    (r"配置予定技術者.*専任", "配置予定技術者の専任期間"),
+    (r"入札説明書.*交付", "入札説明書等の交付期間"),
+    (r"申請書.*技術", "申請書・技術資料の提出期限"),
+    (r"申請書.*提出期限", "申請書・技術資料の提出期限"),
+    (r"技術提案.*提出期限", "申請書・技術資料の提出期限"),
+    (r"見積.*提出期限", "見積等の提出期限"),
+    (r"入札書.*受領期限", "入札書の受領期限"),
+    (r"入札.*締切", "入札の締切"),
+    (r"入札説明書.*受付", "入札説明書の交付・受付期限"),
+    (r"申請書.*受付期限", "申請書・資料の受付期限"),
+    (r"歩掛見積参考資料", "歩掛見積参考資料の交付期限"),
+    (r"開札.*日時", "開札"),
+    (r"開札", "開札"),
+]
+
+
+def _normalize_label(raw_label: str) -> str:
+    """項目ラベルを正規化する。"""
+    for pattern, normalized in _LABEL_NORMALIZE:
+        if re.search(pattern, raw_label):
+            return normalized
+    # マッチしなければ、余分な空白を潰して返す
+    return re.sub(r"\s+", "", raw_label).strip()
+
+
+def _extract_last_date_with_time(block: str, ref_year: int = 0) -> str | None:
+    """ブロックから最後の日付+時刻を抽出する（期間の終了日用）。"""
+    # 「同年」を先にチェック
+    same_year_dates = list(_SAME_YEAR_DATE.finditer(block))
+    reiwa_dates = list(_REIWA_DATE.finditer(block))
+
+    if same_year_dates and ref_year:
+        last = same_year_dates[-1]
+        d = _parse_same_year_date(last.group(), ref_year)
+        if d:
+            after = block[last.end():]
+            time_str = _extract_time(after)
+            # 「最終日はXX時まで」パターン
+            if not time_str and "最終日" in block:
+                time_str = _extract_time(block[block.index("最終日"):])
+            return _make_datetime_str(d, time_str)
+
+    if reiwa_dates:
+        last = reiwa_dates[-1]
+        d = _parse_date_str(last.group())
+        if d:
+            after = block[last.end():]
+            time_str = _extract_time(after)
+            if not time_str and "最終日" in block:
+                time_str = _extract_time(block[block.index("最終日"):])
+            return _make_datetime_str(d, time_str)
+
+    return None
+
+
+def _extract_first_date_with_time(block: str) -> str | None:
+    """ブロックから最初の日付+時刻を抽出する（単一イベント用）。"""
+    m = _REIWA_DATE.search(block)
+    if not m:
+        return None
+    d = _parse_date_str(m.group())
+    if not d:
+        return None
+    after = block[m.end():]
+    time_str = _extract_time(after)
+    return _make_datetime_str(d, time_str)
+
+
+def _is_range_item(label: str) -> bool:
+    """期間（から〜まで）を表す項目か。"""
+    return any(w in label for w in ("交付期間", "交付・受付", "専任期間"))
 
 
 def extract_bid_schedule(text: str) -> list[dict]:
-    """公告テキストから手続きスケジュール（別表）を抽出する。
+    """公告テキストから手続きスケジュールを汎用的に抽出する。
+
+    2つの形式に対応:
+    1. 別表形式（国交省）: 「４．入札手続等 入札説明書の交付期間 令和...」
+    2. 番号付き形式（防衛省）: 「① 配置予定技術者の専任期間 令和...」
 
     Returns:
         [{"label": "入札の締切", "datetime": "2026-09-10T12:00",
-          "detail": "電子入札システムで提出"}, ...]
+          "detail": "..."}, ...]
     """
     if not text:
         return []
 
     text = _rejoin_split_dates(text)
-    lines = text.splitlines()
     schedule = []
     seen_labels = set()
 
-    # 「期間」を含むラベルは範囲（から〜まで）で最後の日付を取る
-    _RANGE_LABELS = {"入札説明書の交付・受付期限", "歩掛見積参考資料の交付期限"}
+    # --- 方式1: 番号付き項目（①②③...）を探す ---
+    items = list(_NUMBERED_ITEM.finditer(text))
+    ref_year = 0  # 「同年」解決用
 
-    for keyword, label in _SCHEDULE_KEYS:
+    for idx, item_match in enumerate(items):
+        # このアイテムの範囲: 現在の番号から次の番号まで
+        start = item_match.end()
+        end = items[idx + 1].start() if idx + 1 < len(items) else min(start + 500, len(text))
+        block_raw = text[start:end]
+        block = _clean_block(block_raw)
+
+        # 日付があるか
+        has_date = bool(_REIWA_DATE.search(block) or _SAME_YEAR_DATE.search(block))
+        if not has_date:
+            continue
+
+        # ラベル抽出: 最初の日付の前のテキスト
+        date_pos = _REIWA_DATE.search(block)
+        same_pos = _SAME_YEAR_DATE.search(block)
+        first_date_start = min(
+            (date_pos.start() if date_pos else 9999),
+            (same_pos.start() if same_pos else 9999),
+        )
+        raw_label = block[:first_date_start].strip()
+        label = _normalize_label(raw_label)
+
         if label in seen_labels:
             continue
-        pattern = re.compile(keyword)
-        for i, line in enumerate(lines):
-            if not pattern.search(line):
+
+        # 参照年を更新
+        if date_pos:
+            d = _parse_date_str(date_pos.group())
+            if d:
+                ref_year = d.year
+
+        # 期間の場合は最後の日付、単一イベントは最初
+        if _is_range_item(label):
+            dt = _extract_last_date_with_time(block, ref_year)
+        else:
+            dt = _extract_first_date_with_time(block)
+
+        if not dt:
+            continue
+
+        # 補足情報
+        detail = ""
+        if "電子入札" in block:
+            detail = "電子入札システム"
+        if "最終日" in block:
+            time_str = _extract_time(block[block.index("最終日"):])
+            if time_str:
+                suffix = f"最終日は{time_str}まで"
+                detail = f"{detail}（{suffix}）" if detail else suffix
+        # 場所情報
+        place_m = re.search(r"([\w]+局\s*[\w]*階[\w]*室)", block)
+        if place_m:
+            detail = f"{detail} {place_m.group()}" if detail else place_m.group()
+
+        schedule.append({"label": label, "datetime": dt, "detail": detail.strip()})
+        seen_labels.add(label)
+
+    # --- 方式2: 別表形式（「X．入札手続等 ... 令和...」）---
+    # 番号付き形式で何も取れなかった場合にフォールバック
+    if not schedule:
+        lines = text.splitlines()
+        _FALLBACK_KEYS = [
+            ("入札説明書の交付期間", "入札説明書の交付・受付期限", True),
+            ("受付期間", "入札説明書の交付・受付期限", True),
+            ("申請書.*受付", "申請書・資料の受付期限", False),
+            ("歩掛見積参考資料", "歩掛見積参考資料の交付期限", True),
+            ("入札の締切", "入札の締切", False),
+            ("入札締切", "入札の締切", False),
+            ("開札", "開札", False),
+        ]
+        for keyword, label, is_range in _FALLBACK_KEYS:
+            if label in seen_labels:
                 continue
-            # このキーワードの1エントリ分のブロックを取得
-            block = _find_entry_block(lines, i)
+            pattern = re.compile(keyword)
+            for i, line in enumerate(lines):
+                if not pattern.search(line):
+                    continue
+                # ブロック取得
+                block_lines = [lines[i]]
+                for j in range(i + 1, min(i + 12, len(lines))):
+                    ln = lines[j].strip()
+                    if _SECTION_NUM.match(ln):
+                        break
+                    block_lines.append(lines[j])
+                block = _clean_block(" ".join(block_lines))
 
-            dates = list(_REIWA_DATE.finditer(block))
-            if not dates:
-                continue
+                if is_range:
+                    dt = _extract_last_date_with_time(block)
+                else:
+                    dt = _extract_first_date_with_time(block)
+                if not dt:
+                    continue
 
-            # 範囲（から〜まで）の場合は最後の日付、単一イベントは最初の日付
-            target_match = dates[-1] if label in _RANGE_LABELS else dates[0]
-            after_target = block[target_match.start():]
+                detail = ""
+                if "電子入札" in block:
+                    detail = "電子入札システム"
+                if "最終日" in block:
+                    time_str = _extract_time(block[block.index("最終日"):])
+                    if time_str:
+                        suffix = f"最終日は{time_str}まで"
+                        detail = f"{detail}（{suffix}）" if detail else suffix
 
-            # 日付の直後に時刻があればそれを使う
-            dt = _parse_reiwa_datetime(after_target)
-
-            # 直後に時刻がない場合、「最終日はXX時YY分まで」を探す
-            if dt and "T" not in dt and "最終日" in block:
-                final_day_idx = block.index("最終日")
-                time_m = _TIME_HM.search(block[final_day_idx:])
-                if time_m:
-                    raw_t = time_m.group().translate(_ZENKAKU_NUM)
-                    raw_t = re.sub(r"\s+", "", raw_t)
-                    tm = re.match(r"(\d+)時(\d+)分", raw_t)
-                    if tm:
-                        dt = f"{dt}T{int(tm.group(1)):02d}:{int(tm.group(2)):02d}"
-
-            if not dt:
-                dt = _parse_reiwa_date_only(after_target)
-            if not dt:
-                continue
-
-            # 補足情報
-            detail = ""
-            if "電子入札" in block:
-                detail = "電子入札システム"
-            if "最終日" in block:
-                time_m = _TIME_HM.search(block[block.index("最終日"):])
-                if time_m:
-                    raw_t = time_m.group().translate(_ZENKAKU_NUM)
-                    raw_t = re.sub(r"\s+", "", raw_t)
-                    suffix = f"最終日は{raw_t}まで"
-                    detail = f"{detail}（{suffix}）" if detail else suffix
-
-            schedule.append({
-                "label": label,
-                "datetime": dt,
-                "detail": detail,
-            })
-            seen_labels.add(label)
-            break
+                schedule.append({"label": label, "datetime": dt, "detail": detail.strip()})
+                seen_labels.add(label)
+                break
 
     return schedule
 
 
 def extract_deadline_from_schedule(schedule: list[dict]) -> str | None:
-    """スケジュールから入札期限（申請書の受付期限）を返す。
+    """スケジュールから最も早い提出期限を返す。
 
-    優先順位: 申請書の受付期限 > 入札の締切 > その他の受付期限
+    優先順位: 申請書の提出期限 > 入札の締切/受領期限 > その他の受付期限
     """
-    # 申請書の受付期限が最も重要（これを過ぎると参加できない）
     for item in schedule:
         if "申請書" in item["label"]:
             return item["datetime"]
     for item in schedule:
-        if item["label"] == "入札の締切":
+        if any(w in item["label"] for w in ("入札の締切", "入札書の受領", "入札締切")):
             return item["datetime"]
     for item in schedule:
-        if "受付" in item["label"]:
+        if "受付" in item["label"] or "提出" in item["label"]:
             return item["datetime"]
     return None
 
