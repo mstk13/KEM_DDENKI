@@ -236,12 +236,16 @@ def check_project(project, qualifications, today=None):
     # 6. 点数の下限が書かれている場合（防衛省の総合審査数値・経営事項評価数値）
     if project.required_score:
         our_score = max(
-            [s for s in (best.total_score, best.keisin_score) if s], default=None,
+            [s for s in (best.total_score, best.keisin_score) if s is not None], default=None,
         )
         if our_score is None:
-            result["checked"].append(
-                f"{project.required_score}点以上 → 自社の点数が未登録のため未確認"
+            result["eligible"] = False
+            result["reason"] = (
+                f"{project.required_score}点以上が必要ですが、"
+                f"自社の点数が未登録です（{detail}）。"
+                "入札参加資格の画面で経審点・総合点を登録してください。"
             )
+            return result
         elif our_score < project.required_score:
             result["eligible"] = False
             result["reason"] = (
