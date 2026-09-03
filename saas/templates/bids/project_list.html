@@ -40,8 +40,10 @@
       <thead>
         <tr>
           <th>案件名</th><th>発注者</th><th>地域</th>
-          <th><a href="?sort={% if sort == 'category' %}-category{% else %}category{% endif %}&q={{ q }}&status={{ status }}&region={{ region }}">工事種別{% if sort == 'category' %} ▲{% elif sort == '-category' %} ▼{% endif %}</a></th>
-          <th>状態</th><th>資格判定</th><th>予算額</th>
+          <th><a href="?sort={% if sort == 'category' %}-category{% else %}category{% endif %}&q={{ q }}&status={{ status }}&region={{ region }}">工事区分{% if sort == 'category' %} ▲{% elif sort == '-category' %} ▼{% endif %}</a></th>
+          <th>状態</th><th>資格判定</th>
+          <th>予算額</th>
+          <th><a href="?sort={% if sort == 'announced' %}-announced{% else %}announced{% endif %}&q={{ q }}&status={{ status }}&region={{ region }}">公告日{% if sort == 'announced' %} ▲{% elif sort == '-announced' %} ▼{% endif %}</a></th>
           <th><a href="?sort={% if sort == 'deadline' %}-deadline{% else %}deadline{% endif %}&q={{ q }}&status={{ status }}&region={{ region }}">入札期限{% if sort == 'deadline' %} ▲{% elif sort == '-deadline' %} ▼{% endif %}</a></th>
           <th>公告</th>
           <th></th>
@@ -70,6 +72,7 @@
             {% endif %}
           </td>
           <td>{{ p.budget|floatformat:0 }} 円</td>
+          <td style="white-space:nowrap;">{{ p.announced_on|date:"Y/m/d"|default:"-" }}</td>
           <td style="white-space:nowrap;">{% if p.deadline %}{{ p.deadline|date:"Y/m/d" }}{% if p.deadline.hour or p.deadline.minute %} {{ p.deadline|time:"H:i" }}{% endif %}{% else %}-{% endif %}</td>
           <td>{% if p.source_url %}<a href="{{ p.source_url }}" target="_blank" rel="noopener noreferrer" title="{{ p.source_url }}">PDF</a>{% else %}-{% endif %}</td>
           <td style="white-space:nowrap;">
@@ -83,7 +86,7 @@
           </td>
         </tr>
         {% empty %}
-        <tr><td colspan="10"><div class="empty"><div class="empty-icon">&#x1f4cb;</div><p>入札案件が登録されていません</p></div></td></tr>
+        <tr><td colspan="11"><div class="empty"><div class="empty-icon">&#x1f4cb;</div><p>入札案件が登録されていません</p></div></td></tr>
         {% endfor %}
       </tbody>
     </table>
