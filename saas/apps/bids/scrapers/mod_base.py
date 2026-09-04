@@ -40,6 +40,21 @@ MOD_BASE_URLS = {
         "region": "神奈川県",
         "frameset": True,
     },
+    "msdf_kansenpokyu": {
+        "url": "https://www.mod.go.jp/msdf/bukei/yd/nyusatsu.html",
+        "client": "海上自衛隊 艦船補給処",
+        "region": "神奈川県",
+    },
+    "msdf_shimofusa": {
+        "url": "https://www.mod.go.jp/msdf/bukei/y3/nyusatsu_main_Y3.html",
+        "client": "海上自衛隊 下総航空基地隊",
+        "region": "千葉県",
+    },
+    "msdf_tateyama": {
+        "url": "https://www.mod.go.jp/msdf/bukei/y2/nyusatsu.html",
+        "client": "海上自衛隊 館山航空基地隊",
+        "region": "千葉県",
+    },
 }
 
 

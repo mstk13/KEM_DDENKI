@@ -279,6 +279,9 @@ class ScrapeTarget(TenantModel):
         ("msdf_yokosuka", "海自 横須賀基地"),
         ("msdf_chichijima", "海自 父島基地"),
         ("msdf_atsugi", "海自 厚木航空基地隊"),
+        ("msdf_kansenpokyu", "海自 艦船補給処"),
+        ("msdf_shimofusa", "海自 下総航空基地隊"),
+        ("msdf_tateyama", "海自 館山航空基地隊"),
     ]
 
     REGION_CHOICES = [
