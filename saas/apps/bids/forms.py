@@ -118,6 +118,10 @@ class ScrapeTargetForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        # site_key をドロップダウン＋手入力可能にする
+        choices = [("", "（空欄 = i-ppi.jp）")] + list(ScrapeTarget.SITE_KEY_CHOICES)
+        self.fields["site_key"].widget = forms.Select(choices=choices)
+        self.fields["site_key"].required = False
         for _name, field in self.fields.items():
             if not isinstance(field.widget, forms.CheckboxInput):
                 field.widget.attrs.setdefault("class", "form-control")
