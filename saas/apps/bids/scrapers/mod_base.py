@@ -55,6 +55,25 @@ MOD_BASE_URLS = {
         "client": "海上自衛隊 館山航空基地隊",
         "region": "千葉県",
     },
+    # 航空自衛隊（Xvfb+headedモード必須）
+    "asdf_yokota": {
+        "url": "https://www.mod.go.jp/asdf/yokota/chotatu.html",
+        "client": "航空自衛隊 横田基地",
+        "region": "東京都",
+        "xvfb": True,
+    },
+    "asdf_meguro": {
+        "url": "https://www.mod.go.jp/asdf/meguro/choutatsu/choutatsu.html",
+        "client": "航空自衛隊 目黒基地",
+        "region": "東京都",
+        "xvfb": True,
+    },
+    "asdf_kumagaya": {
+        "url": "https://www.mod.go.jp/asdf/kumagaya/procurement_info.html",
+        "client": "航空自衛隊 熊谷基地",
+        "region": "埼玉県",
+        "xvfb": True,
+    },
 }
 
 
@@ -80,33 +99,16 @@ def _parse_date_dot(text: str) -> date | None:
     return None
 
 
-def scrape_mod_base(target) -> list[dict]:
-    """防衛省基地の入札公告ページをスクレイピングする。
-
-    Playwright で Cloudflare を突破し、テーブルから案件を抽出する。
-
-    Args:
-        target: ScrapeTarget インスタンス
-
-    Returns:
-        list[dict]: 案件のリスト（i-ppi と同じ形式）
-    """
+def _scrape_impl(target, config, url, client, region) -> list[dict]:
+    """スクレイピングの実装本体。Xvfb有無に関わらず同じ処理。"""
     from playwright.sync_api import sync_playwright
-
-    config = MOD_BASE_URLS.get(target.site_key, {})
-    url = config.get("url") or target.url
-    client = config.get("client", "防衛省")
-    region = config.get("region", "")
-
-    if not url:
-        logger.warning(f"[{target.site_key}] URLが設定されていません")
-        return []
 
     results = []
 
     with sync_playwright() as p:
+        use_headed = config.get("xvfb", False)
         browser = p.chromium.launch(
-            headless=True,
+            headless=not use_headed,
             args=["--disable-blink-features=AutomationControlled", "--no-sandbox"],
         )
         context = browser.new_context(
@@ -317,6 +319,45 @@ def scrape_mod_base(target) -> list[dict]:
                 )
                 break  # 最初の案件テーブルのみ
 
+            # テーブルから件名が取れなかった場合、PDFリンクを案件として抽出
+            if not results:
+                from urllib.parse import urljoin as _urljoin
+
+                seen_titles = set()
+                skip_prefixes = (
+                    "入札説明書", "契約", "様式", "手引", "要領", "規則",
+                    "書式", "フォーマット", "テンプレート",
+                )
+                for a_tag in soup.find_all("a"):
+                    href_raw = a_tag.get("href", "")
+                    text = a_tag.get_text(strip=True)
+                    if not text or len(text) < 4:
+                        continue
+                    if not href_raw.lower().endswith(".pdf"):
+                        continue
+                    if any(text.startswith(p) for p in skip_prefixes):
+                        continue
+                    if text in seen_titles:
+                        continue
+                    seen_titles.add(text)
+
+                    from apps.bids.scraper import _empty_record
+
+                    rec = _empty_record()
+                    rec.update({
+                        "title": text,
+                        "client": client,
+                        "region": region,
+                        "category": "物品・役務",
+                        "source_url": _urljoin(url, href_raw),
+                    })
+                    results.append(rec)
+
+                if results:
+                    logger.info(
+                        f"[{target.site_key}] PDFリンクから {len(results)} 件の案件を取得"
+                    )
+
         except Exception:
             logger.exception(f"[{target.site_key}] スクレイピングエラー")
             raise
@@ -324,3 +365,61 @@ def scrape_mod_base(target) -> list[dict]:
             browser.close()
 
     return results
+
+
+def scrape_mod_base(target) -> list[dict]:
+    """防衛省基地の入札公告ページをスクレイピングする。
+
+    Cloudflare対策が必要なサイトは xvfb-run 経由で headed モードを使用。
+
+    Args:
+        target: ScrapeTarget インスタンス
+
+    Returns:
+        list[dict]: 案件のリスト（i-ppi と同じ形式）
+    """
+    config = MOD_BASE_URLS.get(target.site_key, {})
+    url = config.get("url") or target.url
+    client = config.get("client", "防衛省")
+    region = config.get("region", "")
+
+    if not url:
+        logger.warning(f"[{target.site_key}] URLが設定されていません")
+        return []
+
+    if config.get("xvfb"):
+        # Xvfb が必要な場合、サブプロセスで xvfb-run 経由実行
+        import json
+        import subprocess
+        import sys
+
+        script = f"""
+import os, json, sys
+os.environ['DJANGO_SETTINGS_MODULE'] = 'config.settings'
+import django; django.setup()
+from apps.bids.scrapers.mod_base import _scrape_impl, MOD_BASE_URLS
+
+class FakeTarget:
+    site_key = {target.site_key!r}
+    url = {url!r}
+
+config = MOD_BASE_URLS.get(FakeTarget.site_key, {{}})
+results = _scrape_impl(FakeTarget, config, {url!r}, {client!r}, {region!r})
+print(json.dumps(results, default=str))
+"""
+        try:
+            proc = subprocess.run(
+                ["xvfb-run", "--auto-servernum", sys.executable, "-c", script],
+                capture_output=True, text=True, timeout=180,
+            )
+            if proc.returncode == 0 and proc.stdout.strip():
+                return json.loads(proc.stdout.strip())
+            logger.error(
+                f"[{target.site_key}] xvfb-run failed: {proc.stderr[:300]}"
+            )
+            return []
+        except subprocess.TimeoutExpired:
+            logger.error(f"[{target.site_key}] xvfb-run timeout")
+            return []
+    else:
+        return _scrape_impl(target, config, url, client, region)
