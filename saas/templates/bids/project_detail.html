@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load bid_filters %}
 {% block title %}{{ project.title }} — {{ APP_NAME }}{% endblock %}
 {% block topbar_title %}入札案件詳細{% endblock %}
 
@@ -163,31 +164,30 @@
   </div>
 </div>
 
-<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:20px;">
-  <div class="card">
-    <div class="card-header"><h2>工事概要</h2></div>
-    <div class="card-body">
-      {% if project.work_outline %}
-      <div style="white-space:pre-wrap;">{{ project.work_outline }}</div>
-      {% else %}
-      <div style="color:var(--gray-400);text-align:center;padding:20px;">
-        未入力です。編集画面から公告・仕様書の内容を転記してください。
-      </div>
-      {% endif %}
+<div class="card" style="margin-top:20px;">
+  <div class="card-header"><h2>工事概要</h2></div>
+  <div class="card-body">
+    {% if project.work_outline %}
+    {{ project.work_outline|structured_text }}
+    {% else %}
+    <div style="color:var(--gray-400);text-align:center;padding:20px;">
+      未入力です。編集画面から公告・仕様書の内容を転記してください。
     </div>
+    {% endif %}
   </div>
+</div>
 
-  <div class="card">
-    <div class="card-header"><h2>参加要件</h2></div>
-    <div class="card-body">
-      {% if project.requirements %}
-      <div style="white-space:pre-wrap;">{{ project.requirements }}</div>
-      {% else %}
-      <div style="color:var(--gray-400);text-align:center;padding:20px;">
-        未入力です。公告の入札参加資格・実績要件・配置技術者の条件を転記してください。
-      </div>
-      {% endif %}
+<div class="card" style="margin-top:20px;">
+  <div class="card-header"><h2>参加要件</h2></div>
+  <div class="card-body">
+    {% if project.requirements %}
+    {{ project.requirements|structured_text }}
+    {% else %}
+    <div style="color:var(--gray-400);text-align:center;padding:20px;">
+      未入力です。公告の入札参加資格・実績要件・配置技術者の条件を転記してください。
     </div>
+    {% endif %}
+  </div>
   </div>
 </div>
 
