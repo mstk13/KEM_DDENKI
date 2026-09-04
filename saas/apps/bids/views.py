@@ -296,6 +296,16 @@ def qualification_edit(request, pk):
 
 
 @login_required
+def qualification_delete(request, pk):
+    obj = get_object_or_404(Qualification, pk=pk)
+    if request.method == "POST":
+        name = f"{obj.issuer} / {obj.category}"
+        obj.delete()
+        messages.success(request, f"資格「{name}」を削除しました。")
+    return redirect("bids:qualification_list")
+
+
+@login_required
 def unit_price_list(request):
     qs = UnitPrice.objects.all()
     return render(request, "bids/unit_price_list.html", {"unit_prices": qs})

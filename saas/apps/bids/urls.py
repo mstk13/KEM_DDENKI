@@ -13,6 +13,7 @@ urlpatterns = [
     path("qualifications/new/", views.qualification_create, name="qualification_create"),
     path("qualifications/import/", views.qualification_import, name="qualification_import"),
     path("qualifications/<int:pk>/edit/", views.qualification_edit, name="qualification_edit"),
+    path("qualifications/<int:pk>/delete/", views.qualification_delete, name="qualification_delete"),
     path("unit-prices/", views.unit_price_list, name="unit_price_list"),
     path("unit-prices/new/", views.unit_price_create, name="unit_price_create"),
     path("unit-prices/<int:pk>/edit/", views.unit_price_edit, name="unit_price_edit"),

@@ -38,7 +38,13 @@ tr.qual-red:hover { background: #ffebeb; }
           <td>{{ q.grade|default:"-" }}</td>
           <td>{{ q.keisin_score|default:"-" }}</td>
           <td>{{ q.valid_until|date:"Y/n/j"|default:"-" }}</td>
-          <td><a href="{% url 'bids:qualification_edit' q.pk %}" class="btn btn-outline btn-sm">編集</a></td>
+          <td style="white-space:nowrap;">
+            <a href="{% url 'bids:qualification_edit' q.pk %}" class="btn btn-outline btn-sm">編集</a>
+            <form method="post" action="{% url 'bids:qualification_delete' q.pk %}" style="display:inline;">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-outline btn-sm" style="color:var(--danger);" onclick="return confirm('「{{ q.issuer }} / {{ q.category }}」を削除しますか？')">削除</button>
+            </form>
+          </td>
         </tr>
         {% empty %}
         <tr><td colspan="6"><div class="empty"><p>入札参加資格が登録されていません</p></div></td></tr>
