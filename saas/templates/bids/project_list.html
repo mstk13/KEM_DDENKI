@@ -74,7 +74,7 @@
           <td>{{ p.budget|floatformat:0 }} 円</td>
           <td style="white-space:nowrap;">{{ p.announced_on|date:"Y/m/d"|default:"-" }}</td>
           <td style="white-space:nowrap;">{% if p.deadline %}{{ p.deadline|date:"Y/m/d" }}{% if p.deadline.hour or p.deadline.minute %} {{ p.deadline|time:"H:i" }}{% endif %}{% else %}-{% endif %}</td>
-          <td>{% if p.source_url %}<a href="{{ p.source_url }}" target="_blank" rel="noopener noreferrer" title="{{ p.source_url }}">PDF</a>{% else %}-{% endif %}</td>
+          <td>{% if p.source_url %}<a href="https://docs.google.com/gview?url={{ p.source_url|urlencode }}&embedded=true" target="_blank" rel="noopener noreferrer" title="{{ p.source_url }}">PDF</a>{% else %}-{% endif %}</td>
           <td style="white-space:nowrap;">
             <a href="{% url 'bids:project_edit' p.pk %}" class="btn btn-outline btn-sm">編集</a>
             {% if p.status == 'new' or p.status == 'considering' %}
