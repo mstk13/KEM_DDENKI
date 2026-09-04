@@ -3,6 +3,11 @@
 Cloudflare対策としてPlaywright（headless Chromium）を使用。
 各基地の入札公告ページからテーブルを解析し、案件を取得する。
 
+フィルタリング:
+- 入札日が過去の案件（受注済み）は除外
+- 件名がヘッダー行や注記の場合は除外
+- PDFリンクから取得する場合、契約結果や書式テンプレートは除外
+
 対象例:
 - 海自横須賀: https://www.mod.go.jp/msdf/bukei/t2/nyusatsu.html
 """
@@ -13,6 +18,23 @@ import time
 from datetime import date, datetime
 
 from apps.bids.scrapers import BidInfo, register
+
+# 案件として取り込まない件名のパターン
+_SKIP_TITLE_PATTERNS = [
+    re.compile(r"^(件\s*名|番号|資格の種類|以下余白)"),
+    re.compile(r"^(※|（注）|お知らせ)"),
+    re.compile(r"^令和\d+年\d+月\d+日$"),
+    re.compile(r"^\d{1,3}$"),
+    re.compile(r"^調達要求番号"),
+]
+
+# PDFリンクから取り込む際に除外するキーワード
+_SKIP_PDF_KEYWORDS = [
+    "入札説明書", "契約条項", "契約書", "様式", "書式", "手引",
+    "要領", "規則", "フォーマット", "テンプレート", "仕様書送付",
+    "契約結果", "落札結果", "落札者", "結果一覧", "結果について",
+    "不用品", "売払結果", "見積結果", "オープンカウンター方式実施",
+]
 
 logger = logging.getLogger(__name__)
 
@@ -255,10 +277,10 @@ def _scrape_impl(target, config, url, client, region) -> list[dict]:
                             title = real_title
                         else:
                             continue
-                    # お知らせ・注記を除外
-                    if title.startswith("※") or title.startswith("①") or title.startswith("②"):
+                    # パターンマッチで不要行を除外
+                    if any(p.search(title) for p in _SKIP_TITLE_PATTERNS):
                         continue
-                    if title.startswith("（注）") or title.startswith("令和"):
+                    if title.startswith("①") or title.startswith("②"):
                         continue
 
                     # PDFリンク
@@ -280,11 +302,15 @@ def _scrape_impl(target, config, url, client, region) -> list[dict]:
 
                     # 入札日（最も近い未来の日付）または最初の日付
                     deadline = None
+                    from datetime import date as _today_date
+                    today = _today_date.today()
                     if dates_found:
-                        from datetime import date as _today_date
-                        today = _today_date.today()
                         future = [d for d in dates_found if d >= today]
-                        deadline = min(future) if future else min(dates_found)
+                        deadline = min(future) if future else None
+
+                    # 入札日が全て過去 → 受注済みなのでスキップ
+                    if dates_found and not deadline:
+                        continue
 
                     # 契約管理番号
                     contract_no = ""
@@ -324,10 +350,7 @@ def _scrape_impl(target, config, url, client, region) -> list[dict]:
                 from urllib.parse import urljoin as _urljoin
 
                 seen_titles = set()
-                skip_prefixes = (
-                    "入札説明書", "契約", "様式", "手引", "要領", "規則",
-                    "書式", "フォーマット", "テンプレート",
-                )
+                skip_prefixes = tuple(_SKIP_PDF_KEYWORDS)
                 for a_tag in soup.find_all("a"):
                     href_raw = a_tag.get("href", "")
                     text = a_tag.get_text(strip=True)
@@ -335,7 +358,7 @@ def _scrape_impl(target, config, url, client, region) -> list[dict]:
                         continue
                     if not href_raw.lower().endswith(".pdf"):
                         continue
-                    if any(text.startswith(p) for p in skip_prefixes):
+                    if any(kw in text for kw in skip_prefixes):
                         continue
                     if text in seen_titles:
                         continue
