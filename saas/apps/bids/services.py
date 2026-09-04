@@ -504,6 +504,17 @@ def run_scrape(target, company):
                 skipped += 1
                 continue
 
+        # 件名フィルタ: 明らかに公告でないものを除外
+        _skip_titles = (
+            "仕様書", "低入札", "様式", "押印", "発注予定", "月分",
+            "契約結果", "落札結果", "結果一覧", "見積結果", "売払",
+            "共通仕様", "提出資料", "実施要領", "心得", "規格表",
+            "施策", "説明資料", "同等品申請", "お知らせ", "事務連絡",
+        )
+        if any(kw in title for kw in _skip_titles):
+            excluded += 1
+            continue
+
         # 既に取り込み済みなら、空いている項目だけ埋める。
         # 取得項目を増やしても既存案件は「重複」で弾かれ続けて永久に空のままになる。
         existing = find_existing_project(company, rec)

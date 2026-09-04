@@ -34,6 +34,15 @@ _SKIP_PDF_KEYWORDS = [
     "要領", "規則", "フォーマット", "テンプレート", "仕様書送付",
     "契約結果", "落札結果", "落札者", "結果一覧", "結果について",
     "不用品", "売払結果", "見積結果", "オープンカウンター方式実施",
+    "共通仕様書", "低入札価格", "提出資料", "押印省略", "発注予定",
+    "付紙様式", "月分", "お知らせ", "注意事項", "事務連絡",
+    "委任状", "辞退届", "質問書", "心得", "規格表",
+    "施策", "説明資料", "同等品申請",
+]
+
+# URLパターンで除外（契約結果PDFなど）
+_SKIP_URL_PATTERNS = [
+    re.compile(r"chotatsu\w+\d{2}\.pdf$", re.I),  # 契約実績月報
 ]
 
 logger = logging.getLogger(__name__)
@@ -359,6 +368,10 @@ def _scrape_impl(target, config, url, client, region) -> list[dict]:
                     if not href_raw.lower().endswith(".pdf"):
                         continue
                     if any(kw in text for kw in skip_prefixes):
+                        continue
+                    # URLパターンで除外
+                    full_url = _urljoin(url, href_raw)
+                    if any(p.search(full_url) for p in _SKIP_URL_PATTERNS):
                         continue
                     if text in seen_titles:
                         continue
