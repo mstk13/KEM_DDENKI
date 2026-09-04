@@ -25,10 +25,15 @@ def project_list(request):
     now = timezone.now()
     qs = BidProject.objects.order_by("-created_at")
 
-    # 入札期限切れかつ未確定の案件を除外（期限未設定・確定済みは表示）
+    # 入札期限切れかつ未確定の案件を除外（確定済みは表示）
     settled = [BidProject.Status.BID, BidProject.Status.WON, BidProject.Status.LOST]
     qs = qs.exclude(
         Q(deadline__lt=now) & ~Q(status__in=settled)
+    )
+    # 期限不明（deadline NULL）で取得から60日以上経過した案件も除外
+    cutoff = now - datetime.timedelta(days=60)
+    qs = qs.exclude(
+        Q(deadline__isnull=True) & Q(created_at__lt=cutoff) & ~Q(status__in=settled)
     )
 
     # 検索フィルタ: GETパラメータがあればセッションに保存、なければセッションから復元
