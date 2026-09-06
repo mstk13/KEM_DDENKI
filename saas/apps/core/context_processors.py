@@ -1,5 +1,7 @@
 from django.conf import settings
 
+from apps.core.navigation import build_navigation
+
 
 def branding(request):
     return {
@@ -8,3 +10,13 @@ def branding(request):
         "APP_SUBTITLE": getattr(settings, "APP_SUBTITLE", "業務管理プラットフォーム"),
         "APP_THEME_COLOR": getattr(settings, "APP_THEME_COLOR", "#1a2744"),
     }
+
+
+def navigation(request):
+    """サイドバーの項目と active 状態。
+
+    resolver_match は 404 / 500 ページでは None になる。その場合は
+    どこも active にせず、リンクだけを出す。
+    """
+    match = getattr(request, "resolver_match", None)
+    return {"nav": build_navigation(match.view_name if match else None)}
