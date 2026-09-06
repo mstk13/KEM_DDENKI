@@ -231,6 +231,11 @@ def _scrape_impl(target, config, url, client, region) -> list[dict]:
                      if "契約管理" in h or "調達要求" in h),
                     None,
                 )
+                announced_idx = next(
+                    (i for i, h in enumerate(headers)
+                     if "掲載" in h or "公告" in h or "公開" in h),
+                    None,
+                )
                 category_idx = next(
                     (i for i, h in enumerate(headers) if "資格" in h and "種類" in h),
                     None,
@@ -337,6 +342,18 @@ def _scrape_impl(target, config, url, client, region) -> list[dict]:
                             bid_category = ct
                             break
 
+                    # 公告日/掲載日
+                    announced = None
+                    if announced_idx is not None and announced_idx < len(cells):
+                        announced = _parse_date_dot(
+                            cells[announced_idx].get_text(strip=True)
+                        )
+                    # ヘッダーから取れなければ全セルから探す（掲載日は入札日より前の日付）
+                    if not announced and dates_found and deadline:
+                        earlier = [d for d in dates_found if d < deadline]
+                        if earlier:
+                            announced = max(earlier)
+
                     from apps.bids.scraper import _empty_record
 
                     rec = _empty_record()
@@ -346,6 +363,7 @@ def _scrape_impl(target, config, url, client, region) -> list[dict]:
                         "region": region,
                         "category": bid_category,
                         "deadline": deadline.isoformat() if deadline else None,
+                        "announced_on": announced.isoformat() if announced else None,
                         "source_url": href,
                         "design_no": contract_no,
                     })
