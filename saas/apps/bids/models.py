@@ -524,3 +524,49 @@ class UnifiedQualification(TenantModel):
 
     def __str__(self):
         return self.agency
+
+
+class SkippedBid(TenantModel):
+    """資格判定で見送った案件。
+
+    「資格を満たす案件だけ登録」のターゲットで、資格不足・判定不能となり
+    BidProject に登録しなかった案件を理由付きで残す。人が公告と照らして
+    判定が正しいか確認するための記録で、案件そのものではない。
+    """
+
+    class Verdict(models.TextChoices):
+        INELIGIBLE = "ineligible", "資格不足"
+        UNKNOWN = "unknown", "判定不能"
+
+    target = models.ForeignKey(
+        ScrapeTarget, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="skipped_bids", verbose_name="取得対象",
+    )
+    title = models.CharField("案件名", max_length=300)
+    client = models.CharField("発注機関", max_length=200, blank=True)
+    category = models.CharField("工事種別", max_length=100, blank=True)
+    deadline = models.DateTimeField("入札期限", null=True, blank=True)
+    source_url = models.URLField("情報源URL", max_length=500, blank=True)
+
+    verdict = models.CharField("判定", max_length=20, choices=Verdict.choices)
+    reason = models.TextField("理由", blank=True)
+    required_issuer_type = models.CharField("公告が求める資格の機関", max_length=200, blank=True)
+    required_category = models.CharField("公告が求める業種・種類", max_length=100, blank=True)
+    required_grade = models.CharField("必要等級（下限）", max_length=10, blank=True)
+    required_grades = models.CharField("必要等級（列挙）", max_length=20, blank=True)
+    required_score = models.IntegerField("必要点数", null=True, blank=True)
+    requirements = models.TextField("参加要件（公告本文）", blank=True)
+
+    first_seen_at = models.DateTimeField("初回見送り", auto_now_add=True)
+    last_seen_at = models.DateTimeField("最終見送り", auto_now=True)
+
+    history = HistoricalRecords()
+
+    class Meta:
+        verbose_name = "見送り案件"
+        verbose_name_plural = "見送り案件"
+        ordering = ["-last_seen_at"]
+        unique_together = [("company", "source_url")]
+
+    def __str__(self):
+        return f"{self.get_verdict_display()} {self.title}"

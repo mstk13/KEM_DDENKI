@@ -38,4 +38,6 @@ urlpatterns = [
     path("scrape-targets/<int:pk>/edit/", views.scrape_target_edit, name="scrape_target_edit"),
     path("scrape-targets/<int:pk>/run/", views.scrape_run, name="scrape_run"),
     path("scrape-targets/run-all/", views.scrape_run_all, name="scrape_run_all"),
+    path("skipped/", views.skipped_list, name="skipped_list"),
+    path("skipped/<int:pk>/delete/", views.skipped_delete, name="skipped_delete"),
 ]

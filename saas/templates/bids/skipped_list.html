@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+{% block title %}見送り案件（資格判定） — {{ APP_NAME }}{% endblock %}
+{% block topbar_title %}入札管理{% endblock %}
+
+{% block content %}<script>document.querySelector('.content').classList.add('content-wide');</script>
+<style>
+tr.skipped-reason td { background: var(--bg-secondary, #f7f8fa); padding-top: 12px; padding-bottom: 12px; }
+.reason-box dt { font-size: .78rem; color: var(--text-secondary); margin-top: 8px; }
+.reason-box dt:first-child { margin-top: 0; }
+.reason-box dd { margin: 2px 0 0; font-size: .88rem; }
+.reason-box pre { white-space: pre-wrap; font-family: inherit; font-size: .8rem; line-height: 1.6; margin: 0; max-height: 240px; overflow: auto; background: var(--white, #fff); padding: 10px; border: 1px solid var(--border-light); border-radius: 6px; }
+</style>
+<div class="page-header">
+  <div>
+    <h1>見送り案件（資格判定）</h1>
+    <p style="font-size:.8rem;color:var(--text-muted);margin:4px 0 0;">
+      「資格を満たす案件だけ登録」の取得対象で、資格不足または判定不能として登録しなかった案件です。
+      「理由」を開いて公告と照らし合わせ、判定が正しいか確認してください。
+    </p>
+  </div>
+  <a href="{% url 'bids:project_list' %}" class="btn btn-outline">案件一覧へ</a>
+</div>
+
+<div class="card" style="margin-bottom:20px;">
+  <div class="card-body">
+    <form method="get" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;">
+      <div class="form-group" style="margin-bottom:0;">
+        <label for="filter-verdict">判定</label>
+        <select id="filter-verdict" name="verdict" class="form-control">
+          <option value="">すべて（資格不足 {{ ineligible_count }} / 判定不能 {{ unknown_count }}）</option>
+          {% for val, label in verdict_choices %}
+          <option value="{{ val }}" {% if verdict == val %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group" style="margin-bottom:0;">
+        <label for="filter-target">取得対象</label>
+        <select id="filter-target" name="target" class="form-control">
+          <option value="">すべて</option>
+          {% for t in targets %}
+          <option value="{{ t.pk }}" {% if target_id == t.pk|stringformat:"s" %}selected{% endif %}>{{ t.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group" style="margin-bottom:0;">
+        <button type="submit" class="btn btn-outline">絞り込む</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>判定</th><th>案件名</th><th>発注機関</th><th>公告が求める資格</th><th style="white-space:nowrap;">入札期限</th><th style="white-space:nowrap;">最終確認</th><th style="width:1%;"></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for s in skipped %}
+        <tr id="skipped-{{ s.pk }}">
+          <td style="white-space:nowrap;">
+            {% if s.verdict == "ineligible" %}<span class="badge badge-red">資格不足</span>
+            {% else %}<span class="badge badge-gray">判定不能</span>{% endif %}
+          </td>
+          <td>
+            {{ s.title }}
+            {% if s.source_url %}<div style="font-size:12px;"><a href="{{ s.source_url }}" target="_blank" rel="noopener">公告を開く</a></div>{% endif %}
+          </td>
+          <td style="white-space:nowrap;">{{ s.client|default:"-" }}</td>
+          <td style="white-space:nowrap;">
+            {% if s.required_issuer_type or s.required_category %}
+              {{ s.required_issuer_type }}{% if s.required_category %}「{{ s.required_category }}」{% endif %}
+              {% if s.required_grades %}<br><span style="font-size:12px;">{{ s.required_grades }} 等級</span>
+              {% elif s.required_grade %}<br><span style="font-size:12px;">{{ s.required_grade }} 等級以上</span>{% endif %}
+              {% if s.required_score %}<br><span style="font-size:12px;">{{ s.required_score }} 点以上</span>{% endif %}
+            {% else %}-{% endif %}
+          </td>
+          <td style="white-space:nowrap;">{{ s.deadline|date:"Y/n/j"|default:"-" }}</td>
+          <td style="white-space:nowrap;font-size:13px;">{{ s.last_seen_at|date:"n/j H:i" }}</td>
+          <td style="white-space:nowrap;text-align:right;">
+            <button type="button" class="btn btn-outline btn-sm" data-reason-toggle="{{ s.pk }}" aria-expanded="false">理由</button>
+            <form method="post" action="{% url 'bids:skipped_delete' s.pk %}" style="display:inline;">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-outline btn-sm" onclick="return confirm('この見送り案件を一覧から消しますか？次の取り込みで再び見送られれば戻ります。')">確認済み</button>
+            </form>
+          </td>
+        </tr>
+        <tr class="skipped-reason" id="reason-{{ s.pk }}" hidden>
+          <td colspan="7">
+            <dl class="reason-box">
+              <dt>判定の理由</dt>
+              <dd>{{ s.reason|default:"-" }}</dd>
+              <dt>公告が求める資格</dt>
+              <dd>
+                {% if s.required_issuer_type or s.required_category %}
+                  {{ s.required_issuer_type|default:"（機関不明）" }}{% if s.required_category %} ／ {{ s.required_category }}{% endif %}
+                  {% if s.required_grades %} ／ {{ s.required_grades }} 等級のいずれか{% elif s.required_grade %} ／ {{ s.required_grade }} 等級以上{% endif %}
+                  {% if s.required_score %} ／ {{ s.required_score }} 点以上{% endif %}
+                {% else %}公告から読み取れませんでした{% endif %}
+              </dd>
+              {% if s.requirements %}
+              <dt>公告の参加要件（読み取った本文）</dt>
+              <dd><pre>{{ s.requirements }}</pre></dd>
+              {% endif %}
+              <dt>取得対象 / 工事種別</dt>
+              <dd>{{ s.target.name|default:"-" }} / {{ s.category|default:"-" }}</dd>
+            </dl>
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="7"><div class="empty"><div class="empty-icon">&#x2705;</div><p>見送った案件はありません</p></div></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+<script>
+document.querySelectorAll('[data-reason-toggle]').forEach(function (btn) {
+  btn.addEventListener('click', function () {
+    var row = document.getElementById('reason-' + btn.getAttribute('data-reason-toggle'));
+    if (!row) return;
+    row.hidden = !row.hidden;
+    btn.setAttribute('aria-expanded', row.hidden ? 'false' : 'true');
+    btn.textContent = row.hidden ? '理由' : '閉じる';
+  });
+});
+</script>
+{% endblock %}
