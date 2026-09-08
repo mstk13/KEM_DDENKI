@@ -78,6 +78,8 @@ class TestExtractRequirement:
         assert works["required_issuer_type"] == "防衛省"
         assert works["required_category"] == "建築一式工事／管工事"
         assert works["required_grade"] == "D"
+        # 「Ｃ・Ｄ等級以上」は下限。列挙として二重に持たない
+        assert works["required_grades"] == ""
 
 
 def _unified(company, kind, grade, valid_until=datetime.date(2028, 3, 31)):
@@ -356,3 +358,52 @@ class TestSkippedBidRecording:
         assert "隊舎空調設備更新" not in client.get("/bids/skipped/").content.decode()
         assert client.post(f"/bids/skipped/{obj.pk}/delete/").status_code == 404
         assert SkippedBid.unscoped.filter(pk=obj.pk).exists()
+
+
+@pytest.mark.django_db
+class TestRelatedQualifications:
+    """見送り案件の画面で、公告が求める資格の隣に並べる自社資格。"""
+
+    def test_unified_lists_all_kinds_and_marks_required(self, company_a):
+        from apps.bids.qualification import related_qualifications
+
+        quals = [_unified(company_a, "物品の販売", "C"), _unified(company_a, "役務の提供等", "C")]
+        ours = related_qualifications("全省庁統一資格", "物品の製造", quals)
+        assert ours["issuer_label"] == "全省庁統一資格"
+        assert [r["qual"].category for r in ours["rows"]] == ["役務の提供等", "物品の販売"]
+        assert not any(r["hit"] for r in ours["rows"])
+
+        ours = related_qualifications("全省庁統一資格", "物品の販売", quals)
+        assert ours["rows"][0]["qual"].category == "物品の販売"
+        assert ours["rows"][0]["hit"] is True
+
+    def test_mod_lists_issuer_qualifications(self, company_a):
+        from apps.bids.qualification import related_qualifications
+
+        quals = [
+            Qualification.unscoped.create(
+                company=company_a, issuer="防衛省", category="電気工事", grade="A",
+            ),
+            Qualification.unscoped.create(
+                company=company_a, issuer="国土交通省", category="電気工事", grade="A",
+            ),
+            _unified(company_a, "物品の販売", "C"),
+        ]
+        ours = related_qualifications("防衛省", "建築一式工事／管工事", quals)
+        assert [r["qual"].issuer for r in ours["rows"]] == ["防衛省"]
+        assert ours["rows"][0]["hit"] is False
+
+        ours = related_qualifications("防衛省", "電気工事", quals)
+        assert ours["rows"][0]["hit"] is True
+
+    def test_page_shows_our_qualifications(self, monkeypatch, client, company_a, user_a):
+        helper = TestOnlyEligibleScrape()
+        target = TestSkippedBidRecording()._setup(company_a, user_a)
+        helper._run(monkeypatch, helper._records(), helper._announcements(), target, company_a)
+
+        client.force_login(user_a)
+        html = client.get("/bids/skipped/").content.decode()
+        assert "弊社の登録資格" in html
+        # 工事の見送りには防衛省の電気工事、役務の見送りには統一資格の物品の販売が並ぶ
+        assert "電気工事" in html
+        assert "物品の販売" in html

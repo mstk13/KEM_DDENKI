@@ -347,6 +347,9 @@ def extract_sections(text: str) -> dict:
             required_category = "／".join(works)
             if not required_grade:
                 required_grade = extract_grade_floor(text)
+            if required_grade:
+                # 「Ｃ・Ｄ等級以上」は下限。列挙として二重に持たない
+                required_grades = ""
 
     return {
         "work_outline": outline,
