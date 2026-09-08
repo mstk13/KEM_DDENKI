@@ -190,33 +190,50 @@ def requirements_with_shortfall(text, qual_check):
     if not targets:
         banner = f'<div style="margin-bottom:8px;">{_shortfall_note_html(reason)}</div>'
 
+    # 左（ラベル＋本文）と右（理由）をちょうど半分ずつにする。
+    # table-layout:fixed と colgroup で列幅を固定し、文章の長さで幅が動かないようにする。
+    has_label = any(label for label, _ in items)
+    if has_label:
+        colgroup = (
+            '<colgroup><col style="width:120px;"><col style="width:calc(50% - 120px);">'
+            '<col style="width:50%;"></colgroup>'
+        )
+    else:
+        colgroup = '<colgroup><col style="width:50%;"><col style="width:50%;"></colgroup>'
+
     rows = []
     for i, (label, body) in enumerate(items):
         escaped_body = escape(body).replace("\n", "<br>")
         note = (
-            f'<td class="shortfall-note" style="padding:8px 12px;width:34%;vertical-align:top;'
+            f'<td class="shortfall-note" style="padding:8px 12px;vertical-align:top;'
             f'color:var(--danger);font-size:.85rem;border-left:1px solid var(--border-light);">'
             f'{_shortfall_note_html(reason)}</td>'
             if i in targets else
-            '<td style="padding:8px 12px;width:34%;'
-            'border-left:1px solid var(--border-light);"></td>'
+            '<td style="padding:8px 12px;border-left:1px solid var(--border-light);"></td>'
         )
         if label:
             rows.append(
                 f'<tr>'
-                f'<td style="white-space:nowrap;vertical-align:top;font-weight:600;'
-                f'padding:8px 12px;width:120px;background:var(--surface-hover);">'
+                f'<td style="vertical-align:top;font-weight:600;'
+                f'padding:8px 12px;background:var(--surface-hover);">'
                 f'{escape(label)}</td>'
-                f'<td style="padding:8px 12px;">{escaped_body}</td>'
+                f'<td style="padding:8px 12px;vertical-align:top;">{escaped_body}</td>'
                 f'{note}</tr>'
+            )
+        elif has_label:
+            rows.append(
+                f'<tr><td colspan="2" style="padding:8px 12px;vertical-align:top;">'
+                f'{escaped_body}</td>{note}</tr>'
             )
         else:
             rows.append(
-                f'<tr><td colspan="2" style="padding:8px 12px;">{escaped_body}</td>{note}</tr>'
+                f'<tr><td style="padding:8px 12px;vertical-align:top;">'
+                f'{escaped_body}</td>{note}</tr>'
             )
 
     html = (
-        f'{banner}<div class="table-wrap"><table style="width:100%;">'
+        f'{banner}<div class="table-wrap">'
+        f'<table style="width:100%;table-layout:fixed;">{colgroup}'
         f'<tbody>{"".join(rows)}</tbody>'
         '</table></div>'
     )
