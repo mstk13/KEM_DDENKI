@@ -4,6 +4,7 @@ import datetime
 from decimal import Decimal
 
 import pytest
+from django.utils import timezone
 
 from apps.bids.forms import ScrapeTargetForm
 from apps.bids.models import (
@@ -31,6 +32,16 @@ from apps.bids.scraper import (
     _parse_date,
 )
 from apps.core.tenant_context import set_current_company
+
+
+def jst(year, month, day, hour=0, minute=0):
+    """JST の日時を aware datetime で返す。
+
+    BidProject.deadline は 0014 で DateField から DateTimeField になった。
+    公告の「2026-08-24」は JST の0時として保存される（＝UTC では前日15時）。
+    date と比べると必ず不一致になるので、期待値はこれで書く。
+    """
+    return timezone.make_aware(datetime.datetime(year, month, day, hour, minute))
 
 
 @pytest.mark.django_db
@@ -363,7 +374,7 @@ class TestScrapeImport:
         assert project.design_no == "2026857140010004"
         assert project.electronic_bid == "対象"
         assert project.announced_on == datetime.date(2026, 8, 5)
-        assert project.deadline == datetime.date(2026, 8, 24)
+        assert project.deadline == jst(2026, 8, 24)
         assert project.opening_on == datetime.date(2026, 10, 7)
         assert project.source_url.endswith("shisetsu01_00695.html")
         assert project.summary
@@ -436,7 +447,7 @@ class TestScrapeImport:
             title="Ｒ８下京税務署電気設備工事",
             client="国土交通省近畿地方整備局",
             location="現地確認済み：京都市下京区○○町",
-            deadline=datetime.date(2026, 8, 20),
+            deadline=jst(2026, 8, 20),
         )
         target = self._target(company_a, user_a)
         record = {
@@ -450,7 +461,7 @@ class TestScrapeImport:
 
         existing.refresh_from_db()
         assert existing.location == "現地確認済み：京都市下京区○○町"
-        assert existing.deadline == datetime.date(2026, 8, 20)
+        assert existing.deadline == jst(2026, 8, 20)
         # 空いていた項目は埋まる
         assert existing.bid_method == "一般競争入札（標準型）"
 
@@ -587,12 +598,33 @@ class TestQualificationCheck:
         assert check["eligible"] is False
         assert "有効期限" in check["reason"]
 
-    def test_unknown_issuer_is_not_judged(self, company_a, user_a):
+    def test_unknown_issuer_with_registered_quals_is_ineligible(
+        self, company_a, user_a,
+    ):
+        """資格を登録済みなら、当たらない発注機関は「資格不足」と判定する。
+
+        ADR-0020 の only_eligible が、参加できる案件だけ取り込むために
+        この False を使う。管轄区域外（例: 北関東防衛局の管轄に神奈川県が
+        含まれない）もここに落ちる。
+        """
         self._qual(company_a, user_a)
+        project = self._project(company_a, user_a, client="横浜市")
+        check = self._check(project, company_a)
+        assert check["eligible"] is False
+        assert check["issuer_known"] is False
+        assert "横浜市" in check["reason"]
+
+    def test_unknown_issuer_without_any_qual_is_not_judged(self, company_a, user_a):
+        """資格を1件も登録していないなら判定しない（None のまま）。
+
+        使い始めでマスタが空のときに、全案件が「資格不足」になって
+        消えてしまわないようにするための境界。
+        """
         project = self._project(company_a, user_a, client="横浜市")
         check = self._check(project, company_a)
         assert check["eligible"] is None
         assert check["issuer_known"] is False
+        assert "未登録" in check["reason"]
 
     def test_grade_requirement_below_ours(self, company_a, user_a):
         self._qual(company_a, user_a, grade="C")
