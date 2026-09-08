@@ -471,7 +471,8 @@ class TestScrapeImport:
 
         assert result == {
             "new": 0, "updated": 0, "skipped": 1,
-            "excluded": 0, "outlined": 0, "errors": [],
+            "excluded": 0, "ineligible": 0, "unknown": 0,
+            "outlined": 0, "errors": [],
         }
 
 

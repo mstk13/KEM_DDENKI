@@ -3,7 +3,7 @@ from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.shortcuts import get_object_or_404, redirect, render
 
-from apps.permissions.services import can_approve_report
+from apps.permissions.services import can_approve_report, can_delete_report
 from apps.reports.forms import (
     DailyReportForm,
     OfficeDailyReportForm,
@@ -27,6 +27,11 @@ def report_list(request):
     selected_status = request.GET.get("status", "")
     if selected_status:
         reports = reports.filter(status=selected_status)
+
+    # 削除ボタンを出すかどうかを行ごとに決める（承認済には出さない）。
+    reports = list(reports)
+    for r in reports:
+        r.can_delete = can_delete_report(request.user, r)
 
     return render(request, "reports/list.html", {
         "reports": reports,
@@ -162,8 +167,34 @@ def report_edit(request, pk):
             return redirect("reports:list")
     else:
         form = DailyReportForm(instance=report, company=request.user.company)
-    ctx = {"form": form, **_report_form_context(request.user.company)}
+    ctx = {
+        "form": form,
+        "can_delete": can_delete_report(request.user, report),
+        **_report_form_context(request.user.company),
+    }
     return render(request, "reports/form.html", ctx)
+
+
+@login_required
+def report_delete(request, pk):
+    """日報を削除する。GET は確認画面、POST で削除する。
+
+    ログインしていれば誰でも削除できる。
+    承認済の日報は労務費を計上済みのため削除できない。
+    """
+    report = get_object_or_404(
+        DailyReport.objects.select_related("worker", "site", "work_type"), pk=pk,
+    )
+    if not can_delete_report(request.user, report):
+        raise PermissionDenied("承認済の日報は削除できません。")
+
+    if request.method == "POST":
+        label = f"{report.report_date} {report.worker} の日報"
+        report.delete()
+        messages.success(request, f"{label}を削除しました。")
+        return redirect("reports:list")
+
+    return render(request, "reports/delete_confirm.html", {"report": report})
 
 
 @login_required

@@ -465,6 +465,11 @@ class ScrapeTarget(TenantModel):
         help_text="取得対象の工事種別（空欄=全件）。例: 電気,設備",
     )
     is_active = models.BooleanField("有効", default=True)
+    only_eligible = models.BooleanField(
+        "資格を満たす案件だけ登録",
+        default=False,
+        help_text="取り込み前に公告PDFを読み、自社の入札参加資格で参加できる案件だけ登録する",
+    )
     scrape_interval_hours = models.IntegerField(
         "巡回間隔（時間）", default=48,
         help_text="2日=48時間。cron は2日に1回実行",
@@ -536,3 +541,83 @@ class Qualification(TenantModel):
 
     def __str__(self):
         return f"{self.issuer} ({self.category})"
+
+
+class UnifiedQualification(TenantModel):
+    """全省庁統一資格の省庁別許可内容。
+
+    全省庁統一資格は等級・点数・営業品目が全適用機関で共通だが、
+    どの機関に適用されるかを一覧で確認できるよう機関ごとに1行持つ。
+    「物品の製造」は資格登録が無いため項目を持たない。
+    """
+
+    sort_order = models.PositiveIntegerField("表示順", default=0)
+    agency = models.CharField("省庁・機関名", max_length=200)
+
+    goods_sales_grade = models.CharField("物品の販売 等級", max_length=10, blank=True)
+    goods_sales_score = models.IntegerField("物品の販売 点数", null=True, blank=True)
+    goods_sales_items = models.TextField("物品の販売 営業品目", blank=True)
+
+    services_grade = models.CharField("役務の提供等 等級", max_length=10, blank=True)
+    services_score = models.IntegerField("役務の提供等 点数", null=True, blank=True)
+    services_items = models.TextField("役務の提供等 営業品目", blank=True)
+
+    purchase_grade = models.CharField("物品の買受け 等級", max_length=10, blank=True)
+    purchase_score = models.IntegerField("物品の買受け 点数", null=True, blank=True)
+
+    history = HistoricalRecords()
+
+    class Meta:
+        verbose_name = "全省庁統一資格（省庁別）"
+        verbose_name_plural = "全省庁統一資格（省庁別）"
+        ordering = ["sort_order", "agency"]
+        unique_together = [("company", "agency")]
+
+    def __str__(self):
+        return self.agency
+
+
+class SkippedBid(TenantModel):
+    """資格判定で見送った案件。
+
+    「資格を満たす案件だけ登録」のターゲットで、資格不足・判定不能となり
+    BidProject に登録しなかった案件を理由付きで残す。人が公告と照らして
+    判定が正しいか確認するための記録で、案件そのものではない。
+    """
+
+    class Verdict(models.TextChoices):
+        INELIGIBLE = "ineligible", "資格不足"
+        UNKNOWN = "unknown", "判定不能"
+
+    target = models.ForeignKey(
+        ScrapeTarget, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="skipped_bids", verbose_name="取得対象",
+    )
+    title = models.CharField("案件名", max_length=300)
+    client = models.CharField("発注機関", max_length=200, blank=True)
+    category = models.CharField("工事種別", max_length=100, blank=True)
+    deadline = models.DateTimeField("入札期限", null=True, blank=True)
+    source_url = models.URLField("情報源URL", max_length=500, blank=True)
+
+    verdict = models.CharField("判定", max_length=20, choices=Verdict.choices)
+    reason = models.TextField("理由", blank=True)
+    required_issuer_type = models.CharField("公告が求める資格の機関", max_length=200, blank=True)
+    required_category = models.CharField("公告が求める業種・種類", max_length=100, blank=True)
+    required_grade = models.CharField("必要等級（下限）", max_length=10, blank=True)
+    required_grades = models.CharField("必要等級（列挙）", max_length=20, blank=True)
+    required_score = models.IntegerField("必要点数", null=True, blank=True)
+    requirements = models.TextField("参加要件（公告本文）", blank=True)
+
+    first_seen_at = models.DateTimeField("初回見送り", auto_now_add=True)
+    last_seen_at = models.DateTimeField("最終見送り", auto_now=True)
+
+    history = HistoricalRecords()
+
+    class Meta:
+        verbose_name = "見送り案件"
+        verbose_name_plural = "見送り案件"
+        ordering = ["-last_seen_at"]
+        unique_together = [("company", "source_url")]
+
+    def __str__(self):
+        return f"{self.get_verdict_display()} {self.title}"

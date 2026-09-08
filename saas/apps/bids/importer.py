@@ -205,3 +205,100 @@ def import_pdf(filepath: str | Path) -> list[dict]:
                     })
 
     return records
+
+
+# ---------------------------------------------------------------------------
+# 全省庁統一資格 省庁別許可内容一覧（Excel）
+# ---------------------------------------------------------------------------
+
+UNIFIED_SHEET_NAME = "省庁別許可内容一覧"
+UNIFIED_AGENCY_HEADER = "省庁・機関名"
+# 「―」「-」「－」は「資格なし」の意味で使われるので空扱いにする
+_UNIFIED_BLANKS = {"", "―", "-", "－", "—"}
+
+
+def _unified_str(val) -> str:
+    text = str(val).strip() if val is not None else ""
+    return "" if text in _UNIFIED_BLANKS else text
+
+
+def _unified_int(val) -> int | None:
+    text = _unified_str(val)
+    if not text:
+        return None
+    try:
+        return int(float(text))
+    except ValueError:
+        return None
+
+
+def import_unified_excel(filepath: str | Path) -> list[dict]:
+    """全省庁統一資格の「省庁別許可内容一覧」シートを読み込む。
+
+    見出し行（B列が「省庁・機関名」）を探し、その2行下から機関ごとの行を読む。
+    列の位置は見出し行の文言から決めるので、列の並びが変わっても追従する。
+    """
+    import openpyxl
+
+    wb = openpyxl.load_workbook(filepath, data_only=True)
+    ws = wb[UNIFIED_SHEET_NAME] if UNIFIED_SHEET_NAME in wb.sheetnames else wb.worksheets[1]
+
+    header_row = None
+    for row in ws.iter_rows(min_row=1, max_row=min(ws.max_row, 20)):
+        if any(_unified_str(c.value) == UNIFIED_AGENCY_HEADER for c in row):
+            header_row = row[0].row
+            break
+    if header_row is None:
+        raise ValueError(f"見出し行（{UNIFIED_AGENCY_HEADER}）が見つかりません")
+
+    # 見出し行: 大項目（物品の販売 など）。その下の行: 等級 / 点数
+    top = {c.column: _unified_str(c.value) for c in ws[header_row]}
+    sub = {c.column: _unified_str(c.value) for c in ws[header_row + 1]}
+
+    def find(label: str, sub_label: str | None = None) -> int | None:
+        for col, text in top.items():
+            if text != label:
+                continue
+            if sub_label is None:
+                return col
+            # 結合セルの直下（等級）と、その右隣（点数）を見る
+            for offset in (0, 1):
+                if sub.get(col + offset) == sub_label:
+                    return col + offset
+        return None
+
+    cols = {
+        "agency": find(UNIFIED_AGENCY_HEADER),
+        "goods_sales_grade": find("物品の販売", "等級"),
+        "goods_sales_score": find("物品の販売", "点数"),
+        "goods_sales_items": find("物品の販売:営業品目(できること)"),
+        "services_grade": find("役務の提供等", "等級"),
+        "services_score": find("役務の提供等", "点数"),
+        "services_items": find("役務の提供等:営業品目(できること)"),
+        "purchase_grade": find("物品の買受け", "等級"),
+        "purchase_score": find("物品の買受け", "点数"),
+    }
+    missing = [k for k, v in cols.items() if v is None]
+    if missing:
+        raise ValueError(f"列が見つかりません: {', '.join(missing)}")
+
+    records = []
+    for row in ws.iter_rows(min_row=header_row + 2, max_row=ws.max_row):
+        cell = {c.column: c.value for c in row}
+        agency = _unified_str(cell.get(cols["agency"]))
+        # 機関名が無い行（注記・空行）は終わり
+        if not agency:
+            continue
+        records.append({
+            "sort_order": len(records) + 1,
+            "agency": agency,
+            "goods_sales_grade": _unified_str(cell.get(cols["goods_sales_grade"])),
+            "goods_sales_score": _unified_int(cell.get(cols["goods_sales_score"])),
+            "goods_sales_items": _unified_str(cell.get(cols["goods_sales_items"])),
+            "services_grade": _unified_str(cell.get(cols["services_grade"])),
+            "services_score": _unified_int(cell.get(cols["services_score"])),
+            "services_items": _unified_str(cell.get(cols["services_items"])),
+            "purchase_grade": _unified_str(cell.get(cols["purchase_grade"])),
+            "purchase_score": _unified_int(cell.get(cols["purchase_score"])),
+        })
+    return records

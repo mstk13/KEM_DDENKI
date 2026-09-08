@@ -15,6 +15,8 @@ tr.qual-yellow { background: #fffff0; }
 tr.qual-yellow:hover { background: #ffffe6; }
 tr.qual-red { background: #fff5f5; }
 tr.qual-red:hover { background: #ffebeb; }
+.unified-table .items-cell { font-size: .8rem; line-height: 1.5; min-width: 220px; }
+.unified-table thead th { vertical-align: middle; }
 </style>
 <div class="page-header">
   <h1>入札参加資格一覧</h1>
@@ -48,6 +50,63 @@ tr.qual-red:hover { background: #ffebeb; }
         </tr>
         {% empty %}
         <tr><td colspan="6"><div class="empty"><p>入札参加資格が登録されていません</p></div></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{# ---- 全省庁統一資格 省庁別許可内容一覧 ---- #}
+<div class="page-header" style="margin-top:32px;">
+  <div>
+    <h1 style="font-size:1.1rem;">全省庁統一資格 省庁別許可内容一覧</h1>
+    <p style="font-size:.8rem;color:var(--text-muted);margin:4px 0 0;">
+      等級・点数・営業品目は全ての適用機関で共通です。「物品の製造」は資格登録がないため表示していません。
+    </p>
+  </div>
+  <a href="{% url 'bids:unified_qualification_create' %}" class="btn btn-primary btn-sm">+ 機関を追加</a>
+</div>
+
+<div class="card">
+  <div class="table-wrap">
+    <table class="unified-table">
+      <thead>
+        <tr>
+          <th rowspan="2" style="white-space:nowrap;">省庁・機関名</th>
+          <th colspan="2" style="text-align:center;white-space:nowrap;">物品の販売</th>
+          <th rowspan="2">物品の販売:営業品目(できること)</th>
+          <th colspan="2" style="text-align:center;white-space:nowrap;">役務の提供等</th>
+          <th rowspan="2">役務の提供等:営業品目(できること)</th>
+          <th colspan="2" style="text-align:center;white-space:nowrap;">物品の買受け</th>
+          <th rowspan="2" style="width:1%;"></th>
+        </tr>
+        <tr>
+          <th>等級</th><th>点数</th>
+          <th>等級</th><th>点数</th>
+          <th>等級</th><th>点数</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for u in unified_qualifications %}
+        <tr>
+          <td style="white-space:nowrap;">{{ u.agency }}</td>
+          <td style="text-align:center;">{{ u.goods_sales_grade|default:"-" }}</td>
+          <td style="text-align:center;">{{ u.goods_sales_score|default_if_none:"-" }}</td>
+          <td class="items-cell">{{ u.goods_sales_items|default:"-" }}</td>
+          <td style="text-align:center;">{{ u.services_grade|default:"-" }}</td>
+          <td style="text-align:center;">{{ u.services_score|default_if_none:"-" }}</td>
+          <td class="items-cell">{{ u.services_items|default:"-" }}</td>
+          <td style="text-align:center;">{{ u.purchase_grade|default:"-" }}</td>
+          <td style="text-align:center;">{{ u.purchase_score|default_if_none:"-" }}</td>
+          <td style="white-space:nowrap;width:1%;text-align:right;">
+            <a href="{% url 'bids:unified_qualification_edit' u.pk %}" class="btn btn-outline btn-sm">編集</a>
+            <form method="post" action="{% url 'bids:unified_qualification_delete' u.pk %}" style="display:inline;">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-outline btn-sm" style="color:var(--danger);" onclick="return confirm('「{{ u.agency }}」を削除しますか？')">削除</button>
+            </form>
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="10"><div class="empty"><p>全省庁統一資格の省庁別データが登録されていません。<br><code>python manage.py import_unified_qualifications &lt;Excel&gt;</code> で取り込めます。</p></div></td></tr>
         {% endfor %}
       </tbody>
     </table>

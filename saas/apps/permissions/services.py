@@ -7,6 +7,54 @@ views.py / middleware / decorators から呼ぶ。
 
 from apps.permissions.models import ModulePermission, Role
 
+# 役職で利用を絞るアプリ。ここに載っていないアプリは従来どおり全員が使える。
+#
+# 「載せたものだけ絞る」形にしているのは、役職 × 全アプリの表を先に作ると
+# 未記入のマスに引っかかって既存の画面が突然閉じるため。制限したいものを
+# 1行足していくほうが、閉じた範囲がそのまま読める。
+#
+# 値は workers.Position の名前と一致させる。Position は本番で全員に入って
+# おり（社長/役員/正社員/シニア/ジュニア/試用期間/パート/Developer/
+# アルバイト）、役職を判定できる唯一の項目になっている。
+# permissions の Role は本番で0件のため、ここでは使えない。
+POSITION_RESTRICTED_APPS = {
+    # 人事評価（/evaluation/）は役員と Developer のみ。社長は上位職として通す。
+    "hr_evaluation": ("社長", "役員", "Developer"),
+}
+
+
+def get_position_name(user):
+    """ログインユーザーの役職名を返す。作業員が紐づいていなければ空文字。"""
+    profile = getattr(user, "worker_profile", None)
+    if not profile or not profile.position:
+        return ""
+    return profile.position.name
+
+
+def can_use_app(user, app_code: str) -> bool:
+    """役職から見て、そのアプリを使ってよいかを判定する。
+
+    POSITION_RESTRICTED_APPS に無いアプリは常に True。
+    Worker.allowed_apps による個別の制限は AppPermissionMiddleware が
+    別に見ているので、ここでは役職だけを判断する。
+    """
+    if not user.is_authenticated:
+        return False
+    if user.is_superuser:
+        return True
+
+    allowed_positions = POSITION_RESTRICTED_APPS.get(app_code)
+    if allowed_positions is None:
+        return True
+
+    # 社員番号 Y 始まり（管理者）は AppPermissionMiddleware でも素通しに
+    # しているので、判定をそちらに合わせる。
+    profile = getattr(user, "worker_profile", None)
+    if profile and profile.employee_code and profile.employee_code.startswith("Y"):
+        return True
+
+    return get_position_name(user) in allowed_positions
+
 
 def get_user_roles(user):
     """ユーザーのロール一覧を取得する。"""
@@ -47,6 +95,17 @@ def can_approve_report(user) -> bool:
     承認できるのは社長と IT（developer ロール）のみ。
     """
     return is_president(user) or has_role(user, "developer")
+
+
+def can_delete_report(user, report) -> bool:
+    """日報を削除できるかどうかを判定する。
+
+    ログインしていれば誰でも削除できる。ただし承認済の日報は削除できない
+    （承認時に労務費を計上済みで、消すと原価との整合が崩れるため）。
+    """
+    from apps.reports.models import DailyReport
+
+    return report.status != DailyReport.Status.APPROVED
 
 
 def has_module_permission(user, module: str, level: str = "read") -> bool:

@@ -17,6 +17,14 @@ def navigation(request):
 
     resolver_match は 404 / 500 ページでは None になる。その場合は
     どこも active にせず、リンクだけを出す。
+
+    user を渡すのは、役職で使えない項目を出さないため
+    （人事評価は役員・Developer のみ）。
     """
     match = getattr(request, "resolver_match", None)
-    return {"nav": build_navigation(match.view_name if match else None)}
+    return {
+        "nav": build_navigation(
+            match.view_name if match else None,
+            getattr(request, "user", None),
+        ),
+    }

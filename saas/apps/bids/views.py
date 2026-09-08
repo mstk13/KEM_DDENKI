@@ -14,6 +14,7 @@ from apps.bids.forms import (
     BidCostForm,
     BidProjectForm,
     QualificationForm,
+    UnifiedQualificationForm,
     UnitPriceForm,
 )
 from apps.bids.gantt import KINDS, KNOWN_STAGES, build_bid_gantt
@@ -21,6 +22,8 @@ from apps.bids.models import (
     BidProject,
     BidScheduleRule,
     Qualification,
+    SkippedBid,
+    UnifiedQualification,
     UnitPrice,
 )
 from apps.bids.qualification import check_qualifications_for_projects
@@ -306,6 +309,7 @@ def qualification_list(request):
     alert_2week = today + datetime.timedelta(days=14)
     return render(request, "bids/qualification_list.html", {
         "qualifications": qs,
+        "unified_qualifications": UnifiedQualification.objects.all(),
         "today": today,
         "alert_2month": alert_2month,
         "alert_1month": alert_1month,
@@ -421,6 +425,87 @@ def qualification_delete(request, pk):
         name = f"{obj.issuer} / {obj.category}"
         obj.delete()
         messages.success(request, f"資格「{name}」を削除しました。")
+    return redirect("bids:qualification_list")
+
+
+@login_required
+def skipped_list(request):
+    """資格判定で見送った案件の一覧。理由を開いて公告と照らせるようにする。"""
+    from apps.bids.models import ScrapeTarget
+
+    qs = SkippedBid.objects.select_related("target")
+    verdict = request.GET.get("verdict", "")
+    if verdict in SkippedBid.Verdict.values:
+        qs = qs.filter(verdict=verdict)
+    target_id = request.GET.get("target", "")
+    if target_id.isdigit():
+        qs = qs.filter(target_id=int(target_id))
+
+    # 期限が近い順。期限不明は末尾
+    from django.db.models import F
+
+    qs = qs.order_by(F("deadline").asc(nulls_last=True), "-last_seen_at")
+
+    return render(request, "bids/skipped_list.html", {
+        "skipped": list(qs),
+        "verdict": verdict,
+        "target_id": target_id,
+        "verdict_choices": SkippedBid.Verdict.choices,
+        "targets": ScrapeTarget.objects.filter(only_eligible=True).order_by("name"),
+        "ineligible_count": SkippedBid.objects.filter(
+            verdict=SkippedBid.Verdict.INELIGIBLE
+        ).count(),
+        "unknown_count": SkippedBid.objects.filter(
+            verdict=SkippedBid.Verdict.UNKNOWN
+        ).count(),
+    })
+
+
+@login_required
+def skipped_delete(request, pk):
+    """確認済みの見送り案件を一覧から消す。次の取り込みで再び見送られれば戻る。"""
+    obj = get_object_or_404(SkippedBid, pk=pk)
+    if request.method == "POST":
+        obj.delete()
+        messages.success(request, f"見送り案件「{obj.title[:30]}」を一覧から消しました。")
+    return redirect("bids:skipped_list")
+
+
+@login_required
+def unified_qualification_create(request):
+    if request.method == "POST":
+        form = UnifiedQualificationForm(request.POST)
+        if form.is_valid():
+            obj = form.save(commit=False)
+            obj.company = request.user.company
+            obj.created_by = request.user
+            obj.save()
+            return redirect("bids:qualification_list")
+    else:
+        form = UnifiedQualificationForm()
+    return render(request, "bids/unified_qualification_form.html", {"form": form})
+
+
+@login_required
+def unified_qualification_edit(request, pk):
+    obj = get_object_or_404(UnifiedQualification, pk=pk)
+    if request.method == "POST":
+        form = UnifiedQualificationForm(request.POST, instance=obj)
+        if form.is_valid():
+            form.save()
+            return redirect("bids:qualification_list")
+    else:
+        form = UnifiedQualificationForm(instance=obj)
+    return render(request, "bids/unified_qualification_form.html", {"form": form})
+
+
+@login_required
+def unified_qualification_delete(request, pk):
+    obj = get_object_or_404(UnifiedQualification, pk=pk)
+    if request.method == "POST":
+        name = obj.agency
+        obj.delete()
+        messages.success(request, f"全省庁統一資格「{name}」を削除しました。")
     return redirect("bids:qualification_list")
 
 

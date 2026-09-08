@@ -109,6 +109,7 @@ APP_PERMISSION_CHOICES = [
     ("materials", "材料・発注"),
     ("workers", "作業員管理"),
     ("evaluations", "人材評価"),
+    ("hr_evaluation", "人事評価"),
     ("bids", "入札管理"),
     ("devkanri", "開発管理"),
     ("masters", "マスタ管理"),

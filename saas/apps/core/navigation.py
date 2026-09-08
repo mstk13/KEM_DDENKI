@@ -16,6 +16,9 @@ base.html に手書きされていた約50本のリンクと、その一つひ�
 
 同じ view_name に複数の項目が一致した場合は、一致した前置き部分が長いものを
 選ぶ。長さが同じなら完全一致を優先する。
+
+役職で絞る項目は NavItem.permission にアプリコードを書く。判定は
+permissions.services.can_use_app に委ね、ここでは持たない。
 """
 
 from dataclasses import dataclass
@@ -29,6 +32,12 @@ class NavItem:
     url_name: str
     icon: str
     match: tuple[str, ...] = ()
+    # 役職で利用を絞るアプリのコード（permissions.services.POSITION_RESTRICTED_APPS）。
+    # 空なら誰にでも出す。テンプレート時代の
+    #   {% if user|can_use:"hr_evaluation" %} ... {% endif %}
+    # をここへ移したもの。判定の実体は permissions 側にあり、
+    # ここは「どの項目がどのアプリに属するか」だけを持つ。
+    permission: str = ""
 
     def patterns(self) -> tuple[str, ...]:
         """match 未指定なら url_name の完全一致だけを見る。"""
@@ -90,18 +99,21 @@ NAVIGATION: tuple[NavItem | NavGroup, ...] = (
                 "evaluation:eval_list",
                 "📏",
                 ("evaluation:eval_*", "evaluation:employee_summary"),
+                permission="hr_evaluation",
             ),
             NavItem(
                 "評価基準",
                 "evaluation:criteria_list",
                 "📐",
                 ("evaluation:criteria_*",),
+                permission="hr_evaluation",
             ),
             NavItem(
                 "評価対象設定",
                 "evaluation:assignment_list",
                 "🔗",
                 ("evaluation:assignment_*",),
+                permission="hr_evaluation",
             ),
         ),
     ),
@@ -304,10 +316,28 @@ def resolve_active(view_name: str | None) -> NavItem | None:
     return best
 
 
-def build_navigation(view_name: str | None) -> list[dict]:
+def is_visible(item: NavItem, user) -> bool:
+    """その項目を user に出してよいか。
+
+    permission を持たない項目は常に出す。持つ項目は permissions 側の
+    判定に委ねる。user が渡らない呼び出し（テストや管理コマンド）では
+    絞らない。絞る条件を2箇所に書くと必ず食い違うため、判定は
+    can_use_app 1つに寄せる。
+    """
+    if not item.permission or user is None:
+        return True
+
+    from apps.permissions.services import can_use_app
+
+    return can_use_app(user, item.permission)
+
+
+def build_navigation(view_name: str | None, user=None) -> list[dict]:
     """テンプレートがそのまま回せる形に落とす。
 
     URL の逆引きはここで済ませ、テンプレートから {% url %} を無くす。
+    user を渡すと、役職で使えない項目を落とす。項目が全部消えた
+    グループは見出しだけ残っても意味がないので、グループごと落とす。
     """
     active = resolve_active(view_name)
 
@@ -322,7 +352,10 @@ def build_navigation(view_name: str | None) -> list[dict]:
                     "active": item is active,
                 }
                 for item in entry.items
+                if is_visible(item, user)
             ]
+            if not items:
+                continue
             nav.append(
                 {
                     "label": entry.label,
@@ -330,7 +363,7 @@ def build_navigation(view_name: str | None) -> list[dict]:
                     "open": any(item["active"] for item in items),
                 }
             )
-        else:
+        elif is_visible(entry, user):
             nav.append(
                 {
                     "label": entry.label,
