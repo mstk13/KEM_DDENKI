@@ -1,0 +1,209 @@
+{% extends "base.html" %}
+{% block title %}出社予定（日別） — {{ APP_NAME }}{% endblock %}
+{% block topbar_title %}勤怠管理{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>出社予定（日別）</h1>
+  <div>
+    <a href="{% url 'attendance:plan_board' %}?month={{ month_str }}" class="btn btn-outline">月表に戻る</a>
+    <a href="{% url 'attendance:report_list' %}" class="btn btn-outline">勤怠日報</a>
+  </div>
+</div>
+
+<div class="card" style="margin-bottom:20px;">
+  <div class="card-body">
+    <form method="get" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;">
+      <a href="?date={{ prev_date|date:'Y-m-d' }}" class="btn btn-outline btn-sm">← 前日</a>
+      <div class="form-group" style="margin-bottom:0;">
+        <label>対象日</label>
+        <input type="date" name="date" value="{{ date|date:'Y-m-d' }}" class="form-control"
+               onchange="this.form.submit()">
+      </div>
+      <a href="?date={{ next_date|date:'Y-m-d' }}" class="btn btn-outline btn-sm">翌日 →</a>
+      <noscript><button type="submit" class="btn btn-primary">表示</button></noscript>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <h2>
+      {{ date|date:"Y年n月j日" }}
+      <span class="{% if is_saturday %}plan-day-sat{% elif is_sunday %}plan-day-sun{% endif %}">
+        （{{ weekday }}）
+      </span>
+      {% if is_today %}<span class="badge badge-blue">今日</span>{% endif %}
+    </h2>
+    <span style="font-size:.88rem;color:var(--text-primary);">
+      出社人数 <strong id="plan-day-count">{{ working_count }}</strong> 名
+    </span>
+  </div>
+
+  {% if rows %}
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="date" value="{{ date|date:'Y-m-d' }}">
+
+    <div class="card-body" style="padding-bottom:12px;display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;">
+      <div class="form-group" style="margin-bottom:0;">
+        <label>全員をまとめて</label>
+        <select class="form-control" id="plan-day-bulk-kind">
+          <option value="">（選んでください）</option>
+          {% for value, text in kind_choices %}
+            <option value="{{ value }}">{{ text }}</option>
+          {% endfor %}
+          <option value="__clear__">予定なしにする</option>
+        </select>
+      </div>
+      <button type="button" class="btn btn-outline" id="plan-day-bulk-apply">
+        全員に入れる
+      </button>
+      <span style="font-size:.82rem;color:var(--text-secondary);">
+        入力欄が変わるだけです。保存を押すまで反映されません。
+      </span>
+    </div>
+
+    <div class="table-wrap">
+      <table class="plan-day-table">
+        <thead>
+          <tr>
+            <th style="min-width:160px;">氏名</th>
+            <th style="min-width:160px;">区分</th>
+            <th style="min-width:220px;">現場名・行先</th>
+            <th style="min-width:120px;">開始</th>
+            <th style="min-width:120px;">終了</th>
+            <th style="min-width:170px;">出張の最終日</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in rows %}
+          <tr class="plan-day-row{% if row.kind %} plan-kind-{{ row.kind }}{% endif %}">
+            <th scope="row" style="text-align:left;">
+              {{ row.worker.name }}
+              {% if row.worker.employee_code %}
+                <span style="color:var(--text-secondary);font-size:.78rem;">
+                  {{ row.worker.employee_code }}
+                </span>
+              {% endif %}
+            </th>
+            <td>
+              <select name="kind_{{ row.worker.pk }}" class="form-control plan-day-kind"
+                      data-worker="{{ row.worker.pk }}">
+                <option value="">予定なし</option>
+                {% for value, text in kind_choices %}
+                  <option value="{{ value }}" {% if row.kind == value %}selected{% endif %}>
+                    {{ text }}
+                  </option>
+                {% endfor %}
+              </select>
+            </td>
+            <td>
+              <input type="text" name="note_{{ row.worker.pk }}"
+                     class="form-control plan-day-note" data-worker="{{ row.worker.pk }}"
+                     value="{{ row.note }}" maxlength="200">
+            </td>
+            <td>
+              <input type="time" name="start_{{ row.worker.pk }}"
+                     class="form-control plan-day-start" data-worker="{{ row.worker.pk }}"
+                     value="{{ row.start_time|time:'H:i' }}" placeholder="{{ standard_start }}">
+            </td>
+            <td>
+              <input type="time" name="end_{{ row.worker.pk }}"
+                     class="form-control plan-day-end" data-worker="{{ row.worker.pk }}"
+                     value="{{ row.end_time|time:'H:i' }}" placeholder="{{ standard_end }}">
+            </td>
+            <td>
+              <input type="date" name="until_{{ row.worker.pk }}"
+                     class="form-control plan-day-until" data-worker="{{ row.worker.pk }}"
+                     min="{{ date|date:'Y-m-d' }}">
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <div style="padding:16px 24px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+      <button type="submit" class="btn btn-primary">この日の予定を保存</button>
+      <span style="font-size:.82rem;color:var(--text-secondary);">
+        区分を「予定なし」にした人は、その日の予定が消えます。
+        時刻を空にすると所定（{{ standard_start }}〜{{ standard_end }}）どおりの扱いです。
+        出張だけ最終日を入れられます（入れるとその日まで同じ内容で埋まります）。
+      </span>
+    </div>
+  </form>
+  {% else %}
+  <div class="card-body">
+    <div class="empty">
+      <div class="empty-icon">&#x1f465;</div>
+      <p>在籍中の作業員が登録されていません。</p>
+      <a href="{% url 'workers:list' %}" class="btn btn-outline">作業員台帳へ</a>
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+{% if rows %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  var WORKING = {{ working_kinds_json|safe }};
+  var KIND_FIELDS = {{ kind_fields_json|safe }};
+  var kinds = Object.keys(KIND_FIELDS);
+  var selects = Array.from(document.querySelectorAll('.plan-day-kind'));
+
+  function fieldsFor(worker) {
+    return {
+      note: document.querySelector('.plan-day-note[data-worker="' + worker + '"]'),
+      start: document.querySelector('.plan-day-start[data-worker="' + worker + '"]'),
+      end: document.querySelector('.plan-day-end[data-worker="' + worker + '"]'),
+      until: document.querySelector('.plan-day-until[data-worker="' + worker + '"]'),
+    };
+  }
+
+  // 区分によって訊く項目が変わる。使わない欄は disabled にして薄く見せる。
+  // 隠さないのは、列がずれて他の人の行と見比べられなくなるため。
+  function applyRow(select) {
+    var spec = KIND_FIELDS[select.value] || {time: false, place: '', span: false};
+    var f = fieldsFor(select.dataset.worker);
+    var enabled = !!select.value;
+
+    f.note.disabled = !enabled;
+    f.note.placeholder = spec.place ? spec.place : '（任意）';
+    f.start.disabled = !(enabled && spec.time);
+    f.end.disabled = !(enabled && spec.time);
+    f.until.disabled = !(enabled && spec.span);
+    if (f.start.disabled) { f.start.value = ''; }
+    if (f.end.disabled) { f.end.value = ''; }
+    if (f.until.disabled) { f.until.value = ''; }
+
+    var row = select.closest('tr');
+    kinds.forEach(function(k) { row.classList.remove('plan-kind-' + k); });
+    if (select.value) { row.classList.add('plan-kind-' + select.value); }
+  }
+
+  function recount() {
+    var count = selects.filter(function(s) {
+      return WORKING.indexOf(s.value) !== -1;
+    }).length;
+    document.getElementById('plan-day-count').textContent = count;
+  }
+
+  selects.forEach(function(select) {
+    applyRow(select);
+    select.addEventListener('change', function() { applyRow(select); recount(); });
+  });
+
+  document.getElementById('plan-day-bulk-apply').addEventListener('click', function() {
+    var value = document.getElementById('plan-day-bulk-kind').value;
+    if (!value) { return; }
+    selects.forEach(function(select) {
+      select.value = (value === '__clear__') ? '' : value;
+      applyRow(select);
+    });
+    recount();
+  });
+});
+</script>
+{% endif %}
+{% endblock %}

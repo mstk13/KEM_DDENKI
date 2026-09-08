@@ -165,6 +165,18 @@ class BidProject(TenantModel):
         help_text="公告の別表から抽出した各種期限と提出物",
     )
 
+    # ガントチャート上での手直し。公告の項目ラベルをキーにする。
+    # {"入札書の受領期限": {"kind": "deadline", "start": "2026-09-20",
+    #                      "end": "2026-10-27"}}
+    # kind は BidScheduleRule.Kind と同じ値。start / end は日付のみで、
+    # 時刻（正午必着など）は公告から読んだ値をそのまま使う。
+    # bid_schedule を上書きせず別に持つのは、公告を取り直しても
+    # 手直しが消えないようにするため。
+    schedule_overrides = models.JSONField(
+        "手続きの扱い（案件別）", default=dict, blank=True,
+        help_text="ガントチャート上で変更した項目の扱いと日付",
+    )
+
     history = HistoricalRecords()
 
     class Meta:
@@ -174,6 +186,45 @@ class BidProject(TenantModel):
 
     def __str__(self):
         return self.title
+
+
+class BidScheduleRule(TenantModel):
+    """公告の手続き項目を受注までの流れのどこに置くか、の会社共通の既定。
+
+    公告のラベルは発注機関ごとに違う（「入札書の受領期限」「入札の締切」…）ので、
+    bids.gantt が正規化した「段階」をキーにする。段階ごとに1件。
+
+    案件単位の例外は BidProject.schedule_overrides で持ち、こちらより優先する。
+    """
+
+    class Kind(models.TextChoices):
+        DEADLINE = "deadline", "締切（流れの一本道に入れる）"
+        PERIOD = "period", "期間（並走する窓口）"
+        HIDDEN = "hidden", "図に出さない"
+
+    stage = models.CharField(
+        "段階", max_length=100,
+        help_text="例: 参加申請, 入札書提出, 開札・落札者決定",
+    )
+    kind = models.CharField(
+        "扱い", max_length=20, choices=Kind.choices, default=Kind.DEADLINE,
+    )
+
+    history = HistoricalRecords()
+
+    class Meta:
+        verbose_name = "手続きの扱い（会社既定）"
+        verbose_name_plural = "手続きの扱い（会社既定）"
+        ordering = ["stage"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["company", "stage"],
+                name="uniq_bid_schedule_rule_company_stage",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.stage}: {self.get_kind_display()}"
 
 
 class BidCost(TenantModel):

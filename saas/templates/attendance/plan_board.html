@@ -1,0 +1,546 @@
+{% extends "base.html" %}
+{% block title %}出社予定 — {{ APP_NAME }}{% endblock %}
+{% block topbar_title %}勤怠管理{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>出社予定</h1>
+  <div>
+    <a href="{% url 'attendance:plan_day' %}" class="btn btn-outline">日別に記入</a>
+    <a href="{% url 'attendance:report_list' %}" class="btn btn-outline">勤怠日報</a>
+    <a href="{% url 'attendance:summary' %}" class="btn btn-outline">月次サマリ</a>
+  </div>
+</div>
+
+<div class="card" style="margin-bottom:20px;">
+  <div class="card-body">
+    <form method="get" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;">
+      <a href="?month={{ prev_month }}" class="btn btn-outline btn-sm">← 前月</a>
+      <div class="form-group" style="margin-bottom:0;">
+        <label>対象月</label>
+        <input type="month" name="month" value="{{ month_str }}" class="form-control"
+               onchange="this.form.submit()">
+      </div>
+      <a href="?month={{ next_month }}" class="btn btn-outline btn-sm">翌月 →</a>
+      <noscript><button type="submit" class="btn btn-primary">表示</button></noscript>
+    </form>
+  </div>
+</div>
+
+{% if rows %}
+<div class="card" style="margin-bottom:20px;">
+  <div class="card-header"><h2>まとめて記入</h2></div>
+  <div class="card-body">
+    <form method="post" action="{% url 'attendance:plan_fill' %}" class="plan-fill-form">
+      {% csrf_token %}
+      <input type="hidden" name="month" value="{{ month_str }}">
+      <div class="form-group" style="margin-bottom:0;">
+        <label>対象者</label>
+        <select name="worker" class="form-control" id="plan-fill-worker">
+          <option value="">在籍中の全員</option>
+          {% for row in rows %}
+            <option value="{{ row.worker.pk }}">{{ row.worker.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group" style="margin-bottom:0;">
+        <label>対象日</label>
+        <select name="target" class="form-control">
+          {% for value, text in fill_targets %}
+            <option value="{{ value }}">{{ text }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group" style="margin-bottom:0;">
+        <label>区分</label>
+        <select name="kind" class="form-control">
+          {% for value, text in kind_choices %}
+            <option value="{{ value }}">{{ text }}</option>
+          {% endfor %}
+          <option value="">（予定を消す）</option>
+        </select>
+      </div>
+      <div class="form-group" style="margin-bottom:0;">
+        <label>開始</label>
+        <input type="time" name="start_time" class="form-control"
+               placeholder="{{ standard_start }}">
+      </div>
+      <div class="form-group" style="margin-bottom:0;">
+        <label>終了</label>
+        <input type="time" name="end_time" class="form-control"
+               placeholder="{{ standard_end }}">
+      </div>
+      <label class="plan-fill-check">
+        <input type="checkbox" name="overwrite" value="1">
+        既に入っている日も上書きする
+      </label>
+      <button type="submit" class="btn btn-primary">この月に反映</button>
+    </form>
+    <p style="margin:10px 0 0;font-size:.82rem;color:var(--text-secondary);">
+      「火曜日」を選ぶと、この月の火曜だけをまとめて記入します。
+      時刻を空にすると所定（{{ standard_start }}〜{{ standard_end }}）どおりの扱いです。
+      上書きにチェックを入れないと、すでに入っている日はそのまま残ります。
+    </p>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <h2>{{ year }}年{{ month }}月</h2>
+    <span style="font-size:.82rem;color:var(--text-secondary);">
+      区分を選んでマスをクリックで記入／同じ区分をもう一度で消去。
+      マスをダブルクリックで現場名・時刻を入力
+    </span>
+  </div>
+
+  <div class="card-body" style="padding-bottom:12px;">
+    <div class="plan-palette" id="plan-palette">
+      {% for value, text in kind_choices %}
+        <button type="button" class="plan-kind plan-kind-{{ value }}{% if forloop.first %} active{% endif %}"
+                data-kind="{{ value }}">{{ text }}</button>
+      {% endfor %}
+      <button type="button" class="plan-kind plan-kind-clear" data-kind="">消す</button>
+    </div>
+    <p style="margin:10px 0 0;font-size:.82rem;color:var(--text-secondary);">
+      マスの文字は区分の頭1文字です（出＝出社／現＝現場／直＝直行直帰／宅＝在宅／
+      張＝出張／有＝有休／半＝半休／休＝休み）。正式名称と現場名はマスにカーソルを
+      合わせると出ます。<br>
+      最下行の「出社人数」は {{ working_labels|join:"・" }} を数えています。
+      日付の数字を押すと、その日を全員ぶんまとめて記入する画面に移ります。
+      × はその日を全員ぶん削除します。
+    </p>
+  </div>
+
+  <div class="table-wrap plan-board-wrap">
+    <table class="plan-board">
+      <thead>
+        <tr>
+          <th class="plan-name-col">氏名</th>
+          {% for day in days %}
+            <th class="plan-day{% if day.is_saturday %} plan-saturday{% elif day.is_sunday %} plan-sunday{% endif %}{% if day.is_today %} plan-today{% endif %}">
+              <a class="plan-day-num" href="{% url 'attendance:plan_day' %}?date={{ day.date|date:'Y-m-d' }}"
+                 title="{{ day.date|date:'n月j日' }} を全員ぶん記入">{{ day.day }}</a>
+              <span class="plan-day-wd">{{ day.weekday }}</span>
+              <button type="button" class="plan-day-clear"
+                      data-date="{{ day.date|date:'Y-m-d' }}"
+                      title="{{ day.date|date:'n月j日' }} の予定を全員ぶん削除">×</button>
+            </th>
+          {% endfor %}
+          <th class="plan-total-col">出社</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+        <tr>
+          <th class="plan-name-col" scope="row">
+            {{ row.worker.name }}
+            {% if row.worker.employee_code %}
+              <span style="color:var(--text-secondary);font-size:.78rem;">
+                {{ row.worker.employee_code }}
+              </span>
+            {% endif %}
+          </th>
+          {% for cell in row.cells %}
+            <td class="plan-cell-td{% if cell.is_saturday %} plan-saturday{% elif cell.is_sunday %} plan-sunday{% endif %}{% if cell.is_today %} plan-today{% endif %}">
+              <button type="button"
+                      class="plan-cell{% if cell.kind %} plan-kind-{{ cell.kind }}{% endif %}"
+                      data-worker="{{ row.worker.pk }}"
+                      data-worker-name="{{ row.worker.name }}"
+                      data-date="{{ cell.date|date:'Y-m-d' }}"
+                      data-date-label="{{ cell.date|date:'n月j日' }}（{{ cell.weekday }}）"
+                      data-kind="{{ cell.kind }}"
+                      data-start="{{ cell.start_time|time:'H:i' }}"
+                      data-end="{{ cell.end_time|time:'H:i' }}"
+                      data-note="{{ cell.note }}"
+                      data-working="{% if cell.is_working %}1{% else %}0{% endif %}"
+                      title="{{ row.worker.name }} {{ cell.date|date:'n月j日' }}{% if cell.label %} {{ cell.label }}{% endif %}{% if cell.note %} / {{ cell.note }}{% endif %}{% if cell.time_label %} {{ cell.time_label }}{% endif %}">
+                <span class="plan-cell-label">{{ cell.short }}</span>
+                <span class="plan-cell-time">{{ cell.time_label }}</span>
+              </button>
+            </td>
+          {% endfor %}
+          <td class="plan-total-col plan-row-total">{{ row.working_days }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+      <tfoot>
+        <tr>
+          <th class="plan-name-col">出社人数</th>
+          {% for total in daily_totals %}
+            <td class="plan-daily-total" data-total-date="{{ total.date|date:'Y-m-d' }}">
+              {{ total.count }}
+            </td>
+          {% endfor %}
+          <td class="plan-total-col"></td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+</div>
+
+<div class="card" style="margin-top:20px;">
+  <div class="card-header">
+    <h2>
+      1日のタイムライン —
+      {{ timeline.date|date:"n月j日" }}
+      <span class="{% if timeline.is_saturday %}plan-day-sat{% elif timeline.is_sunday %}plan-day-sun{% endif %}">
+        （{{ timeline.weekday }}）
+      </span>
+      {% if timeline.is_today %}<span class="badge badge-blue">今日</span>{% endif %}
+    </h2>
+    <span style="font-size:.82rem;color:var(--text-secondary);">
+      誰がいつ・どこにいるかを24時間で見る
+    </span>
+  </div>
+
+  <div class="card-body" style="padding-bottom:12px;">
+    <form method="get" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;">
+      <input type="hidden" name="month" value="{{ month_str }}">
+      <a href="?month={{ month_str }}&day={{ timeline.prev_date|date:'Y-m-d' }}"
+         class="btn btn-outline btn-sm">← 前日</a>
+      <div class="form-group" style="margin-bottom:0;">
+        <label>表示する日</label>
+        <input type="date" name="day" value="{{ timeline.date|date:'Y-m-d' }}"
+               class="form-control" onchange="this.form.submit()">
+      </div>
+      <a href="?month={{ month_str }}&day={{ timeline.next_date|date:'Y-m-d' }}"
+         class="btn btn-outline btn-sm">翌日 →</a>
+      <a href="{% url 'attendance:plan_day' %}?date={{ timeline.date|date:'Y-m-d' }}"
+         class="btn btn-outline btn-sm">この日を編集</a>
+      <noscript><button type="submit" class="btn btn-primary">表示</button></noscript>
+    </form>
+  </div>
+
+  {% if timeline.rows %}
+  <div class="table-wrap">
+    <div class="plan-timeline">
+      <div class="plan-timeline-head">
+        <div class="plan-timeline-name">氏名</div>
+        <div class="plan-timeline-track">
+          {% for tick in timeline.hours %}
+            <span class="plan-timeline-tick" style="left:{{ tick.left_pct }}%;">
+              {{ tick.label }}
+            </span>
+          {% endfor %}
+        </div>
+      </div>
+
+      {% for row in timeline.rows %}
+      <div class="plan-timeline-row">
+        <div class="plan-timeline-name">
+          {{ row.worker.name }}
+          <span class="plan-timeline-kind">{{ row.label }}</span>
+        </div>
+        <div class="plan-timeline-track">
+          {% for tick in timeline.hours %}
+            <span class="plan-timeline-grid" style="left:{{ tick.left_pct }}%;"></span>
+          {% endfor %}
+          {% if timeline.now_pct %}
+            <span class="plan-timeline-now" style="left:{{ timeline.now_pct }}%;"></span>
+          {% endif %}
+          {% if row.has_bar %}
+            <span class="plan-timeline-bar plan-kind-{{ row.kind }}"
+                  style="left:{{ row.left_pct }}%;width:{{ row.width_pct }}%;"
+                  title="{{ row.worker.name }} {{ row.label }}{% if row.note %} / {{ row.note }}{% endif %} {{ row.time_label }}{% if row.crosses_midnight %}（翌日へ続く）{% endif %}">
+              {{ row.label }}{% if row.note %}／{{ row.note }}{% endif %}
+              <span class="plan-timeline-bar-time">{{ row.time_label }}</span>
+            </span>
+          {% else %}
+            <span class="plan-timeline-flat plan-kind-{{ row.kind }}">
+              {{ row.label }}{% if row.note %}／{{ row.note }}{% endif %}（終日）
+            </span>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div style="padding:14px 24px;font-size:.82rem;color:var(--text-secondary);">
+    横軸は0時から24時。時刻を入れていない予定は所定（{{ standard_start }}〜{{ standard_end }}）の帯で描いています。<br>
+    有休・休み・出張は時間が決まらないので帯にせず、行の左に区分だけ出します。
+    {% if timeline.idle %}
+      <br>この日の予定が入っていない人:
+      {% for worker in timeline.idle %}{{ worker.name }}{% if not forloop.last %}・{% endif %}{% endfor %}
+      （{{ timeline.idle|length }}名）
+    {% endif %}
+  </div>
+  {% else %}
+  <div class="card-body">
+    <p style="text-align:center;color:var(--text-secondary);padding:20px;">
+      {{ timeline.date|date:"n月j日" }} は誰も予定が入っていません。
+      上の表のマスか「この日を編集」から記入してください。
+    </p>
+  </div>
+  {% endif %}
+</div>
+
+<form id="plan-csrf" onsubmit="return false;">{% csrf_token %}</form>
+
+<form method="post" action="{% url 'attendance:plan_clear_day' %}" id="plan-clear-day-form"
+      style="display:none;">
+  {% csrf_token %}
+  <input type="hidden" name="month" value="{{ month_str }}">
+  <input type="hidden" name="date" value="">
+</form>
+
+<dialog id="plan-dialog" class="plan-dialog">
+  <form method="dialog" id="plan-dialog-form">
+    <h3 id="plan-dialog-title" style="margin:0 0 4px;font-size:1.05rem;"></h3>
+    <p id="plan-dialog-sub" style="margin:0 0 14px;font-size:.85rem;color:var(--text-secondary);"></p>
+
+    <div class="form-group">
+      <label>区分</label>
+      <select class="form-control" id="plan-dialog-kind">
+        {% for value, text in kind_choices %}
+          <option value="{{ value }}">{{ text }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="form-group" id="plan-dialog-place-row">
+      <label id="plan-dialog-place-label">場所・メモ</label>
+      <input type="text" class="form-control" id="plan-dialog-note" maxlength="200">
+    </div>
+
+    <div id="plan-dialog-time-row">
+      <div style="display:flex;gap:10px;">
+        <div class="form-group" style="flex:1;">
+          <label>開始時刻</label>
+          <input type="time" class="form-control" id="plan-dialog-start">
+        </div>
+        <div class="form-group" style="flex:1;">
+          <label>終了時刻</label>
+          <input type="time" class="form-control" id="plan-dialog-end">
+        </div>
+      </div>
+      <p style="margin:-6px 0 12px;font-size:.78rem;color:var(--text-secondary);">
+        空欄なら所定（{{ standard_start }}〜{{ standard_end }}）どおりとして扱います。
+      </p>
+    </div>
+
+    <div id="plan-dialog-span-row">
+      <div class="form-group">
+        <label>いつまで（この日から）</label>
+        <input type="date" class="form-control" id="plan-dialog-until">
+      </div>
+      <p style="margin:-6px 0 12px;font-size:.78rem;color:var(--text-secondary);">
+        出張は日をまたぐので、戻る日を入れるとその日まで同じ内容で埋まります。
+        空欄ならこの日だけです。
+      </p>
+    </div>
+
+    <div style="display:flex;gap:8px;justify-content:space-between;margin-top:16px;">
+      <button type="button" class="btn btn-outline" id="plan-dialog-delete"
+              style="color:var(--danger);border-color:var(--danger);">この日を削除</button>
+      <span style="display:flex;gap:8px;">
+        <button type="button" class="btn btn-outline" id="plan-dialog-cancel">キャンセル</button>
+        <button type="button" class="btn btn-primary" id="plan-dialog-save">保存</button>
+      </span>
+    </div>
+  </form>
+</dialog>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  var setUrl = '{% url "attendance:plan_set" %}';
+  var KIND_FIELDS = {{ kind_fields_json|safe }};
+  var token = document.querySelector('#plan-csrf [name=csrfmiddlewaretoken]');
+  var palette = document.getElementById('plan-palette');
+  var dialog = document.getElementById('plan-dialog');
+  var kinds = Object.keys(KIND_FIELDS);
+
+  function activeKind() {
+    var active = palette.querySelector('.plan-kind.active');
+    return active ? active.dataset.kind : '';
+  }
+
+  palette.addEventListener('click', function(ev) {
+    var btn = ev.target.closest('.plan-kind');
+    if (!btn) { return; }
+    palette.querySelectorAll('.plan-kind').forEach(function(b) {
+      b.classList.remove('active');
+    });
+    btn.classList.add('active');
+  });
+
+  // 出社人数はサーバから返さず、その列・その行のマスを数え直す。
+  // 1マス塗るたびに月ぶんを再計算させるより、画面側で足すほうが速い。
+  function recountColumn(date) {
+    var count = 0;
+    document.querySelectorAll('.plan-cell[data-date="' + date + '"]').forEach(
+      function(c) { if (c.dataset.working === '1') { count += 1; } }
+    );
+    var foot = document.querySelector('[data-total-date="' + date + '"]');
+    if (foot) { foot.textContent = count; }
+  }
+
+  function recountRow(cell) {
+    var row = cell.closest('tr');
+    var count = 0;
+    row.querySelectorAll('.plan-cell').forEach(function(c) {
+      if (c.dataset.working === '1') { count += 1; }
+    });
+    var total = row.querySelector('.plan-row-total');
+    if (total) { total.textContent = count; }
+  }
+
+  function paint(cell, data) {
+    kinds.forEach(function(k) { cell.classList.remove('plan-kind-' + k); });
+    if (data.kind) { cell.classList.add('plan-kind-' + data.kind); }
+    cell.dataset.kind = data.kind;
+    cell.dataset.start = data.start_time;
+    cell.dataset.end = data.end_time;
+    cell.dataset.note = data.note;
+    cell.dataset.working = data.is_working ? '1' : '0';
+    cell.querySelector('.plan-cell-label').textContent = data.short || '';
+    cell.querySelector('.plan-cell-time').textContent = data.time_label;
+    cell.title = cell.dataset.workerName + ' ' + cell.dataset.dateLabel
+      + (data.label ? ' ' + data.label : '')
+      + (data.note ? ' / ' + data.note : '')
+      + (data.time_label ? ' ' + data.time_label : '');
+    recountColumn(cell.dataset.date);
+    recountRow(cell);
+  }
+
+  function save(cell, params) {
+    var body = new URLSearchParams(Object.assign({
+      worker: cell.dataset.worker,
+      date: cell.dataset.date,
+    }, params));
+    cell.disabled = true;
+    return fetch(setUrl, {
+      method: 'POST',
+      headers: {
+        'X-CSRFToken': token ? token.value : '',
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: body.toString(),
+    }).then(function(res) {
+      if (!res.ok) {
+        return res.json().then(function(d) { throw new Error(d.error); });
+      }
+      return res.json();
+    }).then(function(data) {
+      // 期間で入れたときは他の日のマスも変わっているので読み直す
+      if (data.reload) { location.reload(); return; }
+      paint(cell, data);
+    }).catch(function(err) {
+      alert('保存できませんでした: ' + err.message);
+    }).finally(function() {
+      cell.disabled = false;
+    });
+  }
+
+  // --- マスの詳細ダイアログ ---
+  var editing = null;
+
+  // 区分によって訊く項目が変わる。現場なら現場名、出張なら行先と戻る日。
+  function applyKindFields() {
+    var kind = document.getElementById('plan-dialog-kind').value;
+    var spec = KIND_FIELDS[kind] || {time: true, place: '', span: false};
+    document.getElementById('plan-dialog-place-label').textContent =
+      spec.place || '場所・メモ';
+    document.getElementById('plan-dialog-note').placeholder =
+      spec.place ? spec.place + 'を入力' : '任意';
+    document.getElementById('plan-dialog-time-row').style.display =
+      spec.time ? '' : 'none';
+    document.getElementById('plan-dialog-span-row').style.display =
+      spec.span ? '' : 'none';
+  }
+
+  function openDialog(cell) {
+    editing = cell;
+    document.getElementById('plan-dialog-title').textContent =
+      cell.dataset.workerName + '　' + cell.dataset.dateLabel;
+    document.getElementById('plan-dialog-sub').textContent =
+      cell.dataset.kind ? '登録済みの予定を編集します' : '新しく予定を入れます';
+    document.getElementById('plan-dialog-kind').value =
+      cell.dataset.kind || activeKind() || kinds[0];
+    document.getElementById('plan-dialog-start').value = cell.dataset.start || '';
+    document.getElementById('plan-dialog-end').value = cell.dataset.end || '';
+    document.getElementById('plan-dialog-note').value = cell.dataset.note || '';
+    document.getElementById('plan-dialog-until').value = '';
+    document.getElementById('plan-dialog-delete').style.visibility =
+      cell.dataset.kind ? 'visible' : 'hidden';
+    applyKindFields();
+    dialog.showModal();
+  }
+
+  document.getElementById('plan-dialog-kind').addEventListener('change', applyKindFields);
+
+  document.getElementById('plan-dialog-cancel').addEventListener('click', function() {
+    dialog.close();
+  });
+
+  document.getElementById('plan-dialog-save').addEventListener('click', function() {
+    if (!editing) { return; }
+    var kind = document.getElementById('plan-dialog-kind').value;
+    var spec = KIND_FIELDS[kind] || {};
+    save(editing, {
+      kind: kind,
+      start_time: spec.time ? document.getElementById('plan-dialog-start').value : '',
+      end_time: spec.time ? document.getElementById('plan-dialog-end').value : '',
+      note: document.getElementById('plan-dialog-note').value,
+      until: spec.span ? document.getElementById('plan-dialog-until').value : '',
+    }).then(function() { dialog.close(); });
+  });
+
+  document.getElementById('plan-dialog-delete').addEventListener('click', function() {
+    if (!editing) { return; }
+    save(editing, {kind: ''}).then(function() { dialog.close(); });
+  });
+
+  // --- マスの操作 ---
+  // ダブルクリックの前にも click が2回来る。少し待ってから塗り、
+  // その間に dblclick が来たら塗らずにダイアログへ回す。
+  var CLICK_DELAY = 220;
+  var pending = null;
+
+  document.querySelectorAll('.plan-cell').forEach(function(cell) {
+    cell.addEventListener('click', function() {
+      if (pending) { clearTimeout(pending); }
+      pending = setTimeout(function() {
+        pending = null;
+        var kind = activeKind();
+        // 同じ区分をもう一度塗ったら消す
+        if (kind && cell.dataset.kind === kind) { kind = ''; }
+        // 塗り替えでは現場名と時刻を引き継ぐ。区分だけ変えたいことのほうが多い。
+        save(cell, {
+          kind: kind,
+          start_time: kind ? (cell.dataset.start || '') : '',
+          end_time: kind ? (cell.dataset.end || '') : '',
+          note: kind ? (cell.dataset.note || '') : '',
+        });
+      }, CLICK_DELAY);
+    });
+    cell.addEventListener('dblclick', function(ev) {
+      ev.preventDefault();
+      if (pending) { clearTimeout(pending); pending = null; }
+      openDialog(cell);
+    });
+  });
+
+  // --- 日付ごとの削除 ---
+  var clearForm = document.getElementById('plan-clear-day-form');
+  document.querySelectorAll('.plan-day-clear').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      if (!confirm(this.title + 'しますか？')) { return; }
+      clearForm.querySelector('[name=date]').value = this.dataset.date;
+      clearForm.submit();
+    });
+  });
+});
+</script>
+{% else %}
+<div class="card">
+  <div class="card-body">
+    <div class="empty">
+      <div class="empty-icon">&#x1f465;</div>
+      <p>在籍中の作業員が登録されていません。</p>
+      <a href="{% url 'workers:list' %}" class="btn btn-outline">作業員台帳へ</a>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

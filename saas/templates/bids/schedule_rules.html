@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}手続きの扱い（会社既定） — {{ APP_NAME }}{% endblock %}
+{% block topbar_title %}手続きの扱い（会社既定）{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>手続きの扱い（会社既定）</h1>
+  <div>
+    <a href="{% url 'bids:project_list' %}" class="btn btn-outline btn-sm">案件一覧に戻る</a>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header"><h2>段階ごとの扱い</h2></div>
+  <div class="card-body" style="padding-bottom:0;">
+    <p style="color:var(--text-secondary);font-size:.88rem;">
+      公告の別表から読み取った項目を、受注までの流れのどこに置くかを決めます。
+      ここでの設定は<strong>全案件</strong>のガントチャートに効きます。
+      案件ごとの例外は、その案件の詳細画面で上書きできます。
+    </p>
+    <ul style="color:var(--text-secondary);font-size:.84rem;padding-left:18px;margin:8px 0 16px;">
+      <li><strong>締切</strong> … 公告から開札までの一本道に入れ、矢印でつなぎます</li>
+      <li><strong>期間</strong> … 交付期間のように他と並走する窓口。順番の鎖には入れません</li>
+      <li><strong>図に出さない</strong> … チャートから外します（表には残ります）</li>
+      <li><strong>自動判定にまかせる</strong> … 公告に開始日があれば期間、なければ締切</li>
+    </ul>
+  </div>
+  <form method="post">
+    {% csrf_token %}
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>段階</th><th style="width:280px;">扱い</th></tr></thead>
+        <tbody>
+          {% for row in rows %}
+          <tr>
+            <td>
+              {{ row.stage }}
+              <input type="hidden" name="stage" value="{{ row.stage }}">
+            </td>
+            <td>
+              <select name="kind" class="form-control">
+                <option value="auto" {% if not row.kind %}selected{% endif %}>
+                  自動判定にまかせる
+                </option>
+                {% for value, text in kind_choices %}
+                  <option value="{{ value }}" {% if row.kind == value %}selected{% endif %}>
+                    {{ text }}
+                  </option>
+                {% endfor %}
+              </select>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div style="padding:16px 24px;">
+      <button type="submit" class="btn">保存</button>
+    </div>
+  </form>
+</div>
+{% endblock %}

@@ -24,7 +24,7 @@ class Command(BaseCommand):
         )
         parser.add_argument(
             "--force", action="store_true",
-            help="工事概要・参加要件が入っている案件も取り直す",
+            help="工事概要・参加要件・手続きスケジュールが入っている案件も取り直す",
         )
 
     def handle(self, *args, **options):
@@ -41,6 +41,9 @@ class Command(BaseCommand):
             for project in projects:
                 project.work_outline = ""
                 project.requirements = ""
+                # 別表の読み取りを直したときに古い日程が残らないようにする。
+                # fill_announcement は空のときしか書かないため、ここで消しておく。
+                project.bid_schedule = []
 
         self.stdout.write(f"対象 {len(projects)} 件")
         filled = fill_announcements(projects, limit=options["limit"])
