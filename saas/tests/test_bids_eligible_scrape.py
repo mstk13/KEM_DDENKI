@@ -407,3 +407,38 @@ class TestRelatedQualifications:
         # 工事の見送りには防衛省の電気工事、役務の見送りには統一資格の物品の販売が並ぶ
         assert "電気工事" in html
         assert "物品の販売" in html
+
+
+@pytest.mark.django_db
+class TestProjectDetailShortfall:
+    """案件詳細の参加資格判定に、資格不足の理由と弊社の登録資格を出す。"""
+
+    def test_ineligible_shows_shortfall_and_our_qualifications(self, client, company_a, user_a):
+        Qualification.unscoped.create(
+            company=company_a, issuer="防衛省", category="電気工事", grade="A",
+            total_score=884, valid_until=datetime.date(2027, 3, 31),
+        )
+        project = BidProject.unscoped.create(
+            company=company_a, created_by=user_a,
+            title="朝霞外 建築改修工事", client="防衛省北関東防衛局", category="建築",
+        )
+        client.force_login(user_a)
+        html = client.get(f"/bids/{project.pk}/").content.decode()
+        assert "不足している資格" in html
+        assert "建築 に対応する業種区分" in html
+        assert "弊社の登録資格" in html
+        assert "電気工事" in html
+
+    def test_eligible_hides_shortfall(self, client, company_a, user_a):
+        Qualification.unscoped.create(
+            company=company_a, issuer="防衛省", category="電気工事", grade="A",
+            valid_until=datetime.date(2027, 3, 31),
+        )
+        project = BidProject.unscoped.create(
+            company=company_a, created_by=user_a,
+            title="朝霞外 照明設備更新電気工事", client="防衛省北関東防衛局", category="電気",
+        )
+        client.force_login(user_a)
+        html = client.get(f"/bids/{project.pk}/").content.decode()
+        assert "不足している資格" not in html
+        assert "確認が必要な点" not in html
