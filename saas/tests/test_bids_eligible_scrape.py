@@ -411,34 +411,73 @@ class TestRelatedQualifications:
 
 @pytest.mark.django_db
 class TestProjectDetailShortfall:
-    """案件詳細の参加資格判定に、資格不足の理由と弊社の登録資格を出す。"""
+    """案件詳細の参加要件で、落ちた条件の項目の右側に資格不足の理由を出す。"""
 
-    def test_ineligible_shows_shortfall_and_our_qualifications(self, client, company_a, user_a):
+    REQUIREMENTS = (
+        "(1) 予算決算及び会計令（昭和22年勅令第165号）第70条及び第71条の規定に"
+        "該当しない者であること。\n"
+        "(2) 中部地方整備局における電気設備工事に係る一般競争参加資格の認定を受けていること。\n"
+        "(3) 電気設備工事Ａ等級に認定されている者であること。\n"
+        "(4) 会社更生法に基づき更生手続開始の申立てがなされている者でないこと。"
+    )
+
+    def _project(self, company_a, user_a, **kw):
+        base = {
+            "title": "青崩峠トンネル照明設備工事", "client": "国土交通省中部地方整備局",
+            "category": "電気設備工事", "requirements": self.REQUIREMENTS,
+        }
+        base.update(kw)
+        return BidProject.unscoped.create(company=company_a, created_by=user_a, **base)
+
+    def test_grade_shortfall_is_placed_on_grade_item(self, client, company_a, user_a):
+        Qualification.unscoped.create(
+            company=company_a, issuer="国土交通省(中部地方整備局)", category="電気設備",
+            grade="B", total_score=1957, valid_until=datetime.date(2027, 3, 31),
+        )
+        project = self._project(company_a, user_a, required_grades="A")
+        client.force_login(user_a)
+        html = client.get(f"/bids/{project.pk}/").content.decode()
+        rows = html.split("<tr>")
+        grade_row = next(r for r in rows if "Ａ等級に認定" in r)
+        other_row = next(r for r in rows if "第70条及び第71条" in r)
+        assert "資格不足" in grade_row
+        assert "自社は B 等級" in grade_row
+        assert "資格不足" not in other_row
+        # 旧レイアウトの比較表は出さない
+        assert "弊社の登録資格" not in html
+
+    def test_category_shortfall_is_placed_on_qualification_item(self, client, company_a, user_a):
+        Qualification.unscoped.create(
+            company=company_a, issuer="国土交通省(中部地方整備局)", category="電気通信",
+            grade="B", valid_until=datetime.date(2027, 3, 31),
+        )
+        project = self._project(company_a, user_a)
+        client.force_login(user_a)
+        html = client.get(f"/bids/{project.pk}/").content.decode()
+        rows = html.split("<tr>")
+        qual_row = next(r for r in rows if "一般競争参加資格の認定" in r)
+        assert "資格不足" in qual_row
+        assert "対応する業種区分" in qual_row
+
+    def test_eligible_shows_no_note(self, client, company_a, user_a):
+        Qualification.unscoped.create(
+            company=company_a, issuer="国土交通省(中部地方整備局)", category="電気設備",
+            grade="A", valid_until=datetime.date(2027, 3, 31),
+        )
+        project = self._project(company_a, user_a, required_grades="A")
+        client.force_login(user_a)
+        html = client.get(f"/bids/{project.pk}/").content.decode()
+        assert "shortfall-note" not in html
+
+    def test_no_matching_item_falls_back_to_banner(self, client, company_a, user_a):
         Qualification.unscoped.create(
             company=company_a, issuer="防衛省", category="電気工事", grade="A",
-            total_score=884, valid_until=datetime.date(2027, 3, 31),
         )
-        project = BidProject.unscoped.create(
-            company=company_a, created_by=user_a,
-            title="朝霞外 建築改修工事", client="防衛省北関東防衛局", category="建築",
+        project = self._project(
+            company_a, user_a, client="防衛省北関東防衛局", category="建築",
+            requirements="(1) 会社更生法に基づき更生手続開始の申立てがなされている者でないこと。",
         )
         client.force_login(user_a)
         html = client.get(f"/bids/{project.pk}/").content.decode()
-        assert "不足している資格" in html
+        assert "資格不足" in html
         assert "建築 に対応する業種区分" in html
-        assert "弊社の登録資格" in html
-        assert "電気工事" in html
-
-    def test_eligible_hides_shortfall(self, client, company_a, user_a):
-        Qualification.unscoped.create(
-            company=company_a, issuer="防衛省", category="電気工事", grade="A",
-            valid_until=datetime.date(2027, 3, 31),
-        )
-        project = BidProject.unscoped.create(
-            company=company_a, created_by=user_a,
-            title="朝霞外 照明設備更新電気工事", client="防衛省北関東防衛局", category="電気",
-        )
-        client.force_login(user_a)
-        html = client.get(f"/bids/{project.pk}/").content.decode()
-        assert "不足している資格" not in html
-        assert "確認が必要な点" not in html
