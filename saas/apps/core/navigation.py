@@ -191,6 +191,12 @@ NAVIGATION: tuple[NavItem | NavGroup, ...] = (
         "勤怠",
         (
             NavItem(
+                "出社予定",
+                "attendance:plan_board",
+                "🗓️",
+                ("attendance:plan_*",),
+            ),
+            NavItem(
                 "勤怠日報",
                 "attendance:report_list",
                 "📋",
