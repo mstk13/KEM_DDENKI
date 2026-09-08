@@ -49,6 +49,17 @@ def can_approve_report(user) -> bool:
     return is_president(user) or has_role(user, "developer")
 
 
+def can_delete_report(user, report) -> bool:
+    """日報を削除できるかどうかを判定する。
+
+    ログインしていれば誰でも削除できる。ただし承認済の日報は削除できない
+    （承認時に労務費を計上済みで、消すと原価との整合が崩れるため）。
+    """
+    from apps.reports.models import DailyReport
+
+    return report.status != DailyReport.Status.APPROVED
+
+
 def has_module_permission(user, module: str, level: str = "read") -> bool:
     """ユーザーが指定モジュールの指定レベルの権限を持つかチェック。
 
