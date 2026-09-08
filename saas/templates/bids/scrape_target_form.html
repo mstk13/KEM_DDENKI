@@ -44,6 +44,10 @@
       <div class="form-group">
         <label>{{ form.is_active }} 有効</label>
       </div>
+      <div class="form-group">
+        <label>{{ form.only_eligible }} 資格を満たす案件だけ登録</label>
+        <div class="form-hint">取り込み前に公告PDFを読み、登録済みの入札参加資格で参加できる案件だけ登録します。判定できない案件は見送ります。</div>
+      </div>
       <div class="form-actions">
         <button type="submit" class="btn btn-primary">保存</button>
         <a href="{% url 'bids:scrape_target_list' %}" class="btn btn-outline">キャンセル</a>

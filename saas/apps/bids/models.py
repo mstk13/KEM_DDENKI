@@ -414,6 +414,11 @@ class ScrapeTarget(TenantModel):
         help_text="取得対象の工事種別（空欄=全件）。例: 電気,設備",
     )
     is_active = models.BooleanField("有効", default=True)
+    only_eligible = models.BooleanField(
+        "資格を満たす案件だけ登録",
+        default=False,
+        help_text="取り込み前に公告PDFを読み、自社の入札参加資格で参加できる案件だけ登録する",
+    )
     scrape_interval_hours = models.IntegerField(
         "巡回間隔（時間）", default=48,
         help_text="2日=48時間。cron は2日に1回実行",
@@ -485,3 +490,37 @@ class Qualification(TenantModel):
 
     def __str__(self):
         return f"{self.issuer} ({self.category})"
+
+
+class UnifiedQualification(TenantModel):
+    """全省庁統一資格の省庁別許可内容。
+
+    全省庁統一資格は等級・点数・営業品目が全適用機関で共通だが、
+    どの機関に適用されるかを一覧で確認できるよう機関ごとに1行持つ。
+    「物品の製造」は資格登録が無いため項目を持たない。
+    """
+
+    sort_order = models.PositiveIntegerField("表示順", default=0)
+    agency = models.CharField("省庁・機関名", max_length=200)
+
+    goods_sales_grade = models.CharField("物品の販売 等級", max_length=10, blank=True)
+    goods_sales_score = models.IntegerField("物品の販売 点数", null=True, blank=True)
+    goods_sales_items = models.TextField("物品の販売 営業品目", blank=True)
+
+    services_grade = models.CharField("役務の提供等 等級", max_length=10, blank=True)
+    services_score = models.IntegerField("役務の提供等 点数", null=True, blank=True)
+    services_items = models.TextField("役務の提供等 営業品目", blank=True)
+
+    purchase_grade = models.CharField("物品の買受け 等級", max_length=10, blank=True)
+    purchase_score = models.IntegerField("物品の買受け 点数", null=True, blank=True)
+
+    history = HistoricalRecords()
+
+    class Meta:
+        verbose_name = "全省庁統一資格（省庁別）"
+        verbose_name_plural = "全省庁統一資格（省庁別）"
+        ordering = ["sort_order", "agency"]
+        unique_together = [("company", "agency")]
+
+    def __str__(self):
+        return self.agency

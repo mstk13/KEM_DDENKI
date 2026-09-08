@@ -12,9 +12,10 @@ from apps.bids.forms import (
     BidCostForm,
     BidProjectForm,
     QualificationForm,
+    UnifiedQualificationForm,
     UnitPriceForm,
 )
-from apps.bids.models import BidProject, Qualification, UnitPrice
+from apps.bids.models import BidProject, Qualification, UnifiedQualification, UnitPrice
 from apps.bids.qualification import check_qualifications_for_projects
 from apps.bids.services import get_dashboard_stats, mark_as_won, start_estimation
 
@@ -192,6 +193,7 @@ def qualification_list(request):
     alert_2week = today + datetime.timedelta(days=14)
     return render(request, "bids/qualification_list.html", {
         "qualifications": qs,
+        "unified_qualifications": UnifiedQualification.objects.all(),
         "today": today,
         "alert_2month": alert_2month,
         "alert_1month": alert_1month,
@@ -307,6 +309,44 @@ def qualification_delete(request, pk):
         name = f"{obj.issuer} / {obj.category}"
         obj.delete()
         messages.success(request, f"資格「{name}」を削除しました。")
+    return redirect("bids:qualification_list")
+
+
+@login_required
+def unified_qualification_create(request):
+    if request.method == "POST":
+        form = UnifiedQualificationForm(request.POST)
+        if form.is_valid():
+            obj = form.save(commit=False)
+            obj.company = request.user.company
+            obj.created_by = request.user
+            obj.save()
+            return redirect("bids:qualification_list")
+    else:
+        form = UnifiedQualificationForm()
+    return render(request, "bids/unified_qualification_form.html", {"form": form})
+
+
+@login_required
+def unified_qualification_edit(request, pk):
+    obj = get_object_or_404(UnifiedQualification, pk=pk)
+    if request.method == "POST":
+        form = UnifiedQualificationForm(request.POST, instance=obj)
+        if form.is_valid():
+            form.save()
+            return redirect("bids:qualification_list")
+    else:
+        form = UnifiedQualificationForm(instance=obj)
+    return render(request, "bids/unified_qualification_form.html", {"form": form})
+
+
+@login_required
+def unified_qualification_delete(request, pk):
+    obj = get_object_or_404(UnifiedQualification, pk=pk)
+    if request.method == "POST":
+        name = obj.agency
+        obj.delete()
+        messages.success(request, f"全省庁統一資格「{name}」を削除しました。")
     return redirect("bids:qualification_list")
 
 

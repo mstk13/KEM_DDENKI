@@ -113,6 +113,22 @@ SCORE_CONTEXT = (
 # 過去の工事成績の話で、資格の点数ではない。
 SCORE_EXCLUDE = ("評定", "成績", "とみなす")
 
+# 全省庁統一資格の要件。防衛省（自衛隊各基地）の物品・役務の公告は
+# 「防衛省競争参加資格（全省庁統一資格）「物品の販売」のＤ等級以上」と書く。
+# PDF の折り返しで「Ｄ等\n級」のように切れるので、空白を潰した文字列に当てる。
+# 等級は「Ｄ等級以上」（下限）と「Ｂ，Ｃ又はＤ等級」（列挙）の2通りがある。
+UNIFIED_KINDS = ("物品の製造", "物品の販売", "役務の提供等", "物品の買受け")
+UNIFIED_REQUIREMENT = re.compile(
+    r"全省庁統一資格[）)]?[「｢]?(" + "|".join(UNIFIED_KINDS) + r")[」｣]?の?"
+    r"([^。]{1,30}?等級(?:以上)?)"
+)
+_GRADE_LETTER = re.compile(r"[ＡＢＣＤA-D]")
+# 防衛省の建設工事の公告は「「建築一式工事」又は「管工事」で級別の格付けを受け」と
+# 業種を列挙する。統一資格ではなく防衛省の工事資格で判定する。
+MOD_WORKS_ISSUER = "防衛省"
+MOD_WORKS_CATEGORY = re.compile(r"[「｢]([^「｢」｣]{1,12}工事)[」｣]")
+MOD_WORKS_CONTEXT = ("格付", "参加資格", "競争参加")
+
 # 文脈を見る窓の広さ（前 / 後）
 CONTEXT_BACK, CONTEXT_FORWARD = 120, 40
 _ZENKAKU = str.maketrans("０１２３４５６７８９，ＡＢＣＤ", "0123456789,ABCD")
@@ -232,6 +248,44 @@ def extract_score_floor(text: str) -> int | None:
     return best
 
 
+def extract_unified_requirement(text: str) -> dict:
+    """全省庁統一資格の要件（種類と等級下限）を返す。無ければ空。
+
+    Returns:
+        {"kind": "物品の販売", "grade": "D", "grades": ""}    … 「Ｄ等級以上」
+        {"kind": "役務の提供等", "grade": "", "grades": "BCD"} … 「Ｂ，Ｃ又はＤ等級」
+        {} … 書かれていない
+    """
+    flat = _flatten(text)
+    m = UNIFIED_REQUIREMENT.search(flat)
+    if not m:
+        return {}
+    span = m.group(2)
+    letters = "".join(sorted({c.translate(_ZENKAKU) for c in _GRADE_LETTER.findall(span)}))
+    if not letters:
+        return {}
+    if span.endswith("以上"):
+        # 「Ｄ等級以上」: 一番低い等級が下限
+        return {"kind": m.group(1), "grade": letters[-1], "grades": ""}
+    # 「Ｂ，Ｃ又はＤ等級」: 列挙。下限ではなく集合として扱う
+    return {"kind": m.group(1), "grade": "", "grades": letters}
+
+
+def extract_mod_works_categories(text: str) -> list[str]:
+    """防衛省の工事公告が格付けを求める業種（「建築一式工事」など）を返す。"""
+    flat = _flatten(text)
+    if MOD_WORKS_ISSUER + "競争参加資格" not in flat and "防衛省における" not in flat:
+        return []
+    found = []
+    for m in MOD_WORKS_CATEGORY.finditer(flat):
+        if not _has_context(flat, m, MOD_WORKS_CONTEXT, ()):
+            continue
+        name = m.group(1)
+        if name not in found:
+            found.append(name)
+    return found
+
+
 def extract_sections(text: str) -> dict:
     """公告テキストから工事概要・参加要件・必要等級を取り出す。
 
@@ -245,6 +299,8 @@ def extract_sections(text: str) -> dict:
         "required_grade": "",
         "required_grades": "",
         "required_score": None,
+        "required_issuer_type": "",
+        "required_category": "",
         "bid_schedule": [],
         "bid_deadline": None,
         "headings": [],
@@ -272,12 +328,34 @@ def extract_sections(text: str) -> dict:
     bid_schedule = extract_bid_schedule(text)
     bid_deadline = extract_deadline_from_schedule(bid_schedule)
 
+    # 資格の種類。統一資格（物品・役務）か、防衛省の工事資格（業種列挙）か。
+    # 章の切り出しに失敗しても資格の一文は本文から拾えるよう、全文から探す。
+    required_issuer_type = ""
+    required_category = ""
+    required_grade = extract_grade_floor(requirements)
+    required_grades = extract_grades(requirements)
+    unified = extract_unified_requirement(text)
+    if unified:
+        required_issuer_type = "全省庁統一資格"
+        required_category = unified["kind"]
+        required_grade = unified["grade"]
+        required_grades = unified["grades"]
+    else:
+        works = extract_mod_works_categories(text)
+        if works:
+            required_issuer_type = MOD_WORKS_ISSUER
+            required_category = "／".join(works)
+            if not required_grade:
+                required_grade = extract_grade_floor(text)
+
     return {
         "work_outline": outline,
         "requirements": requirements,
-        "required_grade": extract_grade_floor(requirements),
-        "required_grades": extract_grades(requirements),
+        "required_grade": required_grade,
+        "required_grades": required_grades,
         "required_score": extract_score_floor(requirements),
+        "required_issuer_type": required_issuer_type,
+        "required_category": required_category,
         "bid_schedule": bid_schedule,
         "bid_deadline": bid_deadline,
         "headings": [head for head, _ in sections],
