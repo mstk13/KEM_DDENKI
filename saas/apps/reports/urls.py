@@ -8,6 +8,7 @@ urlpatterns = [
     path("", views.report_list, name="list"),
     path("new/", views.report_create, name="create"),
     path("<int:pk>/edit/", views.report_edit, name="edit"),
+    path("<int:pk>/delete/", views.report_delete, name="delete"),
     path("<int:pk>/approve/", views.report_approve, name="approve"),
     path("approve/bulk/", views.report_approve_bulk, name="approve_bulk"),
     path("safety/", views.safety_check, name="safety_check"),
