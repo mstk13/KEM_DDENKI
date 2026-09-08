@@ -132,7 +132,15 @@ def check_project(project, qualifications, today=None):
         "checked": [],  # 実際に突き合わせた要件（画面に根拠として出す）
     }
 
-    bid_issuer = project.client or ""
+    # 公告が全省庁統一資格（物品・役務）を求めている案件は、発注機関ではなく
+    # 統一資格の種類と等級で判定する。
+    issuer_type = (project.required_issuer_type or "").strip()
+    if issuer_type == UNIFIED_QUALIFICATION_ISSUER:
+        return _check_unified(project, qualifications, today, result)
+
+    # 公告に資格を出す機関が書かれていればそれを使う。
+    # 自衛隊の基地（案件側「海上自衛隊 横須賀基地」）は防衛省の資格で参加する。
+    bid_issuer = issuer_type or project.client or ""
     if not bid_issuer:
         result["reason"] = "発注機関が未入力のため判定できません。"
         return result
@@ -165,8 +173,9 @@ def check_project(project, qualifications, today=None):
 
     result["issuer_known"] = True
 
-    # 2. 工事種別で絞る
-    category = project.category or ""
+    # 2. 工事種別で絞る。公告が業種を列挙していればそちらを優先する
+    #    （スクレイパーは「物品・役務」のような大枠しか付けないことがある）。
+    category = project.required_category or project.category or ""
     candidates = category_candidates(category)
     if not candidates:
         result["reason"] = (
@@ -271,6 +280,71 @@ def check_project(project, qualifications, today=None):
             f"登録があります（{detail}）。"
             "等級・点数の要件は公告本文で確認してください。"
         )
+    return result
+
+
+def _check_unified(project, qualifications, today, result) -> dict:
+    """全省庁統一資格（物品の販売・役務の提供等・物品の買受け）で判定する。
+
+    種類が一致する資格を探し、有効期限と等級下限（「Ｄ等級以上」）を見る。
+    営業品目は公告の資格要件に書かれないので見ない。
+    """
+    kind = (project.required_category or "").strip()
+    result["issuer_known"] = True
+    same_kind = [
+        q for q in qualifications
+        if q.issuer == UNIFIED_QUALIFICATION_ISSUER
+        and normalize_category(q.category) == normalize_category(kind)
+    ]
+    if not same_kind:
+        has_unified = any(q.issuer == UNIFIED_QUALIFICATION_ISSUER for q in qualifications)
+        result["eligible"] = False
+        result["reason"] = (
+            f"全省庁統一資格「{kind}」の登録がありません。"
+            if has_unified else
+            "全省庁統一資格が未登録です。資格マスタに登録すると自動判定できます。"
+        )
+        return result
+
+    valid = [q for q in same_kind if q.valid_until is None or q.valid_until >= today]
+    result["expired"] = [
+        q for q in same_kind if q.valid_until is not None and q.valid_until < today
+    ]
+    if not valid:
+        newest = max(result["expired"], key=lambda q: q.valid_until)
+        result["eligible"] = False
+        result["reason"] = (
+            f"全省庁統一資格「{kind}」は {newest.valid_until} に有効期限が切れています。"
+        )
+        return result
+
+    valid.sort(key=lambda q: GRADE_ORDER.get(normalize_grade(q.grade), 0), reverse=True)
+    best = valid[0]
+    result["matched"] = best
+    detail = _describe(best)
+    ours = normalize_grade(best.grade)
+    floor = normalize_grade(project.required_grade)
+    if floor:
+        if not ours:
+            result["reason"] = (
+                f"{floor}等級以上が必要ですが、自社の等級が未登録のため判定できません（{detail}）。"
+            )
+            return result
+        if GRADE_ORDER[ours] < GRADE_ORDER[floor]:
+            result["eligible"] = False
+            result["reason"] = (
+                f"{floor}等級以上が必要ですが、自社は {ours} 等級です（{detail}）。"
+            )
+            return result
+        result["checked"].append(f"{floor}等級以上 → 自社 {ours} 等級")
+
+    result["eligible"] = True
+    if result["checked"]:
+        result["reason"] = (
+            "公告の要件を満たします（" + "／".join(result["checked"]) + f"、{detail}）。"
+        )
+    else:
+        result["reason"] = f"登録があります（{detail}）。等級の要件は公告本文で確認してください。"
     return result
 
 

@@ -135,7 +135,7 @@ class ScrapeTargetForm(forms.ModelForm):
             "name", "url", "site_key",
             "keyword", "region", "prefecture", "koji_kbn", "koji_gyosyu",
             "days_back", "category_filter",
-            "is_active", "scrape_interval_hours",
+            "is_active", "only_eligible", "scrape_interval_hours",
         ]
 
     def __init__(self, *args, **kwargs):

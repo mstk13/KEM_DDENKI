@@ -365,6 +365,12 @@ def fill_announcement(project) -> bool:
     if result["required_score"] and project.required_score is None:
         project.required_score = result["required_score"]
         changed.append("required_score")
+    if result.get("required_issuer_type") and not project.required_issuer_type:
+        project.required_issuer_type = result["required_issuer_type"]
+        changed.append("required_issuer_type")
+    if result.get("required_category") and not project.required_category:
+        project.required_category = result["required_category"]
+        changed.append("required_category")
     if result.get("bid_schedule") and not project.bid_schedule:
         project.bid_schedule = result["bid_schedule"]
         changed.append("bid_schedule")
@@ -479,8 +485,11 @@ def run_scrape(target, company):
     updated = 0
     skipped = 0
     excluded = 0
+    ineligible = 0  # 資格を満たさず見送った件数（only_eligible のとき）
+    unknown = 0  # 公告が読めず判定できなかった件数（only_eligible のとき）
     errors = []
     touched = []  # 公告PDFを見に行く対象（このターゲットで新規・更新した案件）
+    qualifications = None
 
     for rec in raw_results:
         title = rec.get("title", "")
@@ -528,6 +537,24 @@ def run_scrape(target, company):
             touched.append(existing)
             continue
 
+        # 資格を満たす案件だけ登録する設定なら、登録前に公告を読んで判定する。
+        # 判定できない（公告が読めない・要件が書かれていない）案件は見送る。
+        if target.only_eligible:
+            if qualifications is None:
+                from apps.bids.models import Qualification
+
+                # unscoped: company を明示指定
+                qualifications = list(Qualification.unscoped.filter(company=company))
+            verdict = _judge_before_register(rec, company, target, qualifications)
+            if verdict is not True:
+                if verdict is False:
+                    ineligible += 1
+                else:
+                    unknown += 1
+                continue
+            # 判定で公告の種類・業種に置き換わっていれば、それを登録に使う
+            category = rec.get("category", category)
+
         try:
             project = BidProject.unscoped.create(  # unscoped: company を明示指定
                 company=company,
@@ -552,6 +579,10 @@ def run_scrape(target, company):
                 required_grade=rec.get("required_grade", ""),
                 required_category=rec.get("required_category", ""),
                 required_issuer_type=rec.get("required_issuer_type", ""),
+                required_grades=rec.get("required_grades", ""),
+                required_score=rec.get("required_score"),
+                work_outline=rec.get("work_outline", ""),
+                requirements=rec.get("requirements", ""),
             )
             new_count += 1
             touched.append(project)
@@ -570,6 +601,10 @@ def run_scrape(target, company):
         target.last_result += f", 公告{outlined}件"
     if excluded:
         target.last_result += f", 対象外{excluded}件"
+    if ineligible:
+        target.last_result += f", 資格不足{ineligible}件"
+    if unknown:
+        target.last_result += f", 判定不能{unknown}件"
     if errors:
         target.last_result += f", エラー{len(errors)}件"
     target.save(update_fields=[
@@ -582,9 +617,68 @@ def run_scrape(target, company):
         "updated": updated,
         "skipped": skipped,
         "excluded": excluded,
+        "ineligible": ineligible,
+        "unknown": unknown,
         "outlined": outlined,
         "errors": errors,
     }
+
+
+def _judge_before_register(rec, company, target, qualifications):
+    """取り込み前に公告を読み、自社の資格で参加できるかを判定する。
+
+    Returns:
+        True  … 参加できる（rec に公告の要件を書き足す）
+        False … 資格を満たさない
+        None  … 判定できない（公告が読めない・要件が書かれていない）
+    """
+    import logging
+
+    from apps.bids.announcement import extract_from_url
+    from apps.bids.qualification import check_project
+
+    logger = logging.getLogger(__name__)
+
+    url = rec.get("source_url", "")
+    if not url:
+        return None
+    try:
+        info = extract_from_url(url)
+    except Exception as e:  # noqa: BLE001 - 相手サイト起因の失敗は判定不能として扱う
+        logger.info("公告を読めないため判定不能: %s (%s)", rec.get("title", "")[:30], e)
+        return None
+    if info.get("garbled") or not info.get("required_issuer_type"):
+        return None
+
+    for key in (
+        "required_issuer_type", "required_category", "required_grade",
+        "required_grades", "required_score", "work_outline", "requirements",
+    ):
+        if info.get(key):
+            rec[key] = info[key]
+    # スクレイパーが「物品・役務」のような大枠しか付けていなければ、公告の業種で置き換える
+    if info.get("required_category") and (
+        not rec.get("category") or rec.get("category") == "物品・役務"
+    ):
+        rec["category"] = info["required_category"]
+
+    probe = BidProject(  # 保存しない。判定に使う項目だけ持たせる
+        company=company,
+        title=rec.get("title", ""),
+        client=rec.get("client", ""),
+        category=rec.get("category", ""),
+        required_issuer_type=rec.get("required_issuer_type", ""),
+        required_category=rec.get("required_category", ""),
+        required_grade=rec.get("required_grade", ""),
+        required_grades=rec.get("required_grades", ""),
+        required_score=rec.get("required_score"),
+    )
+    verdict = check_project(probe, qualifications)
+    logger.info(
+        "資格判定 %s: %s → %s", "参加可" if verdict["eligible"] else "見送り",
+        rec.get("title", "")[:30], verdict["reason"][:60],
+    )
+    return verdict["eligible"]
 
 
 def run_all_scrapes(company):
