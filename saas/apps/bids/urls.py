@@ -16,7 +16,11 @@ urlpatterns = [
     path("qualifications/new/", views.qualification_create, name="qualification_create"),
     path("qualifications/import/", views.qualification_import, name="qualification_import"),
     path("qualifications/<int:pk>/edit/", views.qualification_edit, name="qualification_edit"),
-    path("qualifications/<int:pk>/delete/", views.qualification_delete, name="qualification_delete"),
+    path(
+        "qualifications/<int:pk>/delete/",
+        views.qualification_delete,
+        name="qualification_delete",
+    ),
     path(
         "qualifications/unified/new/",
         views.unified_qualification_create, name="unified_qualification_create",

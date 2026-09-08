@@ -4,6 +4,7 @@ import datetime
 from decimal import Decimal
 
 import pytest
+from django.utils import timezone
 
 from apps.bids.forms import ScrapeTargetForm
 from apps.bids.models import (
@@ -363,7 +364,10 @@ class TestScrapeImport:
         assert project.design_no == "2026857140010004"
         assert project.electronic_bid == "対象"
         assert project.announced_on == datetime.date(2026, 8, 5)
-        assert project.deadline == datetime.date(2026, 8, 24)
+        # deadline は DateTimeField（0014）。JST の日付で比べる
+        assert timezone.localtime(project.deadline).date() == datetime.date(
+            2026, 8, 24,
+        )
         assert project.opening_on == datetime.date(2026, 10, 7)
         assert project.source_url.endswith("shisetsu01_00695.html")
         assert project.summary
@@ -450,7 +454,9 @@ class TestScrapeImport:
 
         existing.refresh_from_db()
         assert existing.location == "現地確認済み：京都市下京区○○町"
-        assert existing.deadline == datetime.date(2026, 8, 20)
+        assert timezone.localtime(existing.deadline).date() == datetime.date(
+            2026, 8, 20,
+        )
         # 空いていた項目は埋まる
         assert existing.bid_method == "一般競争入札（標準型）"
 
@@ -587,12 +593,26 @@ class TestQualificationCheck:
         assert check["eligible"] is False
         assert "有効期限" in check["reason"]
 
-    def test_unknown_issuer_is_not_judged(self, company_a, user_a):
+    def test_unknown_issuer_with_registered_qualification_is_ineligible(
+        self, company_a, user_a,
+    ):
+        """登録はあるのに対応する資格が無い＝資格不足。管轄区域外もここに入る。"""
         self._qual(company_a, user_a)
         project = self._project(company_a, user_a, client="横浜市")
         check = self._check(project, company_a)
+
+        assert check["eligible"] is False
+        assert check["issuer_known"] is False
+        assert "横浜市" in check["reason"]
+
+    def test_no_qualification_registered_is_not_judged(self, company_a, user_a):
+        """資格が1件も無ければ判定材料が無い。資格不足とは区別する。"""
+        project = self._project(company_a, user_a, client="横浜市")
+        check = self._check(project, company_a)
+
         assert check["eligible"] is None
         assert check["issuer_known"] is False
+        assert "未登録" in check["reason"]
 
     def test_grade_requirement_below_ours(self, company_a, user_a):
         self._qual(company_a, user_a, grade="C")

@@ -166,7 +166,7 @@ def check_project(project, qualifications, today=None):
             )
         else:
             result["reason"] = (
-                f"入札参加資格が未登録です。"
+                "入札参加資格が未登録です。"
                 "資格マスタに登録すると自動判定できます。"
             )
         return result
