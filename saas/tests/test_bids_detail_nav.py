@@ -97,6 +97,12 @@ class TestDelete:
         assert f'action="/bids/{a.pk}/delete/"' in html
         assert "confirm(" in html
 
+    def test_list_has_delete_button(self, client, user_a, three):
+        a, _b, _c = three
+        client.force_login(user_a)
+        html = client.get("/bids/").content.decode()
+        assert f'action="/bids/{a.pk}/delete/"' in html
+
     def test_other_tenant_is_404(self, client, user_b, three):
         a, _b, _c = three
         client.force_login(user_b)

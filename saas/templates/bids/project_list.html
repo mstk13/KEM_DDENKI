@@ -80,6 +80,10 @@
           <td>{% if p.source_url %}<a href="https://docs.google.com/gview?url={{ p.source_url|urlencode }}&embedded=true" target="_blank" rel="noopener noreferrer" title="{{ p.source_url }}">PDF</a>{% else %}-{% endif %}</td>
           <td style="white-space:nowrap;">
             <a href="{% url 'bids:project_edit' p.pk %}" class="btn btn-outline btn-sm">編集</a>
+            <form method="post" action="{% url 'bids:project_delete' p.pk %}" style="display:inline;">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-outline btn-sm" style="color:var(--danger);" onclick="return confirm('案件「{{ p.title|escapejs }}」を削除しますか？\n原価・競合の記録も一緒に消えます。この操作は元に戻せません。')">削除</button>
+            </form>
             {% if p.status == 'new' or p.status == 'considering' %}
             <form method="post" action="{% url 'bids:start_estimation' p.pk %}" style="display:inline;">
               {% csrf_token %}
