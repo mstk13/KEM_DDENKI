@@ -6,6 +6,7 @@ from apps.bids.models import (
     BidProject,
     Qualification,
     ScrapeTarget,
+    UnifiedQualification,
     UnitPrice,
 )
 
@@ -88,6 +89,27 @@ class QualificationForm(forms.ModelForm):
         for _name, field in self.fields.items():
             plain_widgets = (forms.Textarea, forms.DateInput, forms.CheckboxInput)
             if not isinstance(field.widget, plain_widgets):
+                field.widget.attrs.setdefault("class", "form-control")
+
+
+class UnifiedQualificationForm(forms.ModelForm):
+    class Meta:
+        model = UnifiedQualification
+        fields = [
+            "sort_order", "agency",
+            "goods_sales_grade", "goods_sales_score", "goods_sales_items",
+            "services_grade", "services_score", "services_items",
+            "purchase_grade", "purchase_score",
+        ]
+        widgets = {
+            "goods_sales_items": forms.Textarea(attrs={"class": "form-control", "rows": 2}),
+            "services_items": forms.Textarea(attrs={"class": "form-control", "rows": 2}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for _name, field in self.fields.items():
+            if not isinstance(field.widget, forms.Textarea):
                 field.widget.attrs.setdefault("class", "form-control")
 
 

@@ -14,6 +14,18 @@ urlpatterns = [
     path("qualifications/import/", views.qualification_import, name="qualification_import"),
     path("qualifications/<int:pk>/edit/", views.qualification_edit, name="qualification_edit"),
     path("qualifications/<int:pk>/delete/", views.qualification_delete, name="qualification_delete"),
+    path(
+        "qualifications/unified/new/",
+        views.unified_qualification_create, name="unified_qualification_create",
+    ),
+    path(
+        "qualifications/unified/<int:pk>/edit/",
+        views.unified_qualification_edit, name="unified_qualification_edit",
+    ),
+    path(
+        "qualifications/unified/<int:pk>/delete/",
+        views.unified_qualification_delete, name="unified_qualification_delete",
+    ),
     path("unit-prices/", views.unit_price_list, name="unit_price_list"),
     path("unit-prices/new/", views.unit_price_create, name="unit_price_create"),
     path("unit-prices/<int:pk>/edit/", views.unit_price_edit, name="unit_price_edit"),
