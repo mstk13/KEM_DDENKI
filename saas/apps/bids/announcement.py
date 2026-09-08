@@ -26,6 +26,7 @@
 """
 from __future__ import annotations
 
+import datetime
 import io
 import logging
 import re
@@ -34,7 +35,6 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
-from datetime import date
 
 logger = logging.getLogger(__name__)
 
@@ -387,32 +387,30 @@ _TIME_H = re.compile(r"[０-９\d]{1,2}\s*時(?!\s*[０-９\d])")
 _NOON = re.compile(r"正午")
 
 
-def _parse_date_str(text: str) -> date | None:
+def _parse_date_str(text: str) -> datetime.date | None:
     """令和日付文字列を date オブジェクトに変換する。"""
-    from datetime import date as _date
-
     raw = text.translate(_ZENKAKU_NUM)
     raw = re.sub(r"\s+", "", raw)
     m = re.search(r"令和(\d+)年(\d+)月(\d+)日", raw)
     if not m:
         return None
     try:
-        return _date(2018 + int(m.group(1)), int(m.group(2)), int(m.group(3)))
+        return datetime.date(
+            2018 + int(m.group(1)), int(m.group(2)), int(m.group(3)),
+        )
     except ValueError:
         return None
 
 
-def _parse_same_year_date(text: str, ref_year: int) -> date | None:
+def _parse_same_year_date(text: str, ref_year: int) -> datetime.date | None:
     """「同年X月Y日」を参照年で解決する。"""
-    from datetime import date as _date
-
     raw = text.translate(_ZENKAKU_NUM)
     raw = re.sub(r"\s+", "", raw)
     m = re.search(r"同年(\d+)月(\d+)日", raw)
     if not m:
         return None
     try:
-        return _date(ref_year, int(m.group(1)), int(m.group(2)))
+        return datetime.date(ref_year, int(m.group(1)), int(m.group(2)))
     except ValueError:
         return None
 
@@ -454,7 +452,7 @@ def _extract_time(text: str) -> str:
     return min(found)[1]
 
 
-def _make_datetime_str(d: date, time_str: str) -> str:
+def _make_datetime_str(d: datetime.date, time_str: str) -> str:
     """date と時刻文字列から ISO datetime を作る。"""
     if time_str:
         return f"{d.isoformat()}T{time_str}"
