@@ -7,7 +7,7 @@
 
 from django.db.models import Count, Q, Sum
 
-from apps.bids.models import BidProject, is_excluded_category
+from apps.bids.models import BidProject, SkippedBid, is_excluded_category
 
 
 def create_site_from_won_bid(bid_project, created_by=None):
@@ -551,9 +551,13 @@ def run_scrape(target, company):
                     ineligible += 1
                 else:
                     unknown += 1
+                _record_skipped(rec, company, target, verdict)
                 continue
             # 判定で公告の種類・業種に置き換わっていれば、それを登録に使う
             category = rec.get("category", category)
+            # 以前は見送っていた案件が（資格の追加などで）通ったら記録を消す
+            if source_url:
+                SkippedBid.unscoped.filter(company=company, source_url=source_url).delete()
 
         try:
             project = BidProject.unscoped.create(  # unscoped: company を明示指定
@@ -678,7 +682,39 @@ def _judge_before_register(rec, company, target, qualifications):
         "資格判定 %s: %s → %s", "参加可" if verdict["eligible"] else "見送り",
         rec.get("title", "")[:30], verdict["reason"][:60],
     )
+    rec["_judge_reason"] = verdict["reason"]
     return verdict["eligible"]
+
+
+def _record_skipped(rec, company, target, verdict):
+    """見送った案件を理由付きで残す（同じ情報源URLなら上書き）。"""
+    source_url = rec.get("source_url", "")
+    if not source_url:
+        return
+    reason = rec.get("_judge_reason") or (
+        "公告に資格要件が見つからないか、公告が読めないため判定できません。"
+    )
+    SkippedBid.unscoped.update_or_create(  # unscoped: company を明示指定
+        company=company, source_url=source_url[:500],
+        defaults={
+            "target": target,
+            "title": rec.get("title", "")[:300],
+            "client": rec.get("client", "")[:200],
+            "category": rec.get("category", "")[:100],
+            "deadline": rec.get("deadline"),
+            "verdict": (
+                SkippedBid.Verdict.INELIGIBLE if verdict is False
+                else SkippedBid.Verdict.UNKNOWN
+            ),
+            "reason": reason,
+            "required_issuer_type": rec.get("required_issuer_type", "")[:200],
+            "required_category": rec.get("required_category", "")[:100],
+            "required_grade": rec.get("required_grade", "")[:10],
+            "required_grades": rec.get("required_grades", "")[:20],
+            "required_score": rec.get("required_score"),
+            "requirements": rec.get("requirements", ""),
+        },
+    )
 
 
 def run_all_scrapes(company):

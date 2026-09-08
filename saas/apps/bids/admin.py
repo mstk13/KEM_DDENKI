@@ -7,6 +7,7 @@ from apps.bids.models import (
     BidProject,
     Qualification,
     ScrapeTarget,
+    SkippedBid,
     UnifiedQualification,
     UnitPrice,
 )
@@ -81,3 +82,13 @@ class UnifiedQualificationAdmin(SimpleHistoryAdmin):
     )
     list_filter = ("company",)
     search_fields = ("agency",)
+
+
+@admin.register(SkippedBid)
+class SkippedBidAdmin(SimpleHistoryAdmin):
+    list_display = (
+        "title", "client", "verdict", "required_issuer_type", "required_category",
+        "deadline", "last_seen_at", "company",
+    )
+    list_filter = ("verdict", "company")
+    search_fields = ("title", "client", "reason")

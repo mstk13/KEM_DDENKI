@@ -56,7 +56,10 @@
             {% endif %}
           </td>
           <td style="font-size:13px;">{{ t.last_scraped_at|default:"-" }}</td>
-          <td style="font-size:13px;">{{ t.last_result|default:"-" }}</td>
+          <td style="font-size:13px;">
+            {{ t.last_result|default:"-" }}
+            {% if t.only_eligible %}<div><a href="{% url 'bids:skipped_list' %}?target={{ t.pk }}" style="font-size:12px;">見送り案件を見る</a></div>{% endif %}
+          </td>
           <td>
             {% if t.is_active and t.site_key %}
             <form method="post" action="{% url 'bids:scrape_run' t.pk %}" style="display:inline;">
