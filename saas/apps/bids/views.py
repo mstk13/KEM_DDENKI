@@ -6,7 +6,9 @@ from pathlib import Path
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db.models import Q
+from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.views.decorators.http import require_POST
 
 from apps.bids.forms import (
     BidCostForm,
@@ -14,9 +16,16 @@ from apps.bids.forms import (
     QualificationForm,
     UnitPriceForm,
 )
-from apps.bids.models import BidProject, Qualification, UnitPrice
+from apps.bids.gantt import KINDS, KNOWN_STAGES, build_bid_gantt
+from apps.bids.models import (
+    BidProject,
+    BidScheduleRule,
+    Qualification,
+    UnitPrice,
+)
 from apps.bids.qualification import check_qualifications_for_projects
 from apps.bids.services import get_dashboard_stats, mark_as_won, start_estimation
+from apps.core.json_utils import json_for_script
 
 
 @login_required
@@ -113,11 +122,17 @@ def project_detail(request, pk):
     qual_check = check_qualifications_for_projects(
         [project], request.user.company,
     )[project.pk]
+    # 公告の別表から取った手続き日程を、公告→開札の流れとして図に起こす
+    gantt = build_bid_gantt(project)
     return render(request, "bids/project_detail.html", {
         "project": project,
         "cost": cost,
         "competitors": competitors,
         "qual_check": qual_check,
+        "gantt": gantt,
+        "gantt_json": json_for_script(gantt["tasks"]),
+        "kind_choices": BidScheduleRule.Kind.choices,
+        "has_overrides": bool(project.schedule_overrides),
     })
 
 
@@ -168,6 +183,105 @@ def project_edit(request, pk):
     return render(request, "bids/project_form.html", {
         "form": form,
         "cost_form": cost_form,
+    })
+
+
+@login_required
+@require_POST
+def schedule_override(request, pk):
+    """ガントチャート上の手直し（扱い・日付）を、その案件だけの設定として保存する。
+
+    バーのドラッグと、設定パネルの選択から呼ぶ。公告から読んだ bid_schedule は
+    触らず差分だけ別に持つので、fetch_announcements で取り直しても消えない。
+
+    POST:
+        label     … 公告の項目ラベル（設定のキー）
+        kind      … deadline / period / hidden / auto（auto は既定に戻す）
+        start,end … YYYY-MM-DD。ドラッグで動かした位置
+        reset     … その項目の手直しを消す
+        reset_all … 案件の手直しを全部消す
+    """
+    project = get_object_or_404(BidProject, pk=pk)
+    overrides = dict(project.schedule_overrides or {})
+
+    if request.POST.get("reset_all"):
+        overrides = {}
+    else:
+        label = request.POST.get("label", "").strip()
+        if not label:
+            return JsonResponse(
+                {"ok": False, "error": "項目が指定されていません"}, status=400,
+            )
+        if request.POST.get("reset"):
+            overrides.pop(label, None)
+        else:
+            entry = dict(overrides.get(label) or {})
+            kind = request.POST.get("kind", "")
+            if kind in KINDS:
+                entry["kind"] = kind
+            elif kind == "auto":
+                # 会社の既定・自動判定に戻す。日付の手直しはそのまま残す。
+                entry.pop("kind", None)
+
+            for key in ("start", "end"):
+                value = request.POST.get(key, "").strip()
+                if not value:
+                    continue
+                try:
+                    datetime.date.fromisoformat(value)
+                except ValueError:
+                    return JsonResponse(
+                        {"ok": False, "error": f"{key} の日付が不正です"}, status=400,
+                    )
+                entry[key] = value
+
+            # 中身が空になったら項目ごと消す。「手直しあり」の印を残さないため。
+            if entry:
+                overrides[label] = entry
+            else:
+                overrides.pop(label, None)
+
+    project.schedule_overrides = overrides
+    project.save(update_fields=["schedule_overrides", "updated_at"])
+    return JsonResponse({"ok": True})
+
+
+@login_required
+def schedule_rule_list(request):
+    """会社共通の既定。段階ごとに締切／期間／図に出さないを選ぶ。
+
+    ここで決めた扱いが全案件のガントチャートに効く。
+    案件ごとの例外は詳細画面（schedule_override）で上書きする。
+    """
+    company = request.user.company
+
+    if request.method == "POST":
+        stages = request.POST.getlist("stage")
+        kinds = request.POST.getlist("kind")
+        for stage, kind in zip(stages, kinds, strict=False):
+            stage = stage.strip()
+            if not stage:
+                continue
+            if kind not in KINDS:
+                # 「自動判定にまかせる」＝既定を持たない
+                BidScheduleRule.objects.filter(stage=stage).delete()
+                continue
+            rule, created = BidScheduleRule.objects.get_or_create(
+                company=company, stage=stage,
+                defaults={"kind": kind, "created_by": request.user},
+            )
+            if not created and rule.kind != kind:
+                rule.kind = kind
+                rule.save(update_fields=["kind", "updated_at"])
+        messages.success(request, "手続きの扱いを保存しました")
+        return redirect("bids:schedule_rule_list")
+
+    current = {rule.stage: rule.kind for rule in BidScheduleRule.objects.all()}
+    # 公告に出てくる段階（既知）＋ 過去に設定した段階
+    stages = KNOWN_STAGES + [s for s in sorted(current) if s not in KNOWN_STAGES]
+    return render(request, "bids/schedule_rules.html", {
+        "rows": [{"stage": s, "kind": current.get(s, "")} for s in stages],
+        "kind_choices": BidScheduleRule.Kind.choices,
     })
 
 
