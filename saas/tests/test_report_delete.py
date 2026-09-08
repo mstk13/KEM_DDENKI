@@ -1,12 +1,11 @@
-"""日報の削除: 本人と管理者だけが削除できる。承認済は削除不可。テナント越境不可。"""
+"""日報の削除: ログインしていれば誰でも削除できる。承認済は削除不可。テナント越境不可。"""
 
 from decimal import Decimal
 
 import pytest
 
 from apps.masters.models import WorkType
-from apps.permissions.models import Role, UserRole
-from apps.permissions.services import can_delete_report, setup_default_roles
+from apps.permissions.services import can_delete_report
 from apps.reports.models import DailyReport
 from apps.sites.models import Site
 from apps.workers.models import Worker
@@ -52,12 +51,6 @@ def _make_report(company, site, worker, work_type, *, created_by=None, status=No
     )
 
 
-def _grant(company, user, code):
-    setup_default_roles(company)
-    role = Role.unscoped.get(company=company, code=code)
-    UserRole.unscoped.create(company=company, user=user, role=role)
-
-
 # ---------------------------------------------------------------------------
 # 判定ロジック
 # ---------------------------------------------------------------------------
@@ -65,49 +58,27 @@ def _grant(company, user, code):
 
 @pytest.mark.django_db
 class TestCanDeleteReport:
-    def test_creator_can_delete(self, company_a, user_a, site_a, worker_a2, work_type_a):
-        """入力者本人は、作業員が別人（代理入力）でも削除できる。"""
-        report = _make_report(company_a, site_a, worker_a2, work_type_a, created_by=user_a)
+    def test_own_report(self, company_a, user_a, site_a, worker_a, work_type_a):
+        report = _make_report(company_a, site_a, worker_a, work_type_a, created_by=user_a)
         assert can_delete_report(user_a, report) is True
 
-    def test_worker_can_delete_own(self, company_a, user_a, user2, site_a, worker_a, work_type_a):
-        """自分が作業員の日報は、他人が代理入力したものでも削除できる。"""
-        report = _make_report(company_a, site_a, worker_a, work_type_a, created_by=user2)
-        assert can_delete_report(user_a, report) is True
-
-    def test_other_person_cannot_delete(
+    def test_other_persons_report(
         self, company_a, user_a, user2, site_a, worker_a2, work_type_a,
     ):
-        report = _make_report(company_a, site_a, worker_a2, work_type_a, created_by=user2)
-        assert can_delete_report(user_a, report) is False
-
-    def test_president_can_delete_others(
-        self, company_a, user_a, user2, site_a, worker_a2, work_type_a,
-    ):
-        _grant(company_a, user_a, "president")
+        """他人が入力した他人の日報も削除できる。"""
         report = _make_report(company_a, site_a, worker_a2, work_type_a, created_by=user2)
         assert can_delete_report(user_a, report) is True
 
-    def test_developer_can_delete_others(
-        self, company_a, user_a, user2, site_a, worker_a2, work_type_a,
-    ):
-        """IT（developer ロール）は承認と同様に削除もできる。"""
-        _grant(company_a, user_a, "developer")
-        report = _make_report(company_a, site_a, worker_a2, work_type_a, created_by=user2)
+    def test_submitted_report(self, company_a, user_a, site_a, worker_a2, work_type_a):
+        report = _make_report(
+            company_a, site_a, worker_a2, work_type_a,
+            status=DailyReport.Status.SUBMITTED,
+        )
         assert can_delete_report(user_a, report) is True
 
-    def test_site_manager_cannot_delete_others(
-        self, company_a, user_a, user2, site_a, worker_a2, work_type_a,
-    ):
-        """現場担当者（reports は write まで）は他人の日報を消せない。"""
-        _grant(company_a, user_a, "site_manager")
-        report = _make_report(company_a, site_a, worker_a2, work_type_a, created_by=user2)
-        assert can_delete_report(user_a, report) is False
-
-    def test_approved_cannot_be_deleted_even_by_president(
+    def test_approved_report_cannot_be_deleted(
         self, company_a, user_a, site_a, worker_a, work_type_a,
     ):
-        _grant(company_a, user_a, "president")
         report = _make_report(
             company_a, site_a, worker_a, work_type_a,
             created_by=user_a, status=DailyReport.Status.APPROVED,
@@ -142,29 +113,27 @@ class TestReportDeleteView:
         assert response.url == "/reports/"
         assert not DailyReport.unscoped.filter(pk=report.pk).exists()
 
-    def test_post_by_other_person_is_forbidden(
+    def test_post_deletes_other_persons_report(
         self, client, company_a, user_a, user2, site_a, worker_a2, work_type_a,
     ):
-        report = _make_report(company_a, site_a, worker_a2, work_type_a, created_by=user2)
-        client.force_login(user_a)
-        response = client.post(f"/reports/{report.pk}/delete/")
-        assert response.status_code == 403
-        assert DailyReport.unscoped.filter(pk=report.pk).exists()
-
-    def test_post_by_president_deletes_others(
-        self, client, company_a, user_a, user2, site_a, worker_a2, work_type_a,
-    ):
-        _grant(company_a, user_a, "president")
         report = _make_report(company_a, site_a, worker_a2, work_type_a, created_by=user2)
         client.force_login(user_a)
         response = client.post(f"/reports/{report.pk}/delete/")
         assert response.status_code == 302
         assert not DailyReport.unscoped.filter(pk=report.pk).exists()
 
+    def test_anonymous_is_redirected_to_login(
+        self, client, company_a, site_a, worker_a, work_type_a,
+    ):
+        report = _make_report(company_a, site_a, worker_a, work_type_a)
+        response = client.post(f"/reports/{report.pk}/delete/")
+        assert response.status_code == 302
+        assert "/login/" in response.url
+        assert DailyReport.unscoped.filter(pk=report.pk).exists()
+
     def test_approved_is_forbidden(
         self, client, company_a, user_a, site_a, worker_a, work_type_a,
     ):
-        _grant(company_a, user_a, "president")
         report = _make_report(
             company_a, site_a, worker_a, work_type_a,
             created_by=user_a, status=DailyReport.Status.APPROVED,
@@ -184,16 +153,19 @@ class TestReportDeleteView:
         assert response.status_code == 404
         assert DailyReport.unscoped.filter(pk=report.pk).exists()
 
-    def test_list_shows_delete_only_for_deletable(
+    def test_list_hides_delete_only_for_approved(
         self, client, company_a, user_a, user2, site_a, worker_a, worker_a2, work_type_a,
     ):
-        own = _make_report(company_a, site_a, worker_a, work_type_a, created_by=user_a)
         other = _make_report(company_a, site_a, worker_a2, work_type_a, created_by=user2)
+        approved = _make_report(
+            company_a, site_a, worker_a, work_type_a,
+            created_by=user_a, status=DailyReport.Status.APPROVED,
+        )
         client.force_login(user_a)
         response = client.get("/reports/")
         html = response.content.decode()
-        assert f"/reports/{own.pk}/delete/" in html
-        assert f"/reports/{other.pk}/delete/" not in html
+        assert f"/reports/{other.pk}/delete/" in html
+        assert f"/reports/{approved.pk}/delete/" not in html
 
     def test_edit_page_shows_delete_button(
         self, client, company_a, user_a, site_a, worker_a, work_type_a,

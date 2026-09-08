@@ -49,37 +49,15 @@ def can_approve_report(user) -> bool:
     return is_president(user) or has_role(user, "developer")
 
 
-def can_manage_reports(user) -> bool:
-    """日報を管理する立場（他人の日報も削除できる）かどうかを判定する。
-
-    承認できる人（社長・IT）に加え、日報モジュールの admin 権限を持つロールも含める。
-    """
-    return can_approve_report(user) or has_module_permission(user, "reports", "admin")
-
-
-def is_own_report(user, report) -> bool:
-    """日報が本人のものかどうかを判定する。
-
-    入力者（created_by）が本人、または日報の作業員が本人の Worker であれば本人扱い。
-    代理入力された自分の日報も本人が消せるようにするため、両方を見る。
-    """
-    if report.created_by_id and report.created_by_id == user.pk:
-        return True
-    profile = getattr(user, "worker_profile", None)
-    return bool(profile and report.worker_id == profile.pk)
-
-
 def can_delete_report(user, report) -> bool:
     """日報を削除できるかどうかを判定する。
 
-    - 承認済の日報は削除できない（承認時に労務費を計上済みのため）
-    - 本人の日報、または日報を管理する立場の人なら削除できる
+    ログインしていれば誰でも削除できる。ただし承認済の日報は削除できない
+    （承認時に労務費を計上済みで、消すと原価との整合が崩れるため）。
     """
     from apps.reports.models import DailyReport
 
-    if report.status == DailyReport.Status.APPROVED:
-        return False
-    return is_own_report(user, report) or can_manage_reports(user)
+    return report.status != DailyReport.Status.APPROVED
 
 
 def has_module_permission(user, module: str, level: str = "read") -> bool:
