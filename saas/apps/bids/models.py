@@ -414,6 +414,11 @@ class ScrapeTarget(TenantModel):
         help_text="取得対象の工事種別（空欄=全件）。例: 電気,設備",
     )
     is_active = models.BooleanField("有効", default=True)
+    only_eligible = models.BooleanField(
+        "資格を満たす案件だけ登録",
+        default=False,
+        help_text="取り込み前に公告PDFを読み、自社の入札参加資格で参加できる案件だけ登録する",
+    )
     scrape_interval_hours = models.IntegerField(
         "巡回間隔（時間）", default=48,
         help_text="2日=48時間。cron は2日に1回実行",
