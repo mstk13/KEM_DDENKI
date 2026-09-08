@@ -39,7 +39,7 @@
       <table>
         <thead><tr>
           {% if can_approve %}<th style="width:32px;"><input type="checkbox" data-check-all="report_ids"></th>{% endif %}
-          <th>日付</th><th>作業員</th><th>現場</th><th>工種</th><th>時間</th><th>協力会社</th><th>状態</th><th></th>
+          <th style="white-space:nowrap;">日付</th><th style="white-space:nowrap;">作業員</th><th>現場</th><th>工種</th><th style="white-space:nowrap;">時間</th><th>協力会社</th><th style="white-space:nowrap;">状態</th><th style="width:1%;"></th>
         </tr></thead>
         <tbody>
           {% for r in reports %}
@@ -51,8 +51,8 @@
               {% endif %}
             </td>
             {% endif %}
-            <td>{{ r.report_date }}</td>
-            <td>{{ r.worker }}</td>
+            <td style="white-space:nowrap;">{{ r.report_date }}</td>
+            <td style="white-space:nowrap;">{{ r.worker }}</td>
             <td>{{ r.site }}</td>
             <td>{{ r.work_type }}</td>
             <td>{{ r.work_hours }}h</td>
@@ -63,7 +63,8 @@
               {% elif r.status == 'approved' %}<span class="badge badge-green">承認済</span>
               {% endif %}
             </td>
-            <td>
+            {# 操作列は中身の幅に縮め、ボタンを横並びにして右端の余白を無くす #}
+            <td style="white-space:nowrap;width:1%;text-align:right;">
               {% if r.status == 'submitted' and can_approve %}
               <a href="{% url 'reports:approve' r.pk %}" class="btn btn-success btn-sm">承認</a>
               {% endif %}
