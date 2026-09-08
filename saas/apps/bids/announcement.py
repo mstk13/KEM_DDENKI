@@ -34,6 +34,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+from datetime import date
 
 logger = logging.getLogger(__name__)
 
@@ -383,7 +384,7 @@ _TIME_H = re.compile(r"[０-９\d]{1,2}\s*時(?!\s*[０-９\d])")
 _NOON = re.compile(r"正午")
 
 
-def _parse_date_str(text: str) -> "date | None":
+def _parse_date_str(text: str) -> date | None:
     """令和日付文字列を date オブジェクトに変換する。"""
     from datetime import date as _date
 
@@ -398,7 +399,7 @@ def _parse_date_str(text: str) -> "date | None":
         return None
 
 
-def _parse_same_year_date(text: str, ref_year: int) -> "date | None":
+def _parse_same_year_date(text: str, ref_year: int) -> date | None:
     """「同年X月Y日」を参照年で解決する。"""
     from datetime import date as _date
 
@@ -436,7 +437,7 @@ def _extract_time(text: str) -> str:
     return ""
 
 
-def _make_datetime_str(d: "date", time_str: str) -> str:
+def _make_datetime_str(d: date, time_str: str) -> str:
     """date と時刻文字列から ISO datetime を作る。"""
     if time_str:
         return f"{d.isoformat()}T{time_str}"

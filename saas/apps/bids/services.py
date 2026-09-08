@@ -434,7 +434,7 @@ def run_scrape(target, company):
             # i-ppi.jp スクレイパー（Playwright）
             from apps.bids.scraper import scrape_ippi
             raw_results = scrape_ippi(target)
-        elif target.site_key.startswith("msdf_") or target.site_key.startswith("gsdf_") or target.site_key.startswith("asdf_"):
+        elif target.site_key.startswith(("msdf_", "gsdf_", "asdf_")):
             # 防衛省基地スクレイパー（Playwright + Cloudflare突破）
             from apps.bids.scrapers.mod_base import scrape_mod_base
             raw_results = scrape_mod_base(target)

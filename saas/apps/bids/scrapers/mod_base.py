@@ -15,9 +15,7 @@ Cloudflare対策としてPlaywright（headless Chromium）を使用。
 import logging
 import re
 import time
-from datetime import date, datetime
-
-from apps.bids.scrapers import BidInfo, register
+from datetime import date
 
 # 案件として取り込まない件名のパターン
 _SKIP_TITLE_PATTERNS = [
@@ -181,10 +179,7 @@ def _scrape_impl(target, config, url, client, region) -> list[dict]:
                 sheet_frame = next(
                     (f for f in page.frames if "sheet" in f.url), None,
                 )
-                if sheet_frame:
-                    content = sheet_frame.content()
-                else:
-                    content = page.content()
+                content = sheet_frame.content() if sheet_frame else page.content()
             else:
                 content = page.content()
 
@@ -218,15 +213,18 @@ def _scrape_impl(target, config, url, client, region) -> list[dict]:
                 if name_idx is None:
                     continue
 
-                date_idx = next(
+                # 以下4つは列の位置だけ拾ってあり、まだ取り込みには使っていない。
+                # 消さずに残しているのは、どの見出し語で当てるかがここに
+                # 書いてあることに意味があるため。使い始めるときに _ を外す。
+                _date_idx = next(
                     (i for i, h in enumerate(headers) if "入札" in h and "日" in h),
                     None,
                 )
-                delivery_idx = next(
+                _delivery_idx = next(
                     (i for i, h in enumerate(headers) if "納期" in h or "履行" in h),
                     None,
                 )
-                contract_idx = next(
+                _contract_idx = next(
                     (i for i, h in enumerate(headers)
                      if "契約管理" in h or "調達要求" in h),
                     None,
@@ -236,7 +234,7 @@ def _scrape_impl(target, config, url, client, region) -> list[dict]:
                      if "掲載" in h or "公告" in h or "公開" in h),
                     None,
                 )
-                category_idx = next(
+                _category_idx = next(
                     (i for i, h in enumerate(headers) if "資格" in h and "種類" in h),
                     None,
                 )

@@ -387,7 +387,7 @@ def rows_to_drafts(rows: list[list], *, origin: str = "") -> ParseResult:
         deepest_is_priced = any(
             _to_decimal(cell(row, "quantity")) is not None
             and _to_decimal(cell(row, "unit_price")) is not None
-            for (_, row, _, _), depth in zip(collected, depths)
+            for (_, row, _, _), depth in zip(collected, depths, strict=False)
             if depth == ranks[-1]
         )
         levels_by_rank = _levels_by_rank(
@@ -395,7 +395,7 @@ def rows_to_drafts(rows: list[list], *, origin: str = "") -> ParseResult:
         )
 
     for index, ((offset, row, raw_name, name), depth) in enumerate(
-        zip(collected, depths)
+        zip(collected, depths, strict=False)
     ):
         quantity = _to_decimal(cell(row, "quantity"))
         unit_price = _to_decimal(cell(row, "unit_price"))
@@ -549,7 +549,7 @@ def _row_tolerance(tops: list[float]) -> float:
     次の行を巻き込まない幅にする。
     """
     gaps = sorted(
-        round(b - a, 1) for a, b in zip(tops, tops[1:]) if b - a > 1
+        round(b - a, 1) for a, b in zip(tops, tops[1:], strict=False) if b - a > 1
     )
     if not gaps:
         return 3.0
@@ -707,7 +707,7 @@ def parse_pdf(data: bytes) -> ParseResult:
             # 表紙・鑑とみなして黙って飛ばす。Excel の表紙シートと同じ扱い。
             titled = any(kind is not None for kind in kinds)
 
-            for page, kind in zip(pdf.pages, kinds):
+            for page, kind in zip(pdf.pages, kinds, strict=False):
                 if skip_summary and kind == "summary":
                     logger.info(
                         "p.%s は内訳書（集計）なので読み飛ばします", page.page_number,
