@@ -27,6 +27,10 @@ UNIFIED_BUYBACK = (
     "（３）令和０７・０８・０９年度の防衛省競争参加資格（全省庁統一資格）「物品の買受け」のＣ等級以上の競\n"
     "争参加資格を有する者"
 )
+UNIFIED_LISTED = (
+    "（3）令和０７・０８・０９年度の防衛省競争参加資格（全省庁統一資格）「役務の提供等」の"
+    "Ｂ，Ｃ又はＤ等級の競争参加資格を有する者、又は当該競争参加資格を有していない者にあっては"
+)
 MOD_WORKS = (
     "２ 競争参加資格\n"
     "(2) 防衛省における令和７・８年度一般競争（指名競争）参加資格（以下「防衛省競争\n"
@@ -39,15 +43,26 @@ MOD_WORKS = (
 
 class TestExtractRequirement:
     def test_unified_goods_with_line_break_in_grade(self):
-        assert extract_unified_requirement(UNIFIED_GOODS) == {"kind": "物品の販売", "grade": "D"}
+        assert extract_unified_requirement(UNIFIED_GOODS) == {
+            "kind": "物品の販売", "grade": "D", "grades": "",
+        }
 
     def test_unified_service_and_buyback(self):
         assert extract_unified_requirement(UNIFIED_SERVICE) == {
-            "kind": "役務の提供等", "grade": "D",
+            "kind": "役務の提供等", "grade": "D", "grades": "",
         }
         assert extract_unified_requirement(UNIFIED_BUYBACK) == {
-            "kind": "物品の買受け", "grade": "C",
+            "kind": "物品の買受け", "grade": "C", "grades": "",
         }
+
+    def test_unified_listed_grades(self):
+        """「Ｂ，Ｃ又はＤ等級」は下限ではなく列挙として読む。"""
+        assert extract_unified_requirement(UNIFIED_LISTED) == {
+            "kind": "役務の提供等", "grade": "", "grades": "BCD",
+        }
+        sections = extract_sections(UNIFIED_LISTED)
+        assert sections["required_grade"] == ""
+        assert sections["required_grades"] == "BCD"
 
     def test_mod_works_lists_categories(self):
         assert extract_mod_works_categories(MOD_WORKS) == ["建築一式工事", "管工事"]
@@ -99,6 +114,22 @@ class TestUnifiedQualificationCheck:
             required_category="物品の販売", required_grade="C",
         )
         assert check_project(project, quals)["eligible"] is False
+
+    def test_listed_grades_membership(self, company_a):
+        quals = [_unified(company_a, "役務の提供等", "C")]
+        listed = _project(
+            company_a, required_issuer_type="全省庁統一資格",
+            required_category="役務の提供等", required_grades="BCD",
+        )
+        verdict = check_project(listed, quals)
+        assert verdict["eligible"] is True
+        assert "B等級・C等級・D等級 → 自社 C 等級" in verdict["reason"]
+
+        only_ab = _project(
+            company_a, required_issuer_type="全省庁統一資格",
+            required_category="役務の提供等", required_grades="AB",
+        )
+        assert check_project(only_ab, quals)["eligible"] is False
 
     def test_missing_kind_is_ineligible(self, company_a):
         quals = [_unified(company_a, "物品の販売", "C")]

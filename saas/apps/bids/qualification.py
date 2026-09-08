@@ -323,6 +323,21 @@ def _check_unified(project, qualifications, today, result) -> dict:
     result["matched"] = best
     detail = _describe(best)
     ours = normalize_grade(best.grade)
+    listed = "".join(sorted({
+        g for g in (project.required_grades or "").upper() if g in GRADE_ORDER
+    }))
+    if listed:
+        label = "・".join(f"{g}等級" for g in listed)
+        if not ours:
+            result["reason"] = (
+                f"{label}の認定が必要ですが、自社の等級が未登録のため判定できません（{detail}）。"
+            )
+            return result
+        if ours not in listed:
+            result["eligible"] = False
+            result["reason"] = f"{label}の認定が必要ですが、自社は {ours} 等級です（{detail}）。"
+            return result
+        result["checked"].append(f"{label} → 自社 {ours} 等級")
     floor = normalize_grade(project.required_grade)
     if floor:
         if not ours:

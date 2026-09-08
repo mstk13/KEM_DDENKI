@@ -116,11 +116,13 @@ SCORE_EXCLUDE = ("評定", "成績", "とみなす")
 # 全省庁統一資格の要件。防衛省（自衛隊各基地）の物品・役務の公告は
 # 「防衛省競争参加資格（全省庁統一資格）「物品の販売」のＤ等級以上」と書く。
 # PDF の折り返しで「Ｄ等\n級」のように切れるので、空白を潰した文字列に当てる。
+# 等級は「Ｄ等級以上」（下限）と「Ｂ，Ｃ又はＤ等級」（列挙）の2通りがある。
 UNIFIED_KINDS = ("物品の製造", "物品の販売", "役務の提供等", "物品の買受け")
 UNIFIED_REQUIREMENT = re.compile(
     r"全省庁統一資格[）)]?[「｢]?(" + "|".join(UNIFIED_KINDS) + r")[」｣]?の?"
-    r"[「｢]?([ＡＢＣＤA-D])[」｣]?等級以上"
+    r"([^。]{1,30}?等級(?:以上)?)"
 )
+_GRADE_LETTER = re.compile(r"[ＡＢＣＤA-D]")
 # 防衛省の建設工事の公告は「「建築一式工事」又は「管工事」で級別の格付けを受け」と
 # 業種を列挙する。統一資格ではなく防衛省の工事資格で判定する。
 MOD_WORKS_ISSUER = "防衛省"
@@ -250,13 +252,23 @@ def extract_unified_requirement(text: str) -> dict:
     """全省庁統一資格の要件（種類と等級下限）を返す。無ければ空。
 
     Returns:
-        {"kind": "物品の販売", "grade": "D"} / {}
+        {"kind": "物品の販売", "grade": "D", "grades": ""}    … 「Ｄ等級以上」
+        {"kind": "役務の提供等", "grade": "", "grades": "BCD"} … 「Ｂ，Ｃ又はＤ等級」
+        {} … 書かれていない
     """
     flat = _flatten(text)
     m = UNIFIED_REQUIREMENT.search(flat)
     if not m:
         return {}
-    return {"kind": m.group(1), "grade": m.group(2).translate(_ZENKAKU)}
+    span = m.group(2)
+    letters = "".join(sorted({c.translate(_ZENKAKU) for c in _GRADE_LETTER.findall(span)}))
+    if not letters:
+        return {}
+    if span.endswith("以上"):
+        # 「Ｄ等級以上」: 一番低い等級が下限
+        return {"kind": m.group(1), "grade": letters[-1], "grades": ""}
+    # 「Ｂ，Ｃ又はＤ等級」: 列挙。下限ではなく集合として扱う
+    return {"kind": m.group(1), "grade": "", "grades": letters}
 
 
 def extract_mod_works_categories(text: str) -> list[str]:
@@ -321,11 +333,13 @@ def extract_sections(text: str) -> dict:
     required_issuer_type = ""
     required_category = ""
     required_grade = extract_grade_floor(requirements)
+    required_grades = extract_grades(requirements)
     unified = extract_unified_requirement(text)
     if unified:
         required_issuer_type = "全省庁統一資格"
         required_category = unified["kind"]
         required_grade = unified["grade"]
+        required_grades = unified["grades"]
     else:
         works = extract_mod_works_categories(text)
         if works:
@@ -338,7 +352,7 @@ def extract_sections(text: str) -> dict:
         "work_outline": outline,
         "requirements": requirements,
         "required_grade": required_grade,
-        "required_grades": extract_grades(requirements),
+        "required_grades": required_grades,
         "required_score": extract_score_floor(requirements),
         "required_issuer_type": required_issuer_type,
         "required_category": required_category,
