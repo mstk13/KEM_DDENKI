@@ -124,44 +124,156 @@
 </div>
 
 <div class="card" style="margin-top:20px;">
-  <div class="card-header"><h2>重要日程</h2></div>
-  <div class="table-wrap">
-    <table>
-      <thead><tr><th>項目</th><th>日時</th><th>備考</th></tr></thead>
-      <tbody>
-        {% if project.announced_on %}
-        <tr>
-          <td>公告日</td>
-          <td style="white-space:nowrap;">{{ project.announced_on|date:"Y/m/d" }}</td>
-          <td>-</td>
-        </tr>
-        {% endif %}
-        {% for item in project.bid_schedule %}
-        <tr>
-          <td>{{ item.label }}</td>
-          <td style="white-space:nowrap;">{{ item.datetime }}</td>
-          <td>{{ item.detail|default:"-" }}</td>
-        </tr>
-        {% endfor %}
-        {% if project.deadline and not project.bid_schedule %}
-        <tr>
-          <td>入札期限</td>
-          <td style="white-space:nowrap;">{{ project.deadline|date:"Y/m/d" }}{% if project.deadline.hour or project.deadline.minute %} {{ project.deadline|time:"H:i" }}{% endif %}</td>
-          <td>-</td>
-        </tr>
-        {% endif %}
-        {% if project.opening_on %}
-        <tr>
-          <td>開札日</td>
-          <td style="white-space:nowrap;">{{ project.opening_on|date:"Y/m/d" }}</td>
-          <td>-</td>
-        </tr>
-        {% endif %}
-        {% if not project.announced_on and not project.bid_schedule and not project.deadline and not project.opening_on %}
-        <tr><td colspan="3" style="text-align:center;color:var(--gray-400);padding:20px;">日程情報がありません</td></tr>
-        {% endif %}
-      </tbody>
-    </table>
+  <div class="card-header">
+    <h2>受注までの流れ</h2>
+    {% if gantt.next %}
+      <span class="badge {% if gantt.next.days_left <= 3 %}badge-red{% elif gantt.next.days_left <= 7 %}badge-orange{% else %}badge-blue{% endif %}">
+        次の締切 {{ gantt.next.stage }}／{{ gantt.next.end|date:"n/j H:i" }}
+        {% if gantt.next.days_left >= 0 %}（あと {{ gantt.next.days_left }} 日）{% endif %}
+      </span>
+    {% endif %}
+  </div>
+  <div class="card-body">
+    {% if gantt.rows %}
+      <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center;">
+        <button class="btn btn-outline btn-sm bid-gantt-mode active" data-mode="Week">週</button>
+        <button class="btn btn-outline btn-sm bid-gantt-mode" data-mode="Month">月</button>
+        <button class="btn btn-outline btn-sm bid-gantt-mode" data-mode="Day">日</button>
+        <span class="gantt-legend">
+          <span class="legend-swatch bar-bid-done"></span>締切済
+          <span class="legend-swatch bar-bid-active"></span>進行中
+          <span class="legend-swatch bar-bid-upcoming"></span>これから
+          <span class="legend-swatch bar-bid-goal"></span>開札
+        </span>
+      </div>
+      <div id="bid-gantt-chart" style="overflow-x:auto;"></div>
+      <p style="margin:12px 0 0;font-size:.82rem;color:var(--text-muted);">
+        バーは「その手続きに使える期間」です。開始日が公告に書かれていない項目は、
+        ひとつ前の締切から引いています（濃い部分が経過分）。
+        バーはドラッグで動かせます。動かした項目には破線の縁が付き、下の表で戻せます。
+      </p>
+    {% else %}
+      <p style="text-align:center;color:var(--text-muted);padding:20px;">
+        公告から日程を読み取れていません。情報源URLの公告PDFを確認してください。
+      </p>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card" style="margin-top:20px;">
+  <div class="card-header">
+    <h2>重要日程と手続きの扱い</h2>
+    <span style="display:flex;gap:8px;align-items:center;">
+      <a href="{% url 'bids:schedule_rule_list' %}" class="btn btn-outline btn-sm">
+        会社の既定を編集
+      </a>
+      {% if has_overrides %}
+      <button type="button" class="btn btn-outline btn-sm" id="bid-schedule-reset-all">
+        公告どおりに戻す
+      </button>
+      {% endif %}
+    </span>
+  </div>
+  <form id="bid-schedule-form" onsubmit="return false;">
+    {% csrf_token %}
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th><th>段階</th><th>公告の項目</th>
+            <th>着手できる日</th><th>締切</th><th>状態</th>
+            <th>扱い</th><th>備考</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% if project.announced_on %}
+          <tr>
+            <td>-</td><td>公告</td><td>公告日</td><td>-</td>
+            <td style="white-space:nowrap;">{{ project.announced_on|date:"Y/m/d" }}</td>
+            <td><span class="badge badge-gray">-</span></td>
+            <td>-</td><td>-</td>
+          </tr>
+          {% endif %}
+          {% for row in gantt.rows %}
+          <tr>
+            <td>{{ row.step }}</td>
+            <td>{{ row.stage }}</td>
+            <td>
+              {{ row.label }}
+              {% if row.overridden %}
+                <span class="badge badge-orange" style="margin-left:4px;">手直し</span>
+              {% endif %}
+            </td>
+            <td style="white-space:nowrap;">
+              {{ row.start|date:"Y/m/d H:i" }}
+              {% if not row.has_own_start %}
+                <span style="color:var(--text-muted);font-size:.78rem;">前の締切から</span>
+              {% endif %}
+            </td>
+            <td style="white-space:nowrap;">{{ row.end|date:"Y/m/d H:i" }}</td>
+            <td style="white-space:nowrap;">
+              {% if row.state == "done" %}
+                <span class="badge badge-gray">締切済</span>
+              {% elif row.state == "active" %}
+                <span class="badge {% if row.days_left <= 3 %}badge-red{% else %}badge-orange{% endif %}">
+                  あと {{ row.days_left }} 日
+                </span>
+              {% else %}
+                <span class="badge badge-blue">これから</span>
+              {% endif %}
+            </td>
+            <td style="white-space:nowrap;">
+              <select class="form-control bid-schedule-kind" data-label="{{ row.label }}"
+                      style="min-width:150px;padding:4px 8px;font-size:.8rem;">
+                <option value="auto">既定にまかせる</option>
+                {% for value, text in kind_choices %}
+                  <option value="{{ value }}" {% if row.kind == value %}selected{% endif %}>
+                    {{ text }}
+                  </option>
+                {% endfor %}
+              </select>
+              {% if row.overridden %}
+              <button type="button" class="btn btn-outline btn-sm bid-schedule-reset"
+                      data-label="{{ row.label }}" style="margin-top:4px;">
+                戻す
+              </button>
+              {% endif %}
+            </td>
+            <td>{{ row.detail|default:"-" }}</td>
+          </tr>
+          {% endfor %}
+          {% for row in gantt.hidden %}
+          <tr style="opacity:.55;">
+            <td>-</td>
+            <td>{{ row.stage }}</td>
+            <td>{{ row.label }}</td>
+            <td>-</td>
+            <td style="white-space:nowrap;">{{ row.end|date:"Y/m/d H:i" }}</td>
+            <td><span class="badge badge-gray">非表示</span></td>
+            <td style="white-space:nowrap;">
+              <select class="form-control bid-schedule-kind" data-label="{{ row.label }}"
+                      style="min-width:150px;padding:4px 8px;font-size:.8rem;">
+                <option value="auto">既定にまかせる</option>
+                {% for value, text in kind_choices %}
+                  <option value="{{ value }}" {% if row.kind == value %}selected{% endif %}>
+                    {{ text }}
+                  </option>
+                {% endfor %}
+              </select>
+            </td>
+            <td>-</td>
+          </tr>
+          {% endfor %}
+          {% if not gantt.rows and not gantt.hidden %}
+          <tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:20px;">日程情報がありません</td></tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+  </form>
+  <div style="padding:12px 24px;font-size:.82rem;color:var(--text-muted);">
+    「扱い」を変えると、この案件のガントチャートだけが変わります。
+    全案件に効かせるときは「会社の既定を編集」から段階ごとに決めてください。
   </div>
 </div>
 
@@ -240,4 +352,101 @@
     </table>
   </div>
 </div>
+
+{% if gantt.rows or gantt.hidden %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/frappe-gantt@0.6.1/dist/frappe-gantt.min.css">
+<script src="https://cdn.jsdelivr.net/npm/frappe-gantt@0.6.1/dist/frappe-gantt.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  var tasks = {{ gantt_json|safe }};
+  var chart = document.querySelector('#bid-gantt-chart');
+  var saveUrl = '{% url "bids:schedule_override" project.pk %}';
+  var token = document.querySelector('#bid-schedule-form [name=csrfmiddlewaretoken]');
+
+  // 手直しの保存。成功したら描き直す代わりに読み直す。
+  // 締切を動かすと後続バーの始点も変わるので、計算はサーバ側に一本化する。
+  function save(params) {
+    var body = new URLSearchParams(params);
+    return fetch(saveUrl, {
+      method: 'POST',
+      headers: {
+        'X-CSRFToken': token ? token.value : '',
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: body.toString(),
+    }).then(function(res) {
+      if (!res.ok) { return res.json().then(function(d) { throw new Error(d.error); }); }
+      location.reload();
+    }).catch(function(err) {
+      alert('保存できませんでした: ' + err.message);
+    });
+  }
+
+  // toISOString は UTC に寄るので日付がずれる。ローカルのまま組み立てる。
+  function ymd(d) {
+    return d.getFullYear() + '-'
+      + String(d.getMonth() + 1).padStart(2, '0') + '-'
+      + String(d.getDate()).padStart(2, '0');
+  }
+
+  // language は指定しない。frappe-gantt 0.6.1 は 'ja' の月名テーブルを持たず、
+  // 月ラベル生成時に例外を投げて描画が止まる（apps/schedules と同じ理由）。
+  var gantt = chart && tasks.length ? new Gantt('#bid-gantt-chart', tasks, {
+    view_mode: 'Week',
+    on_date_change: function(task, start, end) {
+      save({label: task._label, start: ymd(start), end: ymd(end)});
+    },
+    custom_popup_html: function(task) {
+      return '<div class="details-container" style="padding:12px;min-width:220px;">'
+        + '<h5 style="margin:0 0 6px;font-size:.95rem;">' + task.name + '</h5>'
+        + '<p style="margin:0;font-size:.82rem;color:#666;">' + task._label + '</p>'
+        + '<p style="margin:6px 0 0;font-size:.85rem;">締切: ' + task._deadline + '</p>'
+        + (task._detail
+            ? '<p style="margin:4px 0 0;font-size:.8rem;color:#666;">' + task._detail + '</p>'
+            : '')
+        + (task._edited
+            ? '<p style="margin:4px 0 0;font-size:.8rem;color:#c2410c;">公告から手直し済み</p>'
+            : '')
+        + '</div>';
+    }
+  }) : null;
+
+  if (gantt) {
+    localizeGanttMonths(chart);
+    document.querySelectorAll('.bid-gantt-mode').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        document.querySelectorAll('.bid-gantt-mode').forEach(function(b) {
+          b.classList.remove('active');
+        });
+        this.classList.add('active');
+        gantt.change_view_mode(this.dataset.mode);
+        // 表示切替で描き直されるため、月ラベルを付け直す
+        localizeGanttMonths(chart);
+      });
+    });
+  }
+
+  document.querySelectorAll('.bid-schedule-kind').forEach(function(sel) {
+    sel.addEventListener('change', function() {
+      save({label: this.dataset.label, kind: this.value});
+    });
+  });
+
+  document.querySelectorAll('.bid-schedule-reset').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      save({label: this.dataset.label, reset: '1'});
+    });
+  });
+
+  var resetAll = document.getElementById('bid-schedule-reset-all');
+  if (resetAll) {
+    resetAll.addEventListener('click', function() {
+      if (confirm('この案件の手直しをすべて消して、公告どおりに戻しますか？')) {
+        save({reset_all: '1'});
+      }
+    });
+  }
+});
+</script>
+{% endif %}
 {% endblock %}

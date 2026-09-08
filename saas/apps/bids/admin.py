@@ -5,6 +5,7 @@ from apps.bids.models import (
     BidCompetitor,
     BidCost,
     BidProject,
+    BidScheduleRule,
     Qualification,
     ScrapeTarget,
     SkippedBid,
@@ -32,6 +33,13 @@ class BidProjectAdmin(SimpleHistoryAdmin):
     list_filter = ("status", "region", "category", "company")
     search_fields = ("title", "client", "location", "design_no")
     inlines = [BidCostInline, BidCompetitorInline]
+
+
+@admin.register(BidScheduleRule)
+class BidScheduleRuleAdmin(SimpleHistoryAdmin):
+    list_display = ("stage", "kind", "company")
+    list_filter = ("kind", "company")
+    search_fields = ("stage",)
 
 
 @admin.register(BidCost)
