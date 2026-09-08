@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}{% if form.instance.pk %}省庁別資格を編集{% else %}省庁別資格を登録{% endif %} — {{ APP_NAME }}{% endblock %}
+{% block topbar_title %}全省庁統一資格{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>{% if form.instance.pk %}{{ form.instance.agency }} を編集{% else %}全省庁統一資格の機関を登録{% endif %}</h1>
+</div>
+
+<div class="card">
+  <div class="card-body">
+    <form method="post">
+      {% csrf_token %}
+      <div class="form-row">
+        <div class="form-group">
+          <label for="id_agency">省庁・機関名</label>
+          {{ form.agency }}
+          {{ form.agency.errors }}
+        </div>
+        <div class="form-group">
+          <label for="id_sort_order">表示順</label>
+          {{ form.sort_order }}
+          {{ form.sort_order.errors }}
+        </div>
+      </div>
+
+      <h3 style="font-size:.95rem;margin:16px 0 8px;">物品の販売</h3>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="id_goods_sales_grade">等級</label>
+          {{ form.goods_sales_grade }}
+          {{ form.goods_sales_grade.errors }}
+        </div>
+        <div class="form-group">
+          <label for="id_goods_sales_score">点数</label>
+          {{ form.goods_sales_score }}
+          {{ form.goods_sales_score.errors }}
+        </div>
+      </div>
+      <div class="form-group">
+        <label for="id_goods_sales_items">営業品目(できること)</label>
+        {{ form.goods_sales_items }}
+        {{ form.goods_sales_items.errors }}
+      </div>
+
+      <h3 style="font-size:.95rem;margin:16px 0 8px;">役務の提供等</h3>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="id_services_grade">等級</label>
+          {{ form.services_grade }}
+          {{ form.services_grade.errors }}
+        </div>
+        <div class="form-group">
+          <label for="id_services_score">点数</label>
+          {{ form.services_score }}
+          {{ form.services_score.errors }}
+        </div>
+      </div>
+      <div class="form-group">
+        <label for="id_services_items">営業品目(できること)</label>
+        {{ form.services_items }}
+        {{ form.services_items.errors }}
+      </div>
+
+      <h3 style="font-size:.95rem;margin:16px 0 8px;">物品の買受け</h3>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="id_purchase_grade">等級</label>
+          {{ form.purchase_grade }}
+          {{ form.purchase_grade.errors }}
+        </div>
+        <div class="form-group">
+          <label for="id_purchase_score">点数</label>
+          {{ form.purchase_score }}
+          {{ form.purchase_score.errors }}
+        </div>
+      </div>
+
+      {{ form.non_field_errors }}
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">保存</button>
+        <a href="{% url 'bids:qualification_list' %}" class="btn btn-outline">キャンセル</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
