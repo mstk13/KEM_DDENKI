@@ -9,6 +9,7 @@ urlpatterns = [
     path("new/", views.project_create, name="project_create"),
     path("<int:pk>/", views.project_detail, name="project_detail"),
     path("<int:pk>/edit/", views.project_edit, name="project_edit"),
+    path("<int:pk>/delete/", views.project_delete, name="project_delete"),
     # ガントチャート上の手直し（案件ごと）と、その既定（会社共通）
     path("<int:pk>/schedule/", views.schedule_override, name="schedule_override"),
     path("schedule-rules/", views.schedule_rule_list, name="schedule_rule_list"),

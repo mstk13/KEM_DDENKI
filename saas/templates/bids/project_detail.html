@@ -4,10 +4,26 @@
 {% block topbar_title %}入札案件詳細{% endblock %}
 
 {% block content %}
+
 <div class="page-header">
   <h1>{{ project.title }}</h1>
-  <div>
+  <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+    {% if prev_pk %}
+    <a href="{% url 'bids:project_detail' prev_pk %}" class="btn btn-outline btn-sm" title="前の案件">&larr; 前の案件</a>
+    {% else %}
+    <span class="btn btn-outline btn-sm" style="opacity:.4;pointer-events:none;">&larr; 前の案件</span>
+    {% endif %}
+    {% if next_pk %}
+    <a href="{% url 'bids:project_detail' next_pk %}" class="btn btn-outline btn-sm" title="次の案件">次の案件 &rarr;</a>
+    {% else %}
+    <span class="btn btn-outline btn-sm" style="opacity:.4;pointer-events:none;">次の案件 &rarr;</span>
+    {% endif %}
+    <span style="width:8px;"></span>
     <a href="{% url 'bids:project_edit' project.pk %}" class="btn btn-outline btn-sm">編集</a>
+    <form method="post" action="{% url 'bids:project_delete' project.pk %}" style="display:inline;">
+      {% csrf_token %}
+      <button type="submit" class="btn btn-outline btn-sm" style="color:var(--danger);" onclick="return confirm('案件「{{ project.title|escapejs }}」を削除しますか？\n原価・競合の記録も一緒に消えます。この操作は元に戻せません。')">削除</button>
+    </form>
     <a href="{% url 'bids:project_list' %}" class="btn btn-outline btn-sm">一覧に戻る</a>
   </div>
 </div>
@@ -292,14 +308,13 @@
 <div class="card" style="margin-top:20px;">
   <div class="card-header"><h2>参加要件</h2></div>
   <div class="card-body">
-    {% if project.requirements %}
-    {{ project.requirements|structured_text }}
+    {% if project.requirements or qual_check.eligible == False %}
+    {% requirements_with_shortfall project.requirements qual_check %}
     {% else %}
     <div style="color:var(--gray-400);text-align:center;padding:20px;">
       未入力です。公告の入札参加資格・実績要件・配置技術者の条件を転記してください。
     </div>
     {% endif %}
-  </div>
   </div>
 </div>
 

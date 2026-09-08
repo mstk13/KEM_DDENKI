@@ -130,6 +130,9 @@ def check_project(project, qualifications, today=None):
         "expired": [],
         "issuer_known": False,
         "checked": [],  # 実際に突き合わせた要件（画面に根拠として出す）
+        # どの条件で落ちたか。参加要件の該当項目に理由を添えるために使う。
+        # issuer / category / expired / grades / grade / score / unified_kind
+        "failed_on": "",
     }
 
     # 公告が全省庁統一資格（物品・役務）を求めている案件は、発注機関ではなく
@@ -160,6 +163,7 @@ def check_project(project, qualifications, today=None):
         has_any = any(q.issuer != UNIFIED_QUALIFICATION_ISSUER for q in qualifications)
         if has_any:
             result["eligible"] = False
+            result["failed_on"] = "issuer"
             result["reason"] = (
                 f"「{bid_issuer}」に対応する入札参加資格がありません。"
                 "管轄区域に自社の所在地が含まれていない可能性があります。"
@@ -190,6 +194,7 @@ def check_project(project, qualifications, today=None):
     ]
     if not matched:
         result["eligible"] = False
+        result["failed_on"] = "category"
         result["reason"] = (
             f"「{bid_issuer}」には登録がありますが、"
             f"{category} に対応する業種区分（{'／'.join(candidates)}）の資格がありません。"
@@ -212,6 +217,7 @@ def check_project(project, qualifications, today=None):
     if not valid:
         newest = max(result["expired"], key=lambda q: q.valid_until)
         result["eligible"] = False
+        result["failed_on"] = "expired"
         result["reason"] = (
             f"{newest.issuer}／{newest.category} の資格は "
             f"{newest.valid_until} に有効期限が切れています。"
@@ -232,6 +238,7 @@ def check_project(project, qualifications, today=None):
         label = "・".join(f"{g}等級" for g in listed)
         if ours not in listed:
             result["eligible"] = False
+            result["failed_on"] = "grades"
             result["reason"] = (
                 f"{label}の認定が必要ですが、自社は {ours} 等級です（{detail}）。"
             )
@@ -243,6 +250,7 @@ def check_project(project, qualifications, today=None):
     if floor and ours:
         if GRADE_ORDER[ours] < GRADE_ORDER[floor]:
             result["eligible"] = False
+            result["failed_on"] = "grade"
             result["reason"] = (
                 f"{floor}等級以上が必要ですが、自社は {ours} 等級です（{detail}）。"
             )
@@ -260,6 +268,7 @@ def check_project(project, qualifications, today=None):
             )
         elif our_score < project.required_score:
             result["eligible"] = False
+            result["failed_on"] = "score"
             result["reason"] = (
                 f"{project.required_score}点以上が必要ですが、"
                 f"自社は {our_score} 点です（{detail}）。"
@@ -299,6 +308,7 @@ def _check_unified(project, qualifications, today, result) -> dict:
     if not same_kind:
         has_unified = any(q.issuer == UNIFIED_QUALIFICATION_ISSUER for q in qualifications)
         result["eligible"] = False
+        result["failed_on"] = "unified_kind"
         result["reason"] = (
             f"全省庁統一資格「{kind}」の登録がありません。"
             if has_unified else
@@ -313,6 +323,7 @@ def _check_unified(project, qualifications, today, result) -> dict:
     if not valid:
         newest = max(result["expired"], key=lambda q: q.valid_until)
         result["eligible"] = False
+        result["failed_on"] = "expired"
         result["reason"] = (
             f"全省庁統一資格「{kind}」は {newest.valid_until} に有効期限が切れています。"
         )
@@ -335,6 +346,7 @@ def _check_unified(project, qualifications, today, result) -> dict:
             return result
         if ours not in listed:
             result["eligible"] = False
+            result["failed_on"] = "grades"
             result["reason"] = f"{label}の認定が必要ですが、自社は {ours} 等級です（{detail}）。"
             return result
         result["checked"].append(f"{label} → 自社 {ours} 等級")
@@ -347,6 +359,7 @@ def _check_unified(project, qualifications, today, result) -> dict:
             return result
         if GRADE_ORDER[ours] < GRADE_ORDER[floor]:
             result["eligible"] = False
+            result["failed_on"] = "grade"
             result["reason"] = (
                 f"{floor}等級以上が必要ですが、自社は {ours} 等級です（{detail}）。"
             )
@@ -386,3 +399,44 @@ def check_qualifications_for_projects(projects, company, today=None):
     # unscoped: company を明示指定（N+1 を避けて一括で読む）
     qualifications = list(Qualification.unscoped.filter(company=company))
     return {p.pk: check_project(p, qualifications, today=today) for p in projects}
+
+
+def related_qualifications(required_issuer_type, required_category, qualifications):
+    """公告が求める資格と照らすために、自社の関係する資格を並べて返す。
+
+    見送り案件の画面で「公告が求める資格」の隣に出す。判定はしない。
+
+    Returns:
+        {
+            "issuer_label": 見出しに使う機関名,
+            "rows": [{"qual": Qualification, "hit": 求める種類・業種と一致するか}],
+        }
+    """
+    issuer_type = (required_issuer_type or "").strip()
+    if issuer_type == UNIFIED_QUALIFICATION_ISSUER:
+        wanted = normalize_category(required_category)
+        rows = [
+            {"qual": q, "hit": normalize_category(q.category) == wanted}
+            for q in qualifications if q.issuer == UNIFIED_QUALIFICATION_ISSUER
+        ]
+        rows.sort(key=lambda r: (not r["hit"], r["qual"].category))
+        return {"issuer_label": UNIFIED_QUALIFICATION_ISSUER, "rows": rows}
+
+    if not issuer_type:
+        return {"issuer_label": "", "rows": []}
+
+    # 「建築一式工事／管工事」のように列挙されていれば、どれかに当たれば一致
+    wanted = [
+        c for part in (required_category or "").split("／")
+        for c in category_candidates(part.strip())
+    ]
+    rows = []
+    for q in qualifications:
+        if q.issuer == UNIFIED_QUALIFICATION_ISSUER:
+            continue
+        if not _issuer_match_score(issuer_type, q.issuer):
+            continue
+        hit = bool(wanted) and _category_matches(q.category, tuple(wanted))
+        rows.append({"qual": q, "hit": hit})
+    rows.sort(key=lambda r: (not r["hit"], r["qual"].issuer, r["qual"].category))
+    return {"issuer_label": issuer_type, "rows": rows}

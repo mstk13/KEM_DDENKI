@@ -31,8 +31,16 @@ from apps.bids.services import get_dashboard_stats, mark_as_won, start_estimatio
 from apps.core.json_utils import json_for_script
 
 
-@login_required
-def project_list(request):
+def _project_list_queryset(request, *, use_get=True):
+    """案件一覧の絞り込み・並び順を適用したクエリを返す。
+
+    一覧画面と、詳細画面の「前の案件／次の案件」で同じ並びを使うための共通部分。
+    use_get=False のときは GET を見ず、セッションに保存した絞り込みだけを使う
+    （詳細画面から呼ぶときにセッションを書き換えないため）。
+
+    Returns:
+        (queryset, {"q": str, "status": str, "region": str, "sort": str})
+    """
     from django.utils import timezone
     now = timezone.now()
     qs = BidProject.objects.order_by("-created_at")
@@ -49,12 +57,12 @@ def project_list(request):
     )
 
     # 検索フィルタ: GETパラメータがあればセッションに保存、なければセッションから復元
-    if "reset" in request.GET:
+    if use_get and "reset" in request.GET:
         request.session.pop("bid_filter_q", None)
         request.session.pop("bid_filter_status", None)
         request.session.pop("bid_filter_region", None)
         q, status, region = "", "", ""
-    elif request.GET:
+    elif use_get and request.GET:
         q = request.GET.get("q", "").strip()
         status = request.GET.get("status", "").strip()
         region = request.GET.get("region", "").strip()
@@ -74,12 +82,15 @@ def project_list(request):
         qs = qs.filter(region__icontains=region)
 
     # ソート
-    sort = request.GET.get("sort", "").strip()
-    if sort:
-        request.session["bid_sort"] = sort
-    elif not request.GET or "reset" in request.GET:
-        request.session.pop("bid_sort", None)
-        sort = ""
+    if use_get:
+        sort = request.GET.get("sort", "").strip()
+        if sort:
+            request.session["bid_sort"] = sort
+        elif not request.GET or "reset" in request.GET:
+            request.session.pop("bid_sort", None)
+            sort = ""
+        else:
+            sort = request.session.get("bid_sort", "")
     else:
         sort = request.session.get("bid_sort", "")
 
@@ -100,6 +111,33 @@ def project_list(request):
         # デフォルト: 公告日の新しい順（nullは末尾）
         from django.db.models import F
         qs = qs.order_by(F("announced_on").desc(nulls_last=True), "-created_at")
+
+    return qs, {"q": q, "status": status, "region": region, "sort": sort}
+
+
+def _neighbor_projects(request, project):
+    """詳細画面の「前の案件／次の案件」。一覧と同じ絞り込み・並び順で隣を探す。
+
+    一覧に出ない案件（期限切れなど）を開いているときは全件を登録順で辿る。
+    """
+    qs, _ = _project_list_queryset(request, use_get=False)
+    pks = list(qs.values_list("pk", flat=True))
+    if project.pk not in pks:
+        pks = list(BidProject.objects.order_by("-created_at").values_list("pk", flat=True))
+    if project.pk not in pks:
+        return None, None
+    i = pks.index(project.pk)
+    prev_pk = pks[i - 1] if i > 0 else None
+    next_pk = pks[i + 1] if i + 1 < len(pks) else None
+    return prev_pk, next_pk
+
+
+@login_required
+def project_list(request):
+    qs, filters = _project_list_queryset(request)
+    q, status, region, sort = (
+        filters["q"], filters["status"], filters["region"], filters["sort"],
+    )
 
     # 一覧の資格バッジ用。資格マスタは1回だけ読む
     projects = list(qs)
@@ -125,6 +163,7 @@ def project_detail(request, pk):
     qual_check = check_qualifications_for_projects(
         [project], request.user.company,
     )[project.pk]
+    prev_pk, next_pk = _neighbor_projects(request, project)
     # 公告の別表から取った手続き日程を、公告→開札の流れとして図に起こす
     gantt = build_bid_gantt(project)
     return render(request, "bids/project_detail.html", {
@@ -132,11 +171,28 @@ def project_detail(request, pk):
         "cost": cost,
         "competitors": competitors,
         "qual_check": qual_check,
+        "prev_pk": prev_pk,
+        "next_pk": next_pk,
         "gantt": gantt,
         "gantt_json": json_for_script(gantt["tasks"]),
         "kind_choices": BidScheduleRule.Kind.choices,
         "has_overrides": bool(project.schedule_overrides),
     })
+
+
+@login_required
+def project_delete(request, pk):
+    """案件を削除する（POST のみ。画面側で確認ダイアログを出す）。
+
+    原価・競合の記録は一緒に消える。見積（estimation）側の紐づけは外れるだけで残る。
+    """
+    project = get_object_or_404(BidProject, pk=pk)
+    if request.method != "POST":
+        return redirect("bids:project_detail", pk=pk)
+    title = project.title
+    project.delete()
+    messages.success(request, f"案件「{title[:40]}」を削除しました。")
+    return redirect("bids:project_list")
 
 
 @login_required
@@ -446,8 +502,19 @@ def skipped_list(request):
 
     qs = qs.order_by(F("deadline").asc(nulls_last=True), "-last_seen_at")
 
+    # 公告が求める資格の隣に、自社の関係する資格を並べる（資格マスタは1回だけ読む）
+    from apps.bids.qualification import related_qualifications
+
+    # unscoped: company を明示指定
+    qualifications = list(Qualification.unscoped.filter(company=request.user.company))
+    skipped = list(qs)
+    for item in skipped:
+        item.ours = related_qualifications(
+            item.required_issuer_type, item.required_category, qualifications,
+        )
+
     return render(request, "bids/skipped_list.html", {
-        "skipped": list(qs),
+        "skipped": skipped,
         "verdict": verdict,
         "target_id": target_id,
         "verdict_choices": SkippedBid.Verdict.choices,
