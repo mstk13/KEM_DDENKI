@@ -1,4 +1,4 @@
-{% load static %}
+{% load static %}{% load permission_tags %}
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -67,6 +67,7 @@
           <a href="{% url 'workers:document_alerts' %}" class="{% if request.resolver_match.url_name == 'document_alerts' %}active{% endif %}">
             <span class="nav-icon">&#x26a0;&#xfe0f;</span> 書類アラート
           </a>
+          {% if user|can_use:"hr_evaluation" %}
           <a href="{% url 'evaluation:eval_list' %}" class="{% if request.resolver_match.url_name == 'eval_list' and 'evaluation:' in request.resolver_match.view_name %}active{% endif %}">
             <span class="nav-icon">&#x1f4cf;</span> 人事評価一覧
           </a>
@@ -76,6 +77,7 @@
           <a href="{% url 'evaluation:assignment_list' %}" class="{% if 'assignment' in request.resolver_match.url_name and 'evaluation:' in request.resolver_match.view_name %}active{% endif %}">
             <span class="nav-icon">&#x1f517;</span> 評価対象設定
           </a>
+          {% endif %}
         </div>
       </div>
 

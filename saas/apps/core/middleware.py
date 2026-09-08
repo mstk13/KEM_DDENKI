@@ -42,6 +42,10 @@ _PATH_TO_APP = {
     "/sales/": "sales",
     "/notifications/": "notifications",
     "/settings/": "settings",
+    # 人事評価。/workers/evaluations/ の「人材評価」とは別アプリなので
+    # コードも分けている（あちらは下の分岐で "evaluations" になる）。
+    # ここに載せるまでは /evaluation/ 配下が権限チェックを素通りしていた。
+    "/evaluation/": "hr_evaluation",
 }
 
 # 権限チェック不要のパス
@@ -108,6 +112,13 @@ class AppPermissionMiddleware:
         # 評価系URLの判定
         if app_code == "workers" and "/evaluations/" in path:
             app_code = "evaluations"
+
+        # 役職による制限。allowed_apps を設定していない人にも効かせたいので、
+        # 個別設定より先に見る。
+        from apps.permissions.services import can_use_app
+
+        if not can_use_app(request.user, app_code):
+            raise PermissionDenied("この機能は担当の役職の方のみが利用できます。")
 
         # 権限チェック
         if profile and profile.allowed_apps and app_code not in profile.allowed_apps:
