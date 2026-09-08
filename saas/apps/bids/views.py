@@ -120,11 +120,26 @@ def project_detail(request, pk):
     qual_check = check_qualifications_for_projects(
         [project], request.user.company,
     )[project.pk]
+
+    # 資格不足・要確認のとき、公告が求める資格の隣に弊社の関係する資格を並べる
+    from apps.bids.qualification import related_qualifications
+
+    ours = None
+    if qual_check["eligible"] is not True:
+        # unscoped: company を明示指定
+        qualifications = list(Qualification.unscoped.filter(company=request.user.company))
+        ours = related_qualifications(
+            project.required_issuer_type or project.client,
+            project.required_category or project.category,
+            qualifications,
+        )
+
     return render(request, "bids/project_detail.html", {
         "project": project,
         "cost": cost,
         "competitors": competitors,
         "qual_check": qual_check,
+        "ours": ours,
     })
 
 
