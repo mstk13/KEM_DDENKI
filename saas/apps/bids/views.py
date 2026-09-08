@@ -336,8 +336,19 @@ def skipped_list(request):
 
     qs = qs.order_by(F("deadline").asc(nulls_last=True), "-last_seen_at")
 
+    # 公告が求める資格の隣に、自社の関係する資格を並べる（資格マスタは1回だけ読む）
+    from apps.bids.qualification import related_qualifications
+
+    # unscoped: company を明示指定
+    qualifications = list(Qualification.unscoped.filter(company=request.user.company))
+    skipped = list(qs)
+    for item in skipped:
+        item.ours = related_qualifications(
+            item.required_issuer_type, item.required_category, qualifications,
+        )
+
     return render(request, "bids/skipped_list.html", {
-        "skipped": list(qs),
+        "skipped": skipped,
         "verdict": verdict,
         "target_id": target_id,
         "verdict_choices": SkippedBid.Verdict.choices,
