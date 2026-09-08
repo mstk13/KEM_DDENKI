@@ -386,3 +386,44 @@ def check_qualifications_for_projects(projects, company, today=None):
     # unscoped: company を明示指定（N+1 を避けて一括で読む）
     qualifications = list(Qualification.unscoped.filter(company=company))
     return {p.pk: check_project(p, qualifications, today=today) for p in projects}
+
+
+def related_qualifications(required_issuer_type, required_category, qualifications):
+    """公告が求める資格と照らすために、自社の関係する資格を並べて返す。
+
+    見送り案件の画面で「公告が求める資格」の隣に出す。判定はしない。
+
+    Returns:
+        {
+            "issuer_label": 見出しに使う機関名,
+            "rows": [{"qual": Qualification, "hit": 求める種類・業種と一致するか}],
+        }
+    """
+    issuer_type = (required_issuer_type or "").strip()
+    if issuer_type == UNIFIED_QUALIFICATION_ISSUER:
+        wanted = normalize_category(required_category)
+        rows = [
+            {"qual": q, "hit": normalize_category(q.category) == wanted}
+            for q in qualifications if q.issuer == UNIFIED_QUALIFICATION_ISSUER
+        ]
+        rows.sort(key=lambda r: (not r["hit"], r["qual"].category))
+        return {"issuer_label": UNIFIED_QUALIFICATION_ISSUER, "rows": rows}
+
+    if not issuer_type:
+        return {"issuer_label": "", "rows": []}
+
+    # 「建築一式工事／管工事」のように列挙されていれば、どれかに当たれば一致
+    wanted = [
+        c for part in (required_category or "").split("／")
+        for c in category_candidates(part.strip())
+    ]
+    rows = []
+    for q in qualifications:
+        if q.issuer == UNIFIED_QUALIFICATION_ISSUER:
+            continue
+        if not _issuer_match_score(issuer_type, q.issuer):
+            continue
+        hit = bool(wanted) and _category_matches(q.category, tuple(wanted))
+        rows.append({"qual": q, "hit": hit})
+    rows.sort(key=lambda r: (not r["hit"], r["qual"].issuer, r["qual"].category))
+    return {"issuer_label": issuer_type, "rows": rows}

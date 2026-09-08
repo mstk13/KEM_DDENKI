@@ -8,6 +8,14 @@ tr.skipped-reason td { background: var(--bg-secondary, #f7f8fa); padding-top: 12
 .reason-box dt { font-size: .78rem; color: var(--text-secondary); margin-top: 8px; }
 .reason-box dt:first-child { margin-top: 0; }
 .reason-box dd { margin: 2px 0 0; font-size: .88rem; }
+.compare { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 4px; }
+@media (max-width: 900px) { .compare { grid-template-columns: 1fr; } }
+.compare-col { background: var(--white, #fff); border: 1px solid var(--border-light); border-radius: 6px; padding: 10px 12px; }
+.compare-col h4 { margin: 0 0 6px; font-size: .8rem; color: var(--text-secondary); font-weight: 600; }
+.compare-col table { width: 100%; font-size: .82rem; }
+.compare-col th, .compare-col td { padding: 4px 6px; border-bottom: 1px solid var(--border-light); text-align: left; }
+.compare-col tr.hit td { background: #f0fff4; }
+.compare-col .muted { color: var(--text-muted); font-size: .78rem; }
 .reason-box pre { white-space: pre-wrap; font-family: inherit; font-size: .8rem; line-height: 1.6; margin: 0; max-height: 240px; overflow: auto; background: var(--white, #fff); padding: 10px; border: 1px solid var(--border-light); border-radius: 6px; }
 </style>
 <div class="page-header">
@@ -72,7 +80,7 @@ tr.skipped-reason td { background: var(--bg-secondary, #f7f8fa); padding-top: 12
           <td style="white-space:nowrap;">
             {% if s.required_issuer_type or s.required_category %}
               {{ s.required_issuer_type }}{% if s.required_category %}「{{ s.required_category }}」{% endif %}
-              {% if s.required_grades %}<br><span style="font-size:12px;">{{ s.required_grades }} 等級</span>
+              {% if s.required_grades %}<br><span style="font-size:12px;">{{ s.required_grades }} 等級のいずれか</span>
               {% elif s.required_grade %}<br><span style="font-size:12px;">{{ s.required_grade }} 等級以上</span>{% endif %}
               {% if s.required_score %}<br><span style="font-size:12px;">{{ s.required_score }} 点以上</span>{% endif %}
             {% else %}-{% endif %}
@@ -92,13 +100,47 @@ tr.skipped-reason td { background: var(--bg-secondary, #f7f8fa); padding-top: 12
             <dl class="reason-box">
               <dt>判定の理由</dt>
               <dd>{{ s.reason|default:"-" }}</dd>
-              <dt>公告が求める資格</dt>
+              <dt>公告が求める資格と弊社の登録資格</dt>
               <dd>
-                {% if s.required_issuer_type or s.required_category %}
-                  {{ s.required_issuer_type|default:"（機関不明）" }}{% if s.required_category %} ／ {{ s.required_category }}{% endif %}
-                  {% if s.required_grades %} ／ {{ s.required_grades }} 等級のいずれか{% elif s.required_grade %} ／ {{ s.required_grade }} 等級以上{% endif %}
-                  {% if s.required_score %} ／ {{ s.required_score }} 点以上{% endif %}
-                {% else %}公告から読み取れませんでした{% endif %}
+                <div class="compare">
+                  <div class="compare-col">
+                    <h4>公告が求める資格</h4>
+                    {% if s.required_issuer_type or s.required_category %}
+                    <table>
+                      <tr><th>機関</th><td>{{ s.required_issuer_type|default:"（機関不明）" }}</td></tr>
+                      <tr><th>業種・種類</th><td>{{ s.required_category|default:"-" }}</td></tr>
+                      <tr><th>等級</th><td>
+                        {% if s.required_grades %}{{ s.required_grades }} のいずれか{% elif s.required_grade %}{{ s.required_grade }} 等級以上{% else %}記載なし{% endif %}
+                      </td></tr>
+                      {% if s.required_score %}<tr><th>点数</th><td>{{ s.required_score }} 点以上</td></tr>{% endif %}
+                    </table>
+                    {% else %}<div class="muted">公告から読み取れませんでした</div>{% endif %}
+                  </div>
+                  <div class="compare-col">
+                    <h4>弊社の登録資格{% if s.ours.issuer_label %}（{{ s.ours.issuer_label }}）{% endif %}</h4>
+                    {% if s.ours.rows %}
+                    <table>
+                      <thead><tr><th>機関</th><th>業種・種類</th><th>等級</th><th>点数</th><th>有効期限</th></tr></thead>
+                      <tbody>
+                      {% for r in s.ours.rows %}
+                      <tr{% if r.hit %} class="hit"{% endif %}>
+                        <td>{{ r.qual.issuer }}</td>
+                        <td>{{ r.qual.category|default:"-" }}{% if r.hit %} ✓{% endif %}</td>
+                        <td>{{ r.qual.grade|default:"-" }}</td>
+                        <td>{% if r.qual.total_score %}{{ r.qual.total_score }}{% elif r.qual.keisin_score %}{{ r.qual.keisin_score }}{% else %}-{% endif %}</td>
+                        <td>{{ r.qual.valid_until|date:"Y/n/j"|default:"-" }}</td>
+                      </tr>
+                      {% endfor %}
+                      </tbody>
+                    </table>
+                    <div class="muted">✓ は公告の業種・種類に対応する資格。無ければその業種・種類が未登録です。</div>
+                    {% elif s.ours.issuer_label %}
+                    <div class="muted">「{{ s.ours.issuer_label }}」の資格は登録されていません。</div>
+                    {% else %}
+                    <div class="muted">公告の機関が読み取れないため、照らし合わせる資格を選べません。<a href="{% url 'bids:qualification_list' %}">資格一覧を開く</a></div>
+                    {% endif %}
+                  </div>
+                </div>
               </dd>
               {% if s.requirements %}
               <dt>公告の参加要件（読み取った本文）</dt>

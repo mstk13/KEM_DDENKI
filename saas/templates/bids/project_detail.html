@@ -4,6 +4,20 @@
 {% block topbar_title %}入札案件詳細{% endblock %}
 
 {% block content %}
+<style>
+.compare { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+@media (max-width: 900px) { .compare { grid-template-columns: 1fr; } }
+.compare-col { background: var(--white, #fff); border: 1px solid var(--border-light); border-radius: 6px; padding: 10px 12px; }
+.compare-col h4 { margin: 0 0 6px; font-size: .8rem; color: var(--text-secondary); font-weight: 600; }
+.compare-col table { width: 100%; font-size: .82rem; }
+.compare-col th, .compare-col td { padding: 4px 6px; border-bottom: 1px solid var(--border-light); text-align: left; }
+.compare-col tr.hit td { background: #f0fff4; }
+.compare-col .muted { color: var(--text-muted); font-size: .78rem; margin-top: 6px; }
+.requirements-split { display: grid; grid-template-columns: minmax(0, 3fr) minmax(320px, 2fr); gap: 20px; align-items: start; }
+@media (max-width: 1100px) { .requirements-split { grid-template-columns: 1fr; } }
+.shortfall { background: var(--surface-hover, #f7f8fa); border: 1px solid var(--border-light); border-radius: 8px; padding: 14px 16px; }
+.compare-stack { grid-template-columns: 1fr; }
+</style>
 <div class="page-header">
   <h1>{{ project.title }}</h1>
   <div>
@@ -179,15 +193,61 @@
 
 <div class="card" style="margin-top:20px;">
   <div class="card-header"><h2>参加要件</h2></div>
-  <div class="card-body">
-    {% if project.requirements %}
-    {{ project.requirements|structured_text }}
-    {% else %}
-    <div style="color:var(--gray-400);text-align:center;padding:20px;">
-      未入力です。公告の入札参加資格・実績要件・配置技術者の条件を転記してください。
+  <div class="card-body{% if qual_check.eligible != True %} requirements-split{% endif %}">
+    <div>
+      {% if project.requirements %}
+      {{ project.requirements|structured_text }}
+      {% else %}
+      <div style="color:var(--gray-400);text-align:center;padding:20px;">
+        未入力です。公告の入札参加資格・実績要件・配置技術者の条件を転記してください。
+      </div>
+      {% endif %}
     </div>
+    {% if qual_check.eligible != True %}
+    <aside class="shortfall">
+      <h3 style="font-size:.95rem;margin:0 0 6px;">
+        {% if qual_check.eligible == False %}<span class="badge badge-red">資格不足</span> 不足している資格{% else %}<span class="badge badge-gray">要確認</span> 確認が必要な点{% endif %}
+      </h3>
+      <p style="margin:0 0 12px;font-size:.88rem;">{{ qual_check.reason }}</p>
+      <div class="compare compare-stack">
+        <div class="compare-col">
+          <h4>公告が求める資格</h4>
+          <table>
+            <tr><th>機関</th><td>{{ project.required_issuer_type|default:project.client|default:"-" }}</td></tr>
+            <tr><th>業種・種類</th><td>{{ project.required_category|default:project.category|default:"-" }}</td></tr>
+            <tr><th>等級</th><td>
+              {% if project.required_grades %}{{ project.required_grades }} のいずれか{% elif project.required_grade %}{{ project.required_grade }} 等級以上{% else %}公告に記載なし／未読み取り{% endif %}
+            </td></tr>
+            {% if project.required_score %}<tr><th>点数</th><td>{{ project.required_score }} 点以上</td></tr>{% endif %}
+          </table>
+        </div>
+        <div class="compare-col">
+          <h4>弊社の登録資格{% if ours.issuer_label %}（{{ ours.issuer_label }}）{% endif %}</h4>
+          {% if ours.rows %}
+          <table>
+            <thead><tr><th>機関</th><th>業種・種類</th><th>等級</th><th>点数</th><th>有効期限</th></tr></thead>
+            <tbody>
+            {% for r in ours.rows %}
+            <tr{% if r.hit %} class="hit"{% endif %}>
+              <td>{{ r.qual.issuer }}</td>
+              <td>{{ r.qual.category|default:"-" }}{% if r.hit %} ✓{% endif %}</td>
+              <td>{{ r.qual.grade|default:"-" }}</td>
+              <td>{% if r.qual.total_score %}{{ r.qual.total_score }}{% elif r.qual.keisin_score %}{{ r.qual.keisin_score }}{% else %}-{% endif %}</td>
+              <td>{{ r.qual.valid_until|date:"Y/n/j"|default:"-" }}</td>
+            </tr>
+            {% endfor %}
+            </tbody>
+          </table>
+          <div class="muted">✓ は公告の業種・種類に対応する資格。無ければその業種・種類が未登録です。</div>
+          {% elif ours.issuer_label %}
+          <div class="muted">「{{ ours.issuer_label }}」に対応する資格は登録されていません。<a href="{% url 'bids:qualification_list' %}">資格一覧を開く</a></div>
+          {% else %}
+          <div class="muted">発注機関が分からないため、照らし合わせる資格を選べません。<a href="{% url 'bids:qualification_list' %}">資格一覧を開く</a></div>
+          {% endif %}
+        </div>
+      </div>
+    </aside>
     {% endif %}
-  </div>
   </div>
 </div>
 
