@@ -60,9 +60,11 @@ class WorkerForm(forms.ModelForm):
         model = Worker
         fields = [
             "name", "name_kana", "job_title", "position",
-            "phone", "hourly_cost", "hire_date", "is_active", "note", "discord_user_id",
+            "phone", "hourly_cost", "birth_date", "hire_date", "is_active", "note",
+            "discord_user_id",
         ]
         widgets = {
+            "birth_date": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
             "hire_date": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
         }
 
