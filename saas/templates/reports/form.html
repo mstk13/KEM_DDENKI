@@ -35,7 +35,7 @@
         <button type="submit" name="action" value="submit" class="btn btn-primary">提出する</button>
         <a href="{% url 'reports:list' %}" class="btn btn-outline">キャンセル</a>
         {% if form.instance.pk and can_delete %}
-        <a href="{% url 'reports:delete' form.instance.pk %}" class="btn btn-outline" style="margin-left:auto;color:var(--danger);">この日報を削除</a>
+        <a href="{% url 'reports:delete' form.instance.pk %}" class="btn btn-outline btn-danger-link" style="margin-left:auto;color:var(--danger);">この日報を削除</a>
         {% endif %}
       </div>
     </form>

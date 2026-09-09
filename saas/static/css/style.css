@@ -441,8 +441,22 @@ tbody tr:last-child td { border-bottom: none; }
 .form-control::placeholder { color: var(--text-muted); }
 select.form-control { appearance: auto; }
 textarea.form-control { min-height: 88px; resize: vertical; line-height: 1.6; }
+/* iOS Safari は date/time 入力に固有の幅を持たせ、width:100% でも枠からはみ出す。
+   外観をリセットして他の入力欄と同じ幅・左寄せに揃える。 */
+input[type="date"].form-control,
+input[type="time"].form-control,
+input[type="datetime-local"].form-control,
+input[type="month"].form-control {
+  -webkit-appearance: none; appearance: none;
+  display: block; box-sizing: border-box;
+  width: 100%; max-width: 100%; min-width: 0;
+  -webkit-min-logical-width: 0; min-height: 42px;
+  text-align: left;
+}
+input[type="date"].form-control::-webkit-date-and-time-value,
+input[type="time"].form-control::-webkit-date-and-time-value { text-align: left; }
 .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-.form-actions { display: flex; gap: 10px; margin-top: 28px; padding-top: 20px; border-top: 1px solid var(--border-light); }
+.form-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 28px; padding-top: 20px; border-top: 1px solid var(--border-light); }
 .errorlist { list-style: none; color: var(--danger); font-size: .78rem; margin-top: 4px; }
 
 /* ---- Page header ---- */
@@ -814,6 +828,8 @@ textarea.form-control { min-height: 88px; resize: vertical; line-height: 1.6; }
   .content { padding: 20px 8px; }
   .topbar { padding: 0 16px; }
   .form-row { grid-template-columns: 1fr; }
+  .form-actions .btn { flex: 1 1 calc(50% - 5px); text-align: center; }
+  .form-actions .btn-danger-link { flex-basis: 100%; margin-left: 0 !important; }
   .stats { grid-template-columns: 1fr 1fr; }
   .detail-grid { grid-template-columns: 110px 1fr; }
   .page-header { flex-direction: column; align-items: flex-start; gap: 12px; }
