@@ -22,6 +22,7 @@ from apps.attendance.models import (
     AttendSettings,
 )
 from apps.attendance.plans import (
+    FILL_TARGET_DATES,
     FILL_TARGETS,
     build_day_sheet,
     build_day_timeline,
@@ -642,6 +643,8 @@ def plan_fill(request):
         worker … 作業員PK。空なら在籍中の全員
         month  … YYYY-MM
         target … "weekday"（平日）/ "all"（毎日）/ "0"〜"6"（月〜日曜）
+                 / "dates"（カレンダーで選んだ日。dates に日付を並べる）
+        dates  … YYYY-MM-DD（複数可）。target が "dates" のときだけ使う
         kind   … 埋める区分。空なら対象日の予定を消す
         start_time, end_time … HH:MM。空なら所定どおり
         overwrite … "1" のとき既に入っている日も上書きする
@@ -662,8 +665,19 @@ def plan_fill(request):
         who = "全員"
 
     target = request.POST.get("target", "weekday").strip()
-    days = fill_days(year, month, target)
-    target_label = dict(FILL_TARGETS).get(target, "平日（月〜金）")
+    days = fill_days(year, month, target, request.POST.getlist("dates"))
+    if target == FILL_TARGET_DATES:
+        if not days:
+            messages.error(request, "対象日をカレンダーから選んでください")
+            return redirect(back)
+        # 「9/3・9/10・9/24」のように選んだ日をそのまま見せる。
+        # 多いときは数だけにして、メッセージが長くならないようにする。
+        if len(days) <= 5:
+            target_label = "・".join(f"{d.month}/{d.day}" for d in days)
+        else:
+            target_label = f"選んだ{len(days)}日"
+    else:
+        target_label = dict(FILL_TARGETS).get(target, "平日（月〜金）")
     kind = request.POST.get("kind", "").strip()
 
     if not kind:

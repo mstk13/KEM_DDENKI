@@ -21,6 +21,7 @@
       <dt>職種</dt><dd>{{ worker.job_title|default:"-" }}</dd>
       <dt>役職</dt><dd>{{ worker.position|default:"-" }}</dd>
       {% if is_president %}<dt>時間単価 / 月収</dt><dd>{{ worker.hourly_cost|floatformat:0 }} 円/h <span style="color:var(--gray-400);margin:0 4px;">/</span> {{ monthly_salary|floatformat:0 }} 円/月 <span style="color:var(--gray-400);font-size:.8rem;">(8h×21日)</span></dd>{% endif %}
+      <dt>生年月日</dt><dd>{% if worker.birth_date %}{{ worker.birth_date }} <span style="color:var(--gray-400);font-size:.8rem;">({{ worker.age }}歳)</span>{% else %}-{% endif %}</dd>
       <dt>入社日</dt><dd>{{ worker.hire_date|default:"-" }}</dd>
       <dt>状態</dt><dd>{% if worker.is_active %}<span class="badge badge-green">有効</span>{% else %}<span class="badge badge-gray">無効</span>{% endif %}</dd>
     </dl>

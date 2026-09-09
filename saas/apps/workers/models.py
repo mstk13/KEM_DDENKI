@@ -2,6 +2,7 @@ from django.conf import settings
 from django.db import models
 from django.db.models.signals import post_save
 from django.dispatch import receiver
+from django.utils import timezone
 from simple_history.models import HistoricalRecords
 
 from apps.core.models import TenantModel
@@ -99,6 +100,7 @@ class Worker(TenantModel):
         help_text="労務費CostTransactionの算出単価",
     )
     phone = models.CharField("電話番号", max_length=20, blank=True)
+    birth_date = models.DateField("生年月日", null=True, blank=True)
     hire_date = models.DateField("入社日", null=True, blank=True)
     is_active = models.BooleanField("有効", default=True)
     note = models.TextField("備考", blank=True)
@@ -136,6 +138,15 @@ class Worker(TenantModel):
     def monthly_salary(self):
         """月収目安（8h × 21日）。"""
         return self.hourly_cost * 168
+
+    @property
+    def age(self):
+        """今日時点の満年齢。生年月日が未登録なら None。"""
+        if not self.birth_date:
+            return None
+        today = timezone.localdate()
+        had_birthday = (today.month, today.day) >= (self.birth_date.month, self.birth_date.day)
+        return today.year - self.birth_date.year - (0 if had_birthday else 1)
 
     def __str__(self):
         return self.name

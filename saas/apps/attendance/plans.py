@@ -29,10 +29,13 @@ from apps.attendance.models import AttendPlan, format_time_range
 WEEKDAY_LABELS = ("月", "火", "水", "木", "金", "土", "日")
 
 # まとめて記入の対象。曜日は date.weekday() の値をそのまま文字列で使う。
+# "dates" は画面のカレンダーで選んだ日だけを対象にする（日付は別パラメータで受ける）。
+FILL_TARGET_DATES = "dates"
 FILL_TARGETS = (
     ("weekday", "平日（月〜金）"),
     ("all", "毎日"),
     *((str(i), f"{label}曜日") for i, label in enumerate(WEEKDAY_LABELS)),
+    (FILL_TARGET_DATES, "日付を選ぶ"),
 )
 
 
@@ -42,14 +45,32 @@ def month_days(year: int, month: int) -> list[datetime.date]:
     return [datetime.date(year, month, d) for d in range(1, last + 1)]
 
 
-def fill_days(year: int, month: int, target: str) -> list[datetime.date]:
+def fill_days(
+    year: int, month: int, target: str, picked: list[str] | None = None,
+) -> list[datetime.date]:
     """まとめて記入の対象日を返す。
 
     「同じ曜日をまとめて」を扱うため、平日・毎日と並べて曜日そのものも
     指定できるようにしている（"0"=月曜 … "6"=日曜）。
     読めない指定は平日として扱う。
+
+    target が "dates" のときは、カレンダーで選んだ日（picked、"YYYY-MM-DD"）だけを
+    対象にする。曜日で決まらない飛び飛びの日（棚卸しの日、社内行事など）を
+    1回で埋めるため。月の外の日や読めない値は捨て、重複は1つにする。
+    何も残らなければ空リストを返す（呼び出し側でエラーにする）。
     """
     days = month_days(year, month)
+    if target == FILL_TARGET_DATES:
+        in_month = set(days)
+        chosen = set()
+        for value in picked or ():
+            try:
+                day = datetime.date.fromisoformat((value or "").strip())
+            except ValueError:
+                continue
+            if day in in_month:
+                chosen.add(day)
+        return sorted(chosen)
     if target == "all":
         return days
     if target.isdigit() and 0 <= int(target) <= 6:
@@ -177,6 +198,8 @@ def build_plan_board(company, year: int, month: int) -> dict:
             {"date": info["date"], "count": count}
             for info, count in zip(day_info, totals, strict=True)
         ],
+        # まとめて記入のミニカレンダー用。月曜始まりで1日の前に空けるマスの数。
+        "lead_blanks": range(days[0].weekday()),
         "year": year,
         "month": month,
         "month_str": f"{year}-{month:02d}",
