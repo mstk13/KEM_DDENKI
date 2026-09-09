@@ -131,7 +131,28 @@ USE_TZ = True
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 STATICFILES_DIRS = [BASE_DIR / "static"]
+# ============================================================
+# ファイルの保存方法
+#
+# 【default を消してはいけない】
+# STORAGES は「既定値に追記」ではなく「辞書ごと差し替え」になる。
+# staticfiles だけを書くと、既定にあった default が消える。
+#
+# default は ImageField / FileField の保存先。これが無いと
+# 資格の証明書画像（WorkerQualification.certificate_image）や
+# 健診報告書（HealthCheckup.report_file）の保存時に
+# InvalidStorageError となり、画面には500エラーが出る。
+#
+# しかも起動時のチェックでは検出されない。実際にファイルを
+# 保存する瞬間まで評価されないため、添付機能を踏むまで
+# サーバーは正常に見える。実際にこの事象が発生したため明記する。
+# ============================================================
 STORAGES = {
+    # アップロードされたファイル（MEDIA_ROOT 配下に保存）
+    "default": {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+    },
+    # CSS/JS などの静的ファイル
     "staticfiles": {
         "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
     },
