@@ -10,6 +10,9 @@ urlpatterns = [
     path("<int:pk>/", views.project_detail, name="project_detail"),
     path("<int:pk>/edit/", views.project_edit, name="project_edit"),
     path("<int:pk>/delete/", views.project_delete, name="project_delete"),
+    # ガントチャート上の手直し（案件ごと）と、その既定（会社共通）
+    path("<int:pk>/schedule/", views.schedule_override, name="schedule_override"),
+    path("schedule-rules/", views.schedule_rule_list, name="schedule_rule_list"),
     path("qualifications/", views.qualification_list, name="qualification_list"),
     path("qualifications/new/", views.qualification_create, name="qualification_create"),
     path("qualifications/import/", views.qualification_import, name="qualification_import"),

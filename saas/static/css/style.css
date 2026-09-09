@@ -14,7 +14,9 @@
 
   --text-primary: #1a2744;
   --text-secondary: #3d4f6f;
-  --text-muted: #8896ab;
+  /* 補助テキスト。#8896ab は白背景でコントラスト比 2.9:1 しかなく、
+     現場の明るい場所や年齢によっては読めない。4.5:1 を超える濃さにする。 */
+  --text-muted: #55637a;
   --text-inverse: #ffffff;
 
   --brand: #1a2744;
@@ -354,7 +356,7 @@ table { width: 100%; border-collapse: collapse; }
 .table-wrap.table-slide td { white-space: nowrap; }
 thead th {
   text-align: left; padding: 12px 20px;
-  font-size: .72rem; font-weight: 600; color: var(--white);
+  font-size: .75rem; font-weight: 600; color: var(--white);
   text-transform: uppercase; letter-spacing: .06em;
   border-bottom: none;
   background: var(--brand);
@@ -570,6 +572,239 @@ textarea.form-control { min-height: 88px; resize: vertical; line-height: 1.6; }
 .gantt .gantt-site-6 .bar { fill: #cffafe; } .gantt .gantt-site-6 .bar-progress { fill: #06b6d4; } .legend-swatch.gantt-site-6 { background: #06b6d4; }
 .gantt .gantt-site-7 .bar { fill: #ffedd5; } .gantt .gantt-site-7 .bar-progress { fill: #f97316; } .legend-swatch.gantt-site-7 { background: #f97316; }
 
+/* ---- 入札案件ガント（受注までの流れ） ---- */
+/* 締切までの状態で色分けする。クラス名は bids/gantt.py の custom_class と対応。
+   淡い地色＝その手続きに使える期間、濃い塗り＝すでに経過した分。 */
+.gantt .bar-bid-done .bar { fill: #e2e8f0; }
+.gantt .bar-bid-done .bar-progress { fill: #94a3b8; }
+.legend-swatch.bar-bid-done { background: #94a3b8; }
+
+.gantt .bar-bid-active .bar { fill: #ffedd5; }
+.gantt .bar-bid-active .bar-progress { fill: #ea580c; }
+.legend-swatch.bar-bid-active { background: #ea580c; }
+
+.gantt .bar-bid-upcoming .bar { fill: #dbeafe; }
+.gantt .bar-bid-upcoming .bar-progress { fill: #2563eb; }
+.legend-swatch.bar-bid-upcoming { background: #2563eb; }
+
+/* 開札は流れの終点。落札できるかが決まる日なので他の手続きと色を分ける。 */
+.gantt .bar-bid-goal .bar { fill: #ede9fe; }
+.gantt .bar-bid-goal .bar-progress { fill: #7c3aed; }
+.legend-swatch.bar-bid-goal { background: #7c3aed; }
+
+/* 公告に開始日が書いてある「期間」の項目（交付期間など）。
+   締切のバーと違って他の手続きと並走するので、輪郭を破線にして区別する。 */
+.gantt .bar-bid-period .bar {
+  stroke: var(--text-muted); stroke-width: 1; stroke-dasharray: 3 2;
+}
+
+/* 画面で手直しした項目。公告そのままのバーと見分けが付くようにする。 */
+.gantt .bar-bid-edited .bar {
+  stroke: #c2410c; stroke-width: 1.5; stroke-dasharray: 4 2;
+}
+
+/* ---- 出社予定表（勤怠） ---- */
+/* 行＝作業員 × 列＝日。日数ぶん横に伸びるので、氏名列だけ貼り付けて横スクロールする。
+   文字は最小 12px（.75rem）。31列を詰めるより、読めることを優先して横に流す。 */
+.plan-board-wrap { overflow-x: auto; }
+.plan-board { border-collapse: separate; border-spacing: 0; }
+.plan-board th, .plan-board td { padding: 2px; text-align: center; }
+
+/* 日付ヘッダ。全体の thead は紺地＋白文字だが、それだと日付が読めないので
+   この表だけ白地＋濃い文字に戻す。土日だけ色を付ける。 */
+.plan-board thead th {
+  background: var(--surface); color: var(--text-primary);
+  text-transform: none; letter-spacing: 0;
+  border-bottom: 2px solid var(--border);
+  padding: 4px 2px;
+}
+.plan-board thead th.plan-saturday { background: #e8f1fd; color: #1d4ed8; }
+.plan-board thead th.plan-sunday { background: #fdeaea; color: #c02626; }
+
+.plan-board .plan-name-col {
+  position: sticky; left: 0; z-index: 2;
+  background: var(--surface); color: var(--text-primary);
+  text-align: left; min-width: 150px; padding: 6px 10px;
+  font-size: .82rem; white-space: nowrap;
+  border-right: 2px solid var(--border);
+}
+/* thead の白文字指定を打ち消す。ここが白のままだと氏名が白抜けで消える。 */
+.plan-board thead .plan-name-col {
+  z-index: 3; background: var(--brand-light); color: var(--brand);
+}
+.plan-board tfoot .plan-name-col {
+  background: var(--brand-light); color: var(--brand);
+}
+
+.plan-board .plan-day { min-width: 58px; line-height: 1.25; }
+.plan-board .plan-day-num {
+  display: block; font-size: .88rem; font-weight: 700;
+  color: inherit; text-decoration: none;
+}
+.plan-board .plan-day-num:hover { text-decoration: underline; }
+.plan-board .plan-day-wd { display: block; font-size: .75rem; color: inherit; }
+
+/* 平日は色を付けない（読みやすさを優先）。土日だけ青と赤。 */
+.plan-board td.plan-saturday { background: #f2f7fe; }
+.plan-board td.plan-sunday { background: #fdf5f5; }
+.plan-board .plan-today { box-shadow: inset 0 0 0 2px var(--info); }
+
+.plan-board .plan-cell {
+  width: 100%; min-width: 54px; min-height: 42px;
+  border: 1px solid var(--border); border-radius: 4px;
+  background: var(--surface); cursor: pointer;
+  line-height: 1.25; padding: 4px 2px;
+  color: var(--text-primary); white-space: nowrap; overflow: hidden;
+}
+.plan-board .plan-cell:hover { border-color: var(--accent); }
+.plan-board .plan-cell:disabled { opacity: .5; cursor: wait; }
+/* マスには区分の1文字だけを出す。正式名称はパレット・凡例・
+   ツールチップ・日別画面にある。31列を12px以上で並べるための割り切り。 */
+.plan-board .plan-cell-label {
+  display: block; font-size: .95rem; font-weight: 700;
+}
+.plan-board .plan-cell-time {
+  display: block; font-size: .75rem; color: var(--text-secondary);
+}
+
+/* 日付ヘッダの × は、その日を全員ぶん消すためのもの。
+   常時出すと誤爆するので、列にカーソルを乗せたときだけ濃くする。 */
+.plan-board .plan-day-clear {
+  display: block; margin: 1px auto 0; padding: 0;
+  border: none; background: none; cursor: pointer;
+  font-size: .75rem; line-height: 1; color: var(--border);
+}
+.plan-board .plan-day:hover .plan-day-clear { color: var(--danger); }
+
+.plan-board .plan-total-col, .plan-board .plan-row-total {
+  min-width: 52px; font-weight: 700; font-size: .82rem;
+}
+.plan-board tfoot td {
+  font-weight: 700; font-size: .82rem;
+  background: var(--brand-light); color: var(--brand);
+}
+
+/* 区分パレット。ボタンの色は予定マスと同じクラスで揃える。 */
+.plan-palette { display: flex; flex-wrap: wrap; gap: 6px; }
+.plan-palette .plan-kind {
+  border: 1px solid var(--border); border-radius: var(--radius-full);
+  padding: 6px 16px; font-size: .82rem; font-weight: 600; cursor: pointer;
+  background: var(--surface); color: var(--text-primary);
+}
+.plan-palette .plan-kind.active {
+  box-shadow: 0 0 0 2px var(--brand); border-color: var(--brand);
+}
+.plan-palette .plan-kind-clear { background: var(--surface); color: var(--text-secondary); }
+
+/* 区分の色。値は attendance.AttendPlan.Kind と対応。
+   稼働する区分（出社・現場・直行直帰・出張）は寒色〜暖色の濃いめ、
+   休む区分（在宅・有休・半休・休み）は淡くして、出る日が一目で数えられるようにする。 */
+.plan-kind-office { background: #dbeafe; border-color: #93c5fd; }
+.plan-kind-site { background: #ccfbf1; border-color: #5eead4; }
+.plan-kind-direct { background: #cffafe; border-color: #67e8f9; }
+.plan-kind-trip { background: #ffedd5; border-color: #fdba74; }
+.plan-kind-remote { background: #ede9fe; border-color: #c4b5fd; }
+.plan-kind-paid { background: #fce7f3; border-color: #f9a8d4; }
+.plan-kind-half { background: #fef3c7; border-color: #fcd34d; }
+.plan-kind-off { background: #e5e7eb; border-color: #d1d5db; color: var(--text-secondary); }
+
+/* まとめて記入のフォーム。1行に収まらない幅では折り返す。 */
+.plan-fill-form {
+  display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;
+}
+.plan-fill-check {
+  display: flex; align-items: center; gap: 6px;
+  font-size: .82rem; color: var(--text-primary); white-space: nowrap;
+}
+
+/* マスの詳細ダイアログ（区分・時刻・メモ・削除）。 */
+.plan-dialog {
+  border: none; border-radius: var(--radius); padding: 22px;
+  min-width: 320px; max-width: 92vw;
+  box-shadow: var(--shadow-lg); color: var(--text-primary);
+}
+.plan-dialog::backdrop { background: rgba(15, 26, 48, .45); }
+
+/* ---- 1日のタイムライン（24時間） ---- */
+/* 「その日に出るか」しか分からない月グリッドに対して、
+   朝と午後で現場が違うといった時間の重なりを見るための図。
+   帯は0:00〜24:00を100%として絶対配置する。位置の計算はサーバ側
+   （plans.build_day_timeline）で済ませ、ここは並べるだけ。 */
+.plan-timeline { min-width: 720px; padding: 0 24px 8px; }
+.plan-timeline-head, .plan-timeline-row { display: flex; align-items: stretch; }
+.plan-timeline-head { padding-bottom: 4px; }
+
+.plan-timeline-name {
+  flex: 0 0 190px; padding: 8px 10px 8px 0;
+  font-size: .82rem; color: var(--text-primary);
+  border-right: 2px solid var(--border);
+}
+.plan-timeline-head .plan-timeline-name { font-weight: 700; }
+.plan-timeline-kind {
+  display: block; font-size: .75rem; color: var(--text-secondary);
+}
+
+.plan-timeline-track {
+  position: relative; flex: 1 1 auto; min-height: 40px;
+  margin-left: 10px; border-bottom: 1px solid var(--border-light);
+}
+.plan-timeline-head .plan-timeline-track {
+  min-height: 22px; border-bottom: 2px solid var(--border);
+}
+
+/* 目盛り。3時間おき。24 のラベルだけ右端からはみ出すので内側に寄せる。 */
+.plan-timeline-tick {
+  position: absolute; top: 2px; transform: translateX(-50%);
+  font-size: .75rem; color: var(--text-secondary); white-space: nowrap;
+}
+.plan-timeline-grid {
+  position: absolute; top: 0; bottom: 0; width: 1px; background: var(--border-light);
+}
+/* 現在時刻。今日を見ているときだけ出る。 */
+.plan-timeline-now {
+  position: absolute; top: 0; bottom: 0; width: 2px; background: var(--danger);
+  opacity: .65;
+}
+
+.plan-timeline-bar {
+  position: absolute; top: 6px; bottom: 6px;
+  display: flex; flex-direction: column; justify-content: center;
+  border: 1px solid var(--border); border-radius: 4px;
+  padding: 2px 8px; font-size: .78rem; color: var(--text-primary);
+  overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+  box-sizing: border-box;
+}
+.plan-timeline-bar-time { font-size: .75rem; color: var(--text-secondary); }
+
+/* 帯にしない区分（有休・休み・出張）。時間が決まらないので左端に置く。 */
+.plan-timeline-flat {
+  position: absolute; top: 10px; left: 0;
+  border: 1px dashed var(--text-muted); border-radius: 4px;
+  padding: 3px 10px; font-size: .78rem; color: var(--text-primary);
+}
+
+/* 日別シート。曜日は月グリッドと同じ色分けにする。 */
+.plan-day-sat { color: #1d4ed8; }
+.plan-day-sun { color: #c02626; }
+
+/* 区分に要らない欄は消さずに無効化する。列を消すと行がずれて、
+   他の人と見比べられなくなるため。 */
+.plan-day-table input:disabled, .plan-day-table select:disabled {
+  background: #eef1f6; color: var(--text-muted); cursor: not-allowed;
+}
+
+/* 日別シートの行。選んだ区分の色を行そのものに乗せて、
+   保存前でも「今この日は誰が出るか」が縦に読めるようにする。 */
+.plan-day-row th, .plan-day-row td { background: transparent; }
+.plan-day-row.plan-kind-office { background: #dbeafe; }
+.plan-day-row.plan-kind-site { background: #ccfbf1; }
+.plan-day-row.plan-kind-direct { background: #cffafe; }
+.plan-day-row.plan-kind-trip { background: #ffedd5; }
+.plan-day-row.plan-kind-remote { background: #ede9fe; }
+.plan-day-row.plan-kind-paid { background: #fce7f3; }
+.plan-day-row.plan-kind-half { background: #fef3c7; }
+.plan-day-row.plan-kind-off { background: #e5e7eb; }
+
 /* ---- Responsive ---- */
 @media (max-width: 768px) {
   .sidebar { transform: translateX(-100%); box-shadow: none; }
@@ -582,8 +817,8 @@ textarea.form-control { min-height: 88px; resize: vertical; line-height: 1.6; }
   .stats { grid-template-columns: 1fr 1fr; }
   .detail-grid { grid-template-columns: 110px 1fr; }
   .page-header { flex-direction: column; align-items: flex-start; gap: 12px; }
-  thead th { padding: 8px 6px; font-size: .68rem; white-space: nowrap; }
+  thead th { padding: 8px 6px; font-size: .75rem; white-space: nowrap; }
   td { padding: 10px 6px; font-size: .82rem; white-space: nowrap; }
-  .btn-sm { padding: 4px 8px; font-size: .72rem; }
+  .btn-sm { padding: 4px 8px; font-size: .75rem; }
 }
 @media (max-width: 480px) { .stats { grid-template-columns: 1fr; } }

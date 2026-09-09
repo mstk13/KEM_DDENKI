@@ -26,6 +26,7 @@
 """
 from __future__ import annotations
 
+import datetime
 import io
 import logging
 import re
@@ -34,7 +35,6 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
-from datetime import date
 
 logger = logging.getLogger(__name__)
 
@@ -387,32 +387,30 @@ _TIME_H = re.compile(r"[０-９\d]{1,2}\s*時(?!\s*[０-９\d])")
 _NOON = re.compile(r"正午")
 
 
-def _parse_date_str(text: str) -> date | None:
+def _parse_date_str(text: str) -> datetime.date | None:
     """令和日付文字列を date オブジェクトに変換する。"""
-    from datetime import date as _date
-
     raw = text.translate(_ZENKAKU_NUM)
     raw = re.sub(r"\s+", "", raw)
     m = re.search(r"令和(\d+)年(\d+)月(\d+)日", raw)
     if not m:
         return None
     try:
-        return _date(2018 + int(m.group(1)), int(m.group(2)), int(m.group(3)))
+        return datetime.date(
+            2018 + int(m.group(1)), int(m.group(2)), int(m.group(3)),
+        )
     except ValueError:
         return None
 
 
-def _parse_same_year_date(text: str, ref_year: int) -> date | None:
+def _parse_same_year_date(text: str, ref_year: int) -> datetime.date | None:
     """「同年X月Y日」を参照年で解決する。"""
-    from datetime import date as _date
-
     raw = text.translate(_ZENKAKU_NUM)
     raw = re.sub(r"\s+", "", raw)
     m = re.search(r"同年(\d+)月(\d+)日", raw)
     if not m:
         return None
     try:
-        return _date(ref_year, int(m.group(1)), int(m.group(2)))
+        return datetime.date(ref_year, int(m.group(1)), int(m.group(2)))
     except ValueError:
         return None
 
@@ -420,27 +418,41 @@ def _parse_same_year_date(text: str, ref_year: int) -> date | None:
 def _extract_time(text: str) -> str:
     """テキストから時刻を抽出する。「正午」「17時」「12時00分」に対応。
 
+    日付の直後に来る時刻がその項目の時刻なので、書式の優先順位ではなく
+    「最も手前に現れたもの」を採る。防衛省の別表は開札の行のあとに
+    「（紙入札方式の場合は……正午から13時までの間を除く）」という注記が続き、
+    正午を先に見ると開札 15 時が 12:00 に化ける。
+
     Returns: "HH:MM" または ""
     """
-    if _NOON.search(text):
-        return "12:00"
+    found = []
+
+    m = _NOON.search(text)
+    if m:
+        found.append((m.start(), "12:00"))
+
     m = _TIME_HM.search(text)
     if m:
-        raw = m.group().translate(_ZENKAKU_NUM)
-        raw = re.sub(r"\s+", "", raw)
+        raw = re.sub(r"\s+", "", m.group().translate(_ZENKAKU_NUM))
         tm = re.match(r"(\d+)時(\d+)分", raw)
         if tm:
-            return f"{int(tm.group(1)):02d}:{int(tm.group(2)):02d}"
+            found.append(
+                (m.start(), f"{int(tm.group(1)):02d}:{int(tm.group(2)):02d}")
+            )
+
     m = _TIME_H.search(text)
     if m:
-        raw = m.group().translate(_ZENKAKU_NUM).strip()
+        raw = re.sub(r"\s+", "", m.group().translate(_ZENKAKU_NUM))
         tm = re.match(r"(\d+)時", raw)
         if tm:
-            return f"{int(tm.group(1)):02d}:00"
-    return ""
+            found.append((m.start(), f"{int(tm.group(1)):02d}:00"))
+
+    if not found:
+        return ""
+    return min(found)[1]
 
 
-def _make_datetime_str(d: date, time_str: str) -> str:
+def _make_datetime_str(d: datetime.date, time_str: str) -> str:
     """date と時刻文字列から ISO datetime を作る。"""
     if time_str:
         return f"{d.isoformat()}T{time_str}"
@@ -501,6 +513,17 @@ def _normalize_label(raw_label: str) -> str:
     return re.sub(r"\s+", "", raw_label).strip()
 
 
+def _final_day_time(block: str) -> str:
+    """「（ただし、最終日は17時まで）」の時刻を返す。無ければ空文字。
+
+    交付期間の本文は「9時から18時まで（ただし、最終日は17時まで）」のように
+    日々の受付時間を先に書く。期間の締め切りとして意味があるのは最終日の方。
+    """
+    if "最終日" not in block:
+        return ""
+    return _extract_time(block[block.index("最終日"):])
+
+
 def _extract_last_date_with_time(block: str, ref_year: int = 0) -> str | None:
     """ブロックから最後の日付+時刻を抽出する（期間の終了日用）。"""
     # 「同年」を先にチェック
@@ -512,10 +535,7 @@ def _extract_last_date_with_time(block: str, ref_year: int = 0) -> str | None:
         d = _parse_same_year_date(last.group(), ref_year)
         if d:
             after = block[last.end():]
-            time_str = _extract_time(after)
-            # 「最終日はXX時まで」パターン
-            if not time_str and "最終日" in block:
-                time_str = _extract_time(block[block.index("最終日"):])
+            time_str = _final_day_time(block) or _extract_time(after)
             return _make_datetime_str(d, time_str)
 
     if reiwa_dates:
@@ -523,9 +543,7 @@ def _extract_last_date_with_time(block: str, ref_year: int = 0) -> str | None:
         d = _parse_date_str(last.group())
         if d:
             after = block[last.end():]
-            time_str = _extract_time(after)
-            if not time_str and "最終日" in block:
-                time_str = _extract_time(block[block.index("最終日"):])
+            time_str = _final_day_time(block) or _extract_time(after)
             return _make_datetime_str(d, time_str)
 
     return None
@@ -542,6 +560,20 @@ def _extract_first_date_with_time(block: str) -> str | None:
     after = block[m.end():]
     time_str = _extract_time(after)
     return _make_datetime_str(d, time_str)
+
+
+def _extract_range_start(block: str, end: str | None) -> str:
+    """期間項目の開始日時を返す。取れなければ空文字。
+
+    「令和8年9月4日から同年11月10日まで」の前半。終了日時（end）より
+    後ろに来てしまったら日付の拾い違いなので捨てる。
+    """
+    if not end:
+        return ""
+    start = _extract_first_date_with_time(block)
+    if not start or start >= end:
+        return ""
+    return start
 
 
 def _is_range_item(label: str) -> bool:
@@ -603,8 +635,10 @@ def extract_bid_schedule(text: str) -> list[dict]:
                 ref_year = d.year
 
         # 期間の場合は最後の日付、単一イベントは最初
+        start = ""
         if _is_range_item(label):
             dt = _extract_last_date_with_time(block, ref_year)
+            start = _extract_range_start(block, dt)
         else:
             dt = _extract_first_date_with_time(block)
 
@@ -625,7 +659,12 @@ def extract_bid_schedule(text: str) -> list[dict]:
         if place_m:
             detail = f"{detail} {place_m.group()}" if detail else place_m.group()
 
-        schedule.append({"label": label, "datetime": dt, "detail": detail.strip()})
+        schedule.append({
+            "label": label,
+            "start": start,
+            "datetime": dt,
+            "detail": detail.strip(),
+        })
         seen_labels.add(label)
 
     # --- 方式2: 別表形式（「X．入札手続等 ... 令和...」）---
@@ -657,8 +696,10 @@ def extract_bid_schedule(text: str) -> list[dict]:
                     block_lines.append(lines[j])
                 block = _clean_block(" ".join(block_lines))
 
+                start = ""
                 if is_range:
                     dt = _extract_last_date_with_time(block)
+                    start = _extract_range_start(block, dt)
                 else:
                     dt = _extract_first_date_with_time(block)
                 if not dt:
@@ -673,7 +714,12 @@ def extract_bid_schedule(text: str) -> list[dict]:
                         suffix = f"最終日は{time_str}まで"
                         detail = f"{detail}（{suffix}）" if detail else suffix
 
-                schedule.append({"label": label, "datetime": dt, "detail": detail.strip()})
+                schedule.append({
+                    "label": label,
+                    "start": start,
+                    "datetime": dt,
+                    "detail": detail.strip(),
+                })
                 seen_labels.add(label)
                 break
 

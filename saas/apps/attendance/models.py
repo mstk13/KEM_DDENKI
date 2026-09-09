@@ -74,6 +74,139 @@ class AttendEntry(TenantModel):
         return f"{self.employee_name} ({self.report.report_date})"
 
 
+class AttendPlan(TenantModel):
+    """出社予定。作業員1人・1日ぶんの予定を1件で持つ。
+
+    実績（AttendReport / AttendEntry）とは別テーブルにする。予定は先の日付を
+    先回りで埋めるもので、実績は日報から後で入る。同じ行に持つと
+    「予定のまま実績が入っていない日」と「休みだった日」の区別が付かなくなる。
+
+    予定が無い日は行を作らない（＝未定）。月の全マスに行を作ると、
+    人数×日数ぶんの空行が毎月増えるだけで読み取れる情報が増えない。
+    """
+
+    class Kind(models.TextChoices):
+        OFFICE = "office", "出社"
+        SITE = "site", "現場"
+        DIRECT = "direct", "直行直帰"
+        REMOTE = "remote", "在宅"
+        TRIP = "trip", "出張"
+        PAID = "paid", "有休"
+        HALF = "half", "半休"
+        OFF = "off", "休み"
+
+    # 「その日に稼働する」とみなす区分。日ごとの出社人数はこれで数える。
+    # 在宅・有休・休みは人数に入れない。半休は現場に出るとは限らないため除く。
+    WORKING_KINDS = ("office", "site", "direct", "trip")
+
+    # 予定表のマスに出す1文字。31日ぶんを横に並べるので、
+    # 「直行直帰」のような語をそのまま出すと列が広がりすぎて月が一覧できない。
+    # 正式名称はパレット・凡例・日別画面・ツールチップに出る。
+    SHORT_LABELS = {
+        "office": "出",
+        "site": "現",
+        "direct": "直",
+        "remote": "宅",
+        "trip": "張",
+        "paid": "有",
+        "half": "半",
+        "off": "休",
+    }
+
+    # 区分ごとに何を登録させるか。画面の入力欄の出し分けはこの定義に従う。
+    #   time  … 開始・終了時刻を訊く
+    #   place … 場所の入力欄のラベル。空なら訊かない
+    #   span  … 複数日にまたがる登録（何日から何日まで）を許す
+    # 出張だけ span を持つ。行先へ行って戻るまでが1件の予定で、
+    # 曜日をまたぐのが普通のため。保存時は日ごとの行に展開する
+    # （1日1行という持ち方を崩すと、出社人数の集計と月グリッドが成り立たない）。
+    KIND_FIELDS = {
+        "office": {"time": True, "place": "", "span": False},
+        "site": {"time": True, "place": "現場名", "span": False},
+        "direct": {"time": True, "place": "現場名", "span": False},
+        "remote": {"time": True, "place": "", "span": False},
+        "trip": {"time": False, "place": "行先", "span": True},
+        "paid": {"time": False, "place": "", "span": False},
+        "half": {"time": True, "place": "", "span": False},
+        "off": {"time": False, "place": "", "span": False},
+    }
+
+    # 出張などで一度に展開できる日数の上限。
+    # 日付の打ち間違い（2026 → 2036）で数千行作らないための歯止め。
+    MAX_SPAN_DAYS = 92
+
+    worker = models.ForeignKey(
+        "workers.Worker",
+        on_delete=models.CASCADE,
+        related_name="attend_plans",
+        verbose_name="作業員",
+    )
+    plan_date = models.DateField("予定日")
+    kind = models.CharField(
+        "区分", max_length=20, choices=Kind.choices, default=Kind.OFFICE,
+    )
+    # 空なら「所定どおり」。AttendSettings の standard_start / standard_end を
+    # 既定として画面に出すが、値はコピーせず空のままにする。
+    # コピーすると所定時間を変えたときに過去の予定まで書き換わってしまう。
+    start_time = models.TimeField("開始時刻", null=True, blank=True)
+    end_time = models.TimeField("終了時刻", null=True, blank=True)
+    # 現場・直行直帰なら現場名、出張なら行先。区分ごとに意味が変わるだけで
+    # 「どこへ行くか」という同じ情報なので、列は分けない。
+    # 画面側のラベルは KIND_FIELDS の place を使う。
+    note = models.CharField(
+        "場所・メモ", max_length=200, blank=True,
+        help_text="現場名・行き先など",
+    )
+
+    history = HistoricalRecords()
+
+    class Meta:
+        verbose_name = "出社予定"
+        verbose_name_plural = "出社予定"
+        ordering = ["plan_date", "worker__name"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["company", "worker", "plan_date"],
+                name="uniq_attend_plan_worker_date",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.worker} {self.plan_date} {self.get_kind_display()}"
+
+    @property
+    def is_working(self) -> bool:
+        """その日に稼働する予定か。"""
+        return self.kind in self.WORKING_KINDS
+
+    @property
+    def short_label(self) -> str:
+        """予定表のマスに出す1文字。"""
+        return self.SHORT_LABELS.get(self.kind, "")
+
+    @property
+    def time_label(self) -> str:
+        """マスに出す短い時刻表記。「9-17」「9:30-17」。時刻未設定なら空。"""
+        return format_time_range(self.start_time, self.end_time)
+
+
+def format_time_range(start, end) -> str:
+    """時刻の組を短く書く。予定表のマスは狭いので分は0のとき省く。
+
+    夜間工事があるため終了が開始より早い組み合わせも許す（日をまたぐ想定）。
+    """
+    def fmt(value):
+        return f"{value.hour}:{value.minute:02d}" if value.minute else str(value.hour)
+
+    if start and end:
+        return f"{fmt(start)}-{fmt(end)}"
+    if start:
+        return f"{fmt(start)}-"
+    if end:
+        return f"-{fmt(end)}"
+    return ""
+
+
 class AttendSettings(TenantModel):
     """勤怠計算用のキーバリュー設定。"""
 
