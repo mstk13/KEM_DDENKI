@@ -620,17 +620,29 @@ input[type="time"].form-control::-webkit-date-and-time-value { text-align: left;
 /* ---- 出社予定表（勤怠） ---- */
 /* 行＝作業員 × 列＝日。日数ぶん横に伸びるので、氏名列だけ貼り付けて横スクロールする。
    文字は最小 12px（.75rem）。31列を詰めるより、読めることを優先して横に流す。 */
-.plan-board-wrap { overflow-x: auto; }
+/* 人数が多いと下にスクロールしたときに日付が見えなくなるので、
+   表の枠を画面の高さに収めて枠の中でスクロールさせ、日付行（thead）を上に、
+   出社人数（tfoot）を下に貼り付ける。ページ全体をスクロールさせる作りだと
+   overflow-x:auto の枠が sticky の基準になってしまい、上には貼り付かない。 */
+.plan-board-wrap {
+  overflow: auto;
+  max-height: calc(100vh - var(--topbar-h) - 40px);
+}
 .plan-board { border-collapse: separate; border-spacing: 0; }
 .plan-board th, .plan-board td { padding: 2px; text-align: center; }
 
 /* 日付ヘッダ。全体の thead は紺地＋白文字だが、それだと日付が読めないので
    この表だけ白地＋濃い文字に戻す。土日だけ色を付ける。 */
 .plan-board thead th {
+  position: sticky; top: 0; z-index: 3;
   background: var(--surface); color: var(--text-primary);
   text-transform: none; letter-spacing: 0;
   border-bottom: 2px solid var(--border);
   padding: 4px 2px;
+}
+.plan-board tfoot th, .plan-board tfoot td {
+  position: sticky; bottom: 0; z-index: 3;
+  border-top: 2px solid var(--border);
 }
 .plan-board thead th.plan-saturday { background: #e8f1fd; color: #1d4ed8; }
 .plan-board thead th.plan-sunday { background: #fdeaea; color: #c02626; }
@@ -642,12 +654,13 @@ input[type="time"].form-control::-webkit-date-and-time-value { text-align: left;
   font-size: .82rem; white-space: nowrap;
   border-right: 2px solid var(--border);
 }
-/* thead の白文字指定を打ち消す。ここが白のままだと氏名が白抜けで消える。 */
+/* thead の白文字指定を打ち消す。ここが白のままだと氏名が白抜けで消える。
+   左上・左下の角は縦横どちらにも貼り付くので、日付行より前面に出す。 */
 .plan-board thead .plan-name-col {
-  z-index: 3; background: var(--brand-light); color: var(--brand);
+  z-index: 4; background: var(--brand-light); color: var(--brand);
 }
 .plan-board tfoot .plan-name-col {
-  background: var(--brand-light); color: var(--brand);
+  z-index: 4; background: var(--brand-light); color: var(--brand);
 }
 
 .plan-board .plan-day { min-width: 58px; line-height: 1.25; }
@@ -730,6 +743,44 @@ input[type="time"].form-control::-webkit-date-and-time-value { text-align: left;
   display: flex; align-items: center; gap: 6px;
   font-size: .82rem; color: var(--text-primary); white-space: nowrap;
 }
+
+/* まとめて記入のミニカレンダー。対象日で「日付を選ぶ」にしたときだけ出る。
+   月曜始まりの7列。選んだ日はブランド色で塗る。チェックボックス自体は隠し、
+   マス全体をクリックで切り替える。 */
+.plan-pick {
+  flex-basis: 100%;
+  border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 12px 14px; background: var(--bg);
+}
+.plan-pick-head {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  margin-bottom: 8px; font-size: .82rem; color: var(--text-secondary);
+}
+.plan-pick-count { font-weight: 700; color: var(--brand); }
+.plan-pick-grid {
+  display: grid; grid-template-columns: repeat(7, 44px); gap: 4px;
+}
+.plan-pick-wd {
+  text-align: center; font-size: .75rem; color: var(--text-secondary);
+  padding-bottom: 2px;
+}
+.plan-pick-day {
+  position: relative; display: flex; align-items: center; justify-content: center;
+  height: 36px; border: 1px solid var(--border); border-radius: 4px;
+  background: var(--surface); cursor: pointer; user-select: none;
+  font-size: .88rem; font-weight: 600; color: var(--text-primary);
+}
+.plan-pick-day.plan-saturday { background: #f2f7fe; color: #1d4ed8; }
+.plan-pick-day.plan-sunday { background: #fdf5f5; color: #c02626; }
+.plan-pick-day.plan-today { box-shadow: inset 0 0 0 2px var(--info); }
+.plan-pick-day:hover { border-color: var(--accent); }
+.plan-pick-day input {
+  position: absolute; opacity: 0; width: 0; height: 0; margin: 0;
+}
+.plan-pick-day:has(input:checked) {
+  background: var(--brand); border-color: var(--brand); color: var(--white);
+}
+.plan-pick-day:has(input:focus-visible) { outline: 2px solid var(--accent); }
 
 /* マスの詳細ダイアログ（区分・時刻・メモ・削除）。 */
 .plan-dialog {
