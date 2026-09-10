@@ -3,12 +3,16 @@
 
 Role × Module の組み合わせで can_read / can_write / can_admin を制御する。
 社長が権限マトリクス画面から設定を変更でき、ユーザーにロールを付与する。
+
+AppAccess は、これらを置き換える機能別の利用者リスト（ADR-0030）。
 """
 
 from django.conf import settings
 from django.db import models
+from simple_history.models import HistoricalRecords
 
 from apps.core.models import TenantModel
+from apps.permissions.app_registry import APP_CHOICES
 
 
 class Role(TenantModel):
@@ -125,3 +129,43 @@ class UserRole(TenantModel):
 
     def __str__(self):
         return f"{self.user} → {self.role.name}"
+
+
+class AppAccess(TenantModel):
+    """機能 × 作業員 の利用者リスト（ADR-0030）。
+
+    1行あれば、その作業員はその機能を使える。can_approve は承認のある機能
+    （app_registry で approvable な日報・原価）でだけ意味を持つ。
+
+    expand の段階。ミドルウェア・ナビ・原価ビューはまだこれを見ていない。
+    """
+
+    worker = models.ForeignKey(
+        "workers.Worker",
+        on_delete=models.CASCADE,
+        related_name="app_accesses",
+        verbose_name="作業員",
+    )
+    app_key = models.CharField("機能", max_length=30, choices=APP_CHOICES)
+    can_approve = models.BooleanField(
+        "承認できる",
+        default=False,
+        help_text="承認のある機能（日報・原価）でのみ有効",
+    )
+
+    history = HistoricalRecords()
+
+    class Meta:
+        verbose_name = "機能の利用者"
+        verbose_name_plural = "機能の利用者"
+        ordering = ["app_key", "worker__name"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["company", "worker", "app_key"],
+                name="permissions_app_access_unique",
+            ),
+        ]
+
+    def __str__(self):
+        suffix = "（承認）" if self.can_approve else ""
+        return f"{self.worker} - {self.get_app_key_display()}{suffix}"

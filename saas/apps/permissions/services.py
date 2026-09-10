@@ -5,7 +5,60 @@ views.py / middleware / decorators から呼ぶ。
 将来の DRF API 移行時にもそのまま使える。
 """
 
-from apps.permissions.models import ModulePermission, Role
+from apps.permissions.app_registry import get_app
+from apps.permissions.models import AppAccess, ModulePermission, Role
+
+
+def _app_access_rows(user, app_key: str):
+    """ユーザーの作業員に付いた、その機能の AppAccess を返す。
+
+    作業員が紐づいていないユーザーは None。
+    """
+    worker = getattr(user, "worker_profile", None)
+    if worker is None:
+        return None
+    # unscoped: 切り替え後はミドルウェア（テナントコンテキストの外）から呼ぶため、
+    # マネージャに頼らず作業員の会社で明示的に絞る。会社の食い違った行では開かない。
+    return AppAccess.unscoped.filter(
+        company_id=worker.company_id, worker=worker, app_key=app_key,
+    )
+
+
+def has_app_access(user, app_key: str) -> bool:
+    """機能別の利用者リスト（AppAccess）で、その機能を使えるかを返す（ADR-0030）。
+
+    まだミドルウェア・ナビ・原価ビューからは呼んでいない（expand の段階）。
+    今の判定は can_use_app / Worker.allowed_apps / _has_cost_access のままで、
+    切り替えは後続の PR で行う。
+
+    未登録の app_key は ValueError。打ち間違いで黙って閉じたり開いたり
+    しないよう、ユーザーを見る前に確かめる。
+    """
+    get_app(app_key)
+    if not user.is_authenticated:
+        return False
+    if user.is_superuser:
+        return True
+    rows = _app_access_rows(user, app_key)
+    return rows is not None and rows.exists()
+
+
+def can_approve_app(user, app_key: str) -> bool:
+    """その機能で承認できるかを返す（ADR-0030）。
+
+    承認のある機能（app_registry で approvable）で、AppAccess の can_approve が
+    立っているときだけ True。承認のない機能には承認者がいないので、superuser でも
+    False にする。has_app_access と同じく、まだ日報承認などの判定には使っていない。
+
+    未登録の app_key は ValueError。
+    """
+    app = get_app(app_key)
+    if not app.approvable or not user.is_authenticated:
+        return False
+    if user.is_superuser:
+        return True
+    rows = _app_access_rows(user, app_key)
+    return rows is not None and rows.filter(can_approve=True).exists()
 
 # 役職で利用を絞るアプリ。ここに載っていないアプリは従来どおり全員が使える。
 #
