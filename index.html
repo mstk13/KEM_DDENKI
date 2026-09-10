@@ -442,7 +442,7 @@ flowchart LR
   <tr><td><code>materials</code></td><td><code>/materials/</code></td><td>Material, Quotation, PurchaseOrder, Delivery, Inventory, MaterialSupplier, ProcurementRecord</td><td>見積比較 → 発注 → 納品検収 → 在庫。PDF 生成あり</td></tr>
   <tr><td><code>schedules</code></td><td><code>/schedules/</code></td><td>Phase, Milestone, Assignment, PhaseTemplate</td><td>ガントチャート・配置カレンダー・工程テンプレート</td></tr>
   <tr><td><code>workers</code></td><td><code>/workers/</code></td><td>Worker, JobTitle, Position, WorkerQualification, HealthCheckup</td><td>作業員・資格期限（5段階アラート）・スキルマップ・健康診断</td></tr>
-  <tr><td><code>attendance</code></td><td><code>/attendance/</code></td><td>AttendReport, AttendEntry, AttendSettings</td><td>勤怠集計</td></tr>
+  <tr><td><code>attendance</code></td><td><code>/attendance/</code></td><td>AttendPlan, AttendSettings</td><td>出社予定（人繰り）。実績と月次集計は <code>reports</code> 側（ADR-0024）</td></tr>
   <tr><td><code>evaluation</code></td><td><code>/evaluation/</code></td><td>EvalItem, Evaluation, EvalScore, EvalOverall</td><td>人材評価（評価項目・アンケート・総合評価）</td></tr>
   <tr><td><code>notifications</code></td><td><code>/notifications/</code></td><td>Notification, AlertRule, AlertLog</td><td>全モジュール共通の通知センターとアラート判定</td></tr>
   <tr><td><code>ai</code></td><td><code>/ai/</code></td><td>AILog, AIBatchRequest, AIFeedback</td><td>Claude によるコスト分析・工程提案、LightGBM 予測</td></tr>
