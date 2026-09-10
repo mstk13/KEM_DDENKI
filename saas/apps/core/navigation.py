@@ -208,19 +208,9 @@ NAVIGATION: tuple[NavItem | NavGroup, ...] = (
                 "🗓️",
                 ("attendance:plan_*",),
             ),
-            NavItem(
-                "勤怠日報",
-                "attendance:report_list",
-                "📋",
-                ("attendance:report_*",),
-            ),
-            NavItem(
-                "個人別一覧",
-                "attendance:entry_list",
-                "👥",
-                ("attendance:entry_list", "attendance:employee_record"),
-            ),
-            NavItem("月次サマリ", "attendance:summary", "📊"),
+            # 実績は日報（reports）に一本化した。月次サマリは日報側の
+            # 月別集計をそのまま指す。ADR-0024。
+            NavItem("月次サマリ", "reports:monthly_summary", "📊"),
             NavItem("勤怠設定", "attendance:settings", "⚙️"),
         ),
     ),
