@@ -132,6 +132,11 @@ def _get_alert_recipients(company, roles):
     ).distinct()
 
 
+# 原価・工期のアラート対象にする現場の状態。受注してから完工するまでの間。
+# 以前は status="active" で絞っていたが、Site.Status に active は無く常に0件だった。
+_ACTIVE_SITE_STATUSES = ("ordered", "in_progress")
+
+
 def check_cost_alerts(company):
     """原価アラートチェック。予算消化率が閾値を超えた現場を検出する。
 
@@ -149,7 +154,7 @@ def check_cost_alerts(company):
     if not rules.exists():
         return
 
-    active_sites = Site.unscoped.filter(company=company, status="active")
+    active_sites = Site.unscoped.filter(company=company, status__in=_ACTIVE_SITE_STATUSES)
 
     for site in active_sites:
         budget_total = (
@@ -295,7 +300,7 @@ def check_schedule_delay_alerts(company):
 
     sites = Site.unscoped.filter(
         company=company,
-        status="active",
+        status__in=_ACTIVE_SITE_STATUSES,
         end_date__isnull=False,
     )
 
@@ -346,7 +351,11 @@ def check_bid_deadline_alerts(company):
 
     active_bids = BidProject.unscoped.filter(
         company=company,
-        status__in=["NEW", "CONSIDERING", "BID"],
+        status__in=[
+            BidProject.Status.NEW,
+            BidProject.Status.CONSIDERING,
+            BidProject.Status.BID,
+        ],
         deadline__isnull=False,
     )
 
