@@ -7,6 +7,9 @@
 
 from datetime import date, timedelta
 
+from django.db.models import F, Prefetch
+from django.utils import timezone
+
 from apps.schedules.models import Assignment, Milestone, Phase, PhaseTemplate
 
 # 比較ガントで現場ごとに色を割り当てるためのパレット数。
@@ -258,3 +261,86 @@ def apply_template(site, template_id, base_date=None):
         created.append(phase)
 
     return created
+
+
+def week_bounds(ref_date):
+    """ref_date を含む週の月曜日と日曜日を返す。"""
+    week_start = ref_date - timedelta(days=ref_date.weekday())
+    return week_start, week_start + timedelta(days=6)
+
+
+def get_active_sites_with_week_schedule(
+    company, ref_date=None, limit=None, include_amounts=False,
+):
+    """施工中の現場と、基準日を含む週（月〜日）の工程・マイルストーンを返す（ホーム用）。
+
+    工程は開始日・終了日の両方があり、週と1日でも重なるもの。マイルストーンは
+    目標日が週内のもの。日付の無いものはガントチャートと同じく対象外にする。
+    現場は工期終了が近い順（未設定は最後）、同日なら現場名順。
+
+    Args:
+        company: 対象テナント
+        ref_date: 基準日。省略時は timezone.localdate()
+        limit: 返す現場数の上限。None なら全件
+        include_amounts: True のときだけ受注金額を載せる。原価を見られない人の
+            コンテキストに金額を渡さないため、既定は載せない
+
+    Returns:
+        {
+            "week_start": date, "week_end": date,
+            "sites": [
+                {
+                    "site_id", "name", "customer_name", "start_date", "end_date",
+                    "contract_amount"（include_amounts のときだけ）,
+                    "phases": [Phase, ...], "milestones": [Milestone, ...],
+                },
+                ...
+            ],
+        }
+    """
+    from apps.sites.models import Site
+
+    if ref_date is None:
+        ref_date = timezone.localdate()
+    week_start, week_end = week_bounds(ref_date)
+
+    # unscoped: 他のサービス関数と同じく company を引数で受けて明示的に絞る。
+    # 工程・マイルストーンは Prefetch で現場数によらず各1クエリにまとめる。
+    week_phases = Phase.unscoped.filter(
+        company=company,
+        start_date__lte=week_end,
+        end_date__gte=week_start,
+    ).order_by("start_date", "sort_order", "pk")
+    week_milestones = Milestone.unscoped.filter(
+        company=company,
+        target_date__range=(week_start, week_end),
+    ).order_by("target_date", "pk")
+
+    sites = (
+        Site.unscoped.filter(company=company, status=Site.Status.IN_PROGRESS)
+        .select_related("customer")
+        .prefetch_related(
+            Prefetch("phases", queryset=week_phases, to_attr="week_phases"),
+            Prefetch("milestones", queryset=week_milestones, to_attr="week_milestones"),
+        )
+        .order_by(F("end_date").asc(nulls_last=True), "name", "pk")
+    )
+    if limit is not None:
+        sites = sites[:limit]
+
+    entries = []
+    for site in sites:
+        entry = {
+            "site_id": site.pk,
+            "name": site.name,
+            "customer_name": site.customer.name if site.customer else "",
+            "start_date": site.start_date,
+            "end_date": site.end_date,
+            "phases": site.week_phases,
+            "milestones": site.week_milestones,
+        }
+        if include_amounts:
+            entry["contract_amount"] = site.contract_amount
+        entries.append(entry)
+
+    return {"week_start": week_start, "week_end": week_end, "sites": entries}
