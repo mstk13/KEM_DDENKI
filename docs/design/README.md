@@ -6,6 +6,7 @@
 - frontend_redesign_spec.md … v1.1（レスポンシブ方針・htmx採用・評価統合などの決定記録。v2.0に継承済み）
 - redesign_proposal.html … 社内共有用の図解資料（ブラウザで開く）
 - redesign_v2_requirements.md … v2.0 を実装に落とすための要求定義（ユーザーストーリー・受け入れ基準・未決事項・PR 分割）
+- redesign_v2_decisions.md … 判断が必要な事項ごとの事実・選択肢・推奨・止まっている作業（結論もここに記入する）
 
 実装時の参照順: v2.0 → 不明点があれば v1.1 の決定記録 → 共有資料の図。
 v2.0 と既存 ADR の食い違いは redesign_v2_requirements.md の「未決事項」で扱い、決まったものから ADR（docs/saas/adr/）に残す。
