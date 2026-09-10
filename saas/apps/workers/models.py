@@ -1,3 +1,5 @@
+import re
+
 from django.conf import settings
 from django.db import models
 from django.db.models.signals import post_save
@@ -49,6 +51,23 @@ class Position(TenantModel):
 
     def __str__(self):
         return self.name
+
+
+_CODE_PATTERN = re.compile(r"^\s*([A-Za-z]*)[-_ ]*(\d*)(.*)$")
+
+
+def employee_code_sort_key(code):
+    """社員番号をアルファベット部ごとに番号順へ並べるためのソートキー。
+
+    "E2" < "E10" < "F1" のように、先頭のアルファベットでまとめ、続く数字を
+    数値として比較する。社員番号が未設定のものは末尾に回す。
+    """
+    code = (code or "").strip()
+    if not code:
+        return (1, "", 0, "", "")
+    prefix, digits, rest = _CODE_PATTERN.match(code).groups()
+    number = int(digits) if digits else -1
+    return (0, prefix.upper(), number, rest.strip().upper(), code.upper())
 
 
 class Worker(TenantModel):
