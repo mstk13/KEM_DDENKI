@@ -21,6 +21,7 @@ from apps.materials.models import (
     Quotation,
     QuotationItem,
 )
+from apps.materials.purchase_history import search_purchase_history
 from apps.materials.services import compare_quotations, inspect_delivery
 
 
@@ -247,6 +248,57 @@ def _site_initial(request):
     """?site=<pk> が付いていれば現場の初期値を返す。"""
     site_id = request.GET.get("site")
     return {"site": site_id} if site_id else {}
+
+
+@login_required
+def purchase_history(request):
+    """材料別の取引履歴。発注明細を材料ごとにまとめ、材料・仕入先・現場・期間で絞る。"""
+    from apps.masters.models import Supplier
+    from apps.sites.models import Site
+
+    company = request.user.company
+    q = request.GET.get("q", "").strip()[:100]
+    supplier_id = _parse_id(request.GET.get("supplier"))
+    site_id = _parse_id(request.GET.get("site"))
+    date_from = _parse_date(request.GET.get("date_from"))
+    date_to = _parse_date(request.GET.get("date_to"))
+
+    history = search_purchase_history(
+        company, q=q, supplier_id=supplier_id, site_id=site_id,
+        date_from=date_from, date_to=date_to,
+    )
+    return render(request, "materials/purchase_history.html", {
+        "history": history,
+        "q": q,
+        "selected_supplier": supplier_id,
+        "selected_site": site_id,
+        "date_from": date_from,
+        "date_to": date_to,
+        "searched": bool(q or supplier_id or site_id or date_from or date_to),
+        # 取引の済んだ仕入先が今は無効になっていることもあるので、有効/無効で絞らない
+        "suppliers": Supplier.objects.filter(company=company).order_by("name"),
+        "sites": Site.objects.filter(company=company).order_by("name"),
+    })
+
+
+def _parse_id(value):
+    """GET パラメータの ID。数字でない・範囲外なら None（絞り込みなし）。"""
+    value = (value or "").strip()
+    if not value.isdecimal():
+        return None
+    number = int(value)
+    # DB の整数列に入らない値を渡すと SQLite がエラーにする
+    return number if 0 < number < 2**63 else None
+
+
+def _parse_date(value):
+    """GET パラメータの日付（YYYY-MM-DD）。読めなければ None。"""
+    from datetime import date
+
+    try:
+        return date.fromisoformat((value or "").strip())
+    except ValueError:
+        return None
 
 
 @login_required

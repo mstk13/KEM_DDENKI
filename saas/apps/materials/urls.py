@@ -32,6 +32,8 @@ urlpatterns = [
     path("po/<int:pk>/", views.po_detail, name="po_detail"),
     path("po/<int:po_pk>/item/add/", views.po_item_add, name="po_item_add"),
     path("po/item/<int:pk>/delete/", views.po_item_delete, name="po_item_delete"),
+    # 材料別の取引履歴
+    path("history/", views.purchase_history, name="purchase_history"),
     # 発注書 Excel 出力
     path("po/<int:pk>/excel/order/", views.po_excel_download, name="po_excel_order"),
     path(

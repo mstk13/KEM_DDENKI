@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+{% block title %}材料別の取引履歴 — {{ APP_NAME }}{% endblock %}
+{% block topbar_title %}材料管理{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>材料別の取引履歴</h1>
+</div>
+
+<div class="card ph-search-card">
+  <div class="card-body">
+    <form method="get" action="{% url 'materials:purchase_history' %}" class="ph-search">
+      <div class="form-group ph-search-keyword">
+        <label for="ph-q">材料（名前・コード）</label>
+        <input type="search" id="ph-q" name="q" value="{{ q }}" maxlength="100" class="form-control" placeholder="例: VVF 1.6">
+      </div>
+      <div class="form-group ph-search-select">
+        <label for="ph-supplier">仕入先</label>
+        <select id="ph-supplier" name="supplier" class="form-control">
+          <option value="">すべての仕入先</option>
+          {% for s in suppliers %}
+          <option value="{{ s.pk }}"{% if s.pk == selected_supplier %} selected{% endif %}>{{ s.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group ph-search-select">
+        <label for="ph-site">現場</label>
+        <select id="ph-site" name="site" class="form-control">
+          <option value="">すべての現場</option>
+          {% for s in sites %}
+          <option value="{{ s.pk }}"{% if s.pk == selected_site %} selected{% endif %}>{{ s.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="ph-date-from">発注日（から）</label>
+        <input type="date" id="ph-date-from" name="date_from" value="{{ date_from|date:'Y-m-d' }}" class="form-control">
+      </div>
+      <div class="form-group">
+        <label for="ph-date-to">発注日（まで）</label>
+        <input type="date" id="ph-date-to" name="date_to" value="{{ date_to|date:'Y-m-d' }}" class="form-control">
+      </div>
+      <div class="ph-search-actions">
+        <button type="submit" class="btn btn-primary">検索</button>
+        <a href="{% url 'materials:purchase_history' %}" class="btn btn-outline">クリア</a>
+      </div>
+    </form>
+    <p class="form-hint">発注書の明細から集計しています（下書き・取消は含みません）。納品日とリードタイムは検収が済んだ分だけ表示します。</p>
+  </div>
+</div>
+
+{% if history.truncated %}
+<p class="ph-notice">取引が多いため、発注日の新しい {{ history.limit }} 件までを表示・集計しています。期間や仕入先で絞り込んでください。</p>
+{% endif %}
+
+{% if history.materials %}
+<p class="ph-count">{{ history.materials|length }} 材料・{{ history.transaction_count }} 件の取引</p>
+<div class="ph-list">
+  {% for m in history.materials %}
+  <details class="card ph-material">
+    <summary class="ph-summary">
+      <span class="ph-name">
+        <span class="nav-chevron"></span>
+        <span>{{ m.name }}</span>
+        {% if m.code %}<span class="ph-code">{{ m.code }}</span>{% endif %}
+        {% if not m.material_id %}<span class="badge badge-gray">マスタ未登録</span>{% endif %}
+      </span>
+      <dl class="ph-stats">
+        <div><dt>取引</dt><dd>{{ m.count }}件</dd></div>
+        <div><dt>合計数量</dt><dd>{% for unit, qty in m.total_quantities %}{% if not forloop.first %} / {% endif %}{{ qty|floatformat:"-2g" }}{{ unit }}{% endfor %}</dd></div>
+        <div><dt>最新単価</dt><dd>¥{{ m.latest_unit_price|floatformat:"-2g" }}</dd></div>
+        <div><dt>最安</dt><dd>¥{{ m.min_unit_price|floatformat:"-2g" }}</dd></div>
+        <div><dt>最高</dt><dd>¥{{ m.max_unit_price|floatformat:"-2g" }}</dd></div>
+        <div><dt>仕入先</dt><dd>{{ m.supplier_count }}社</dd></div>
+        <div><dt>最終発注日</dt><dd>{{ m.last_order_date|date:"Y/m/d" }}</dd></div>
+      </dl>
+    </summary>
+    <div class="table-wrap table-slide">
+      <table class="ph-table">
+        <thead>
+          <tr>
+            <th>発注日</th><th>発注書</th><th>仕入先</th><th>現場</th>
+            <th class="ph-num">数量</th><th>単位</th><th class="ph-num">単価</th><th class="ph-num">金額</th>
+            <th>状態</th><th>納品日</th><th class="ph-num">リードタイム</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for t in m.transactions %}
+          <tr>
+            <td>{{ t.order_date|date:"Y/m/d" }}</td>
+            <td><a href="{% url 'materials:po_detail' t.purchase_order_id %}" class="ph-link">PO-{{ t.purchase_order_id|stringformat:"05d" }}</a></td>
+            <td><a href="{% url 'materials:purchase_history' %}?supplier={{ t.supplier_id }}" class="ph-link" title="この仕入先の取引で絞り込む">{{ t.supplier_name }}</a></td>
+            <td>{{ t.site_name }}</td>
+            <td class="ph-num">{{ t.quantity|floatformat:"-2g" }}</td>
+            <td>{{ t.unit|default:"—" }}</td>
+            <td class="ph-num">¥{{ t.unit_price|floatformat:"-2g" }}</td>
+            <td class="ph-num">¥{{ t.amount|floatformat:"0g" }}</td>
+            <td><span class="badge {% if t.status == 'received' %}badge-green{% elif t.status == 'partially_received' %}badge-orange{% else %}badge-blue{% endif %}">{{ t.status_label }}</span></td>
+            <td>{{ t.delivered_date|date:"Y/m/d"|default:"—" }}</td>
+            <td class="ph-num">{% if t.lead_days is not None %}{{ t.lead_days }}日{% else %}—{% endif %}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </details>
+  {% endfor %}
+</div>
+{% elif searched %}
+<div class="card">
+  <div class="empty">
+    <p>条件に合う取引がありません。材料名や期間を変えて検索してください。</p>
+  </div>
+</div>
+{% else %}
+<div class="card">
+  <div class="empty">
+    <p>発注の記録がまだありません。発注書を「発注済」にするとここに表示されます。</p>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
