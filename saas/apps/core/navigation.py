@@ -130,7 +130,7 @@ NAVIGATION: tuple[NavItem | NavGroup, ...] = (
     # ダッシュボードの統合（5種 → 1つ）は KPI の選定待ち。今は既存のトップを指す。
     NavItem("ホーム", "dashboard", "🏠"),
     NavGroup(
-        "案件",
+        "現場",
         (
             NavItem("入札案件", "bids:project_list", "📋", BID_TABS.patterns()),
             NavItem(
@@ -149,9 +149,12 @@ NAVIGATION: tuple[NavItem | NavGroup, ...] = (
             NavItem("現場見積もり/実経費", "costs:list", "💰", ("costs:*",)),
         ),
     ),
+    # グループ名は ADR-0033 でプロダクトオーナーの指示により「発注」。
+    # 日報管理・出社予定・月次サマリもこのグループに残す。
     NavGroup(
-        "日々の記録",
+        "発注",
         (
+            NavItem("材料・発注", "materials:list", "📦", ("materials:*",)),
             NavItem("日報管理", "reports:list", "📝", ("reports:*",)),
             NavItem(
                 "出社予定",
@@ -164,14 +167,14 @@ NAVIGATION: tuple[NavItem | NavGroup, ...] = (
             NavItem("月次サマリ", "reports:monthly_summary", "📊"),
         ),
     ),
-    NavItem("材料・発注", "materials:list", "📦", ("materials:*",)),
     NavGroup(
-        "ヒト",
+        "作業員",
         (
             # workers は作業員台帳と評価が同じ名前空間に同居しているため、
             # 名前空間ごとではなく url_name の接頭辞で振り分ける。
+            # グループ名と同じ「作業員」が並ぶと区別しにくいので「作業員一覧」（ADR-0033）。
             NavItem(
-                "作業員",
+                "作業員一覧",
                 "workers:list",
                 "👥",
                 (
@@ -214,24 +217,13 @@ NAVIGATION: tuple[NavItem | NavGroup, ...] = (
             ),
         ),
     ),
+    # 取引の相手だけを置く。積算マスタ・工種マスタは設定へ（ADR-0033）。
     NavGroup(
-        "マスタ",
+        "取引先",
         (
             NavItem("顧客", "masters:customer_list", "👥", ("masters:customer_*",)),
             NavItem("発注先", "masters:supplier_list", "🏭", ("masters:supplier_*",)),
             NavItem("業者名鑑", "sales:visit_list", "📇", VENDOR_DIRECTORY_TABS.patterns()),
-            NavItem(
-                "積算マスタ",
-                "estimation:item_list",
-                "📐",
-                ESTIMATION_MASTER_TABS.patterns(),
-            ),
-            NavItem(
-                "工種マスタ",
-                "masters:worktypes",
-                "⚙️",
-                ("masters:worktypes", "masters:extract_partner"),
-            ),
         ),
     ),
     # 「AI分析」グループは置かない（ADR-0026）。AI の個別機能は現場・原価・工期の
@@ -247,6 +239,18 @@ NAVIGATION: tuple[NavItem | NavGroup, ...] = (
             ),
             NavItem("権限管理", "permissions:matrix", "🔒", ("permissions:*",)),
             NavItem("勤怠設定", "attendance:settings", "⏱️"),
+            NavItem(
+                "積算マスタ",
+                "estimation:item_list",
+                "📐",
+                ESTIMATION_MASTER_TABS.patterns(),
+            ),
+            NavItem(
+                "工種マスタ",
+                "masters:worktypes",
+                "⚙️",
+                ("masters:worktypes", "masters:extract_partner"),
+            ),
             NavItem(
                 "AI利用状況",
                 "ai:dashboard",
