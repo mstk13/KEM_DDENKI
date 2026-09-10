@@ -107,6 +107,15 @@ class BidProject(TenantModel):
         default=Status.NEW,
     )
     notes = models.TextField("備考", blank=True)
+    # 案件は現場を中心に束ねる（ADR-0031）。積算開始・落札で作る現場を1つにするための参照。
+    site = models.ForeignKey(
+        "sites.Site",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="bid_projects",
+        verbose_name="現場",
+    )
 
     # --- 案件概要（i-ppi の詳細ページから取得） ---
     agency_dept = models.CharField("担当部・事務所", max_length=200, blank=True)

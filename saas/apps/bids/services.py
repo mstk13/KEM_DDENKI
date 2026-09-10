@@ -5,9 +5,23 @@
 """
 
 
+from django.db import transaction
 from django.db.models import Count, Q, Sum
 
 from apps.bids.models import BidProject, SkippedBid, is_excluded_category
+
+
+def _lock_bid(bid_project):
+    """案件の行をロックして状態と現場を読み直す。
+
+    二度押しや同時操作で、同じ案件から現場が2つできないようにする。
+    transaction.atomic() の中で呼ぶこと。
+    """
+    bid_project.refresh_from_db(
+        # unscoped: 呼び出し元が取得済みの案件を読み直すだけ
+        from_queryset=BidProject.unscoped.select_for_update(),
+        fields=["status", "site"],
+    )
 
 
 def create_site_from_won_bid(bid_project, created_by=None):
@@ -18,32 +32,73 @@ def create_site_from_won_bid(bid_project, created_by=None):
     """
     from apps.sites.models import Site
 
-    site = Site.unscoped.create(
+    return Site.unscoped.create(  # unscoped: company を明示指定
         company=bid_project.company,
         code=f"BID-{bid_project.pk}",
         name=bid_project.title,
         address="",
         status=Site.Status.ORDERED,
         contract_amount=bid_project.our_bid_amount or bid_project.budget,
+        customer=bid_project.client_ref,
         created_by=created_by,
     )
 
-    # 顧客をリンク
-    if bid_project.client_ref:
-        site.customer = bid_project.client_ref
-        site.save(update_fields=["customer"])
 
-    return site
+def apply_won_bid_to_site(site, bid_project):
+    """登録済みの現場に落札を反映する。
+
+    状態は見積中のときだけ受注済に進める（施工中などを戻さない）。
+    受注金額・顧客は空のときだけ埋め、現場コードや画面で入れた値は変えない。
+    """
+    from apps.sites.models import Site
+
+    changed = []
+    if site.status == Site.Status.ESTIMATING:
+        site.status = Site.Status.ORDERED
+        changed.append("status")
+    amount = bid_project.our_bid_amount or bid_project.budget
+    if not site.contract_amount and amount:
+        site.contract_amount = amount
+        changed.append("contract_amount")
+    if site.customer_id is None and bid_project.client_ref_id:
+        site.customer_id = bid_project.client_ref_id
+        changed.append("customer")
+    if changed:
+        site.save(update_fields=[*changed, "updated_at"])
 
 
 def mark_as_won(bid_project, created_by=None):
-    """案件を落札にし、現場を自動作成する。"""
-    bid_project.status = BidProject.Status.WON
-    bid_project.save(update_fields=["status"])
+    """案件を落札にし、現場を受注済にする。
 
-    site = create_site_from_won_bid(bid_project, created_by=created_by)
+    積算開始で現場ができていればそれを使い、無ければ作る（ADR-0031）。
+    何度呼んでも現場は1つで、通知は落札に変わったときだけ出す。
 
-    # 通知
+    Returns:
+        (Site, created)。created は現場を新しく作ったとき True
+    """
+    with transaction.atomic():
+        _lock_bid(bid_project)
+        newly_won = bid_project.status != BidProject.Status.WON
+
+        created = bid_project.site_id is None
+        if created:
+            site = create_site_from_won_bid(bid_project, created_by=created_by)
+        else:
+            site = bid_project.site
+            apply_won_bid_to_site(site, bid_project)
+
+        bid_project.status = BidProject.Status.WON
+        bid_project.site = site
+        bid_project.save(update_fields=["status", "site", "updated_at"])
+
+        if newly_won:
+            _notify_won(bid_project, site, created)
+
+    return site, created
+
+
+def _notify_won(bid_project, site, created):
+    """落札を全社員に通知する。"""
     from apps.accounts.models import User
     from apps.notifications.models import Notification
     from apps.notifications.services import notify_multiple
@@ -51,41 +106,54 @@ def mark_as_won(bid_project, created_by=None):
     recipients = User.objects.filter(
         company=bid_project.company, is_active=True,
     )
+    if created:
+        body = f"現場「{site.name}」が自動作成されました。"
+    else:
+        body = f"登録済みの現場「{site.name}」に落札を反映しました。"
     notify_multiple(
         company=bid_project.company,
         recipients=recipients,
         title=f"🎉 {bid_project.title} を落札しました",
-        body=f"現場「{site.name}」が自動作成されました。",
+        body=body,
         level=Notification.Level.INFO,
         module=Notification.Module.BIDS,
         reference_url=f"/sites/{site.pk}/",
     )
 
-    return site
-
 
 def start_estimation(bid_project, created_by=None):
-    """案件を見積中にし、現場を自動作成する。"""
+    """案件を検討中にし、見積中の現場を用意する。
+
+    現場が既にあればそれを使い、作り直さない（ADR-0031）。何度呼んでも現場は1つ。
+
+    Returns:
+        (Site, created)。created は現場を新しく作ったとき True
+    """
     from apps.sites.models import Site
 
-    bid_project.status = BidProject.Status.CONSIDERING
-    bid_project.save(update_fields=["status"])
+    with transaction.atomic():
+        _lock_bid(bid_project)
 
-    site = Site.unscoped.create(
-        company=bid_project.company,
-        code=f"EST-{bid_project.pk}",
-        name=bid_project.title,
-        address="",
-        status=Site.Status.ESTIMATING,
-        contract_amount=bid_project.budget,
-        created_by=created_by,
-    )
+        created = bid_project.site_id is None
+        if created:
+            site = Site.unscoped.create(  # unscoped: company を明示指定
+                company=bid_project.company,
+                code=f"EST-{bid_project.pk}",
+                name=bid_project.title,
+                address="",
+                status=Site.Status.ESTIMATING,
+                contract_amount=bid_project.budget,
+                customer=bid_project.client_ref,
+                created_by=created_by,
+            )
+        else:
+            site = bid_project.site
 
-    if bid_project.client_ref:
-        site.customer = bid_project.client_ref
-        site.save(update_fields=["customer"])
+        bid_project.status = BidProject.Status.CONSIDERING
+        bid_project.site = site
+        bid_project.save(update_fields=["status", "site", "updated_at"])
 
-    return site
+    return site, created
 
 
 def get_dashboard_stats(company):
