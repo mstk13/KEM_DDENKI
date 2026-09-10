@@ -12,7 +12,14 @@ from apps.workers.models import Worker, employee_code_sort_key
 
 def test_sort_key_groups_by_alphabet_then_number():
     codes = ["E10", "F1", "E2", "e1", "A100", "E010"]
-    assert sorted(codes, key=employee_code_sort_key) == ["A100", "e1", "E2", "E010", "E10", "F1"]
+    assert sorted(codes, key=employee_code_sort_key) == ["e1", "E2", "E010", "E10", "A100", "F1"]
+
+
+def test_sort_key_uses_fixed_prefix_order():
+    codes = ["G1", "A1", "P1", "T1", "E1", "S1", "Y1", "B1", "F1", "Z1"]
+    assert sorted(codes, key=employee_code_sort_key) == [
+        "Y1", "S1", "E1", "T1", "P1", "A1", "G1", "B1", "F1", "Z1",
+    ]
 
 
 def test_sort_key_handles_separators_and_missing_number():
@@ -30,11 +37,12 @@ def workers(company_a):
     set_current_company(company_a)
     rows = [
         ("E10", "十郎", "ジュウロウ", True),
-        ("F1", "太郎", "タロウ", True),
+        ("A1", "太郎", "タロウ", True),
         ("E2", "次郎", "ジロウ", True),
         ("", "花子", "ハナコ", True),
-        ("A5", "五郎", "ゴロウ", False),
+        ("S5", "五郎", "ゴロウ", False),
         ("", "梅子", "ウメコ", True),
+        ("Y3", "三郎", "サブロウ", True),
     ]
     created = [
         Worker.objects.create(
@@ -54,8 +62,8 @@ def test_list_orders_by_employee_code(client, user_a, workers):
     assert res.status_code == 200
     active = [w.employee_code or w.name for w in res.context["active_workers"]]
     inactive = [w.employee_code for w in res.context["inactive_workers"]]
-    assert active == ["E2", "E10", "F1", "梅子", "花子"]
-    assert inactive == ["A5"]
+    assert active == ["Y3", "E2", "E10", "A1", "梅子", "花子"]
+    assert inactive == ["S5"]
 
 
 @pytest.mark.django_db
@@ -65,4 +73,4 @@ def test_excel_orders_by_employee_code(client, user_a, workers):
     assert res.status_code == 200
     ws = load_workbook(BytesIO(res.content)).active
     codes = [ws.cell(row=r, column=1).value for r in range(2, ws.max_row + 1)]
-    assert codes == ["A5", "E2", "E10", "F1", None, None]
+    assert codes == ["Y3", "S5", "E2", "E10", "A1", None, None]
