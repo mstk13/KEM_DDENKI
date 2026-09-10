@@ -3,28 +3,65 @@ from django.contrib.auth.decorators import login_required
 from django.shortcuts import render
 from django.utils import timezone
 
+from apps.attendance.plans import build_day_destinations, parse_date
+from apps.core.json_utils import json_for_script
 from apps.permissions.decorators import module_permission_required
+from apps.permissions.services import has_module_permission
 from apps.reports.models import DailyReport
+from apps.schedules.services import (
+    get_active_sites_with_week_schedule,
+    get_comparison_gantt_data,
+)
 from apps.sites.models import Site
 from apps.workers.models import Worker
+
+# ホームに並べる施工中の現場の上限。超えた分は現場一覧へ誘導する。
+HOME_SITE_LIMIT = 10
 
 
 @login_required
 def dashboard(request):
-    today = timezone.now().date()
+    """ホーム（ADR-0032）。
+
+    施工中の現場と今週の工程、工期管理と同じガントチャート、
+    その日に誰がどの現場へ行くか（出社予定）を置く。
+
+    GET パラメータ:
+        date … 「誰がどの現場へ行くか」を見る日（YYYY-MM-DD）。省略・不正なら今日
+    """
+    company = request.user.company
+    # USE_TZ=True なので now().date() だと UTC の日付になり、日本時間の
+    # 0〜9時に前日扱いになる。現地の日付で揃える。
+    today = timezone.localdate()
+    active_sites = Site.objects.filter(status=Site.Status.IN_PROGRESS).count()
+
+    # 受注金額は原価と同じ扱い。現場詳細と同じ判定を通し、権限が無ければ
+    # テンプレートで隠すだけでなくコンテキストにも載せない。
+    can_view_costs = has_module_permission(request.user, "costs", "read")
+    week = get_active_sites_with_week_schedule(
+        company,
+        today,
+        limit=HOME_SITE_LIMIT,
+        include_amounts=can_view_costs,
+    )
+    # 工期管理（schedules:list）を条件なしで開いたときと同じ中身。
+    gantt = get_comparison_gantt_data(company)
+
     context = {
-        "active_sites": Site.objects.filter(status=Site.Status.IN_PROGRESS).count(),
+        "active_sites": active_sites,
         "today_reports": DailyReport.objects.filter(report_date=today).count(),
         "pending_reports": DailyReport.objects.filter(
             status=DailyReport.Status.SUBMITTED
         ).count(),
         "active_workers": Worker.objects.filter(is_active=True).count(),
-        "recent_sites": Site.objects.filter(
-            status=Site.Status.IN_PROGRESS
-        ).select_related("customer")[:5],
-        "recent_reports": DailyReport.objects.select_related(
-            "worker", "site"
-        ).order_by("-report_date", "-created_at")[:10],
+        "can_view_costs": can_view_costs,
+        "week_start": week["week_start"],
+        "week_end": week["week_end"],
+        "site_schedules": week["sites"],
+        "more_sites": max(active_sites - len(week["sites"]), 0),
+        "gantt_json": json_for_script(gantt["tasks"]),
+        "gantt_tasks_exist": len(gantt["tasks"]) > 0,
+        "day_plan": build_day_destinations(company, parse_date(request.GET.get("date", ""))),
     }
     return render(request, "dashboard.html", context)
 

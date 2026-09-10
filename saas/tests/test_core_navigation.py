@@ -68,8 +68,8 @@ def test_顧客一覧で工種マスタが同時にactiveにならない():
 
 def test_同居する名前空間が接頭辞で振り分けられる():
     """workers は作業員台帳と評価が同じ名前空間にある。"""
-    assert resolve_active("workers:detail").label == "作業員"
-    assert resolve_active("workers:qual_create").label == "作業員"
+    assert resolve_active("workers:detail").label == "作業員一覧"
+    assert resolve_active("workers:qual_create").label == "作業員一覧"
     assert resolve_active("workers:eval_create").label == "人材評価"
     assert resolve_active("workers:evaluations").label == "人材評価"
     assert resolve_active("workers:document_alerts").label == "書類アラート"
@@ -128,17 +128,28 @@ def test_定義した項目のパターンが互いを食い合わない():
 def test_サイドバーは業務グループの順に並ぶ():
     top_level = [entry.label for entry in NAVIGATION]
 
-    assert top_level == [
-        "ホーム", "案件", "日々の記録", "材料・発注", "ヒト", "マスタ", "設定", "開発",
-    ]
+    assert top_level == ["ホーム", "現場", "日々の記録", "作業員", "取引先", "設定", "開発"]
 
 
-def test_同じ現場の工程と原価が案件グループにそろう():
+def test_同じ現場の工程と原価と発注が現場グループにそろう():
     groups = {entry.label: entry for entry in NAVIGATION if isinstance(entry, NavGroup)}
 
-    assert [item.label for item in groups["案件"].items] == [
-        "入札案件", "積算案件", "現場管理", "工期管理", "現場見積もり/実経費",
+    assert [item.label for item in groups["現場"].items] == [
+        "入札案件", "積算案件", "現場管理", "工期管理", "現場見積もり/実経費", "材料・発注",
     ]
+
+
+def test_グループ名の変更と項目の置き場所():
+    """ADR-0033: 取引先は相手だけ、マスタ類は設定、作業員一覧。"""
+    groups = {entry.label: entry for entry in NAVIGATION if isinstance(entry, NavGroup)}
+
+    assert [item.label for item in groups["日々の記録"].items] == [
+        "日報管理", "出社予定", "月次サマリ",
+    ]
+    assert [item.label for item in groups["取引先"].items] == ["顧客", "発注先", "業者名鑑"]
+    settings_labels = [item.label for item in groups["設定"].items]
+    assert {"積算マスタ", "工種マスタ"} <= set(settings_labels)
+    assert groups["作業員"].items[0].label == "作業員一覧"
 
 
 # ---------------------------------------------------------------------------
@@ -280,7 +291,7 @@ class TestNavigationPermission:
 
         assert not (HR_LABELS & labels)
         # 同じグループの他の項目は残る
-        assert "作業員" in labels
+        assert "作業員一覧" in labels
 
     def test_役員には人事評価を出す(self, company_a):
         user = self._user_with_position(company_a, "yakuin", "役員")

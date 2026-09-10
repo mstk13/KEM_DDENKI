@@ -44,22 +44,10 @@
   </div>
 </form>
 
-<!-- ガントチャート -->
-<div class="card" style="margin-bottom:16px;">
+<!-- ガントチャート（ホームと共通。ADR-0032） -->
+<div class="card gantt-card">
   <div class="card-body">
-    {% if gantt_tasks_exist %}
-      <div class="gantt-controls" style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
-        <button class="btn btn-outline btn-sm gantt-mode" data-mode="Quarter Day">日</button>
-        <button class="btn btn-outline btn-sm gantt-mode active" data-mode="Week">週</button>
-        <button class="btn btn-outline btn-sm gantt-mode" data-mode="Month">月</button>
-      </div>
-      <div id="gantt-chart" style="overflow-x:auto;"></div>
-    {% else %}
-      <div class="empty">
-        <div class="empty-icon">&#x1f4c5;</div>
-        <p>比較できる工期がありません。現場に工期開始・終了日を設定するか、工程フェーズに日付を登録してください。</p>
-      </div>
-    {% endif %}
+    {% include "schedules/partials/gantt_chart.html" %}
   </div>
 </div>
 
