@@ -67,7 +67,7 @@
       <div class="topbar-right" style="display:flex;align-items:center;gap:16px;">
         <a href="{% url 'notification_list' %}" style="position:relative;text-decoration:none;font-size:20px;" title="通知">
           &#x1f514;
-          <span id="notification-badge" style="position:absolute;top:-4px;right:-8px;background:#ef4444;color:#fff;border-radius:50%;font-size:11px;min-width:18px;height:18px;display:flex;align-items:center;justify-content:center;"></span>
+          <span id="notification-badge" class="topbar-notification-badge"></span>
         </a>
         {% if user.company %}<span style="color:var(--text-secondary);">{{ user.company.name }}</span>{% endif %}
       </div>

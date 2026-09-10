@@ -107,7 +107,7 @@ a:hover { color: var(--brand-dark); }
 }
 .sidebar-logo-text span {
   display: block;
-  font-size: .7rem;
+  font-size: .75rem;
   font-weight: 500;
   color: var(--text-muted);
 }
@@ -207,7 +207,7 @@ a:hover { color: var(--brand-dark); }
   color: var(--text-primary);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.sidebar-footer .user-company { font-size: .72rem; color: var(--text-muted); }
+.sidebar-footer .user-company { font-size: .75rem; color: var(--text-muted); }
 .sidebar-footer .logout-btn {
   font-size: .78rem; color: var(--text-muted);
   padding: 4px 10px; border-radius: var(--radius-sm);
@@ -230,6 +230,14 @@ a:hover { color: var(--brand-dark); }
 }
 .topbar-title { font-size: 1.1rem; font-weight: 700; color: var(--white); }
 .topbar-right { display: flex; align-items: center; gap: 16px; font-size: .85rem; color: rgba(255,255,255,.75); }
+/* 通知ベルの未読件数。base.html のインライン style から移し、文字を 12px にした（11px だった） */
+.topbar-notification-badge {
+  position: absolute; top: -4px; right: -8px;
+  display: flex; align-items: center; justify-content: center;
+  min-width: 18px; height: 18px;
+  border-radius: 50%; background: #ef4444; color: #fff;
+  font-size: 12px;
+}
 
 .hamburger {
   display: none;
@@ -373,7 +381,8 @@ tbody tr:last-child td { border-bottom: none; }
 .badge {
   display: inline-flex; align-items: center;
   padding: 3px 10px; border-radius: var(--radius-full);
-  font-size: .72rem; font-weight: 600; letter-spacing: .01em; white-space: nowrap;
+  /* 文字は 12px（.75rem）を下回らせない（ホームで小さく読みにくかったため） */
+  font-size: .75rem; font-weight: 600; letter-spacing: .01em; white-space: nowrap;
 }
 .badge-blue { background: var(--info-light); color: var(--info); }
 .badge-green { background: var(--success-light); color: var(--success); }
@@ -1022,7 +1031,7 @@ input[type="time"].form-control::-webkit-date-and-time-value { text-align: left;
 .home-day-members { list-style: none; display: flex; flex-wrap: wrap; gap: 6px; }
 .home-day-member { display: inline-flex; flex-direction: column; min-width: 0; padding: 4px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: .85rem; }
 .home-day-member-name { font-weight: 600; color: var(--text-primary); }
-.home-day-member-meta { font-size: .72rem; color: var(--text-secondary); }
+.home-day-member-meta { font-size: .75rem; color: var(--text-secondary); }
 .home-day-empty { padding: 16px 24px; font-size: .85rem; color: var(--text-muted); }
 .home-day-others { display: grid; gap: 6px; padding: 0 24px 16px; font-size: .85rem; }
 .home-day-others > div { display: flex; gap: 8px; min-width: 0; }
