@@ -270,8 +270,9 @@ def _llm_availability():
 def ai_site_select(request):
     """AI機能を実行する現場を選ぶ画面。
 
-    コスト分析・工程提案は現場単位のため、サイドバーからは
-    この画面を経由して各機能に入る。
+    コスト分析・工程提案は現場単位のため、普段は現場・原価・工期の
+    詳細画面のボタンから各機能に入る。サイドバーからは外した（ADR-0026）が、
+    既存のブックマークを壊さないよう URL は残している。
     """
     sites = Site.objects.select_related("customer").order_by("-created_at")
     available, unavailable_message = _llm_availability()

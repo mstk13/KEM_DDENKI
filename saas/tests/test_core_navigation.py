@@ -40,7 +40,18 @@ def test_完全一致の項目は他の画面に反応しない():
     assert resolve_active("dashboard").label == "ダッシュボード"
     # 名前空間付きの dashboard は別物として扱う
     assert resolve_active("sales:dashboard").label == "営業ダッシュボード"
-    assert resolve_active("ai:dashboard").label == "利用状況"
+    assert resolve_active("ai:dashboard").label == "AI利用状況"
+
+
+def test_AI分析グループを置かず利用状況とログは設定にある():
+    """ADR-0026: AI は独立メニューにせず、管理者向けの画面だけ設定に置く。"""
+    groups = {entry.label: entry for entry in NAVIGATION if isinstance(entry, NavGroup)}
+
+    assert "AI分析" not in groups
+    settings_labels = {item.label for item in groups["設定"].items}
+    assert {"AI利用状況", "AI実行ログ"} <= settings_labels
+    assert resolve_active("ai:cost_report").label == "AI利用状況"
+    assert resolve_active("ai:feedback_create").label == "AI実行ログ"
 
 
 def test_材料の発注先一覧で取引先グループが開かない():
