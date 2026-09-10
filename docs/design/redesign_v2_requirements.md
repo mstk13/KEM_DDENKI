@@ -120,8 +120,8 @@ PR 分割:
 - AC-5: 既存 `EvaluatorTarget` のうち作業員名と一致するものは FK の割当へ移す。一致しないものは件数を移行ログに出す
 
 PR 分割:
-1. expand: `workers.EvaluatorAssignment`（history / admin / 越境テスト / マイグレーション）+ 対象者を返すサービス関数
-2. 切り替え: 評価開始画面の対象者をサービス関数から取る + 割当の管理画面
+1. expand: `workers.EvaluatorAssignment`（history / admin / 越境テスト / マイグレーション）。判定にはまだ使わない
+2. 切り替え: 対象者を返すサービス関数（D4 の規則をここに書く）を作り、評価開始画面と `eval_targets_api` から呼ぶ + 割当の管理画面
 3. データ移行: `EvaluatorTarget` → `EvaluatorAssignment`
 4. 閲覧専用化: evaluation の書き込み導線を閉じ、ナビを1項目に
 
