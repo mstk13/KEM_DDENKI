@@ -15,7 +15,6 @@ from apps.materials.forms import (
 from apps.materials.models import (
     Delivery,
     DeliveryItem,
-    Inventory,
     Material,
     PurchaseOrder,
     PurchaseOrderItem,
@@ -621,19 +620,8 @@ def delivery_inspect(request, pk):
             messages.error(request, "先に受領確認を行ってください。")
             return redirect("materials:po_detail", pk=delivery.purchase_order.pk)
         inspect_delivery(delivery, inspected_by=request.user)
-        messages.success(request, "検収を完了し、在庫・原価を更新しました。")
+        messages.success(request, "検収を完了し、原価を更新しました。")
     return redirect("materials:po_detail", pk=delivery.purchase_order.pk)
-
-
-# ── 在庫 ──
-
-
-@login_required
-def inventory_list(request):
-    inventories = Inventory.objects.select_related(
-        "material", "site"
-    ).order_by("material__name", "site__name")
-    return render(request, "materials/inventory_list.html", {"inventories": inventories})
 
 
 # ── 材料仕入先 ──
@@ -693,51 +681,4 @@ def material_supplier_edit(request, pk):
         form = MaterialSupplierForm(instance=ms, company=request.user.company)
     return render(request, "materials/material_supplier_form.html", {
         "form": form, "material": ms.material, "is_new": False, "ms": ms,
-    })
-
-
-# ── 調達実績 ──
-
-
-@login_required
-def procurement_list(request):
-    """調達実績の一覧。現場・材料・仕入先でフィルタ。"""
-    from apps.materials.models import ProcurementRecord
-
-    records = ProcurementRecord.objects.select_related(
-        "site", "material", "supplier",
-    ).order_by("-ordered_date")
-
-    site_id = request.GET.get("site", "")
-    if site_id:
-        records = records.filter(site_id=int(site_id))
-
-    q = request.GET.get("q", "").strip()
-    if q:
-        records = records.filter(material__name__icontains=q)
-
-    return render(request, "materials/procurement_list.html", {
-        "records": records[:500], "q": q, "site_id": site_id,
-    })
-
-
-@login_required
-def procurement_create(request):
-    """調達実績の手入力。"""
-    from apps.materials.forms import ProcurementRecordForm
-
-    if request.method == "POST":
-        form = ProcurementRecordForm(request.POST, company=request.user.company)
-        if form.is_valid():
-            rec = form.save(commit=False)
-            rec.company = request.user.company
-            rec.created_by = request.user
-            rec.calc_lead_days()
-            rec.save()
-            messages.success(request, "調達実績を登録しました。")
-            return redirect("materials:procurement_list")
-    else:
-        form = ProcurementRecordForm(company=request.user.company)
-    return render(request, "materials/procurement_form.html", {
-        "form": form, "is_new": True,
     })

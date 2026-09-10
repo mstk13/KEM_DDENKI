@@ -7,7 +7,6 @@ from apps.materials.models import (
     DeliveryItem,
     Material,
     MaterialSupplier,
-    ProcurementRecord,
     PurchaseOrder,
     PurchaseOrderItem,
     Quotation,
@@ -201,32 +200,4 @@ class MaterialSupplierForm(forms.ModelForm):
             )
         for _name, field in self.fields.items():
             if not isinstance(field.widget, (forms.Textarea, forms.CheckboxInput)):
-                field.widget.attrs.setdefault("class", "form-control")
-
-
-class ProcurementRecordForm(forms.ModelForm):
-    class Meta:
-        model = ProcurementRecord
-        fields = [
-            "site", "material", "supplier", "ordered_date", "delivered_date",
-            "ordered_qty", "delivered_qty", "unit_price_paid", "notes",
-        ]
-        widgets = {
-            "ordered_date": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
-            "delivered_date": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
-            "notes": forms.Textarea(attrs={"class": "form-control", "rows": 2}),
-        }
-
-    def __init__(self, *args, company=None, **kwargs):
-        super().__init__(*args, **kwargs)
-        if company:
-            self.fields["site"].queryset = Site.unscoped.filter(company=company)
-            self.fields["material"].queryset = Material.unscoped.filter(
-                company=company, is_active=True,
-            )
-            self.fields["supplier"].queryset = Supplier.unscoped.filter(
-                company=company, is_active=True,
-            )
-        for _name, field in self.fields.items():
-            if not isinstance(field.widget, forms.Textarea):
                 field.widget.attrs.setdefault("class", "form-control")
