@@ -1013,30 +1013,28 @@ input[type="time"].form-control::-webkit-date-and-time-value { text-align: left;
 .home-week-more { padding: 0 24px 16px; font-size: .85rem; color: var(--text-secondary); }
 .home-week-more a { display: inline-flex; align-items: center; min-height: 44px; }
 
-/* ---- ホーム「誰がどの現場へ行くか」（出社予定。ADR-0032） ----
-   行き先ごとのブロックを PC では複数列、スマホでは1列に積む。
-   作業員は区分の色（.plan-kind-*、出社予定と同じ）の札で並べる。 */
-.home-day-header { gap: 12px; flex-wrap: wrap; }
-.home-day-nav { display: flex; flex-wrap: wrap; gap: 8px; }
-.home-day-nav .btn { min-height: 44px; display: inline-flex; align-items: center; }
-.home-day-places {
-  list-style: none;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr));
-  gap: 12px; padding: 16px 24px;
+/* ---- ホームの現場カードの参加者（配置と出社予定。ADR-0036） ----
+   見出しに参加者を見る日の切り替え（前日・今日・翌日・予定を記入）を置き、狭い幅では折り返す。
+   参加者は区分の色（.plan-kind-*、出社予定と同じ）の札で並べる。配置だけの人は色なし。
+   配置されていても休み・在宅などで現場にいない人（.is-away）は点線・薄い文字で控えめにする。 */
+.home-week-header { flex-wrap: wrap; }
+.home-week-nav { display: flex; flex-wrap: wrap; gap: 8px; }
+.home-week-nav .btn { display: inline-flex; align-items: center; }
+.home-members { list-style: none; display: flex; flex-wrap: wrap; gap: 6px; }
+.home-member {
+  display: inline-flex; flex-direction: column; min-width: 0;
+  padding: 4px 10px;
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  font-size: .85rem;
 }
-.home-day-place { min-width: 0; padding: 12px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
-.home-day-place-name { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 8px; font-weight: 700; color: var(--brand); overflow-wrap: anywhere; }
-.home-day-count { flex: 0 0 auto; font-size: .8rem; font-weight: 600; color: var(--text-muted); }
-.home-day-members { list-style: none; display: flex; flex-wrap: wrap; gap: 6px; }
-.home-day-member { display: inline-flex; flex-direction: column; min-width: 0; padding: 4px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: .85rem; }
-.home-day-member-name { font-weight: 600; color: var(--text-primary); }
-.home-day-member-meta { font-size: .75rem; color: var(--text-secondary); }
-.home-day-empty { padding: 16px 24px; font-size: .85rem; color: var(--text-muted); }
-.home-day-others { display: grid; gap: 6px; padding: 0 24px 16px; font-size: .85rem; }
-.home-day-others > div { display: flex; gap: 8px; min-width: 0; }
-.home-day-others dt { flex: 0 0 4.5em; color: var(--text-muted); }
-.home-day-others dd { min-width: 0; color: var(--text-secondary); overflow-wrap: anywhere; }
+.home-member-name { font-weight: 600; color: var(--text-primary); overflow-wrap: anywhere; }
+.home-member-meta { font-size: .75rem; color: var(--text-secondary); }
+.home-member.is-away { border-style: dashed; background: var(--surface); }
+.home-member.is-away .home-member-name { font-weight: 400; color: var(--text-muted); }
+.home-member.is-away .home-member-meta { color: var(--text-muted); }
+.home-unmatched { padding: 0 24px 16px; font-size: .85rem; color: var(--text-secondary); overflow-wrap: anywhere; }
+.home-unmatched-label { font-weight: 600; color: var(--text-primary); }
+.home-unmatched a { display: inline-flex; align-items: center; min-height: 44px; }
 
 /* ---- Responsive ---- */
 @media (max-width: 768px) {
@@ -1051,9 +1049,7 @@ input[type="time"].form-control::-webkit-date-and-time-value { text-align: left;
 
   .home-sites { grid-template-columns: 1fr; padding: 12px; }
   .home-week-more { padding: 0 12px 12px; }
-  .home-day-places { grid-template-columns: 1fr; padding: 12px; }
-  .home-day-empty { padding: 12px; }
-  .home-day-others { padding: 0 12px 12px; }
+  .home-unmatched { padding: 0 12px 12px; }
   .sidebar { transform: translateX(-100%); box-shadow: none; }
   .sidebar.open { transform: translateX(0); box-shadow: var(--shadow-lg); }
   .main { margin-left: 0; }
