@@ -8,6 +8,15 @@
   <div class="card-body">
     <form method="post">
       {% csrf_token %}
+      {% if reorder_item %}
+      {# 取引履歴の「同じ材料で発注」から来たとき。保存するとこの明細を新しい発注書にコピーする（ADR-0034）。 #}
+      <input type="hidden" name="reorder_item" value="{{ reorder_item.pk }}">
+      <p class="form-note">
+        保存すると、過去の発注（PO-{{ reorder_item.purchase_order_id|stringformat:"05d" }}）の明細
+        「{{ reorder_item.material.name|default:reorder_item.material_name }}　{{ reorder_item.quantity|floatformat:"-2g" }}{{ reorder_item.unit }}　¥{{ reorder_item.unit_price|floatformat:"-2g" }}」を
+        この発注書にコピーします。数量や単価は作成後の発注書で変更できます。
+      </p>
+      {% endif %}
       {% for field in form %}
       <div class="form-group">
         <label for="{{ field.id_for_label }}">{{ field.label }}</label>

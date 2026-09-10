@@ -1,10 +1,10 @@
 {% extends "base.html" %}
-{% block title %}ダッシュボード — {{ APP_NAME }}{% endblock %}
-{% block topbar_title %}ダッシュボード{% endblock %}
+{% block title %}ホーム — {{ APP_NAME }}{% endblock %}
+{% block topbar_title %}ホーム{% endblock %}
 
 {% block content %}
 <div class="page-header">
-  <h1>ダッシュボード</h1>
+  <h1>ホーム</h1>
   <a href="{% url 'reports:create' %}" class="btn btn-primary">+ 日報を書く</a>
 </div>
 
@@ -29,58 +29,137 @@
 
 <div class="dash-cards">
 
-  <div class="card">
-    <div class="card-header">
-      <h2>施工中の現場</h2>
-      <a href="{% url 'sites:list' %}" class="btn btn-outline btn-sm">全て見る</a>
+  {# 施工中の現場と今週の工程（ADR-0032）。受注金額は can_view_costs のときだけ。 #}
+  <section class="card home-week">
+    <div class="card-header home-week-header">
+      <div>
+        <h2>施工中の現場と今週の工程</h2>
+        <p class="home-week-range">{{ week_start|date:"n/j（D）" }} 〜 {{ week_end|date:"n/j（D）" }}</p>
+      </div>
+      <a href="{% url 'sites:list' %}" class="btn btn-outline btn-sm">すべて見る</a>
     </div>
-    <div class="table-wrap table-slide">
-      <table>
-        <thead><tr><th>現場名</th><th>顧客</th><th>工期</th><th>受注金額</th></tr></thead>
-        <tbody>
-          {% for site in recent_sites %}
-          <tr>
-            <td><a href="{% url 'sites:detail' site.pk %}">{{ site.name }}</a></td>
-            <td style="color:var(--text-secondary);">{{ site.customer|default:"-" }}</td>
-            <td style="color:var(--text-secondary);">{{ site.start_date|default:"-" }} 〜 {{ site.end_date|default:"" }}</td>
-            <td style="font-weight:600;">{{ site.contract_amount|floatformat:0 }} 円</td>
-          </tr>
-          {% empty %}
-          <tr><td colspan="4"><div class="empty"><div class="empty-icon">&#x1f3d7;&#xfe0f;</div><p>現場がありません</p></div></td></tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-  </div>
+    {% if site_schedules %}
+    <div class="home-sites">
+      {% for s in site_schedules %}
+      <article class="home-site">
+        <a class="home-site-name" href="{% url 'sites:detail' s.site_id %}">{{ s.name }}</a>
+        <dl class="home-site-meta">
+          <div><dt>顧客</dt><dd>{{ s.customer_name|default:"-" }}</dd></div>
+          <div><dt>工期</dt><dd>{{ s.start_date|date:"Y/n/j"|default:"-" }} 〜 {{ s.end_date|date:"Y/n/j"|default:"-" }}</dd></div>
+          {% if can_view_costs %}
+          <div><dt>受注金額</dt><dd class="home-site-amount">{{ s.contract_amount|floatformat:"0g" }} 円</dd></div>
+          {% endif %}
+        </dl>
 
-  <div class="card">
-    <div class="card-header">
-      <h2>最近の日報</h2>
-      <a href="{% url 'reports:list' %}" class="btn btn-outline btn-sm">全て見る</a>
-    </div>
-    <div class="table-wrap table-slide">
-      <table>
-        <thead><tr><th>日付</th><th>作業員</th><th>現場</th><th>状態</th></tr></thead>
-        <tbody>
-          {% for report in recent_reports %}
-          <tr>
-            <td style="white-space:nowrap;">{{ report.report_date }}</td>
-            <td>{{ report.worker }}</td>
-            <td style="color:var(--text-secondary);">{{ report.site }}</td>
-            <td>
-              {% if report.status == 'draft' %}<span class="badge badge-gray">下書き</span>
-              {% elif report.status == 'submitted' %}<span class="badge badge-orange">提出済</span>
-              {% elif report.status == 'approved' %}<span class="badge badge-green">承認済</span>
-              {% endif %}
-            </td>
-          </tr>
-          {% empty %}
-          <tr><td colspan="4"><div class="empty"><div class="empty-icon">&#x1f4dd;</div><p>日報がありません</p></div></td></tr>
+        {% if s.phases %}
+        <h3 class="home-site-subhead">今週の工程</h3>
+        <ul class="home-site-list">
+          {% for p in s.phases %}
+          <li>
+            <div class="home-item-row">
+              <span class="home-item-name">{{ p.name }}</span>
+              <span class="home-item-date">{{ p.start_date|date:"n/j" }}〜{{ p.end_date|date:"n/j" }}</span>
+            </div>
+            <div class="home-phase-progress">
+              <progress value="{{ p.progress }}" max="100" aria-label="{{ p.name }}の進捗">{{ p.progress }}%</progress>
+              <span>{{ p.progress }}%</span>
+            </div>
+          </li>
           {% endfor %}
-        </tbody>
-      </table>
+        </ul>
+        {% endif %}
+
+        {% if s.milestones %}
+        <h3 class="home-site-subhead">今週のマイルストーン</h3>
+        <ul class="home-site-list">
+          {% for m in s.milestones %}
+          <li class="home-item-row">
+            <span class="home-item-name">◆ {{ m.name }}</span>
+            <span class="home-item-date">{{ m.target_date|date:"n/j（D）" }}{% if m.completed %} <span class="badge badge-green">完了</span>{% endif %}</span>
+          </li>
+          {% endfor %}
+        </ul>
+        {% endif %}
+
+        {% if not s.phases and not s.milestones %}
+        <p class="home-site-empty">今週の工程・マイルストーンはありません</p>
+        {% endif %}
+
+        <a class="btn btn-outline home-site-schedule" href="{% url 'schedules:detail' s.site_id %}">工程を見る</a>
+      </article>
+      {% endfor %}
     </div>
-  </div>
+    {% if more_sites %}
+    <p class="home-week-more">ほか {{ more_sites }} 件の施工中の現場があります。<a href="{% url 'sites:list' %}">現場一覧で見る</a></p>
+    {% endif %}
+    {% else %}
+    <div class="empty"><div class="empty-icon">&#x1f3d7;&#xfe0f;</div><p>施工中の現場はありません</p></div>
+    {% endif %}
+  </section>
+
+  {# その日、誰がどの現場へ行くか。出社予定（AttendPlan）の行き先で束ねる（ADR-0032）。 #}
+  <section class="card home-day" id="home-day">
+    <div class="card-header home-day-header">
+      <div>
+        <h2>誰がどの現場へ行くか</h2>
+        <p class="home-week-range">
+          {{ day_plan.date|date:"Y/n/j" }}（{{ day_plan.weekday }}）{% if day_plan.is_today %} 今日{% endif %}
+          ・稼働 {{ day_plan.working_count }}人{% if day_plan.unplanned_count %}・予定未入力 {{ day_plan.unplanned_count }}人{% endif %}
+        </p>
+      </div>
+      <nav class="home-day-nav" aria-label="日付の切り替え">
+        <a class="btn btn-outline btn-sm" href="?date={{ day_plan.prev_date|date:'Y-m-d' }}#home-day">前日</a>
+        {% if not day_plan.is_today %}<a class="btn btn-outline btn-sm" href="{% url 'dashboard' %}#home-day">今日</a>{% endif %}
+        <a class="btn btn-outline btn-sm" href="?date={{ day_plan.next_date|date:'Y-m-d' }}#home-day">翌日</a>
+        <a class="btn btn-primary btn-sm" href="{% url 'attendance:plan_day' %}?date={{ day_plan.date|date:'Y-m-d' }}">予定を記入</a>
+      </nav>
+    </div>
+
+    {% if day_plan.destinations %}
+    <ul class="home-day-places">
+      {% for d in day_plan.destinations %}
+      <li class="home-day-place">
+        <div class="home-day-place-name">{{ d.place }}<span class="home-day-count">{{ d.members|length }}人</span></div>
+        <ul class="home-day-members">
+          {% for m in d.members %}
+          <li class="home-day-member plan-kind-{{ m.kind }}">
+            <span class="home-day-member-name">{{ m.worker.name }}</span>
+            <span class="home-day-member-meta">{{ m.label }}{% if m.time_label %} {{ m.time_label }}{% endif %}</span>
+          </li>
+          {% endfor %}
+        </ul>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="home-day-empty">この日の現場・直行直帰・出張の予定はありません</p>
+    {% endif %}
+
+    {% if day_plan.office or day_plan.remote or day_plan.away %}
+    <dl class="home-day-others">
+      {% if day_plan.office %}
+      <div><dt>出社</dt><dd>{% for m in day_plan.office %}{{ m.worker.name }}{% if not forloop.last %}、{% endif %}{% endfor %}</dd></div>
+      {% endif %}
+      {% if day_plan.remote %}
+      <div><dt>在宅</dt><dd>{% for m in day_plan.remote %}{{ m.worker.name }}{% if not forloop.last %}、{% endif %}{% endfor %}</dd></div>
+      {% endif %}
+      {% if day_plan.away %}
+      <div><dt>休み等</dt><dd>{% for m in day_plan.away %}{{ m.worker.name }}（{{ m.label }}）{% if not forloop.last %}、{% endif %}{% endfor %}</dd></div>
+      {% endif %}
+    </dl>
+    {% endif %}
+  </section>
+
+  {# 工期管理と同じガントチャート（テンプレートを共有。ADR-0032）。 #}
+  <section class="card home-gantt">
+    <div class="card-header">
+      <h2>工期（ガントチャート）</h2>
+      <a href="{% url 'schedules:list' %}" class="btn btn-outline btn-sm">工期管理で開く</a>
+    </div>
+    <div class="card-body">
+      {% include "schedules/partials/gantt_chart.html" %}
+    </div>
+  </section>
 
 </div>
 {% endblock %}

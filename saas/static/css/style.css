@@ -527,6 +527,15 @@ input[type="time"].form-control::-webkit-date-and-time-value { text-align: left;
 .gantt .bar-custom .bar-wrapper:hover .bar-progress { fill: var(--accent); }
 .gantt .bar-milestone .bar-progress { fill: var(--warning); }
 .gantt .bar-blue .bar-progress { fill: var(--info); }
+/* 工期管理とホームで共有するガント（schedules/partials/gantt_chart.html、ADR-0032） */
+.gantt-card { margin-bottom: 16px; }
+.gantt-controls { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.gantt-controls .btn { min-height: 44px; }
+.gantt-chart { overflow-x: auto; }
+.gantt-popup { padding: 12px; min-width: 200px; }
+.gantt-popup h5 { margin: 0 0 6px; font-size: .95rem; }
+.gantt-popup p { margin: 4px 0 0; font-size: .82rem; }
+.gantt-popup .gantt-popup-dates { margin: 0; color: var(--text-muted); }
 
 /* ---- 開発管理ガント ---- */
 /* プロジェクトのステータスで色分けする。クラス名は
@@ -877,8 +886,165 @@ input[type="time"].form-control::-webkit-date-and-time-value { text-align: left;
 .plan-day-row.plan-kind-half { background: #fef3c7; }
 .plan-day-row.plan-kind-off { background: #e5e7eb; }
 
+/* ---- 材料別の取引履歴（materials/purchase_history.html、ADR-0034） ---- */
+/* 材料1つを <details> 1枚にし、閉じた状態の見出しで単価の相場が読めるようにする。
+   開くと取引の表。表は列が多いので .table-slide で横に流す。 */
+.ph-search-card { margin-bottom: 20px; }
+.ph-search {
+  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px 16px; align-items: end;
+}
+.ph-search .form-group { margin-bottom: 0; min-width: 0; }
+.ph-search .form-control { min-height: 44px; }
+.ph-search-keyword { grid-column: span 2; }
+.ph-search-actions { grid-column: span 2; display: flex; gap: 10px; }
+.ph-search-actions .btn { flex: 1 1 0; max-width: 160px; min-height: 44px; }
+.ph-search-card .form-hint { margin-top: 14px; }
+
+.ph-notice {
+  margin-bottom: 16px; padding: 12px 16px;
+  border: 1px solid var(--border); border-left: 4px solid var(--warning);
+  border-radius: var(--radius-sm); background: var(--warning-light);
+  color: var(--text-primary); font-size: .85rem;
+}
+.ph-count { margin-bottom: 12px; font-size: .85rem; color: var(--text-muted); }
+.ph-list { display: flex; flex-direction: column; gap: 12px; }
+.ph-material { overflow: hidden; }
+
+.ph-summary {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px 24px;
+  min-height: 44px; padding: 14px 20px;
+  cursor: pointer; list-style: none; transition: var(--transition);
+}
+.ph-summary::-webkit-details-marker { display: none; }
+.ph-summary:hover { background: var(--surface-hover); }
+.ph-material[open] .ph-summary { background: var(--brand-light); border-bottom: 1px solid var(--border); }
+.ph-material[open] .nav-chevron { transform: rotate(180deg); }
+.ph-name {
+  flex: 1 1 240px; min-width: 0;
+  display: flex; align-items: center; flex-wrap: wrap; gap: 8px;
+  font-size: 1rem; font-weight: 600; color: var(--text-primary);
+}
+.ph-code { font-size: .78rem; font-weight: 500; color: var(--text-muted); }
+.ph-stats { display: flex; flex-wrap: wrap; gap: 4px 20px; }
+.ph-stats div { display: flex; align-items: baseline; gap: 6px; }
+.ph-stats dt { font-size: .75rem; color: var(--text-muted); }
+.ph-stats dd { font-size: .88rem; font-weight: 600; color: var(--text-primary); }
+
+.ph-num { text-align: right; }
+/* 表内のリンクは指で押せる高さを確保し、その分セルの上下余白を詰める */
+.ph-table td { padding-top: 4px; padding-bottom: 4px; }
+.ph-link { display: inline-flex; align-items: center; min-height: 44px; }
+/* 取引の行から発注し直す（同じ材料で発注 / この仕入先に発注） */
+/* 表の先頭列に置くので、2つのボタンは縦に積んで列幅を抑える */
+.ph-reorder { display: flex; flex-direction: column; gap: 6px; padding: 4px 0; }
+.ph-reorder .btn { min-height: 44px; display: inline-flex; align-items: center; justify-content: center; white-space: nowrap; }
+
+/* 材料・発注の一覧の上に置く「過去の取引を検索」（ADR-0034） */
+.materials-history-search { display: block; margin-bottom: 20px; padding: 16px 20px; }
+.materials-history-search label { display: block; margin-bottom: 6px; font-size: .85rem; font-weight: 600; color: var(--text-secondary); }
+.materials-history-search-row { display: flex; gap: 8px; }
+.materials-history-search-row .form-control { flex: 1 1 auto; min-width: 0; min-height: 44px; }
+.materials-history-search-row .btn { flex: 0 0 auto; min-height: 44px; }
+
+/* フォームの上に出す補足（取引履歴から来た発注書の作成など） */
+.form-note { margin-bottom: 16px; padding: 12px 14px; border-radius: var(--radius-sm); background: var(--info-light); color: var(--text-secondary); font-size: .85rem; line-height: 1.7; }
+
+/* ---- ホーム「施工中の現場と今週の工程」（ADR-0032） ----
+   現場ごとのカードを PC では幅に応じて複数列、スマホ（768px 以下）では1列に積む。
+   タップする要素（現場名・工程を見る・すべて見る）は高さ 44px 以上にする。
+   進捗は <progress> で出す（幅を style="" で渡さないため）。 */
+.home-week-header { gap: 12px; }
+.home-week-header .btn { min-height: 44px; }
+.home-week-range { margin-top: 2px; font-size: .8rem; color: var(--text-muted); }
+.home-sites {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr));
+  gap: 16px; padding: 20px 24px;
+}
+.home-site {
+  display: flex; flex-direction: column; gap: 10px; min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--surface);
+}
+.home-site-name {
+  display: flex; align-items: center; min-height: 44px;
+  font-size: 1rem; font-weight: 700; color: var(--brand);
+  overflow-wrap: anywhere;
+}
+.home-site-meta { display: grid; gap: 4px; font-size: .82rem; }
+.home-site-meta > div { display: flex; gap: 8px; min-width: 0; }
+.home-site-meta dt { flex: 0 0 4.5em; color: var(--text-muted); }
+.home-site-meta dd { min-width: 0; color: var(--text-secondary); overflow-wrap: anywhere; }
+.home-site-amount { font-weight: 600; }
+.home-site-subhead { margin-top: 4px; font-size: .78rem; font-weight: 600; color: var(--text-muted); }
+.home-site-list { list-style: none; display: grid; gap: 8px; }
+.home-item-row {
+  display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between;
+  gap: 2px 12px; font-size: .88rem;
+}
+.home-item-name { min-width: 0; overflow-wrap: anywhere; }
+.home-item-date { font-size: .8rem; color: var(--text-secondary); white-space: nowrap; }
+.home-phase-progress {
+  display: flex; align-items: center; gap: 8px; margin-top: 4px;
+  font-size: .78rem; color: var(--text-secondary);
+}
+.home-phase-progress progress {
+  flex: 1; min-width: 0; height: 8px;
+  -webkit-appearance: none; appearance: none;
+  border: none; border-radius: var(--radius-full);
+  background: var(--border-light); overflow: hidden;
+}
+.home-phase-progress progress::-webkit-progress-bar { background: var(--border-light); }
+.home-phase-progress progress::-webkit-progress-value { background: var(--accent); }
+.home-phase-progress progress::-moz-progress-bar { background: var(--accent); }
+.home-site-empty { font-size: .85rem; color: var(--text-muted); }
+.home-site-schedule { align-self: flex-start; min-height: 44px; margin-top: auto; }
+.home-week-more { padding: 0 24px 16px; font-size: .85rem; color: var(--text-secondary); }
+.home-week-more a { display: inline-flex; align-items: center; min-height: 44px; }
+
+/* ---- ホーム「誰がどの現場へ行くか」（出社予定。ADR-0032） ----
+   行き先ごとのブロックを PC では複数列、スマホでは1列に積む。
+   作業員は区分の色（.plan-kind-*、出社予定と同じ）の札で並べる。 */
+.home-day-header { gap: 12px; flex-wrap: wrap; }
+.home-day-nav { display: flex; flex-wrap: wrap; gap: 8px; }
+.home-day-nav .btn { min-height: 44px; display: inline-flex; align-items: center; }
+.home-day-places {
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr));
+  gap: 12px; padding: 16px 24px;
+}
+.home-day-place { min-width: 0; padding: 12px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
+.home-day-place-name { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 8px; font-weight: 700; color: var(--brand); overflow-wrap: anywhere; }
+.home-day-count { flex: 0 0 auto; font-size: .8rem; font-weight: 600; color: var(--text-muted); }
+.home-day-members { list-style: none; display: flex; flex-wrap: wrap; gap: 6px; }
+.home-day-member { display: inline-flex; flex-direction: column; min-width: 0; padding: 4px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: .85rem; }
+.home-day-member-name { font-weight: 600; color: var(--text-primary); }
+.home-day-member-meta { font-size: .72rem; color: var(--text-secondary); }
+.home-day-empty { padding: 16px 24px; font-size: .85rem; color: var(--text-muted); }
+.home-day-others { display: grid; gap: 6px; padding: 0 24px 16px; font-size: .85rem; }
+.home-day-others > div { display: flex; gap: 8px; min-width: 0; }
+.home-day-others dt { flex: 0 0 4.5em; color: var(--text-muted); }
+.home-day-others dd { min-width: 0; color: var(--text-secondary); overflow-wrap: anywhere; }
+
 /* ---- Responsive ---- */
 @media (max-width: 768px) {
+  /* 材料別の取引履歴: 検索欄は日付だけ2列、ほかは1列。集計は2列に並べる */
+  .ph-search-card .card-body { padding: 16px; }
+  .ph-search { grid-template-columns: 1fr 1fr; }
+  .ph-search-keyword, .ph-search-select, .ph-search-actions { grid-column: 1 / -1; }
+  .ph-search-actions .btn { max-width: none; }
+  .ph-summary { padding: 12px; gap: 8px; }
+  .ph-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 12px; width: 100%; }
+  .materials-history-search { padding: 12px; }
+
+  .home-sites { grid-template-columns: 1fr; padding: 12px; }
+  .home-week-more { padding: 0 12px 12px; }
+  .home-day-places { grid-template-columns: 1fr; padding: 12px; }
+  .home-day-empty { padding: 12px; }
+  .home-day-others { padding: 0 12px 12px; }
   .sidebar { transform: translateX(-100%); box-shadow: none; }
   .sidebar.open { transform: translateX(0); box-shadow: var(--shadow-lg); }
   .main { margin-left: 0; }
