@@ -128,28 +128,29 @@ def test_定義した項目のパターンが互いを食い合わない():
 def test_サイドバーは業務グループの順に並ぶ():
     top_level = [entry.label for entry in NAVIGATION]
 
-    assert top_level == ["ホーム", "現場", "日々の記録", "作業員", "取引先", "設定", "開発"]
+    assert top_level == ["ホーム", "現場", "日報・勤怠", "人材", "取引先・業者", "設定", "開発"]
 
 
 def test_同じ現場の工程と原価と発注が現場グループにそろう():
+    """材料・発注は現場管理のすぐ下（ADR-0035）。"""
     groups = {entry.label: entry for entry in NAVIGATION if isinstance(entry, NavGroup)}
 
     assert [item.label for item in groups["現場"].items] == [
-        "入札案件", "積算案件", "現場管理", "工期管理", "現場見積もり/実経費", "材料・発注",
+        "入札案件", "積算案件", "現場管理", "材料・発注", "工期管理", "現場見積もり/実経費",
     ]
 
 
 def test_グループ名の変更と項目の置き場所():
-    """ADR-0033: 取引先は相手だけ、マスタ類は設定、作業員一覧。"""
+    """ADR-0033・ADR-0035: 取引先・業者は相手だけ、マスタ類は設定、作業員一覧。"""
     groups = {entry.label: entry for entry in NAVIGATION if isinstance(entry, NavGroup)}
 
-    assert [item.label for item in groups["日々の記録"].items] == [
+    assert [item.label for item in groups["日報・勤怠"].items] == [
         "日報管理", "出社予定", "月次サマリ",
     ]
-    assert [item.label for item in groups["取引先"].items] == ["顧客", "発注先", "業者名鑑"]
+    assert [item.label for item in groups["取引先・業者"].items] == ["顧客", "発注先", "業者名鑑"]
     settings_labels = [item.label for item in groups["設定"].items]
     assert {"積算マスタ", "工種マスタ"} <= set(settings_labels)
-    assert groups["作業員"].items[0].label == "作業員一覧"
+    assert groups["人材"].items[0].label == "作業員一覧"
 
 
 # ---------------------------------------------------------------------------
