@@ -3,10 +3,15 @@ from django.contrib.auth.decorators import login_required
 from django.shortcuts import render
 from django.utils import timezone
 
+from apps.attendance.plans import build_day_destinations, parse_date
+from apps.core.json_utils import json_for_script
 from apps.permissions.decorators import module_permission_required
 from apps.permissions.services import has_module_permission
 from apps.reports.models import DailyReport
-from apps.schedules.services import get_active_sites_with_week_schedule
+from apps.schedules.services import (
+    get_active_sites_with_week_schedule,
+    get_comparison_gantt_data,
+)
 from apps.sites.models import Site
 from apps.workers.models import Worker
 
@@ -16,7 +21,15 @@ HOME_SITE_LIMIT = 10
 
 @login_required
 def dashboard(request):
-    """ホーム。施工中の現場と今週の工程を中心に置く（ADR-0032）。"""
+    """ホーム（ADR-0032）。
+
+    施工中の現場と今週の工程、工期管理と同じガントチャート、
+    その日に誰がどの現場へ行くか（出社予定）を置く。
+
+    GET パラメータ:
+        date … 「誰がどの現場へ行くか」を見る日（YYYY-MM-DD）。省略・不正なら今日
+    """
+    company = request.user.company
     # USE_TZ=True なので now().date() だと UTC の日付になり、日本時間の
     # 0〜9時に前日扱いになる。現地の日付で揃える。
     today = timezone.localdate()
@@ -26,11 +39,13 @@ def dashboard(request):
     # テンプレートで隠すだけでなくコンテキストにも載せない。
     can_view_costs = has_module_permission(request.user, "costs", "read")
     week = get_active_sites_with_week_schedule(
-        request.user.company,
+        company,
         today,
         limit=HOME_SITE_LIMIT,
         include_amounts=can_view_costs,
     )
+    # 工期管理（schedules:list）を条件なしで開いたときと同じ中身。
+    gantt = get_comparison_gantt_data(company)
 
     context = {
         "active_sites": active_sites,
@@ -44,9 +59,9 @@ def dashboard(request):
         "week_end": week["week_end"],
         "site_schedules": week["sites"],
         "more_sites": max(active_sites - len(week["sites"]), 0),
-        "recent_reports": DailyReport.objects.select_related(
-            "worker", "site"
-        ).order_by("-report_date", "-created_at")[:10],
+        "gantt_json": json_for_script(gantt["tasks"]),
+        "gantt_tasks_exist": len(gantt["tasks"]) > 0,
+        "day_plan": build_day_destinations(company, parse_date(request.GET.get("date", ""))),
     }
     return render(request, "dashboard.html", context)
 

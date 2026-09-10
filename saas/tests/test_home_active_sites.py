@@ -300,5 +300,5 @@ class TestHomeView:
     def test_existing_widgets_are_kept(self, plain_client):
         body = plain_client.get(reverse("dashboard")).content.decode("utf-8")
 
-        for label in ("本日の日報", "承認待ち日報", "作業員数", "<h2>最近の日報</h2>"):
+        for label in ("本日の日報", "承認待ち日報", "作業員数"):
             assert label in body

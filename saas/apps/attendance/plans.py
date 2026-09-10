@@ -388,3 +388,87 @@ def build_day_timeline(
         "prev_date": day - datetime.timedelta(days=1),
         "next_date": day + datetime.timedelta(days=1),
     }
+
+
+# ホームの「誰がどの現場へ行くか」で、行き先（note）ごとに束ねる区分。
+# 出社・在宅は行き先が決まっている（会社・自宅）ので束ねず、別に並べる。
+DESTINATION_KINDS = ("site", "direct", "trip")
+# 行き先を入れずに現場・直行直帰・出張を登録した予定のまとめ先。
+UNKNOWN_PLACE = "行き先未入力"
+
+
+def build_day_destinations(company, day: datetime.date) -> dict:
+    """その日、誰がどこへ行くかをホーム向けにまとめる（ADR-0032）。
+
+    出社予定の「現場名・行先」（note）で束ねる。note は自由入力で現場マスタと
+    紐づいていないため、前後の空白を除いた文字列が同じものを同じ行き先とみなす。
+    行き先が空の予定は消さずに UNKNOWN_PLACE にまとめて見せる。
+
+    行き先は人数の多い順（同数なら名前順）、UNKNOWN_PLACE は最後。
+    在籍者のうち予定が無い人は人数だけ数える（名前を並べると現場の一覧が埋もれる）。
+
+    Returns:
+        {
+          "date", "weekday", "is_today", "prev_date", "next_date",
+          "destinations": [{"place", "members": [member, ...]}, ...],
+          "office": [member, ...], "remote": [member, ...], "away": [member, ...],
+          "working_count", "unplanned_count",
+        }
+        member は {"worker", "kind", "label", "time_label"}
+    """
+    labels = dict(AttendPlan.Kind.choices)
+    workers = list(_workers(company))
+    # unscoped: build_plan_board と同じ理由。company で明示的に絞る。
+    plans = {
+        p.worker_id: p
+        for p in AttendPlan.unscoped.filter(company=company, plan_date=day)
+    }
+
+    destinations: dict[str, list] = {}
+    office, remote, away = [], [], []
+    working_count = 0
+    unplanned_count = 0
+    for worker in workers:
+        plan = plans.get(worker.pk)
+        if plan is None:
+            unplanned_count += 1
+            continue
+        if plan.is_working:
+            working_count += 1
+
+        member = {
+            "worker": worker,
+            "kind": plan.kind,
+            "label": labels.get(plan.kind, ""),
+            "time_label": plan.time_label,
+        }
+        if plan.kind in DESTINATION_KINDS:
+            place = plan.note.strip() or UNKNOWN_PLACE
+            destinations.setdefault(place, []).append(member)
+        elif plan.kind == AttendPlan.Kind.OFFICE:
+            office.append(member)
+        elif plan.kind == AttendPlan.Kind.REMOTE:
+            remote.append(member)
+        else:
+            away.append(member)
+
+    ordered = sorted(
+        destinations.items(),
+        key=lambda item: (item[0] == UNKNOWN_PLACE, -len(item[1]), item[0]),
+    )
+
+    return {
+        "date": day,
+        "weekday": WEEKDAY_LABELS[day.weekday()],
+        "is_today": day == timezone.localdate(),
+        "prev_date": day - datetime.timedelta(days=1),
+        "next_date": day + datetime.timedelta(days=1),
+        "destinations": [
+            {"place": place, "members": members} for place, members in ordered
+        ],
+        "office": office,
+        "remote": remote,
+        "away": away,
+        "working_count": working_count,
+        "unplanned_count": unplanned_count,
+    }

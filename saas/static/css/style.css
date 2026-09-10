@@ -527,6 +527,15 @@ input[type="time"].form-control::-webkit-date-and-time-value { text-align: left;
 .gantt .bar-custom .bar-wrapper:hover .bar-progress { fill: var(--accent); }
 .gantt .bar-milestone .bar-progress { fill: var(--warning); }
 .gantt .bar-blue .bar-progress { fill: var(--info); }
+/* 工期管理とホームで共有するガント（schedules/partials/gantt_chart.html、ADR-0032） */
+.gantt-card { margin-bottom: 16px; }
+.gantt-controls { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.gantt-controls .btn { min-height: 44px; }
+.gantt-chart { overflow-x: auto; }
+.gantt-popup { padding: 12px; min-width: 200px; }
+.gantt-popup h5 { margin: 0 0 6px; font-size: .95rem; }
+.gantt-popup p { margin: 4px 0 0; font-size: .82rem; }
+.gantt-popup .gantt-popup-dates { margin: 0; color: var(--text-muted); }
 
 /* ---- 開発管理ガント ---- */
 /* プロジェクトのステータスで色分けする。クラス名は
@@ -931,10 +940,38 @@ input[type="time"].form-control::-webkit-date-and-time-value { text-align: left;
 .home-week-more { padding: 0 24px 16px; font-size: .85rem; color: var(--text-secondary); }
 .home-week-more a { display: inline-flex; align-items: center; min-height: 44px; }
 
+/* ---- ホーム「誰がどの現場へ行くか」（出社予定。ADR-0032） ----
+   行き先ごとのブロックを PC では複数列、スマホでは1列に積む。
+   作業員は区分の色（.plan-kind-*、出社予定と同じ）の札で並べる。 */
+.home-day-header { gap: 12px; flex-wrap: wrap; }
+.home-day-nav { display: flex; flex-wrap: wrap; gap: 8px; }
+.home-day-nav .btn { min-height: 44px; display: inline-flex; align-items: center; }
+.home-day-places {
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr));
+  gap: 12px; padding: 16px 24px;
+}
+.home-day-place { min-width: 0; padding: 12px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
+.home-day-place-name { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 8px; font-weight: 700; color: var(--brand); overflow-wrap: anywhere; }
+.home-day-count { flex: 0 0 auto; font-size: .8rem; font-weight: 600; color: var(--text-muted); }
+.home-day-members { list-style: none; display: flex; flex-wrap: wrap; gap: 6px; }
+.home-day-member { display: inline-flex; flex-direction: column; min-width: 0; padding: 4px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: .85rem; }
+.home-day-member-name { font-weight: 600; color: var(--text-primary); }
+.home-day-member-meta { font-size: .72rem; color: var(--text-secondary); }
+.home-day-empty { padding: 16px 24px; font-size: .85rem; color: var(--text-muted); }
+.home-day-others { display: grid; gap: 6px; padding: 0 24px 16px; font-size: .85rem; }
+.home-day-others > div { display: flex; gap: 8px; min-width: 0; }
+.home-day-others dt { flex: 0 0 4.5em; color: var(--text-muted); }
+.home-day-others dd { min-width: 0; color: var(--text-secondary); overflow-wrap: anywhere; }
+
 /* ---- Responsive ---- */
 @media (max-width: 768px) {
   .home-sites { grid-template-columns: 1fr; padding: 12px; }
   .home-week-more { padding: 0 12px 12px; }
+  .home-day-places { grid-template-columns: 1fr; padding: 12px; }
+  .home-day-empty { padding: 12px; }
+  .home-day-others { padding: 0 12px 12px; }
   .sidebar { transform: translateX(-100%); box-shadow: none; }
   .sidebar.open { transform: translateX(0); box-shadow: var(--shadow-lg); }
   .main { margin-left: 0; }

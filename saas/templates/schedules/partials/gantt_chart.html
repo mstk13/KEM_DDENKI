@@ -1,0 +1,69 @@
+{% comment %}
+工期のガントチャート（frappe-gantt 0.6.1）。工期管理（schedules/compare.html）と
+ホーム（dashboard.html）で同じものを出すため、1枚にまとめている（ADR-0032）。
+
+コンテキスト:
+  gantt_json        … json_for_script 済みのタスク配列
+  gantt_tasks_exist … タスクが1件以上あるか
+{% endcomment %}
+{% if gantt_tasks_exist %}
+<div class="gantt-block" data-gantt>
+  <div class="gantt-controls">
+    <button type="button" class="btn btn-outline btn-sm gantt-mode" data-mode="Quarter Day">日</button>
+    <button type="button" class="btn btn-outline btn-sm gantt-mode active" data-mode="Week">週</button>
+    <button type="button" class="btn btn-outline btn-sm gantt-mode" data-mode="Month">月</button>
+  </div>
+  <div id="gantt-chart" class="gantt-chart"></div>
+</div>
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/frappe-gantt@0.6.1/dist/frappe-gantt.min.css">
+<script src="https://cdn.jsdelivr.net/npm/frappe-gantt@0.6.1/dist/frappe-gantt.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  var tasks = {{ gantt_json|safe }};
+  var chart = document.querySelector('#gantt-chart');
+  var block = chart.closest('[data-gantt]');
+
+  // 現場名は利用者が入力した文字列なので、ポップアップの HTML に入れる前に逃がす
+  function escapeHtml(text) {
+    var el = document.createElement('span');
+    el.textContent = text;
+    return el.innerHTML;
+  }
+
+  var gantt = new Gantt('#gantt-chart', tasks, {
+    view_mode: 'Week',
+    // language は指定しない。frappe-gantt 0.6.1 は 'ja' の月名テーブルを持たず、
+    // 月ラベル生成時に例外を投げて描画が途中で止まる（バーが出ない）。
+    custom_popup_html: function(task) {
+      var days = Math.round((task.end - task.start) / 86400000) + 1;
+      return '<div class="details-container gantt-popup">'
+        + '<h5>' + escapeHtml(task.name) + '</h5>'
+        + '<p class="gantt-popup-dates">'
+        + task.start.toLocaleDateString('ja-JP') + ' ～ ' + task.end.toLocaleDateString('ja-JP')
+        + '</p>'
+        + '<p>工期: ' + days + '日</p>'
+        + '<p>進捗: ' + task.progress + '%</p>'
+        + '</div>';
+    }
+  });
+
+  localizeGanttMonths(chart);
+
+  block.querySelectorAll('.gantt-mode').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      block.querySelectorAll('.gantt-mode').forEach(function(b) { b.classList.remove('active'); });
+      this.classList.add('active');
+      gantt.change_view_mode(this.dataset.mode);
+      // 表示切替で描き直されるため、月ラベルを付け直す
+      localizeGanttMonths(chart);
+    });
+  });
+});
+</script>
+{% else %}
+<div class="empty">
+  <div class="empty-icon">&#x1f4c5;</div>
+  <p>表示できる工期がありません。現場に工期開始・終了日を設定するか、工程フェーズに日付を登録してください。</p>
+</div>
+{% endif %}

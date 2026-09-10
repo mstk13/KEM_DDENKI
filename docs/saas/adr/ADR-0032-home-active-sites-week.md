@@ -36,7 +36,22 @@ D8 が決まってから行う）。2026-09-10、プロダクトオーナーが�
 5. 集計はサービス関数 `schedules.services.get_active_sites_with_week_schedule(company, ref_date, limit, include_amounts)`
    に置く。基準日を引数で受ける（テストを日付に依存させない）。現場・工程・マイルストーンの
    3クエリで、現場数に比例して増えない
-6. 件数カード4枚と最近の日報はそのまま残す
+6. 件数カード4枚はそのまま残す
+7. **最近の日報は外し、代わりに「誰がどの現場へ行くか」と工期のガントチャートを置く**
+   （2026-09-10 追加の要望。日報の一覧は日報管理で見られ、ホームで知りたいのは
+   「その日に誰がどこへ行くか」と「全体の工期」だったため）
+   - **誰がどの現場へ行くか**: 出社予定（`AttendPlan`、ADR-0023）から組み立てる
+     （`attendance.plans.build_day_destinations`）。区分が現場・直行直帰・出張の予定を、
+     「現場名・行先」（`note`）ごとに束ねる。`note` は自由入力で現場マスタと紐づかないため、
+     前後の空白を除いた文字列が同じものを同じ行き先とみなし、行き先が空の予定は
+     「行き先未入力」にまとめて最後に出す。出社・在宅・休み等は別に並べ、予定の無い在籍者は人数だけ出す
+   - `?date=YYYY-MM-DD` で日を切り替える（前日・今日・翌日）。「予定を記入」から日シートへ
+   - 配置（`schedules.Assignment`）は使わない。「どの現場に何日から何日まで付くか」の期間で、
+     その日に実際どこへ行くか（休み・直行を含む）は出社予定にしか無いため
+   - **ガントチャート**: 工期管理（`schedules:list`）を条件なしで開いたときと同じデータ
+     （`get_comparison_gantt_data`）を、同じテンプレート `schedules/partials/gantt_chart.html` で描く。
+     工期管理側もこの部品を使うように置き換え、2画面で見た目や挙動がずれないようにした。
+     あわせてポップアップに現場名を差し込む前に HTML をエスケープするようにした（現場名は入力値）
 
 あわせて、ホームの「今日」を `timezone.now().date()`（UTC の日付）から `timezone.localdate()` に
 直した。日本時間 0〜9 時に「本日の日報」が前日の件数になっていたため。
@@ -69,6 +84,9 @@ D8 は「どの KPI をホームに載せるか」の決定であり、既存の
 - 変更: `apps/core/views.py`（`dashboard`）、`templates/dashboard.html`（「施工中の現場」表を置き換え）
 - 追加: `static/css/style.css` のホーム用クラス（`home-*`。768px 以下で1列、タップ領域 44px 以上）
 - 追加: `tests/test_home_active_sites.py`（状態・越境・週の境界・並び順・件数上限・クエリ数・金額の出し分け）
-- コンテキストキー `recent_sites` を廃止し、`site_schedules` / `more_sites` / `week_start` / `week_end` /
-  `can_view_costs` に置き換えた
+- コンテキストキー `recent_sites` / `recent_reports` を廃止し、`site_schedules` / `more_sites` / `week_start` /
+  `week_end` / `can_view_costs` / `gantt_json` / `gantt_tasks_exist` / `day_plan` に置き換えた
+- 追加: `apps/attendance/plans.py` の `build_day_destinations`
+- 追加: `templates/schedules/partials/gantt_chart.html`（工期管理とホームで共有）。`schedules/compare.html` はこれを include する
+- 追加: `tests/test_home_gantt_day_plan.py`（行き先の束ね方・区分の振り分け・越境・日付の切り替え・工期管理と同じガント）
 - マイグレーションなし
