@@ -1,12 +1,10 @@
 """人材管理のビジネスロジック。
 
-スキルマップ、勤怠集計、資格期限チェックを担う。
+スキルマップ、資格期限チェックを担う。
 将来の DRF API 移行時にもそのまま使える。
 """
 
 from datetime import date
-
-from django.db.models import Count, Sum
 
 from apps.workers.models import Worker, WorkerQualification
 
@@ -47,52 +45,6 @@ def get_skill_map(company):
         "workers": worker_data,
         "all_skills": sorted(all_skills),
     }
-
-
-def get_attendance_summary(company, year, month):
-    """月別勤怠集計。日報の承認済みデータから自動集計する。
-
-    Returns:
-        [{
-            "worker_name": "田中太郎",
-            "worker_pk": 1,
-            "work_days": 22,
-            "total_regular": 176.0,
-            "total_overtime": 15.5,
-            "total_hours": 191.5,
-        }, ...]
-    """
-    from apps.reports.models import DailyReport
-
-    reports = DailyReport.unscoped.filter(
-        company=company,
-        report_date__year=year,
-        report_date__month=month,
-        status=DailyReport.Status.APPROVED,
-    )
-
-    summary = (
-        reports.values("worker__name", "worker__pk")
-        .annotate(
-            work_days=Count("report_date", distinct=True),
-            total_regular=Sum("regular_hours"),
-            total_overtime=Sum("overtime_hours"),
-            total_hours=Sum("work_hours"),
-        )
-        .order_by("worker__name")
-    )
-
-    return [
-        {
-            "worker_name": r["worker__name"],
-            "worker_pk": r["worker__pk"],
-            "work_days": r["work_days"],
-            "total_regular": float(r["total_regular"] or 0),
-            "total_overtime": float(r["total_overtime"] or 0),
-            "total_hours": float(r["total_hours"] or 0),
-        }
-        for r in summary
-    ]
 
 
 def get_expiring_qualifications(company, days_ahead=90):

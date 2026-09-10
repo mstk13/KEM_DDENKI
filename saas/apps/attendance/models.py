@@ -3,9 +3,23 @@ from simple_history.models import HistoricalRecords
 
 from apps.core.models import TenantModel
 
+# ---------------------------------------------------------------------------
+# 廃止済み: 勤怠日報（AttendReport / AttendEntry）
+#
+# 実績の入力は reports.DailyReport に一本化した。勤怠日報は現場が Site FK では
+# なく site_name の文字列で、原価（CostTransaction）にも繋がらないため、
+# 同じ実績を二重に持つだけになっていた。月次集計も reports:monthly_summary が
+# 同じ内容を DailyReport から出している。詳細は ADR-0024。
+#
+# 画面・URL・フォーム・admin は削除済み。クラス定義だけ残しているのは、
+# 既存テーブルを今リリースで DROP しないため（CLAUDE.md 絶対ルール7の
+# expand/contract）。次のリリースで DeleteModel マイグレーションを入れて消す。
+# 新しいコードからは参照しないこと。
+# ---------------------------------------------------------------------------
+
 
 class AttendReport(TenantModel):
-    """勤怠日報ヘッダ。1日1現場の出勤記録をまとめる。"""
+    """勤怠日報ヘッダ。【廃止】DailyReport に置き換え済み。テーブル温存のみ。"""
 
     class Status(models.TextChoices):
         UNCONFIRMED = "未確認", "未確認"
@@ -37,7 +51,7 @@ class AttendReport(TenantModel):
 
 
 class AttendEntry(TenantModel):
-    """作業員ごとの勤怠エントリ。"""
+    """作業員ごとの勤怠エントリ。【廃止】DailyReport に置き換え済み。テーブル温存のみ。"""
 
     report = models.ForeignKey(
         AttendReport,
