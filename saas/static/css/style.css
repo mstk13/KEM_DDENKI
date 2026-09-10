@@ -536,6 +536,19 @@ input[type="time"].form-control::-webkit-date-and-time-value { text-align: left;
 .gantt .bar-custom .bar-wrapper:hover .bar-progress { fill: var(--accent); }
 .gantt .bar-milestone .bar-progress { fill: var(--warning); }
 .gantt .bar-blue .bar-progress { fill: var(--info); }
+/* バーの上の文字。frappe-gantt の既定は白で、開発管理の中間色のバー（コントラスト約2:1）や
+   工期管理・ホームの淡い地色のバーでは読めない。バーの色は変えずに、濃い文字に白い縁取りを
+   付けて、淡い地色の上でも濃い進捗の上でも読めるようにする。
+   frappe-gantt の CSS はこのファイルより後に読み込まれるので、svg 要素を含めて詳細度を上げる。 */
+svg.gantt .bar-wrapper .bar-label,
+svg.gantt .bar-wrapper .bar-label.big {
+  fill: var(--text-primary);
+  font-weight: 500;
+  paint-order: stroke;
+  stroke: rgba(255, 255, 255, .9);
+  stroke-width: 3px;
+  stroke-linejoin: round;
+}
 /* 工期管理とホームで共有するガント（schedules/partials/gantt_chart.html、ADR-0032） */
 .gantt-card { margin-bottom: 16px; }
 .gantt-controls { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
