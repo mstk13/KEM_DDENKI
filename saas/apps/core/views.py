@@ -1,9 +1,11 @@
+import datetime
+
 from django.apps import apps
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import render
 from django.utils import timezone
 
-from apps.attendance.plans import build_day_destinations, parse_date
+from apps.attendance.plans import parse_date
 from apps.core.json_utils import json_for_script
 from apps.permissions.decorators import module_permission_required
 from apps.permissions.services import has_module_permission
@@ -21,18 +23,20 @@ HOME_SITE_LIMIT = 10
 
 @login_required
 def dashboard(request):
-    """ホーム（ADR-0032）。
+    """ホーム（ADR-0032, ADR-0036）。
 
-    施工中の現場と今週の工程、工期管理と同じガントチャート、
-    その日に誰がどの現場へ行くか（出社予定）を置く。
+    施工中の現場と今週の工程（現場ごとにその日の参加者＝配置と出社予定）、
+    工期管理と同じガントチャートを置く。
 
     GET パラメータ:
-        date … 「誰がどの現場へ行くか」を見る日（YYYY-MM-DD）。省略・不正なら今日
+        date … 現場カードの参加者を見る日（YYYY-MM-DD）。省略・不正なら今日。
+               今週の工程は date に関係なく今日を含む週のまま
     """
     company = request.user.company
     # USE_TZ=True なので now().date() だと UTC の日付になり、日本時間の
     # 0〜9時に前日扱いになる。現地の日付で揃える。
     today = timezone.localdate()
+    members_date = parse_date(request.GET.get("date", ""))
     active_sites = Site.objects.filter(status=Site.Status.IN_PROGRESS).count()
 
     # 受注金額は原価と同じ扱い。現場詳細と同じ判定を通し、権限が無ければ
@@ -43,6 +47,7 @@ def dashboard(request):
         today,
         limit=HOME_SITE_LIMIT,
         include_amounts=can_view_costs,
+        members_date=members_date,
     )
     # 工期管理（schedules:list）を条件なしで開いたときと同じ中身。
     gantt = get_comparison_gantt_data(company)
@@ -61,7 +66,11 @@ def dashboard(request):
         "more_sites": max(active_sites - len(week["sites"]), 0),
         "gantt_json": json_for_script(gantt["tasks"]),
         "gantt_tasks_exist": len(gantt["tasks"]) > 0,
-        "day_plan": build_day_destinations(company, parse_date(request.GET.get("date", ""))),
+        "members_date": members_date,
+        "members_is_today": members_date == today,
+        "members_prev_date": members_date - datetime.timedelta(days=1),
+        "members_next_date": members_date + datetime.timedelta(days=1),
+        "unmatched_plans": week["unmatched_plans"],
     }
     return render(request, "dashboard.html", context)
 

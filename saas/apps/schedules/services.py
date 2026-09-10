@@ -5,9 +5,11 @@
 将来の DRF API 移行時にもそのまま使える。
 """
 
+import re
+import unicodedata
 from datetime import date, timedelta
 
-from django.db.models import F, Prefetch
+from django.db.models import F, Prefetch, Q
 from django.utils import timezone
 
 from apps.schedules.models import Assignment, Milestone, Phase, PhaseTemplate
@@ -15,6 +17,17 @@ from apps.schedules.models import Assignment, Milestone, Phase, PhaseTemplate
 # 比較ガントで現場ごとに色を割り当てるためのパレット数。
 # style.css の .gantt-site-0 〜 .gantt-site-7 と対応させている。
 COMPARISON_COLOR_COUNT = 8
+
+# ホームの現場カードに出す「その日の参加者」（ADR-0036）。
+# 行き先（note）を現場名と突き合わせる出社予定の区分。出張も、行き先に現場名が
+# 書いてあればその現場の参加者に数える。
+MEMBER_PLAN_KINDS = ("site", "direct", "trip")
+# 現場へ出ているとみなす区分。出張はその現場と一致したときだけ現場にいるとみなす。
+ON_SITE_PLAN_KINDS = ("site", "direct")
+# 出社予定が無く、配置だけで参加者になった人の表示。
+ASSIGNED_LABEL = "配置"
+
+_WHITESPACE = re.compile(r"\s+")
 
 
 def _average_progress(phases):
@@ -269,8 +282,128 @@ def week_bounds(ref_date):
     return week_start, week_start + timedelta(days=6)
 
 
+def normalize_place(value):
+    """現場名・行き先を突き合わせ用に揃える（ADR-0036）。
+
+    NFKC で全角英数・全角空白を半角にし、空白（全角を含む）をすべて除いてから
+    casefold する。「Ａ社　ビル」「a社 ビル」「A社ビル」を同じ文字列にするため。
+    """
+    text = unicodedata.normalize("NFKC", value or "").strip()
+    return _WHITESPACE.sub("", text).casefold()
+
+
+def _place_matches(note, site_name):
+    """揃えた行き先 note が、揃えた現場名 site_name を指しているか。
+
+    完全一致、行き先（2文字以上）が現場名に含まれる、現場名が行き先に含まれる、のどれか。
+    行き先1文字の部分一致は「A」「東」のような書きかけで別の現場に当たりやすいので採らない。
+    """
+    if not note or not site_name:
+        return False
+    return (
+        note == site_name
+        or (len(note) >= 2 and note in site_name)
+        or site_name in note
+    )
+
+
+def _worker_sort_key(member):
+    worker = member["worker"]
+    return (worker.employee_code or "", worker.name, worker.pk)
+
+
+def _member(worker, plan, labels, is_away):
+    """現場カードに並べる参加者1人ぶん。予定があれば区分・時刻、無ければ「配置」。"""
+    return {
+        "worker": worker,
+        "kind": plan.kind if plan else "",
+        "label": labels.get(plan.kind, "") if plan else ASSIGNED_LABEL,
+        "time_label": plan.time_label if plan else "",
+        "is_away": is_away,
+    }
+
+
+def _attach_site_members(company, entries, day):
+    """現場カード（entries）に day の参加者 "members" を足し、現場と一致しない予定を返す。
+
+    参加者は次の2つを合わせ、作業員ごとに1人にまとめる（ADR-0036）。
+
+      * 配置（Assignment）… 期間が day を含むもの。終了日なしは続いているとみなす
+      * 出社予定（AttendPlan）… 区分が現場・直行直帰・出張で、行き先（note）が
+        現場名と一致するもの。一致の判定は normalize_place と _place_matches。
+        並んでいる現場のうち2つ以上に一致する行き先は、どれにも一致しないものとする
+
+    表示は予定を優先する。配置されている人でも、その日の予定が
+      * 別の現場と一致していれば、この現場には出さない（その日はそちらへ行く）
+      * 現場へ出る区分でなければ（有休・休み・在宅など）、区分を付けて控えめに出す
+        （is_away=True。配置の期間中でも、その日は現場にいないと分かるように）
+
+    どの現場とも一致しない予定（行き先が空・一致なし・複数に一致）は捨てずに返し、
+    ホームで1行にまとめて見せる。退職者は配置・予定とも出さない。
+
+    クエリは現場数によらず配置・予定の各1回。
+    """
+    from apps.attendance.models import AttendPlan
+
+    labels = dict(AttendPlan.Kind.choices)
+    site_names = {entry["site_id"]: normalize_place(entry["name"]) for entry in entries}
+    members = {site_id: {} for site_id in site_names}
+
+    # unscoped: 他のサービス関数と同じく company を引数で受けて明示的に絞る。
+    # 1人1日1件（uniq_attend_plan_worker_date）なので作業員で引ける。
+    plans = {
+        plan.worker_id: plan
+        for plan in AttendPlan.unscoped.filter(
+            company=company, plan_date=day, worker__is_active=True,
+        ).select_related("worker")
+    }
+
+    matched_site = {}
+    unmatched = []
+    for plan in plans.values():
+        if plan.kind not in MEMBER_PLAN_KINDS:
+            continue
+        note = normalize_place(plan.note)
+        hits = [site_id for site_id, name in site_names.items() if _place_matches(note, name)]
+        if len(hits) == 1:
+            matched_site[plan.worker_id] = hits[0]
+            members[hits[0]][plan.worker_id] = _member(plan.worker, plan, labels, is_away=False)
+            continue
+        unmatched.append({
+            **_member(plan.worker, plan, labels, is_away=False),
+            "note": plan.note.strip(),
+            "is_ambiguous": len(hits) > 1,
+        })
+
+    if site_names:
+        # unscoped: 上と同じ理由。表示する現場の分だけを1クエリで引く。
+        assignments = (
+            Assignment.unscoped.filter(
+                company=company,
+                site_id__in=list(site_names),
+                start_date__lte=day,
+                worker__is_active=True,
+            )
+            .filter(Q(end_date__isnull=True) | Q(end_date__gte=day))
+            .select_related("worker")
+        )
+        for assignment in assignments:
+            worker_id = assignment.worker_id
+            site_members = members[assignment.site_id]
+            if worker_id in site_members or worker_id in matched_site:
+                # 予定の行き先で決まっている（この現場なら予定の区分・時刻を出し済み）
+                continue
+            plan = plans.get(worker_id)
+            is_away = plan is not None and plan.kind not in ON_SITE_PLAN_KINDS
+            site_members[worker_id] = _member(assignment.worker, plan, labels, is_away)
+
+    for entry in entries:
+        entry["members"] = sorted(members[entry["site_id"]].values(), key=_worker_sort_key)
+    return sorted(unmatched, key=_worker_sort_key)
+
+
 def get_active_sites_with_week_schedule(
-    company, ref_date=None, limit=None, include_amounts=False,
+    company, ref_date=None, limit=None, include_amounts=False, members_date=None,
 ):
     """施工中の現場と、基準日を含む週（月〜日）の工程・マイルストーンを返す（ホーム用）。
 
@@ -284,6 +417,8 @@ def get_active_sites_with_week_schedule(
         limit: 返す現場数の上限。None なら全件
         include_amounts: True のときだけ受注金額を載せる。原価を見られない人の
             コンテキストに金額を渡さないため、既定は載せない
+        members_date: 指定した日の参加者（配置と出社予定）を現場ごとに載せる
+            （ADR-0036、_attach_site_members）。週は ref_date のまま変えない
 
     Returns:
         {
@@ -293,9 +428,15 @@ def get_active_sites_with_week_schedule(
                     "site_id", "name", "customer_name", "start_date", "end_date",
                     "contract_amount"（include_amounts のときだけ）,
                     "phases": [Phase, ...], "milestones": [Milestone, ...],
+                    "members"（members_date のときだけ）:
+                        [{"worker", "kind", "label", "time_label", "is_away"}, ...],
                 },
                 ...
             ],
+            # 以下は members_date のときだけ
+            "members_date": date,
+            "unmatched_plans": [{"worker", "kind", "label", "time_label", "is_away",
+                                 "note", "is_ambiguous"}, ...],
         }
     """
     from apps.sites.models import Site
@@ -343,4 +484,8 @@ def get_active_sites_with_week_schedule(
             entry["contract_amount"] = site.contract_amount
         entries.append(entry)
 
-    return {"week_start": week_start, "week_end": week_end, "sites": entries}
+    result = {"week_start": week_start, "week_end": week_end, "sites": entries}
+    if members_date is not None:
+        result["members_date"] = members_date
+        result["unmatched_plans"] = _attach_site_members(company, entries, members_date)
+    return result
