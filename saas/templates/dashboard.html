@@ -29,29 +29,73 @@
 
 <div class="dash-cards">
 
-  <div class="card">
-    <div class="card-header">
-      <h2>施工中の現場</h2>
-      <a href="{% url 'sites:list' %}" class="btn btn-outline btn-sm">全て見る</a>
+  {# 施工中の現場と今週の工程（ADR-0032）。受注金額は can_view_costs のときだけ。 #}
+  <section class="card home-week">
+    <div class="card-header home-week-header">
+      <div>
+        <h2>施工中の現場と今週の工程</h2>
+        <p class="home-week-range">{{ week_start|date:"n/j（D）" }} 〜 {{ week_end|date:"n/j（D）" }}</p>
+      </div>
+      <a href="{% url 'sites:list' %}" class="btn btn-outline btn-sm">すべて見る</a>
     </div>
-    <div class="table-wrap table-slide">
-      <table>
-        <thead><tr><th>現場名</th><th>顧客</th><th>工期</th><th>受注金額</th></tr></thead>
-        <tbody>
-          {% for site in recent_sites %}
-          <tr>
-            <td><a href="{% url 'sites:detail' site.pk %}">{{ site.name }}</a></td>
-            <td style="color:var(--text-secondary);">{{ site.customer|default:"-" }}</td>
-            <td style="color:var(--text-secondary);">{{ site.start_date|default:"-" }} 〜 {{ site.end_date|default:"" }}</td>
-            <td style="font-weight:600;">{{ site.contract_amount|floatformat:0 }} 円</td>
-          </tr>
-          {% empty %}
-          <tr><td colspan="4"><div class="empty"><div class="empty-icon">&#x1f3d7;&#xfe0f;</div><p>現場がありません</p></div></td></tr>
+    {% if site_schedules %}
+    <div class="home-sites">
+      {% for s in site_schedules %}
+      <article class="home-site">
+        <a class="home-site-name" href="{% url 'sites:detail' s.site_id %}">{{ s.name }}</a>
+        <dl class="home-site-meta">
+          <div><dt>顧客</dt><dd>{{ s.customer_name|default:"-" }}</dd></div>
+          <div><dt>工期</dt><dd>{{ s.start_date|date:"Y/n/j"|default:"-" }} 〜 {{ s.end_date|date:"Y/n/j"|default:"-" }}</dd></div>
+          {% if can_view_costs %}
+          <div><dt>受注金額</dt><dd class="home-site-amount">{{ s.contract_amount|floatformat:"0g" }} 円</dd></div>
+          {% endif %}
+        </dl>
+
+        {% if s.phases %}
+        <h3 class="home-site-subhead">今週の工程</h3>
+        <ul class="home-site-list">
+          {% for p in s.phases %}
+          <li>
+            <div class="home-item-row">
+              <span class="home-item-name">{{ p.name }}</span>
+              <span class="home-item-date">{{ p.start_date|date:"n/j" }}〜{{ p.end_date|date:"n/j" }}</span>
+            </div>
+            <div class="home-phase-progress">
+              <progress value="{{ p.progress }}" max="100" aria-label="{{ p.name }}の進捗">{{ p.progress }}%</progress>
+              <span>{{ p.progress }}%</span>
+            </div>
+          </li>
           {% endfor %}
-        </tbody>
-      </table>
+        </ul>
+        {% endif %}
+
+        {% if s.milestones %}
+        <h3 class="home-site-subhead">今週のマイルストーン</h3>
+        <ul class="home-site-list">
+          {% for m in s.milestones %}
+          <li class="home-item-row">
+            <span class="home-item-name">◆ {{ m.name }}</span>
+            <span class="home-item-date">{{ m.target_date|date:"n/j（D）" }}{% if m.completed %} <span class="badge badge-green">完了</span>{% endif %}</span>
+          </li>
+          {% endfor %}
+        </ul>
+        {% endif %}
+
+        {% if not s.phases and not s.milestones %}
+        <p class="home-site-empty">今週の工程・マイルストーンはありません</p>
+        {% endif %}
+
+        <a class="btn btn-outline home-site-schedule" href="{% url 'schedules:detail' s.site_id %}">工程を見る</a>
+      </article>
+      {% endfor %}
     </div>
-  </div>
+    {% if more_sites %}
+    <p class="home-week-more">ほか {{ more_sites }} 件の施工中の現場があります。<a href="{% url 'sites:list' %}">現場一覧で見る</a></p>
+    {% endif %}
+    {% else %}
+    <div class="empty"><div class="empty-icon">&#x1f3d7;&#xfe0f;</div><p>施工中の現場はありません</p></div>
+    {% endif %}
+  </section>
 
   <div class="card">
     <div class="card-header">

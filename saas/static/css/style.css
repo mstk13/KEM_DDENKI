@@ -877,8 +877,64 @@ input[type="time"].form-control::-webkit-date-and-time-value { text-align: left;
 .plan-day-row.plan-kind-half { background: #fef3c7; }
 .plan-day-row.plan-kind-off { background: #e5e7eb; }
 
+/* ---- ホーム「施工中の現場と今週の工程」（ADR-0032） ----
+   現場ごとのカードを PC では幅に応じて複数列、スマホ（768px 以下）では1列に積む。
+   タップする要素（現場名・工程を見る・すべて見る）は高さ 44px 以上にする。
+   進捗は <progress> で出す（幅を style="" で渡さないため）。 */
+.home-week-header { gap: 12px; }
+.home-week-header .btn { min-height: 44px; }
+.home-week-range { margin-top: 2px; font-size: .8rem; color: var(--text-muted); }
+.home-sites {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr));
+  gap: 16px; padding: 20px 24px;
+}
+.home-site {
+  display: flex; flex-direction: column; gap: 10px; min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--surface);
+}
+.home-site-name {
+  display: flex; align-items: center; min-height: 44px;
+  font-size: 1rem; font-weight: 700; color: var(--brand);
+  overflow-wrap: anywhere;
+}
+.home-site-meta { display: grid; gap: 4px; font-size: .82rem; }
+.home-site-meta > div { display: flex; gap: 8px; min-width: 0; }
+.home-site-meta dt { flex: 0 0 4.5em; color: var(--text-muted); }
+.home-site-meta dd { min-width: 0; color: var(--text-secondary); overflow-wrap: anywhere; }
+.home-site-amount { font-weight: 600; }
+.home-site-subhead { margin-top: 4px; font-size: .78rem; font-weight: 600; color: var(--text-muted); }
+.home-site-list { list-style: none; display: grid; gap: 8px; }
+.home-item-row {
+  display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between;
+  gap: 2px 12px; font-size: .88rem;
+}
+.home-item-name { min-width: 0; overflow-wrap: anywhere; }
+.home-item-date { font-size: .8rem; color: var(--text-secondary); white-space: nowrap; }
+.home-phase-progress {
+  display: flex; align-items: center; gap: 8px; margin-top: 4px;
+  font-size: .78rem; color: var(--text-secondary);
+}
+.home-phase-progress progress {
+  flex: 1; min-width: 0; height: 8px;
+  -webkit-appearance: none; appearance: none;
+  border: none; border-radius: var(--radius-full);
+  background: var(--border-light); overflow: hidden;
+}
+.home-phase-progress progress::-webkit-progress-bar { background: var(--border-light); }
+.home-phase-progress progress::-webkit-progress-value { background: var(--accent); }
+.home-phase-progress progress::-moz-progress-bar { background: var(--accent); }
+.home-site-empty { font-size: .85rem; color: var(--text-muted); }
+.home-site-schedule { align-self: flex-start; min-height: 44px; margin-top: auto; }
+.home-week-more { padding: 0 24px 16px; font-size: .85rem; color: var(--text-secondary); }
+.home-week-more a { display: inline-flex; align-items: center; min-height: 44px; }
+
 /* ---- Responsive ---- */
 @media (max-width: 768px) {
+  .home-sites { grid-template-columns: 1fr; padding: 12px; }
+  .home-week-more { padding: 0 12px 12px; }
   .sidebar { transform: translateX(-100%); box-shadow: none; }
   .sidebar.open { transform: translateX(0); box-shadow: var(--shadow-lg); }
   .main { margin-left: 0; }
