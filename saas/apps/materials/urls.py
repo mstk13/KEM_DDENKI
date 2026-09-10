@@ -53,8 +53,6 @@ urlpatterns = [
     path("delivery/item/<int:pk>/edit/", views.delivery_item_edit, name="delivery_item_edit"),
     path("delivery/<int:pk>/receive/", views.delivery_receive, name="delivery_receive"),
     path("delivery/<int:pk>/inspect/", views.delivery_inspect, name="delivery_inspect"),
-    # 在庫
-    path("inventory/", views.inventory_list, name="inventory_list"),
     # 材料仕入先
     path(
         "<int:material_pk>/suppliers/",
@@ -65,7 +63,4 @@ urlpatterns = [
         views.material_supplier_add, name="material_supplier_add",
     ),
     path("suppliers/<int:pk>/edit/", views.material_supplier_edit, name="material_supplier_edit"),
-    # 調達実績
-    path("procurement/", views.procurement_list, name="procurement_list"),
-    path("procurement/new/", views.procurement_create, name="procurement_create"),
 ]
