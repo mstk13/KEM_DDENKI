@@ -21,6 +21,7 @@ from apps.workers.models import (
     Worker,
     WorkerEvaluation,
     WorkerQualification,
+    employee_code_sort_key,
 )
 
 
@@ -111,6 +112,18 @@ def document_alert_dashboard(request):
     })
 
 
+def _sort_by_employee_code(qs):
+    """社員番号のアルファベット部ごとに番号順へ並べる。同順位はフリガナ（なければ氏名）順。"""
+    return sorted(
+        qs,
+        key=lambda w: (
+            employee_code_sort_key(w.employee_code),
+            w.name_kana or w.name,
+            w.name,
+        ),
+    )
+
+
 @login_required
 def worker_list(request):
     qs = Worker.objects.select_related("job_title", "position")
@@ -130,14 +143,14 @@ def worker_list(request):
 
     show_inactive = request.GET.get("inactive") == "1"
 
-    # ソート: フリガナ優先
-    qs = qs.order_by(models.functions.Coalesce("name_kana", "name"), "name")
+    # ソート: 社員番号をアルファベットごとに番号順、未設定はフリガナ順で末尾
+    workers = _sort_by_employee_code(qs)
 
     job_titles = JobTitle.objects.filter(is_active=True).order_by("name")
 
     return render(request, "workers/list.html", {
-        "active_workers": qs.filter(is_active=True),
-        "inactive_workers": qs.filter(is_active=False) if show_inactive else [],
+        "active_workers": [w for w in workers if w.is_active],
+        "inactive_workers": [w for w in workers if not w.is_active] if show_inactive else [],
         "show_inactive": show_inactive,
         "q": q,
         "job_filter": job_filter,
@@ -178,11 +191,10 @@ def worker_excel(request):
     from openpyxl import Workbook
     from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 
-    qs = Worker.objects.select_related("job_title", "position").order_by(
-        models.functions.Coalesce("name_kana", "name"), "name",
-    )
+    qs = Worker.objects.select_related("job_title", "position")
     if request.GET.get("active_only") != "0":
         qs = qs.filter(is_active=True)
+    workers = _sort_by_employee_code(qs)
 
     wb = Workbook()
     ws = wb.active
@@ -208,7 +220,7 @@ def worker_excel(request):
         cell.border = thin_border
         ws.column_dimensions[cell.column_letter].width = width
 
-    for row_idx, w in enumerate(qs, 2):
+    for row_idx, w in enumerate(workers, 2):
         vals = [
             w.employee_code,
             w.name,

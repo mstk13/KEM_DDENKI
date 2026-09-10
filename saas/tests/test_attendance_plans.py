@@ -1109,7 +1109,10 @@ class TestDayTimeline:
 
     def test_今日でなければ現在時刻の線を出さない(self, company_a):
         self._worker(company_a)
-        assert self._timeline(company_a)["now_pct"] is None
+        # DAY が実行日と一致すると線が出てしまうので、必ず今日ではない昨日で確認する
+        yesterday = timezone.localdate() - datetime.timedelta(days=1)
+        timeline = build_day_timeline(company_a, yesterday, STD_START, STD_END)
+        assert timeline["now_pct"] is None
 
     def test_今日なら現在時刻の線を出す(self, company_a):
         worker = self._worker(company_a)
