@@ -17,9 +17,11 @@ import pytest
 
 from apps.core.navigation import (
     NAVIGATION,
+    SECTION_TABS,
     NavGroup,
     NavItem,
     build_navigation,
+    build_section_tabs,
     is_visible,
     resolve_active,
 )
@@ -37,9 +39,9 @@ def test_名前空間の前方一致で選ばれる():
 
 
 def test_完全一致の項目は他の画面に反応しない():
-    assert resolve_active("dashboard").label == "ダッシュボード"
+    assert resolve_active("dashboard").label == "ホーム"
     # 名前空間付きの dashboard は別物として扱う
-    assert resolve_active("sales:dashboard").label == "営業ダッシュボード"
+    assert resolve_active("sales:dashboard").label == "業者名鑑"
     assert resolve_active("ai:dashboard").label == "AI利用状況"
 
 
@@ -59,9 +61,9 @@ def test_材料の発注先一覧で取引先グループが開かない():
     assert resolve_active("materials:material_supplier_list").label == "材料・発注"
 
 
-def test_顧客一覧でマスタ管理が同時にactiveにならない():
+def test_顧客一覧で工種マスタが同時にactiveにならない():
     assert resolve_active("masters:customer_list").label == "顧客"
-    assert resolve_active("masters:worktypes").label == "マスタ管理"
+    assert resolve_active("masters:worktypes").label == "工種マスタ"
 
 
 def test_同居する名前空間が接頭辞で振り分けられる():
@@ -76,9 +78,9 @@ def test_同居する名前空間が接頭辞で振り分けられる():
 def test_より具体的なパターンが優先される():
     """estimation:project_* と estimation:item_* のように接頭辞が競合しない範囲でも、
     完全一致と前方一致が重なったときは完全一致を選ぶ。"""
-    assert resolve_active("estimation:standard_edit").label == "積算基準・歩掛"
-    assert resolve_active("estimation:workrate_create").label == "積算基準・歩掛"
-    assert resolve_active("bids:qualification_import").label == "入札参加資格"
+    assert resolve_active("estimation:project_detail").label == "積算案件"
+    assert resolve_active("reports:monthly_summary").label == "月次サマリ"
+    assert resolve_active("reports:detail").label == "日報管理"
 
 
 def test_解決できない画面ではどこもactiveにならない():
@@ -116,6 +118,96 @@ def test_定義した項目のパターンが互いを食い合わない():
         assert resolve_active(item.url_name) is item, (
             f"{item.url_name} を開くと {resolve_active(item.url_name).label} が選ばれる"
         )
+
+
+# ---------------------------------------------------------------------------
+# 業務グループの並び（ADR-0029 / 再設計仕様書 v2.0 §2.1）
+# ---------------------------------------------------------------------------
+
+
+def test_サイドバーは業務グループの順に並ぶ():
+    top_level = [entry.label for entry in NAVIGATION]
+
+    assert top_level == [
+        "ホーム", "案件", "日々の記録", "材料・発注", "ヒト", "マスタ", "設定", "開発",
+    ]
+
+
+def test_同じ現場の工程と原価が案件グループにそろう():
+    groups = {entry.label: entry for entry in NAVIGATION if isinstance(entry, NavGroup)}
+
+    assert [item.label for item in groups["案件"].items] == [
+        "入札案件", "積算案件", "現場管理", "工期管理", "現場見積もり/実経費",
+    ]
+
+
+# ---------------------------------------------------------------------------
+# ページ上部のタブ（SectionTabs）
+#
+# サイドバーでは1項目にまとめた画面群を、画面の上のタブで行き来する。
+# ---------------------------------------------------------------------------
+
+
+def _active_tab(tabs):
+    return [tab["label"] for tab in tabs["tabs"] if tab["active"]]
+
+
+def test_タブの画面を開くとサイドバーはまとめた1項目がactiveになる():
+    assert resolve_active("estimation:standard_edit").label == "積算マスタ"
+    assert resolve_active("estimation:workrate_create").label == "積算マスタ"
+    assert resolve_active("estimation:purchase_list").label == "積算マスタ"
+    assert resolve_active("bids:qualification_import").label == "入札案件"
+    assert resolve_active("bids:dashboard").label == "入札案件"
+    assert resolve_active("sales:industry_browse").label == "業者名鑑"
+
+
+def test_タブはその画面が属する画面群だけを出し1つだけactiveにする():
+    tabs = build_section_tabs("estimation:alias_edit")
+
+    assert tabs["label"] == "積算マスタ"
+    assert len(tabs["tabs"]) == 7
+    assert _active_tab(tabs) == ["名寄せレビュー"]
+
+
+def test_積算案件はマスタのタブを出さない():
+    """積算案件は案件グループ側の画面で、積算マスタの画面群ではない。"""
+    assert build_section_tabs("estimation:project_list") is None
+
+
+def test_タブの無い画面ではNone():
+    assert build_section_tabs("sites:list") is None
+    assert build_section_tabs(None) is None
+    assert build_section_tabs("") is None
+
+
+def test_各タブのurl_nameを開くとそのタブ自身がactiveになる():
+    for section in SECTION_TABS:
+        for tab in section.tabs:
+            assert _active_tab(build_section_tabs(tab.url_name)) == [tab.label], tab.url_name
+
+
+def test_タブの画面はすべてサイドバーのまとめた項目に属する():
+    """タブを足したのにサイドバーの match に入っていない、を防ぐ。"""
+    for section in SECTION_TABS:
+        owners = {resolve_active(tab.url_name).label for tab in section.tabs}
+        assert len(owners) == 1, f"{section.label} のタブがサイドバーの複数項目に散った: {owners}"
+
+
+@pytest.mark.django_db
+def test_タブは画面の上に描かれる(client, user_a):
+    client.force_login(user_a)
+    html = client.get("/bids/qualifications/").content.decode()
+
+    assert 'class="section-tabs"' in html
+    assert 'class="section-tab active" aria-current="page">入札参加資格<' in html
+
+
+@pytest.mark.django_db
+def test_タブの無い画面には描かれない(client, user_a):
+    client.force_login(user_a)
+    html = client.get("/").content.decode()
+
+    assert 'class="section-tabs"' not in html
 
 
 # ---------------------------------------------------------------------------
