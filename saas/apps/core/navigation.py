@@ -147,14 +147,14 @@ NAVIGATION: tuple[NavItem | NavGroup, ...] = (
             NavItem("現場管理", "sites:list", "🏗️", ("sites:*",)),
             NavItem("工期管理", "schedules:list", "📅", ("schedules:*",)),
             NavItem("現場見積もり/実経費", "costs:list", "💰", ("costs:*",)),
+            # 発注は現場に紐づくため現場グループに置く（ADR-0033）。
+            # 材料ごとの過去の取引の検索は、材料・発注の画面の中に置く。
+            NavItem("材料・発注", "materials:list", "📦", ("materials:*",)),
         ),
     ),
-    # グループ名は ADR-0033 でプロダクトオーナーの指示により「発注」。
-    # 日報管理・出社予定・月次サマリもこのグループに残す。
     NavGroup(
-        "発注",
+        "日々の記録",
         (
-            NavItem("材料・発注", "materials:list", "📦", ("materials:*",)),
             NavItem("日報管理", "reports:list", "📝", ("reports:*",)),
             NavItem(
                 "出社予定",
