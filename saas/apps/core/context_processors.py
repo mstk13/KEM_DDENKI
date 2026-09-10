@@ -1,6 +1,6 @@
 from django.conf import settings
 
-from apps.core.navigation import build_navigation
+from apps.core.navigation import build_navigation, build_section_tabs
 
 
 def branding(request):
@@ -13,18 +13,17 @@ def branding(request):
 
 
 def navigation(request):
-    """サイドバーの項目と active 状態。
+    """サイドバーの項目と active 状態、画面上部のタブ。
 
     resolver_match は 404 / 500 ページでは None になる。その場合は
-    どこも active にせず、リンクだけを出す。
+    どこも active にせず、リンクだけを出す（タブは出さない）。
 
     user を渡すのは、役職で使えない項目を出さないため
     （人事評価は役員・Developer のみ）。
     """
     match = getattr(request, "resolver_match", None)
+    view_name = match.view_name if match else None
     return {
-        "nav": build_navigation(
-            match.view_name if match else None,
-            getattr(request, "user", None),
-        ),
+        "nav": build_navigation(view_name, getattr(request, "user", None)),
+        "section_tabs": build_section_tabs(view_name),
     }

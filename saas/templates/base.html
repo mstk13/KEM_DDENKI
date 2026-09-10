@@ -82,6 +82,13 @@
     {% endif %}
 
     <div class="content">
+      {% if section_tabs %}
+      <nav class="section-tabs" aria-label="{{ section_tabs.label }}">
+        {% for tab in section_tabs.tabs %}
+          <a href="{{ tab.url }}" class="section-tab{% if tab.active %} active{% endif %}"{% if tab.active %} aria-current="page"{% endif %}>{{ tab.label }}</a>
+        {% endfor %}
+      </nav>
+      {% endif %}
       {% block content %}{% endblock %}
     </div>
   </div>
