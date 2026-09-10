@@ -926,6 +926,20 @@ input[type="time"].form-control::-webkit-date-and-time-value { text-align: left;
 /* 表内のリンクは指で押せる高さを確保し、その分セルの上下余白を詰める */
 .ph-table td { padding-top: 4px; padding-bottom: 4px; }
 .ph-link { display: inline-flex; align-items: center; min-height: 44px; }
+/* 取引の行から発注し直す（同じ材料で発注 / この仕入先に発注） */
+/* 表の先頭列に置くので、2つのボタンは縦に積んで列幅を抑える */
+.ph-reorder { display: flex; flex-direction: column; gap: 6px; padding: 4px 0; }
+.ph-reorder .btn { min-height: 44px; display: inline-flex; align-items: center; justify-content: center; white-space: nowrap; }
+
+/* 材料・発注の一覧の上に置く「過去の取引を検索」（ADR-0034） */
+.materials-history-search { display: block; margin-bottom: 20px; padding: 16px 20px; }
+.materials-history-search label { display: block; margin-bottom: 6px; font-size: .85rem; font-weight: 600; color: var(--text-secondary); }
+.materials-history-search-row { display: flex; gap: 8px; }
+.materials-history-search-row .form-control { flex: 1 1 auto; min-width: 0; min-height: 44px; }
+.materials-history-search-row .btn { flex: 0 0 auto; min-height: 44px; }
+
+/* フォームの上に出す補足（取引履歴から来た発注書の作成など） */
+.form-note { margin-bottom: 16px; padding: 12px 14px; border-radius: var(--radius-sm); background: var(--info-light); color: var(--text-secondary); font-size: .85rem; line-height: 1.7; }
 
 /* ---- Responsive ---- */
 @media (max-width: 768px) {
@@ -936,6 +950,7 @@ input[type="time"].form-control::-webkit-date-and-time-value { text-align: left;
   .ph-search-actions .btn { max-width: none; }
   .ph-summary { padding: 12px; gap: 8px; }
   .ph-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 12px; width: 100%; }
+  .materials-history-search { padding: 12px; }
 
   .sidebar { transform: translateX(-100%); box-shadow: none; }
   .sidebar.open { transform: translateX(0); box-shadow: var(--shadow-lg); }

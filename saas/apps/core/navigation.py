@@ -118,10 +118,21 @@ VENDOR_DIRECTORY_TABS = SectionTabs(
     ),
 )
 
+# 材料ごとの過去の取引の検索は、サイドバーに増やさず材料・発注の中に置く（ADR-0034）。
+# 取引履歴は完全一致なので、materials:* より具体的に一致してそちらが active になる。
+MATERIALS_TABS = SectionTabs(
+    "材料・発注",
+    (
+        NavItem("材料・発注", "materials:list", "", ("materials:*",)),
+        NavItem("取引履歴", "materials:purchase_history", ""),
+    ),
+)
+
 SECTION_TABS: tuple[SectionTabs, ...] = (
     BID_TABS,
     ESTIMATION_MASTER_TABS,
     VENDOR_DIRECTORY_TABS,
+    MATERIALS_TABS,
 )
 
 

@@ -79,6 +79,8 @@
       <table class="ph-table">
         <thead>
           <tr>
+            {# 表が横に長いので、発注し直すボタンは横スクロールしなくても見える先頭に置く #}
+            <th>発注し直す</th>
             <th>発注日</th><th>発注書</th><th>仕入先</th><th>現場</th>
             <th class="ph-num">数量</th><th>単位</th><th class="ph-num">単価</th><th class="ph-num">金額</th>
             <th>状態</th><th>納品日</th><th class="ph-num">リードタイム</th>
@@ -87,6 +89,12 @@
         <tbody>
           {% for t in m.transactions %}
           <tr>
+            <td>
+              <div class="ph-reorder">
+                <a href="{% url 'materials:create_po' %}?supplier={{ t.supplier_id }}&amp;site={{ t.site_id }}&amp;reorder_item={{ t.item_id }}" class="btn btn-primary btn-sm">同じ材料で発注</a>
+                <a href="{% url 'materials:create_po' %}?supplier={{ t.supplier_id }}" class="btn btn-outline btn-sm">この仕入先に発注</a>
+              </div>
+            </td>
             <td>{{ t.order_date|date:"Y/m/d" }}</td>
             <td><a href="{% url 'materials:po_detail' t.purchase_order_id %}" class="ph-link">PO-{{ t.purchase_order_id|stringformat:"05d" }}</a></td>
             <td><a href="{% url 'materials:purchase_history' %}?supplier={{ t.supplier_id }}" class="ph-link" title="この仕入先の取引で絞り込む">{{ t.supplier_name }}</a></td>

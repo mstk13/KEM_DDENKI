@@ -21,7 +21,7 @@ from apps.materials.models import (
     Quotation,
     QuotationItem,
 )
-from apps.materials.purchase_history import search_purchase_history
+from apps.materials.purchase_history import copy_item_to_order, search_purchase_history
 from apps.materials.services import compare_quotations, inspect_delivery
 
 
@@ -226,28 +226,64 @@ def po_list(request):
 
 @login_required
 def po_create(request):
+    """発注書を作成する。
+
+    GET パラメータ（どれも任意）:
+        site         … 現場を初期選択（現場詳細から来たとき）
+        supplier     … 仕入先を初期選択（取引履歴の「この仕入先に発注」）
+        reorder_item … 過去の発注明細。保存時にその明細を新しい発注書へコピーする
+                       （取引履歴の「同じ材料で発注」、ADR-0034）
+    """
+    company = request.user.company
+    reorder_item = _reorder_item(
+        company, request.POST.get("reorder_item") or request.GET.get("reorder_item"),
+    )
     if request.method == "POST":
-        form = PurchaseOrderForm(request.POST, request.FILES, company=request.user.company)
+        form = PurchaseOrderForm(request.POST, request.FILES, company=company)
         if form.is_valid():
             po = form.save(commit=False)
-            po.company = request.user.company
+            po.company = company
             po.created_by = request.user
             po.save()
-            messages.success(request, "発注書を作成しました。")
+            if reorder_item:
+                copy_item_to_order(reorder_item, po, created_by=request.user)
+                messages.success(request, "発注書を作成し、過去の発注の明細をコピーしました。")
+            else:
+                messages.success(request, "発注書を作成しました。")
             return redirect("materials:po_detail", pk=po.pk)
     else:
-        # 現場詳細から遷移した場合は現場を初期選択しておく
-        form = PurchaseOrderForm(
-            company=request.user.company,
-            initial=_site_initial(request),
-        )
-    return render(request, "materials/form.html", {"form": form, "title": "発注書を作成"})
+        form = PurchaseOrderForm(company=company, initial=_po_initial(request))
+    return render(request, "materials/form.html", {
+        "form": form,
+        "title": "発注書を作成",
+        "reorder_item": reorder_item,
+    })
 
 
-def _site_initial(request):
-    """?site=<pk> が付いていれば現場の初期値を返す。"""
-    site_id = request.GET.get("site")
-    return {"site": site_id} if site_id else {}
+def _po_initial(request):
+    """?site=<pk> / ?supplier=<pk> が付いていれば初期値にする。
+
+    他社の ID でもフォームの選択肢が自社に絞られているので、選ばれた状態にはならない。
+    """
+    initial = {}
+    for key in ("site", "supplier"):
+        value = _parse_id(request.GET.get(key))
+        if value is not None:
+            initial[key] = value
+    return initial
+
+
+def _reorder_item(company, value):
+    """コピー元の発注明細。自社の明細でなければ None（黙って無視する）。"""
+    pk = _parse_id(value)
+    if pk is None:
+        return None
+    # unscoped: 取引履歴と同じく company を明示して絞る。他社の明細はコピーさせない。
+    return (
+        PurchaseOrderItem.unscoped.filter(company=company, pk=pk)
+        .select_related("material", "purchase_order")
+        .first()
+    )
 
 
 @login_required

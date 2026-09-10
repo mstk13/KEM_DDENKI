@@ -214,3 +214,30 @@ def _procurement_by_order_and_material(company, rows) -> dict[tuple[int, int], P
         company=company, purchase_order_id__in=po_ids,
     ).order_by(F("delivered_date").asc(nulls_first=True), "pk")
     return {(r.purchase_order_id, r.material_id): r for r in records}
+
+
+def copy_item_to_order(source, purchase_order, *, created_by=None) -> PurchaseOrderItem:
+    """過去の発注明細を、新しい発注書の明細としてコピーする。
+
+    取引履歴の「同じ材料で発注」から使う。材料・材料名・数量・単位・単価・税率・工種を
+    そのまま写し、発注書の合計を数え直す。数量や単価は作成後の発注書で直してもらう前提。
+    別の会社の明細を渡されたら ValueError（呼び出し側で自社の明細に絞っておくこと）。
+    """
+    if source.company_id != purchase_order.company_id:
+        raise ValueError("別の会社の発注明細はコピーできません")
+
+    # unscoped: company を発注書から明示して作る。
+    item = PurchaseOrderItem.unscoped.create(
+        company=purchase_order.company,
+        purchase_order=purchase_order,
+        material=source.material,
+        material_name=source.material_name,
+        quantity=source.quantity,
+        unit=source.unit,
+        unit_price=source.unit_price,
+        tax_rate=source.tax_rate,
+        work_type=source.work_type,
+        created_by=created_by,
+    )
+    purchase_order.recalculate_total()
+    return item

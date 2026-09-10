@@ -437,3 +437,102 @@ class TestView:
     def test_template_has_no_inline_style(self):
         template = Path(settings.BASE_DIR) / "templates" / "materials" / "purchase_history.html"
         assert 'style="' not in template.read_text(encoding="utf-8")
+
+
+# ---------------------------------------------------------------------------
+# 材料・発注の中に置く（タブ・検索欄）と、履歴から発注し直す
+# ---------------------------------------------------------------------------
+
+@pytest.mark.django_db
+class TestInsideMaterialsAndReorder:
+    def test_materials_pages_have_history_tab_and_search_box(self, logged_in):
+        body = logged_in.get(reverse("materials:list")).content.decode()
+        history_url = reverse("materials:purchase_history")
+
+        assert 'class="section-tabs"' in body
+        assert 'class="section-tab active" aria-current="page">材料・発注<' in body
+        assert f'href="{history_url}" class="section-tab">取引履歴<' in body
+        assert f'action="{history_url}"' in body
+
+    def test_history_tab_is_active_on_history_page(self, logged_in):
+        body = logged_in.get(reverse("materials:purchase_history")).content.decode()
+
+        assert 'class="section-tab active" aria-current="page">取引履歴<' in body
+
+    def test_history_rows_link_to_reorder(self, logged_in, company_a, data_a):
+        d = data_a
+        item = _line(_po(company_a, d["site1"], d["sup1"], date(2026, 8, 1)), material=d["cable"])
+
+        body = logged_in.get(reverse("materials:purchase_history")).content.decode()
+        create = reverse("materials:create_po")
+
+        assert (
+            f'{create}?supplier={d["sup1"].pk}&amp;site={d["site1"].pk}&amp;reorder_item={item.pk}'
+            in body
+        )
+        assert f'{create}?supplier={d["sup1"].pk}"' in body
+        assert "同じ材料で発注" in body and "この仕入先に発注" in body
+
+    def test_create_form_prefills_and_explains_the_copy(self, logged_in, company_a, data_a):
+        d = data_a
+        item = _line(
+            _po(company_a, d["site1"], d["sup1"], date(2026, 8, 1)),
+            material=d["cable"], quantity="200", unit_price="85", unit="m",
+        )
+
+        res = logged_in.get(reverse("materials:create_po"), {
+            "supplier": d["sup1"].pk, "site": d["site2"].pk, "reorder_item": item.pk,
+        })
+        body = res.content.decode()
+
+        assert res.context["form"].initial == {"site": d["site2"].pk, "supplier": d["sup1"].pk}
+        assert res.context["reorder_item"] == item
+        assert f'name="reorder_item" value="{item.pk}"' in body
+        assert "VVFケーブル 1.6-2C" in body
+
+    def test_supplier_only_link_prefills_without_copy(self, logged_in, company_a, data_a):
+        res = logged_in.get(reverse("materials:create_po"), {"supplier": data_a["sup2"].pk})
+
+        assert res.context["form"].initial == {"supplier": data_a["sup2"].pk}
+        assert res.context["reorder_item"] is None
+        assert 'name="reorder_item"' not in res.content.decode()
+
+    def test_saving_copies_the_item_to_the_new_order(self, logged_in, company_a, data_a):
+        d = data_a
+        source = _line(
+            _po(company_a, d["site1"], d["sup1"], date(2026, 8, 1)),
+            material=d["cable"], quantity="200", unit_price="85", unit="m",
+        )
+
+        res = logged_in.post(reverse("materials:create_po"), {
+            "site": d["site2"].pk, "supplier": d["sup1"].pk, "order_date": "2026-09-10",
+            "status": Status.DRAFT, "reorder_item": source.pk,
+        })
+
+        new_po = PurchaseOrder.unscoped.exclude(pk=source.purchase_order_id).get(company=company_a)
+        assert res.status_code == 302
+        assert res.url == reverse("materials:po_detail", args=[new_po.pk])
+        copied = list(new_po.items.all())
+        assert len(copied) == 1
+        assert copied[0].material == d["cable"]
+        assert (copied[0].quantity, copied[0].unit, copied[0].unit_price) == (
+            Decimal("200"), "m", Decimal("85"),
+        )
+        # コピー元の発注書には触らない
+        assert source.purchase_order.items.count() == 1
+
+    def test_other_companys_item_is_never_copied(self, logged_in, company_a, company_b, data_a):
+        d = data_a
+        site_b = Site.unscoped.create(company=company_b, code="S01", name="B社現場")
+        sup_b = Supplier.unscoped.create(company=company_b, code="SP1", name="B社仕入先")
+        foreign = _line(_po(company_b, site_b, sup_b, date(2026, 8, 1)), name="B社の材料")
+
+        res = logged_in.get(reverse("materials:create_po"), {"reorder_item": foreign.pk})
+        assert res.context["reorder_item"] is None
+
+        logged_in.post(reverse("materials:create_po"), {
+            "site": d["site1"].pk, "supplier": d["sup1"].pk, "order_date": "2026-09-10",
+            "status": Status.DRAFT, "reorder_item": foreign.pk,
+        })
+        new_po = PurchaseOrder.unscoped.get(company=company_a)
+        assert new_po.items.count() == 0

@@ -11,6 +11,16 @@
   </div>
 </div>
 
+{# 過去の取引の検索（ADR-0034）。結果は「取引履歴」タブに出す。 #}
+<form method="get" action="{% url 'materials:purchase_history' %}" class="card materials-history-search" role="search">
+  <label for="materials-history-q">過去の取引を検索</label>
+  <div class="materials-history-search-row">
+    <input type="search" id="materials-history-q" name="q" maxlength="100" class="form-control" placeholder="材料名・コード（例: VVF 1.6）">
+    <button type="submit" class="btn btn-primary">検索</button>
+  </div>
+  <p class="form-hint">材料ごとに、いつ・どの仕入先から・いくらで発注したかを表示します。そこから同じ材料や同じ仕入先に発注し直せます。</p>
+</form>
+
 <div class="card" style="margin-bottom:24px;">
   <div class="card-header"><h2>材料マスタ</h2></div>
   <div class="table-wrap">
