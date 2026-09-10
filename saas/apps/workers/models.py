@@ -351,6 +351,45 @@ class WorkerEvaluation(TenantModel):
         return f"{self.worker} - {self.period}"
 
 
+class EvaluatorAssignment(TenantModel):
+    """評価者 → 被評価者 の割当。
+
+    evaluation.EvaluatorTarget（名前テキストの組）を作業員 FK で持ち直したもの
+    （ADR-0028）。名前で持つと改姓や表記揺れで割当が外れるため FK にした。
+
+    役員・社長は自分自身も評価する運用のため、evaluator == target を禁止しない。
+    """
+
+    evaluator = models.ForeignKey(
+        Worker,
+        on_delete=models.CASCADE,
+        related_name="evaluation_target_assignments",
+        verbose_name="評価者",
+    )
+    target = models.ForeignKey(
+        Worker,
+        on_delete=models.CASCADE,
+        related_name="evaluator_assignments",
+        verbose_name="被評価者",
+    )
+
+    history = HistoricalRecords()
+
+    class Meta:
+        verbose_name = "評価者割当"
+        verbose_name_plural = "評価者割当"
+        ordering = ["evaluator__name", "target__name"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["company", "evaluator", "target"],
+                name="workers_evaluator_assignment_unique",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.evaluator} → {self.target}"
+
+
 # ---- シグナル: 書類添付時にアラート履歴をクリア ----
 
 

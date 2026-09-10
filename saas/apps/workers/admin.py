@@ -3,6 +3,7 @@ from simple_history.admin import SimpleHistoryAdmin
 
 from apps.workers.models import (
     EvaluationTemplate,
+    EvaluatorAssignment,
     HealthCheckup,
     JobTitle,
     Position,
@@ -57,3 +58,11 @@ class HealthCheckupAdmin(SimpleHistoryAdmin):
 class WorkerEvaluationAdmin(SimpleHistoryAdmin):
     list_display = ("worker", "evaluated_by", "period", "score", "company")
     list_filter = ("period", "company")
+
+
+@admin.register(EvaluatorAssignment)
+class EvaluatorAssignmentAdmin(SimpleHistoryAdmin):
+    list_display = ("evaluator", "target", "company")
+    list_filter = ("company",)
+    search_fields = ("evaluator__name", "target__name")
+    autocomplete_fields = ("evaluator", "target")

@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KEM_DDENKI 画面構成 再設計案（社内共有用）</title>
+<style>
+:root{
+  --paper:#F2F5F8; --panel:#FFFFFF; --grid:#DCE5EE;
+  --ink:#14324E; --ink2:#4A6076; --line:#9FB3C8;
+  --amber:#D98E04; --amber-deep:#9A6A00;
+  --green:#2E7D4F; --red:#BB4430; --radius:6px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  font-family:"Hiragino Kaku Gothic ProN","Hiragino Sans","Yu Gothic Medium","Noto Sans JP",sans-serif;
+  color:var(--ink);
+  background:
+    linear-gradient(var(--grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid) 1px, transparent 1px),
+    var(--paper);
+  background-size:28px 28px,28px 28px,auto;
+  line-height:1.85;
+}
+main{max-width:860px;margin:0 auto;padding:44px 20px 90px}
+h1{font-size:1.9rem;line-height:1.4;font-weight:800}
+h1 .sub{display:block;font-size:.9rem;font-weight:700;color:var(--amber-deep);margin-bottom:6px}
+.lead{margin:14px 0 6px;max-width:44em}
+.doc-meta{font-size:.8rem;color:var(--ink2);border:1px solid var(--line);background:var(--panel);border-radius:var(--radius);padding:8px 14px;display:inline-block;margin-top:12px}
+h2{font-size:1.4rem;font-weight:800;margin:70px 0 8px;padding-top:16px;border-top:3px solid var(--ink)}
+h2 .no{color:var(--amber-deep);margin-right:10px}
+p{margin:12px 0;max-width:44em}
+strong{font-weight:700}
+em{font-style:normal;background:linear-gradient(transparent 62%,#F5DFA8 62%)}
+figure{margin:24px 0;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:20px 14px 12px;overflow-x:auto}
+figcaption{font-size:.8rem;color:var(--ink2);text-align:center;margin-top:8px}
+figure svg{display:block;margin:0 auto;max-width:100%;height:auto}
+svg text{font-family:"Hiragino Kaku Gothic ProN","Hiragino Sans","Yu Gothic Medium","Noto Sans JP",sans-serif}
+.point{background:var(--panel);border:1px solid var(--line);border-left:5px solid var(--amber);border-radius:var(--radius);padding:13px 18px;margin:18px 0;max-width:44em}
+.point b{color:var(--amber-deep)}
+table{border-collapse:collapse;width:100%;margin:18px 0;background:var(--panel);font-size:.92rem}
+th,td{border:1px solid var(--line);padding:9px 12px;text-align:left;vertical-align:top}
+th{background:#E8EEF4;font-weight:700}
+.qlist{counter-reset:q;margin:18px 0;max-width:44em}
+.qitem{background:var(--panel);border:1px dashed var(--ink2);border-radius:var(--radius);padding:12px 16px 12px 54px;margin:10px 0;position:relative}
+.qitem::before{counter-increment:q;content:counter(q);position:absolute;left:14px;top:12px;width:28px;height:28px;border-radius:50%;background:var(--ink);color:#fff;font-weight:800;display:flex;align-items:center;justify-content:center;font-size:.9rem}
+.qitem .qt{font-weight:700}
+.qitem .qs{font-size:.86rem;color:var(--ink2)}
+footer{margin-top:70px;font-size:.8rem;color:var(--ink2);border-top:1px solid var(--line);padding-top:14px}
+@media(max-width:640px){h1{font-size:1.4rem}}
+</style>
+</head>
+<body>
+<main>
+
+<header>
+  <h1><span class="sub">KEM_DDENKI 業務管理システム</span>画面構成 再設計案 — なぜ使いにくいのか、どう直すのか</h1>
+  <p class="lead">機能は揃っているのに画面が分かりにくい。その原因をシステムの構造から特定し、ゼロベースで組み直す案をまとめた。<strong>結論を先に言うと：メニューを減らすのではなく、「1つの工事案件」を1箇所で追えるように背骨を通す。</strong></p>
+  <div class="doc-meta">対象：全17機能・249画面の棚卸しに基づく ／ 作成：2026-09-06 ／ 議論用ドラフト</div>
+</header>
+
+<h2><span class="no">1</span>現状の問題：「同じ工事」が4つの画面系統に分断されている</h2>
+<p>1件の工事は「入札 → 積算 → 施工 → 原価締め」と流れる。ところが今のシステムでは、この1つの流れが<strong>4つの別々の画面系統</strong>に分かれていて、担当者は同じ工事を追いかけるために4箇所を渡り歩く。メニューが分かりにくい根本原因は、リンクの数ではなくこの分断にある。</p>
+
+<figure>
+<svg viewBox="0 0 800 300" role="img" aria-label="1つの工事が入札・積算・現場・原価の4画面に分断されている現状図">
+  <defs>
+    <marker id="a1" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#BB4430"/>
+    </marker>
+  </defs>
+  <!-- the one project -->
+  <g>
+    <circle cx="80" cy="150" r="46" fill="#FFF8E8" stroke="#D98E04" stroke-width="3"/>
+    <text x="80" y="140" text-anchor="middle" font-size="12.5" font-weight="800" fill="#9A6A00">○○小学校</text>
+    <text x="80" y="158" text-anchor="middle" font-size="12.5" font-weight="800" fill="#9A6A00">電気設備工事</text>
+    <text x="80" y="176" text-anchor="middle" font-size="10" fill="#9A6A00">＝ 1つの案件</text>
+  </g>
+  <!-- four separate systems -->
+  <g>
+    <rect x="220" y="30" width="130" height="88" rx="8" fill="#FFFFFF" stroke="#14324E" stroke-width="2.5"/>
+    <text x="285" y="58" text-anchor="middle" font-size="13" font-weight="800" fill="#14324E">入札の画面</text>
+    <text x="285" y="78" text-anchor="middle" font-size="10.5" fill="#4A6076">公告・参加資格</text>
+    <text x="285" y="94" text-anchor="middle" font-size="10.5" fill="#4A6076">応札・落札</text>
+  </g>
+  <g>
+    <rect x="390" y="30" width="130" height="88" rx="8" fill="#FFFFFF" stroke="#14324E" stroke-width="2.5"/>
+    <text x="455" y="58" text-anchor="middle" font-size="13" font-weight="800" fill="#14324E">積算の画面</text>
+    <text x="455" y="78" text-anchor="middle" font-size="10.5" fill="#4A6076">内訳書・単価</text>
+    <text x="455" y="94" text-anchor="middle" font-size="10.5" fill="#4A6076">歩掛・比較</text>
+  </g>
+  <g>
+    <rect x="220" y="182" width="130" height="88" rx="8" fill="#FFFFFF" stroke="#14324E" stroke-width="2.5"/>
+    <text x="285" y="210" text-anchor="middle" font-size="13" font-weight="800" fill="#14324E">現場の画面</text>
+    <text x="285" y="230" text-anchor="middle" font-size="10.5" fill="#4A6076">工程・日報</text>
+    <text x="285" y="246" text-anchor="middle" font-size="10.5" fill="#4A6076">材料</text>
+  </g>
+  <g>
+    <rect x="390" y="182" width="130" height="88" rx="8" fill="#FFFFFF" stroke="#14324E" stroke-width="2.5"/>
+    <text x="455" y="210" text-anchor="middle" font-size="13" font-weight="800" fill="#14324E">原価の画面</text>
+    <text x="455" y="230" text-anchor="middle" font-size="10.5" fill="#4A6076">予算・実経費</text>
+    <text x="455" y="246" text-anchor="middle" font-size="10.5" fill="#4A6076">予実比較</text>
+  </g>
+  <!-- arrows from project to each = running around -->
+  <path d="M118,120 C150,90 180,74 213,74"  fill="none" stroke="#BB4430" stroke-width="2.2" stroke-dasharray="6 4" marker-end="url(#a1)"/>
+  <path d="M126,138 C220,110 300,74 383,74" fill="none" stroke="#BB4430" stroke-width="2.2" stroke-dasharray="6 4" marker-end="url(#a1)"/>
+  <path d="M118,180 C150,210 180,226 213,226" fill="none" stroke="#BB4430" stroke-width="2.2" stroke-dasharray="6 4" marker-end="url(#a1)"/>
+  <path d="M126,162 C220,190 300,226 383,226" fill="none" stroke="#BB4430" stroke-width="2.2" stroke-dasharray="6 4" marker-end="url(#a1)"/>
+  <!-- annotation -->
+  <g>
+    <rect x="570" y="92" width="210" height="116" rx="8" fill="#FBE9E2" stroke="#BB4430" stroke-width="2"/>
+    <text x="675" y="120" text-anchor="middle" font-size="12.5" font-weight="800" fill="#BB4430">担当者のあたまの中</text>
+    <text x="675" y="144" text-anchor="middle" font-size="11" fill="#BB4430">「あの工事の情報、</text>
+    <text x="675" y="162" text-anchor="middle" font-size="11" fill="#BB4430">どのメニューの</text>
+    <text x="675" y="180" text-anchor="middle" font-size="11" fill="#BB4430">どの画面だっけ…」</text>
+  </g>
+</svg>
+<figcaption>図1 現状 — 1つの工事を追うのに4つの画面系統を渡り歩く。この分断が「使いにくさ」の正体</figcaption>
+</figure>
+
+<h2><span class="no">2</span>現状の問題：メニュー45個・ダッシュボード5種・権限3系統</h2>
+<p>分断のうえに、機能追加のたびにメニューとダッシュボードと権限の仕組みが増えていった。いま起きていることを数字で見るとこうなる。</p>
+
+<figure>
+<svg viewBox="0 0 800 330" role="img" aria-label="メニュー過多・ダッシュボード乱立・権限3系統の現状図">
+  <!-- panel 1: menu overload -->
+  <g>
+    <rect x="20" y="24" width="230" height="280" rx="8" fill="#FFFFFF" stroke="#14324E" stroke-width="2"/>
+    <text x="135" y="52" text-anchor="middle" font-size="14" font-weight="800" fill="#14324E">メニューが 45リンク</text>
+    <g fill="#9FB3C8">
+      <rect x="45" y="66"  width="180" height="9" rx="2"/><rect x="45" y="81"  width="160" height="9" rx="2"/>
+      <rect x="45" y="96"  width="175" height="9" rx="2"/><rect x="45" y="111" width="150" height="9" rx="2"/>
+      <rect x="45" y="126" width="180" height="9" rx="2"/><rect x="45" y="141" width="165" height="9" rx="2"/>
+      <rect x="45" y="156" width="170" height="9" rx="2"/><rect x="45" y="171" width="155" height="9" rx="2"/>
+      <rect x="45" y="186" width="180" height="9" rx="2"/><rect x="45" y="201" width="140" height="9" rx="2"/>
+      <rect x="45" y="216" width="175" height="9" rx="2"/><rect x="45" y="231" width="160" height="9" rx="2"/>
+    </g>
+    <text x="135" y="262" text-anchor="middle" font-size="11" fill="#BB4430" font-weight="700">誰でも全部見える</text>
+    <text x="135" y="280" text-anchor="middle" font-size="10.5" fill="#4A6076">現場の人にも積算基準や</text>
+    <text x="135" y="295" text-anchor="middle" font-size="10.5" fill="#4A6076">入札資格のメニューが並ぶ</text>
+  </g>
+  <!-- panel 2: dashboards -->
+  <g>
+    <rect x="285" y="24" width="230" height="280" rx="8" fill="#FFFFFF" stroke="#14324E" stroke-width="2"/>
+    <text x="400" y="52" text-anchor="middle" font-size="14" font-weight="800" fill="#14324E">ダッシュボードが 5種類</text>
+    <g font-size="11" fill="#14324E">
+      <rect x="315" y="70"  width="170" height="34" rx="5" fill="#E8EEF4" stroke="#9FB3C8"/><text x="400" y="91" text-anchor="middle">トップ画面</text>
+      <rect x="315" y="112" width="170" height="34" rx="5" fill="#E8EEF4" stroke="#9FB3C8"/><text x="400" y="133" text-anchor="middle">入札ダッシュボード</text>
+      <rect x="315" y="154" width="170" height="34" rx="5" fill="#E8EEF4" stroke="#9FB3C8"/><text x="400" y="175" text-anchor="middle">営業ダッシュボード</text>
+      <rect x="315" y="196" width="170" height="34" rx="5" fill="#E8EEF4" stroke="#9FB3C8"/><text x="400" y="217" text-anchor="middle">AIダッシュボード</text>
+      <rect x="315" y="238" width="170" height="34" rx="5" fill="#E8EEF4" stroke="#9FB3C8"/><text x="400" y="259" text-anchor="middle">原価の予実画面</text>
+    </g>
+    <text x="400" y="293" text-anchor="middle" font-size="11" fill="#BB4430" font-weight="700">「今日はどれを見ればいい？」</text>
+  </g>
+  <!-- panel 3: permissions -->
+  <g>
+    <rect x="550" y="24" width="230" height="280" rx="8" fill="#FFFFFF" stroke="#14324E" stroke-width="2"/>
+    <text x="665" y="52" text-anchor="middle" font-size="14" font-weight="800" fill="#14324E">権限の仕組みが 3系統</text>
+    <g font-size="10.5">
+      <rect x="575" y="72" width="180" height="52" rx="5" fill="#E8EEF4" stroke="#9FB3C8"/>
+      <text x="665" y="92" text-anchor="middle" font-weight="700" fill="#14324E">① 権限マトリクス</text>
+      <text x="665" y="110" text-anchor="middle" fill="#4A6076">役割×機能の表（本来の仕組み）</text>
+      <rect x="575" y="134" width="180" height="52" rx="5" fill="#E8EEF4" stroke="#9FB3C8"/>
+      <text x="665" y="154" text-anchor="middle" font-weight="700" fill="#14324E">② 作業員ごとの許可リスト</text>
+      <text x="665" y="172" text-anchor="middle" fill="#4A6076">別の場所に別の設定</text>
+      <rect x="575" y="196" width="180" height="66" rx="5" fill="#FBE9E2" stroke="#BB4430"/>
+      <text x="665" y="216" text-anchor="middle" font-weight="700" fill="#BB4430">③ 原価だけの特別ルール</text>
+      <text x="665" y="234" text-anchor="middle" fill="#BB4430">個別許可 ＋「社員番号が</text>
+      <text x="665" y="250" text-anchor="middle" fill="#BB4430">Gで始まる人はOK」が埋込み</text>
+    </g>
+    <text x="665" y="288" text-anchor="middle" font-size="11" fill="#BB4430" font-weight="700">誰が何を見られるか、即答できない</text>
+  </g>
+</svg>
+<figcaption>図2 現状の3つの症状 — いずれも「機能を足すたびに仕組みも足した」ことの積み重ね</figcaption>
+</figure>
+
+<div class="point"><b>まとめると</b>：機能が多いこと自体は資産。問題は、機能同士をつなぐ<strong>背骨（案件の軸）</strong>と、全体をそろえる<strong>共通ルール（1つのナビ・1つの権限・1つのデザイン）</strong>がないこと。</div>
+
+<h2><span class="no">3</span>再設計案：「案件」を背骨にする</h2>
+<p>直し方はシンプルで、業務の実態に合わせて<strong>「1つの工事案件＝1つのページ」</strong>にする。入札・積算・工程・原価は独立メニューから消え、案件詳細ページの<em>タブ</em>になる。データベースを作り直すのではなく、今ある4つの仕組みを「案件」で紐づけて1つの画面に見せる（システム内部には既に落札→現場登録の連携があり、土台はできている）。</p>
+
+<figure>
+<svg viewBox="0 0 800 400" role="img" aria-label="案件を背骨にした新しい画面構成。案件詳細ページに入札から原価までがタブで並ぶ">
+  <defs>
+    <marker id="a2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#2E7D4F"/>
+    </marker>
+  </defs>
+  <!-- status flow -->
+  <g font-size="12" font-weight="700">
+    <rect x="40"  y="30" width="130" height="40" rx="20" fill="#FFFFFF" stroke="#14324E" stroke-width="2"/><text x="105" y="49" text-anchor="middle" font-size="11">受注前</text><text x="105" y="63" text-anchor="middle" font-size="9.5" fill="#4A6076">商談（民間）・入札（公共）</text>
+    <rect x="220" y="30" width="130" height="40" rx="20" fill="#FFFFFF" stroke="#14324E" stroke-width="2"/><text x="285" y="55" text-anchor="middle" fill="#14324E">積算中</text>
+    <rect x="400" y="30" width="130" height="40" rx="20" fill="#FFF8E8" stroke="#D98E04" stroke-width="2.5"/><text x="465" y="55" text-anchor="middle" fill="#9A6A00">施工中</text>
+    <rect x="580" y="30" width="130" height="40" rx="20" fill="#FFFFFF" stroke="#14324E" stroke-width="2"/><text x="645" y="55" text-anchor="middle" fill="#14324E">完了・締め</text>
+  </g>
+  <path d="M172,50 H213" stroke="#2E7D4F" stroke-width="2.4" marker-end="url(#a2)"/>
+  <path d="M352,50 H393" stroke="#2E7D4F" stroke-width="2.4" marker-end="url(#a2)"/>
+  <path d="M532,50 H573" stroke="#2E7D4F" stroke-width="2.4" marker-end="url(#a2)"/>
+  <text x="375" y="96" text-anchor="middle" font-size="11.5" fill="#4A6076">案件はこのステータスで一覧に並ぶ。どの段階でも「同じ案件ページ」を開けばいい</text>
+  <!-- big project page -->
+  <g>
+    <rect x="60" y="120" width="680" height="240" rx="10" fill="#FFFFFF" stroke="#14324E" stroke-width="3"/>
+    <rect x="60" y="120" width="680" height="52" rx="10" fill="#14324E"/>
+    <rect x="60" y="150" width="680" height="22" fill="#14324E"/>
+    <text x="88" y="153" font-size="15" font-weight="800" fill="#FFFFFF">📋 ○○小学校 電気設備工事</text>
+    <text x="712" y="153" text-anchor="end" font-size="11.5" fill="#F5DFA8">状態：施工中 ／ 契約額・工期・担当が常に頭に表示</text>
+    <!-- tabs -->
+    <g font-size="11.5" font-weight="700">
+      <rect x="76"  y="184" width="72" height="30" rx="5" fill="#E8EEF4" stroke="#9FB3C8"/><text x="112" y="204" text-anchor="middle" fill="#14324E">概要</text>
+      <rect x="154" y="184" width="72" height="30" rx="5" fill="#E8EEF4" stroke="#9FB3C8"/><text x="190" y="204" text-anchor="middle" font-size="9.5" fill="#14324E">商談・入札</text>
+      <rect x="232" y="184" width="100" height="30" rx="5" fill="#E8EEF4" stroke="#9FB3C8"/><text x="282" y="204" text-anchor="middle" fill="#14324E">積算・内訳書</text>
+      <rect x="338" y="184" width="72" height="30" rx="5" fill="#FFF8E8" stroke="#D98E04" stroke-width="2"/><text x="374" y="204" text-anchor="middle" fill="#9A6A00">工程</text>
+      <rect x="416" y="184" width="72" height="30" rx="5" fill="#E8EEF4" stroke="#9FB3C8"/><text x="452" y="204" text-anchor="middle" fill="#14324E">日報</text>
+      <rect x="494" y="184" width="72" height="30" rx="5" fill="#E8EEF4" stroke="#9FB3C8"/><text x="530" y="204" text-anchor="middle" fill="#14324E">材料</text>
+      <rect x="572" y="184" width="72" height="30" rx="5" fill="#E8EEF4" stroke="#9FB3C8"/><text x="608" y="204" text-anchor="middle" fill="#14324E">原価</text>
+      <rect x="650" y="184" width="76" height="30" rx="5" fill="#E8EEF4" stroke="#9FB3C8"/><text x="688" y="204" text-anchor="middle" fill="#14324E">AI分析</text>
+    </g>
+    <!-- tab content mock: gantt -->
+    <g>
+      <rect x="76" y="228" width="650" height="112" rx="6" fill="#F7FAFC" stroke="#DCE5EE"/>
+      <g font-size="10" fill="#4A6076">
+        <text x="96" y="252">仮設・準備</text><rect x="180" y="242" width="110" height="13" rx="3" fill="#597CA0"/>
+        <text x="96" y="276">配管・配線</text><rect x="240" y="266" width="220" height="13" rx="3" fill="#597CA0"/>
+        <text x="96" y="300">機器取付</text><rect x="420" y="290" width="160" height="13" rx="3" fill="#D98E04"/>
+        <text x="96" y="324">試験・検査</text><rect x="560" y="314" width="110" height="13" rx="3" fill="#9FB3C8"/>
+      </g>
+      <line x1="470" y1="236" x2="470" y2="336" stroke="#BB4430" stroke-width="1.6" stroke-dasharray="4 3"/>
+      <text x="476" y="248" font-size="9.5" fill="#BB4430">今日</text>
+    </g>
+  </g>
+  <text x="400" y="385" text-anchor="middle" font-size="12" font-weight="700" fill="#2E7D4F">工事のことは全部ここ。「どのメニューだっけ」が消える</text>
+</svg>
+<figcaption>図3 新しい中心画面「案件詳細」— 図1で4箇所に散っていた情報が、1ページのタブに集まる</figcaption>
+</figure>
+
+<h2><span class="no">4</span>メニューはこう変わる：45リンク → 業務6項目＋管理系は権限表示</h2>
+
+<figure>
+<svg viewBox="0 0 800 430" role="img" aria-label="メニューのBefore/After比較。12グループ45リンクが7項目に整理される">
+  <defs>
+    <marker id="a3" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#D98E04"/>
+    </marker>
+  </defs>
+  <!-- BEFORE -->
+  <g>
+    <rect x="30" y="30" width="300" height="370" rx="8" fill="#FFFFFF" stroke="#9FB3C8" stroke-width="2"/>
+    <text x="180" y="58" text-anchor="middle" font-size="14" font-weight="800" fill="#4A6076">いま（12グループ・45リンク）</text>
+    <g font-size="10.5" fill="#4A6076">
+      <text x="52" y="84">▸ ダッシュボード</text>
+      <text x="52" y="106">▸ 入札・営業 <tspan fill="#9FB3C8">（5リンク）</tspan></text>
+      <text x="52" y="128">▸ 積算 <tspan fill="#9FB3C8">（8リンク）</tspan></text>
+      <text x="52" y="150">▸ 現場 <tspan fill="#9FB3C8">（3リンク）</tspan></text>
+      <text x="52" y="172">▸ 日報 <tspan fill="#9FB3C8">（4リンク）</tspan></text>
+      <text x="52" y="194">▸ 工期 <tspan fill="#9FB3C8">（3リンク）</tspan></text>
+      <text x="52" y="216">▸ 材料 <tspan fill="#9FB3C8">（6リンク）</tspan></text>
+      <text x="52" y="238">▸ 原価 <tspan fill="#9FB3C8">（2リンク）</tspan></text>
+      <text x="52" y="260">▸ 人材 <tspan fill="#9FB3C8">（6リンク・評価が2種類）</tspan></text>
+      <text x="52" y="282">▸ 勤怠 <tspan fill="#9FB3C8">（3リンク）</tspan></text>
+      <text x="52" y="304">▸ 営業 <tspan fill="#9FB3C8">（2リンク・入札と重複）</tspan></text>
+      <text x="52" y="326">▸ 取引先／AI分析／設定／開発 <tspan fill="#9FB3C8">…</tspan></text>
+    </g>
+    <text x="180" y="362" text-anchor="middle" font-size="10.5" fill="#BB4430" font-weight="700">機能の置き場所ごとに増築された結果、</text>
+    <text x="180" y="380" text-anchor="middle" font-size="10.5" fill="#BB4430" font-weight="700">仕事の流れと一致していない</text>
+  </g>
+  <path d="M345,215 H400" stroke="#D98E04" stroke-width="3.2" marker-end="url(#a3)"/>
+  <!-- AFTER -->
+  <g>
+    <rect x="415" y="30" width="355" height="370" rx="8" fill="#FFFFFF" stroke="#14324E" stroke-width="2.5"/>
+    <text x="592" y="58" text-anchor="middle" font-size="14" font-weight="800" fill="#14324E">これから（7項目）</text>
+    <g font-size="12">
+      <rect x="440" y="72" width="305" height="34" rx="6" fill="#E8EEF4" stroke="#9FB3C8"/>
+      <text x="456" y="94" font-weight="700" fill="#14324E">🏠 ホーム</text>
+      <text x="740" y="94" text-anchor="end" font-size="10" fill="#4A6076">役割別に1つだけ</text>
+      <rect x="440" y="112" width="305" height="34" rx="6" fill="#FFF8E8" stroke="#D98E04" stroke-width="2"/>
+      <text x="456" y="134" font-weight="800" fill="#9A6A00">📋 案件</text>
+      <text x="740" y="134" text-anchor="end" font-size="10" fill="#9A6A00">入札〜原価まで全部ここ（背骨）</text>
+      <rect x="440" y="152" width="305" height="34" rx="6" fill="#E8EEF4" stroke="#9FB3C8"/>
+      <text x="456" y="174" font-weight="700" fill="#14324E">📝 日々の記録</text>
+      <text x="740" y="174" text-anchor="end" font-size="10" fill="#4A6076">日報・勤怠・安全（スマホ最適化）</text>
+      <rect x="440" y="192" width="305" height="34" rx="6" fill="#E8EEF4" stroke="#9FB3C8"/>
+      <text x="456" y="214" font-weight="700" fill="#14324E">📦 材料・発注</text>
+      <text x="740" y="214" text-anchor="end" font-size="10" fill="#4A6076">発注・納品検収・見積比較</text>
+      <rect x="440" y="232" width="305" height="34" rx="6" fill="#E8EEF4" stroke="#9FB3C8"/>
+      <text x="456" y="254" font-weight="700" fill="#14324E">👥 ヒト</text>
+      <text x="740" y="254" text-anchor="end" font-size="10" fill="#4A6076">作業員の個人ページに資格・評価を集約</text>
+      <rect x="440" y="272" width="305" height="34" rx="6" fill="#E8EEF4" stroke="#9FB3C8"/>
+      <text x="456" y="294" font-weight="700" fill="#14324E">📚 マスタ</text>
+      <text x="740" y="294" text-anchor="end" font-size="10" fill="#4A6076">取引先・業者名鑑・品目・単価・歩掛</text>
+    </g>
+    <!-- separated admin area -->
+    <line x1="440" y1="318" x2="745" y2="318" stroke="#9FB3C8" stroke-width="1.5" stroke-dasharray="5 4"/>
+    <g font-size="11">
+      <rect x="440" y="328" width="305" height="42" rx="6" fill="#F7FAFC" stroke="#4A6076" stroke-width="1.6" stroke-dasharray="6 4"/>
+      <text x="456" y="345" font-weight="800" fill="#4A6076">⚙️ 設定・💻 開発（権限のある人にだけ表示）</text>
+      <text x="456" y="362" font-size="10" fill="#4A6076">権限の表で管理。それ以外の人にはメニュー自体が出ない</text>
+    </g>
+    <text x="592" y="386" text-anchor="middle" font-size="10.5" fill="#2E7D4F" font-weight="700">毎日の仕事のメニューは6つ。管理系は見える人を絞る（目安箱の投稿は全員可）</text>
+  </g>
+</svg>
+<figcaption>図4 メニューの Before / After — 「機能の一覧」から「仕事の流れ」へ。設定・開発は権限の表に基づき、対象者にだけ表示される</figcaption>
+</figure>
+
+<h2><span class="no">5</span>アクセス管理：機能ごとの「使える人リスト」に統合する</h2>
+<p>いま3系統に分かれている権限の仕組み（図2の右）は、<strong>機能ごとに「使える人」を追加・削除するリスト方式1本</strong>に統合する。メニューも案件ページのタブも、このリストに連動して「リストに入っていない機能は表示自体されない」。管理画面は下のような<strong>機能×社員のチェック表</strong>にする——縦に見れば「この機能を使える人」、横に見れば「この人が使える機能」が1画面で分かる。</p>
+
+<table>
+  <tr><th>機能</th><th>社長A</th><th>役員B</th><th>現場C</th><th>現場D</th><th>事務E</th><th>協力F</th></tr>
+  <tr><td>案件（一覧・概要）</td><td style="text-align:center">✔</td><td style="text-align:center">✔</td><td style="text-align:center">✔ 担当分</td><td style="text-align:center">✔ 担当分</td><td style="text-align:center">✔</td><td style="text-align:center">−</td></tr>
+  <tr><td>　├ 入札・積算タブ</td><td style="text-align:center">✔</td><td style="text-align:center">✔</td><td style="text-align:center">−</td><td style="text-align:center">−</td><td style="text-align:center">✔</td><td style="text-align:center">−</td></tr>
+  <tr><td>　├ 工程・日報・材料タブ</td><td style="text-align:center">✔</td><td style="text-align:center">✔</td><td style="text-align:center">✔</td><td style="text-align:center">✔</td><td style="text-align:center">✔</td><td style="text-align:center">−</td></tr>
+  <tr><td>　└ 原価タブ</td><td style="text-align:center">✔</td><td style="text-align:center">✔</td><td style="text-align:center">−</td><td style="text-align:center">−</td><td style="text-align:center">−</td><td style="text-align:center">−</td></tr>
+  <tr><td>日々の記録（日報・勤怠・安全）</td><td style="text-align:center">✔ 承認者</td><td style="text-align:center">✔ 承認者</td><td style="text-align:center">✔ 自分の分</td><td style="text-align:center">✔ 自分の分</td><td style="text-align:center">✔ 集計</td><td style="text-align:center">✔ 自分の分</td></tr>
+  <tr><td>材料・発注</td><td style="text-align:center">✔</td><td style="text-align:center">✔</td><td style="text-align:center">✔</td><td style="text-align:center">✔</td><td style="text-align:center">✔</td><td style="text-align:center">−</td></tr>
+  <tr><td>ヒト（作業員・評価）</td><td style="text-align:center">✔</td><td style="text-align:center">✔</td><td style="text-align:center">✔ 自分</td><td style="text-align:center">✔ 自分</td><td style="text-align:center">✔</td><td style="text-align:center">✔ 自分</td></tr>
+  <tr><td>マスタ（取引先・単価・歩掛）</td><td style="text-align:center">✔</td><td style="text-align:center">✔</td><td style="text-align:center">−</td><td style="text-align:center">−</td><td style="text-align:center">✔</td><td style="text-align:center">−</td></tr>
+  <tr><td>設定（アクセス管理・通知・AI）</td><td style="text-align:center">✔</td><td style="text-align:center">−</td><td style="text-align:center">−</td><td style="text-align:center">−</td><td style="text-align:center">−</td><td style="text-align:center">−</td></tr>
+  <tr><td>開発（開発管理・目安箱の対応）</td><td style="text-align:center">−</td><td style="text-align:center">−</td><td style="text-align:center">−</td><td style="text-align:center">−</td><td style="text-align:center">−</td><td style="text-align:center">−</td></tr>
+  <tr><td>目安箱への投稿</td><td style="text-align:center">✔</td><td style="text-align:center">✔</td><td style="text-align:center">✔</td><td style="text-align:center">✔</td><td style="text-align:center">✔</td><td style="text-align:center">✔</td></tr>
+</table>
+<p style="font-size:.85rem;color:var(--ink2)">※「開発」は開発者アカウントのみ。「担当分」「自分の分」は、リスト（入口の鍵）とは別に維持する範囲ルール。</p>
+
+<div class="point"><b>運用ルールは3つ</b>：①権限の答えはこのチェック表1枚（社員番号の特例・原価の個別許可・旧リストはすべて廃止して統合）　②入社時は「<strong>〇〇さんと同じ設定をコピー</strong>」で一括登録、退職時はワンクリックで全解除　③承認が必要な機能（日報・原価）だけ「承認できる人」を別途指定する。</div>
+
+<h2><span class="no">6</span>誰の画面がどう変わるか</h2>
+<table>
+  <tr><th style="width:9em">使う人</th><th>いま</th><th>これから</th></tr>
+  <tr><td><strong>現場担当者</strong><br>（スマホ中心）</td><td>45リンクのメニューから日報や勤怠を探す</td><td>スマホを開くと「今日の現場・日報を書く・勤怠・お知らせ」の4つだけ。担当現場を開けば今週の工程も見える</td></tr>
+  <tr><td><strong>事務</strong></td><td>勤怠・材料・取引先が別々の場所に散在</td><td>「日々の記録」「材料・発注」「マスタ」の3箇所で完結</td></tr>
+  <tr><td><strong>社長・役員</strong></td><td>5種類のダッシュボードを見て回る</td><td>ホーム1画面に案件の状況・利益・要承認が集約。気になった案件はクリックで詳細へ</td></tr>
+  <tr><td><strong>協力会社</strong></td><td>関係ない社内メニューも見えている</td><td>自分の日報と勤怠だけが見える</td></tr>
+</table>
+
+<h2><span class="no">7</span>整理の決定事項</h2>
+<p>7項目すべて決定済み。使わない機能は畳み、使う機能には新構成の中に正式な置き場所を作った。特に「紙・PDF・Excel を取り込む口」は見積・積算・納品書の3箇所で共通に必要と分かったため、<strong>共通の取り込み基盤</strong>として設計する（撮影/アップロード → AI読取 → 人が確認 → 登録）。</p>
+
+<div class="qlist">
+  <div class="qitem" style="border-style:solid;border-color:#2E7D4F"><span class="qt">営業の訪問記録・業種リスト　<span style="color:#2E7D4F">✔ 決定：2つに分けて残す</span></span><br><span class="qs">来訪した売り込み業者の記録 →「マスタ」の業者名鑑へ ／ こちらから行く営業・商談の進捗 → 案件の「受注前」ステータスとして案件ページに統合</span></div>
+  <div class="qitem" style="border-style:solid;border-color:#2E7D4F"><span class="qt">AIの独立画面　<span style="color:#2E7D4F">✔ 決定：案件に埋め込み、3機能に注力</span></span><br><span class="qs">独立画面は廃止。工程提案・費用最適化・作業員配置の最適化（新規）の3つを案件ページのタブ・ボタンとして提供</span></div>
+  <div class="qitem" style="border-style:solid;border-color:#2E7D4F"><span class="qt">材料の在庫管理・調達リスト　<span style="color:#2E7D4F">✔ 決定：廃止</span></span><br><span class="qs">発注＋納品検収に集約。かわりに紙の納品書をスマホ写真で取り込んでデータ化する機能を追加</span></div>
+  <div class="qitem" style="border-style:solid;border-color:#2E7D4F"><span class="qt">見積比較　<span style="color:#2E7D4F">✔ 決定：取り込み口を新設して活用</span></span><br><span class="qs">紙・Excel運用の見積を PDF / Excel / 写真 で読み込むインターフェースを作り、システム上で比較できるようにする</span></div>
+  <div class="qitem" style="border-style:solid;border-color:#2E7D4F"><span class="qt">積算データの受け口　<span style="color:#2E7D4F">✔ 決定：Excel・PDFの取り込み口を新設</span></span><br><span class="qs">積算ソフトからの Excel、他社からの PDF を内訳書に取り込む受け口を作る（見積・納品書と共通の取り込み基盤）</span></div>
+  <div class="qitem" style="border-style:solid;border-color:#2E7D4F"><span class="qt">2種類の日報　<span style="color:#2E7D4F">✔ 決定：1つに統合</span></span><br><span class="qs">作業内容と出退勤を1つの日報で入力。承認も1回。勤怠集計は統合日報から自動生成</span></div>
+  <div class="qitem" style="border-style:solid;border-color:#2E7D4F"><span class="qt">原価の特別な閲覧ルール　<span style="color:#2E7D4F">✔ 決定：アクセスリストに統合して廃止</span></span><br><span class="qs">対象者を原価のリストに移し、社員番号Gの特例と個別許可の仕組みは撤去する</span></div>
+</div>
+
+<div class="point"><b>この資料の使い方</b>：まず図1〜4で方向性の合意を取り、6番の7項目をその場で決める。決まったら詳細仕様（フロントエンド再設計仕様書）に反映して実装に入る。実装は段階的で、<strong>既存のデータや業務を止めずに</strong>進められる計画になっている。</div>
+
+<footer>KEM_DDENKI 画面構成 再設計案（議論用ドラフト）／ 全17機能・249画面のコード棚卸しに基づく ／ 詳細版：frontend_redesign_spec.md v1.1</footer>
+</main>
+</body>
+</html>

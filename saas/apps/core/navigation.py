@@ -231,27 +231,8 @@ NAVIGATION: tuple[NavItem | NavGroup, ...] = (
             ),
         ),
     ),
-    NavGroup(
-        "AI分析",
-        (
-            NavItem(
-                "コスト分析・工程提案",
-                "ai:site_select",
-                "🤖",
-                (
-                    "ai:site_select",
-                    "ai:cost_prediction",
-                    "ai:cost_optimization",
-                    "ai:cost_report",
-                    "ai:schedule_suggestion",
-                    "ai:schedule_risk",
-                    "ai:batch_list",
-                ),
-            ),
-            NavItem("利用状況", "ai:dashboard", "📊"),
-            NavItem("実行ログ", "ai:log_list", "📄", ("ai:log_*", "ai:feedback_*")),
-        ),
-    ),
+    # 「AI分析」グループは置かない（ADR-0026）。AI の個別機能は現場・原価・工期の
+    # 詳細画面から開き、利用状況と実行ログは管理者向けとして「設定」に置く。
     NavGroup(
         "設定",
         (
@@ -268,6 +249,13 @@ NAVIGATION: tuple[NavItem | NavGroup, ...] = (
                 ("masters:worktypes", "masters:extract_partner"),
             ),
             NavItem("権限管理", "permissions:matrix", "🔒", ("permissions:*",)),
+            NavItem(
+                "AI利用状況",
+                "ai:dashboard",
+                "🤖",
+                ("ai:dashboard", "ai:cost_report", "ai:batch_list"),
+            ),
+            NavItem("AI実行ログ", "ai:log_list", "📄", ("ai:log_*", "ai:feedback_*")),
             NavItem("変更ログ", "audit_log", "📜"),
         ),
     ),
