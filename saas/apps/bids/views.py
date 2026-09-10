@@ -346,13 +346,16 @@ def schedule_rule_list(request):
 
 @login_required
 def bid_start_estimation(request, pk):
-    """案件を見積中にし、現場を自動作成する。"""
+    """案件を検討中にし、見積中の現場を用意する（登録済みならそれを使う）。"""
     if request.method != "POST":
         return redirect("bids:project_detail", pk=pk)
 
     project = get_object_or_404(BidProject, pk=pk)
-    site = start_estimation(project, created_by=request.user)
-    messages.success(request, f"現場「{site.name}」を見積中として登録しました。")
+    site, created = start_estimation(project, created_by=request.user)
+    if created:
+        messages.success(request, f"現場「{site.name}」を見積中として登録しました。")
+    else:
+        messages.info(request, f"現場「{site.name}」は登録済みです。")
     return redirect("bids:project_list")
 
 
@@ -622,13 +625,16 @@ def bid_dashboard(request):
 
 @login_required
 def bid_mark_won(request, pk):
-    """案件を落札にし、現場を自動作成する。"""
+    """案件を落札にし、現場を受注済にする（登録済みの現場があればそれを使う）。"""
     if request.method != "POST":
         return redirect("bids:project_detail", pk=pk)
 
     project = get_object_or_404(BidProject, pk=pk)
-    site = mark_as_won(project, created_by=request.user)
-    messages.success(request, f"落札しました。現場「{site.name}」を自動作成しました。")
+    site, created = mark_as_won(project, created_by=request.user)
+    if created:
+        messages.success(request, f"落札しました。現場「{site.name}」を自動作成しました。")
+    else:
+        messages.success(request, f"落札しました。登録済みの現場「{site.name}」に反映しました。")
     return redirect("bids:project_detail", pk=pk)
 
 
