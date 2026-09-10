@@ -463,6 +463,13 @@ input[type="time"].form-control::-webkit-date-and-time-value { text-align: left;
 .page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
 .page-header h1 { font-size: 1.35rem; font-weight: 700; letter-spacing: -.02em; color: var(--brand); }
 
+/* ---- Section tabs（サイドバー1項目にまとめた画面群。ADR-0029） ---- */
+/* スマホ幅で折り返すと行が増えて本文が押し下がるため、1行のまま横スクロールにする */
+.section-tabs { display: flex; gap: 2px; margin-bottom: 20px; border-bottom: 1px solid var(--border); overflow-x: auto; scrollbar-width: thin; -webkit-overflow-scrolling: touch; }
+.section-tab { flex: 0 0 auto; display: inline-flex; align-items: center; min-height: 44px; padding: 0 14px; margin-bottom: -1px; border-bottom: 2px solid transparent; color: var(--text-secondary); font-size: .88rem; font-weight: 500; text-decoration: none; white-space: nowrap; transition: var(--transition); }
+.section-tab:hover { color: var(--text-primary); background: var(--surface-hover); }
+.section-tab.active { color: var(--brand); border-bottom-color: var(--brand); font-weight: 700; }
+
 /* ---- Detail grid ---- */
 .detail-grid { display: grid; grid-template-columns: 140px 1fr; }
 .detail-grid dt { padding: 14px 20px; font-size: .82rem; font-weight: 600; color: var(--text-muted); border-bottom: 1px solid var(--border-light); background: var(--surface-hover); }
