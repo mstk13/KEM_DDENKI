@@ -156,15 +156,15 @@ NAVIGATION: tuple[NavItem | NavGroup, ...] = (
                 ),
             ),
             NavItem("現場管理", "sites:list", "🏗️", ("sites:*",)),
-            NavItem("工期管理", "schedules:list", "📅", ("schedules:*",)),
-            NavItem("現場見積もり/実経費", "costs:list", "💰", ("costs:*",)),
-            # 発注は現場に紐づくため現場グループに置く（ADR-0033）。
+            # 発注は現場に紐づくため現場グループの、現場管理のすぐ下に置く（ADR-0033・ADR-0035）。
             # 材料ごとの過去の取引の検索は、材料・発注の画面の中に置く。
             NavItem("材料・発注", "materials:list", "📦", ("materials:*",)),
+            NavItem("工期管理", "schedules:list", "📅", ("schedules:*",)),
+            NavItem("現場見積もり/実経費", "costs:list", "💰", ("costs:*",)),
         ),
     ),
     NavGroup(
-        "日々の記録",
+        "日報・勤怠",
         (
             NavItem("日報管理", "reports:list", "📝", ("reports:*",)),
             NavItem(
@@ -179,11 +179,11 @@ NAVIGATION: tuple[NavItem | NavGroup, ...] = (
         ),
     ),
     NavGroup(
-        "作業員",
+        "人材",
         (
             # workers は作業員台帳と評価が同じ名前空間に同居しているため、
             # 名前空間ごとではなく url_name の接頭辞で振り分ける。
-            # グループ名と同じ「作業員」が並ぶと区別しにくいので「作業員一覧」（ADR-0033）。
+            # 人材評価・書類アラートと区別するため「作業員一覧」（ADR-0033・ADR-0035）。
             NavItem(
                 "作業員一覧",
                 "workers:list",
@@ -228,9 +228,9 @@ NAVIGATION: tuple[NavItem | NavGroup, ...] = (
             ),
         ),
     ),
-    # 取引の相手だけを置く。積算マスタ・工種マスタは設定へ（ADR-0033）。
+    # 取引の相手だけを置く。積算マスタ・工種マスタは設定へ（ADR-0033）。名前は ADR-0035。
     NavGroup(
-        "取引先",
+        "取引先・業者",
         (
             NavItem("顧客", "masters:customer_list", "👥", ("masters:customer_*",)),
             NavItem("発注先", "masters:supplier_list", "🏭", ("masters:supplier_*",)),
