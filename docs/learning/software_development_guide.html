@@ -1,0 +1,692 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ソフトウェア開発 学習ガイド — KEM_DDENKI</title>
+<style>
+:root{
+  --paper:#F2F5F8;
+  --panel:#FFFFFF;
+  --grid:#DCE5EE;
+  --ink:#14324E;
+  --ink2:#4A6076;
+  --line:#9FB3C8;
+  --amber:#D98E04;
+  --amber-deep:#9A6A00;
+  --green:#2E7D4F;
+  --red:#BB4430;
+  --radius:6px;
+  font-size:16px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+@media (prefers-reduced-motion: reduce){html{scroll-behavior:auto}}
+body{
+  font-family:"Hiragino Kaku Gothic ProN","Hiragino Sans","Yu Gothic Medium","Noto Sans JP",sans-serif;
+  color:var(--ink);
+  background:
+    linear-gradient(var(--grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid) 1px, transparent 1px),
+    var(--paper);
+  background-size:28px 28px,28px 28px,auto;
+  line-height:1.85;
+}
+a{color:var(--amber-deep)}
+a:focus-visible,button:focus-visible,summary:focus-visible{outline:3px solid var(--amber);outline-offset:2px}
+.layout{display:grid;grid-template-columns:250px minmax(0,1fr);max-width:1160px;margin:0 auto;gap:0 40px;padding:0 20px}
+/* ---- TOC ---- */
+nav.toc{position:sticky;top:0;align-self:start;height:100vh;overflow-y:auto;padding:36px 0 36px 4px;font-size:.86rem}
+nav.toc .toc-title{font-weight:700;letter-spacing:.06em;margin-bottom:10px;color:var(--ink2)}
+nav.toc ol{list-style:none}
+nav.toc li{margin:2px 0}
+nav.toc a{display:block;color:var(--ink2);text-decoration:none;padding:3px 10px;border-left:2px solid var(--line);line-height:1.5}
+nav.toc a:hover{color:var(--ink);border-left-color:var(--amber)}
+nav.toc .lv2 a{padding-left:22px;font-size:.82rem}
+/* ---- Main ---- */
+main{padding:36px 0 90px;max-width:760px}
+header.hero{margin-bottom:20px}
+.doc-meta{font-size:.82rem;color:var(--ink2);border:1px solid var(--line);background:var(--panel);border-radius:var(--radius);padding:10px 16px;display:inline-block;margin-top:14px}
+h1{font-size:2.05rem;line-height:1.35;font-weight:800;letter-spacing:.01em}
+h1 .sub{display:block;font-size:.95rem;font-weight:600;color:var(--amber-deep);margin-bottom:6px}
+h2{font-size:1.45rem;font-weight:800;margin:72px 0 6px;padding-top:18px;border-top:3px solid var(--ink);line-height:1.4}
+h2 .part{display:block;font-size:.8rem;color:var(--amber-deep);font-weight:700;letter-spacing:.05em}
+h3{font-size:1.12rem;font-weight:700;margin:44px 0 12px;padding-left:12px;border-left:4px solid var(--amber)}
+h4{font-size:.98rem;font-weight:700;margin:26px 0 8px;color:var(--ink)}
+p{margin:12px 0;max-width:42em}
+ul,ol{margin:12px 0 12px 1.5em;max-width:40em}
+li{margin:6px 0}
+strong{font-weight:700}
+em{font-style:normal;background:linear-gradient(transparent 62%,#F5DFA8 62%)}
+code{font-family:ui-monospace,"SF Mono",Consolas,monospace;font-size:.87em;background:#E8EEF4;border-radius:4px;padding:1px 6px}
+.lesson{background:var(--panel);border:1px solid var(--line);border-left:5px solid var(--amber);border-radius:var(--radius);padding:14px 18px;margin:18px 0;max-width:42em}
+.lesson b{color:var(--amber-deep)}
+.check{background:var(--panel);border:1px dashed var(--ink2);border-radius:var(--radius);padding:13px 18px;margin:20px 0;max-width:42em}
+.check .q{font-weight:700}
+.check .tag{display:inline-block;font-size:.75rem;font-weight:700;color:#fff;background:var(--ink);border-radius:3px;padding:1px 8px;margin-right:8px;vertical-align:2px}
+/* ---- Figures ---- */
+figure{margin:26px 0;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:20px 16px 12px;overflow-x:auto}
+figcaption{font-size:.8rem;color:var(--ink2);text-align:center;margin-top:8px}
+figure svg{display:block;margin:0 auto;max-width:100%;height:auto}
+svg text{font-family:"Hiragino Kaku Gothic ProN","Hiragino Sans","Yu Gothic Medium","Noto Sans JP",sans-serif}
+/* layered stack diagram */
+.stack{max-width:520px;margin:26px auto}
+.stack .layer{border:2px solid var(--ink);border-radius:var(--radius);background:var(--panel);padding:12px 18px;position:relative}
+.stack .layer + .layer{margin-top:14px}
+.stack .layer .nm{font-weight:800}
+.stack .layer .rl{font-size:.84rem;color:var(--ink2)}
+.stack .dep{width:0;margin:0 auto;border-left:2px dashed var(--amber-deep);height:14px;position:relative;top:0}
+.stack .l1{border-color:var(--amber-deep)}
+/* tables */
+table{border-collapse:collapse;width:100%;margin:18px 0;background:var(--panel);font-size:.92rem}
+th,td{border:1px solid var(--line);padding:9px 12px;text-align:left;vertical-align:top}
+th{background:#E8EEF4;font-weight:700}
+/* mobile */
+.menu-btn{display:none}
+@media (max-width:900px){
+  .layout{grid-template-columns:minmax(0,1fr)}
+  nav.toc{position:fixed;inset:0 22% 0 0;background:var(--panel);z-index:50;transform:translateX(-102%);transition:transform .2s;padding:60px 16px;height:100vh;border-right:1px solid var(--line)}
+  nav.toc.open{transform:none;box-shadow:0 0 0 100vmax rgba(20,50,78,.35)}
+  .menu-btn{display:block;position:fixed;top:12px;left:12px;z-index:60;background:var(--ink);color:#fff;border:0;border-radius:6px;padding:8px 14px;font-size:.9rem;font-weight:700}
+  main{padding-top:64px}
+  h1{font-size:1.6rem}
+}
+</style>
+</head>
+<body>
+<button class="menu-btn" onclick="document.querySelector('nav.toc').classList.toggle('open')" aria-label="目次を開閉">☰ 目次</button>
+<div class="layout">
+<nav class="toc" aria-label="目次">
+  <div class="toc-title">目次</div>
+  <ol>
+    <li><a href="#intro">序章 開発の全体像</a></li>
+    <li class="lv2"><a href="#loop">開発ループ回路図</a></li>
+    <li class="lv2"><a href="#stages">6つの段階</a></li>
+    <li class="lv2"><a href="#howtolearn">一番効く学び方</a></li>
+    <li><a href="#part1">第1部 座学</a></li>
+    <li class="lv2"><a href="#m1">M1 ループと進め方</a></li>
+    <li class="lv2"><a href="#m2">M2 要求定義</a></li>
+    <li class="lv2"><a href="#m3">M3 設計の原則</a></li>
+    <li class="lv2"><a href="#m4">M4 実装の規律</a></li>
+    <li class="lv2"><a href="#m5">M5 テストの考え方</a></li>
+    <li class="lv2"><a href="#m6">M6 CI/CDとリリース</a></li>
+    <li class="lv2"><a href="#m7">M7 運用とFB</a></li>
+    <li><a href="#part2">第2部 実践</a></li>
+    <li class="lv2"><a href="#p0">Phase 0 負債と規律</a></li>
+    <li class="lv2"><a href="#p1">Phase 1 要求と設計</a></li>
+    <li class="lv2"><a href="#p2">Phase 2 境界の設計</a></li>
+    <li class="lv2"><a href="#p3">Phase 3 検証</a></li>
+    <li><a href="#part3">第3部 テストと品質</a></li>
+    <li class="lv2"><a href="#pyramid">テストピラミッド</a></li>
+    <li class="lv2"><a href="#priority">優先順位の判断</a></li>
+    <li class="lv2"><a href="#tdd">TDD体験</a></li>
+    <li class="lv2"><a href="#review">セルフレビュー</a></li>
+    <li class="lv2"><a href="#quality">品質はテストより広い</a></li>
+    <li class="lv2"><a href="#coverage">カバレッジ</a></li>
+    <li><a href="#goal">修了の目安</a></li>
+  </ol>
+</nav>
+<main>
+
+<header class="hero">
+  <h1><span class="sub">KEM_DDENKI 開発者のための</span>ソフトウェア開発 学習ガイド</h1>
+  <p>座学で骨格を作り、フロントエンド改修で肉付けし、テストと品質で仕上げる——3部構成の実践型カリキュラム。各モジュール末尾の「確認」に自分の言葉で答えられたら合格。答え合わせや深掘りは Claude とのチャットで行う。</p>
+  <div class="doc-meta">序章＋第1部を先に一周 → 第2部は改修の各 Phase と並走 → 第3部は Phase 2 頃から着手</div>
+</header>
+
+<h2 id="intro"><span class="part">序章</span>ソフトウェア開発の全体像 —— 一つのループ</h2>
+<p>しっかりした開発とは、突き詰めると次のループを<strong>意識的に</strong>回すことである。電気屋の言葉で言えば、開発は一本の<em>閉回路</em>だ。どこか一箇所でも断線すれば電流（価値）は流れない。</p>
+
+<figure id="loop">
+<svg viewBox="0 0 720 400" role="img" aria-label="開発ループの回路図。要求、設計、実装、テスト、リリース・運用、フィードバックの6ノードが循環している">
+  <defs>
+    <marker id="ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#D98E04"/>
+    </marker>
+  </defs>
+  <!-- circuit trace (rounded rectangle path) -->
+  <path d="M150,70 H570 Q610,70 610,110 V290 Q610,330 570,330 H150 Q110,330 110,290 V110 Q110,70 150,70 Z"
+        fill="none" stroke="#D98E04" stroke-width="3"/>
+  <!-- current direction arrows on the trace -->
+  <path d="M255,70 h1" stroke="#D98E04" stroke-width="3" marker-end="url(#ah)"/>
+  <path d="M465,70 h1" stroke="#D98E04" stroke-width="3" marker-end="url(#ah)"/>
+  <path d="M610,195 v1" stroke="#D98E04" stroke-width="3" marker-end="url(#ah)"/>
+  <path d="M470,330 h-1" stroke="#D98E04" stroke-width="3" marker-end="url(#ah)"/>
+  <path d="M258,330 h-1" stroke="#D98E04" stroke-width="3" marker-end="url(#ah)"/>
+  <path d="M110,207 v-1" stroke="#D98E04" stroke-width="3" marker-end="url(#ah)"/>
+  <!-- nodes: top row -->
+  <g>
+    <rect x="120" y="42" width="120" height="56" rx="6" fill="#FFFFFF" stroke="#14324E" stroke-width="2.5"/>
+    <text x="180" y="66" text-anchor="middle" font-size="15" font-weight="700" fill="#14324E">① 要求定義</text>
+    <text x="180" y="86" text-anchor="middle" font-size="11" fill="#4A6076">何を作るか</text>
+  </g>
+  <g>
+    <rect x="300" y="42" width="120" height="56" rx="6" fill="#FFFFFF" stroke="#14324E" stroke-width="2.5"/>
+    <text x="360" y="66" text-anchor="middle" font-size="15" font-weight="700" fill="#14324E">② 設計</text>
+    <text x="360" y="86" text-anchor="middle" font-size="11" fill="#4A6076">どう作るか</text>
+  </g>
+  <g>
+    <rect x="480" y="42" width="120" height="56" rx="6" fill="#FFFFFF" stroke="#14324E" stroke-width="2.5"/>
+    <text x="540" y="66" text-anchor="middle" font-size="15" font-weight="700" fill="#14324E">③ 実装</text>
+    <text x="540" y="86" text-anchor="middle" font-size="11" fill="#4A6076">規律ある書き方</text>
+  </g>
+  <!-- right node -->
+  <g>
+    <rect x="548" y="168" width="124" height="56" rx="6" fill="#FFFFFF" stroke="#14324E" stroke-width="2.5"/>
+    <text x="610" y="192" text-anchor="middle" font-size="15" font-weight="700" fill="#14324E">④ テスト</text>
+    <text x="610" y="212" text-anchor="middle" font-size="11" fill="#4A6076">壊れていない証明</text>
+  </g>
+  <!-- bottom row -->
+  <g>
+    <rect x="410" y="302" width="180" height="56" rx="6" fill="#FFFFFF" stroke="#14324E" stroke-width="2.5"/>
+    <text x="500" y="326" text-anchor="middle" font-size="15" font-weight="700" fill="#14324E">⑤ リリース・運用</text>
+    <text x="500" y="346" text-anchor="middle" font-size="11" fill="#4A6076">届けて動かす</text>
+  </g>
+  <g>
+    <rect x="150" y="302" width="180" height="56" rx="6" fill="#FFF8E8" stroke="#D98E04" stroke-width="2.5"/>
+    <text x="240" y="326" text-anchor="middle" font-size="15" font-weight="700" fill="#9A6A00">⑥ フィードバック</text>
+    <text x="240" y="346" text-anchor="middle" font-size="11" fill="#9A6A00">使われ方を観察</text>
+  </g>
+  <!-- left node label: power source symbol -->
+  <g>
+    <circle cx="110" cy="200" r="26" fill="#FFFFFF" stroke="#14324E" stroke-width="2.5"/>
+    <text x="110" y="196" text-anchor="middle" font-size="10" font-weight="700" fill="#14324E">ユーザー</text>
+    <text x="110" y="210" text-anchor="middle" font-size="10" font-weight="700" fill="#14324E">の課題</text>
+  </g>
+  <text x="360" y="205" text-anchor="middle" font-size="12.5" fill="#4A6076">断線した箇所があると、価値は流れない。</text>
+  <text x="360" y="225" text-anchor="middle" font-size="12.5" fill="#4A6076">45リンクのナビは「①を飛ばした回路」の産物。</text>
+</svg>
+<figcaption>図1 開発ループ回路図 — 電源はいつも「ユーザーの課題」。⑥が①に戻って初めて閉回路になる</figcaption>
+</figure>
+
+<h3 id="stages">6つの段階と KEM_DDENKI の現在地</h3>
+
+<h4>1. 要求定義（何を作るか）</h4>
+<p>「誰が・何のために・何を必要とするか」を<strong>作る前に</strong>言語化する。今回のフロントエンド問題の根本原因はここにある。機能（What）は積み上がったのに、ユーザー像とユースケース（Who/Why）の整理を飛ばしたため、45リンクのナビが生まれた。フロントエンド再設計仕様書の §3（ロール表・利用モード）がまさに要求定義の実践だった。</p>
+<div class="lesson"><b>教訓</b>：コードを書く前に「誰がどう使うか」を1枚書く。</div>
+
+<h4>2. 設計（どう作るか）</h4>
+<p>アーキテクチャの選択と<strong>その記録</strong>。KEM_DDENKI の ADR は既に良い実践だ。「案A/B/Cの比較 → トレードオフを明示して案Cを選ぶ」という進め方が設計行為そのもの。重要なのは正解を選ぶことではなく、<em>選んだ理由を残すこと</em>（半年後の自分が「なぜ htmx なんだっけ」と迷わない）。</p>
+
+<h4>3. 実装（規律ある書き方）</h4>
+<p>小さく作って小さく統合する。具体的には：ブランチを切る → <strong>1つの目的につき1つのPR</strong>（巨大PRはレビュー不能＝品質検査の放棄）→ レビュー → マージ。「Phase 0 を項目ごとに1PRずつ」はこの原則の適用だ。DRY（重複排除）が破られた実例が評価システム2系統だった。</p>
+
+<h4>4. テスト（壊れていないことの証明）</h4>
+<p>テストの本当の価値は「今動くこと」の確認ではなく、<em>将来の変更を怖くなくすること</em>。テストがあるから、Phase 1 でナビを大胆に再編しても「壊したら CI が教えてくれる」と安心して進める。配分の考え方＝テストピラミッドは第3部で詳しく扱う。</p>
+
+<h4>5. リリースと運用</h4>
+<p>KEM_DDENKI の2分おき自動デプロイは諸刃の剣で、「即座に届く」利点と「壊れたコードも即座に届く」危険が同居している。だからこそ <strong>CI green 必須・expand/contract マイグレーション</strong>のルールが効いている。ここは既にかなり良い。</p>
+
+<h4>6. フィードバック</h4>
+<p>作って終わりにせず、使われ方を観察して次の要求に繋げる。仕様書の Phase 3（利用ログ・現場ヒアリングで検証）がこれにあたる。目安箱アプリがあるのも良い仕組みだ。</p>
+
+<h3 id="howtolearn">一番効く学び方：改修そのものを教材にする</h3>
+<p>一般論の勉強より、今回のフロントエンド改修そのものを教材にするのが最短だ。Phase 0〜3 は偶然にも、要求定義（済）→ 設計（済）→ 規律ある実装 → テスト → 検証、とループを一周する構成になっている。各フェーズを進めるたびに「いま自分は開発プロセスのどの段階で、なぜこの規律を守るのか」を確認しながら進めれば、知識が体験と結びつく。</p>
+
+<figure>
+<svg viewBox="0 0 720 330" role="img" aria-label="改修フェーズと学習テーマの対応図">
+  <defs>
+    <marker id="ah2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#14324E"/>
+    </marker>
+  </defs>
+  <!-- done group -->
+  <rect x="20" y="20" width="680" height="86" rx="8" fill="#EAF3EC" stroke="#2E7D4F" stroke-width="1.6" stroke-dasharray="6 4"/>
+  <text x="40" y="44" font-size="12" font-weight="700" fill="#2E7D4F">✔ 完了済み（このチャットで実施）</text>
+  <rect x="40" y="54" width="300" height="40" rx="6" fill="#FFFFFF" stroke="#2E7D4F" stroke-width="2"/>
+  <text x="190" y="72" text-anchor="middle" font-size="13" font-weight="700" fill="#14324E">要求定義</text>
+  <text x="190" y="88" text-anchor="middle" font-size="10.5" fill="#4A6076">仕様書 §3 ロール表・利用モード</text>
+  <path d="M345,74 H375" stroke="#14324E" stroke-width="2" marker-end="url(#ah2)"/>
+  <rect x="380" y="54" width="300" height="40" rx="6" fill="#FFFFFF" stroke="#2E7D4F" stroke-width="2"/>
+  <text x="530" y="72" text-anchor="middle" font-size="13" font-weight="700" fill="#14324E">設計</text>
+  <text x="530" y="88" text-anchor="middle" font-size="10.5" fill="#4A6076">案A/B/C比較 → 案C決定・htmx採用（§9 決定記録）</text>
+  <!-- arrow down -->
+  <path d="M360,108 V132" stroke="#14324E" stroke-width="2" marker-end="url(#ah2)"/>
+  <!-- phases -->
+  <g>
+    <rect x="25" y="140" width="158" height="78" rx="6" fill="#FFFFFF" stroke="#14324E" stroke-width="2.5"/>
+    <text x="104" y="164" text-anchor="middle" font-size="13.5" font-weight="700" fill="#14324E">Phase 0</text>
+    <text x="104" y="182" text-anchor="middle" font-size="11" fill="#4A6076">負債返済・実装規律</text>
+    <text x="104" y="202" text-anchor="middle" font-size="11" font-weight="700" fill="#9A6A00">= M4・M7</text>
+  </g>
+  <path d="M188,179 H208" stroke="#14324E" stroke-width="2" marker-end="url(#ah2)"/>
+  <g>
+    <rect x="212" y="140" width="158" height="78" rx="6" fill="#FFFFFF" stroke="#14324E" stroke-width="2.5"/>
+    <text x="291" y="164" text-anchor="middle" font-size="13.5" font-weight="700" fill="#14324E">Phase 1</text>
+    <text x="291" y="182" text-anchor="middle" font-size="11" fill="#4A6076">情報設計の実装</text>
+    <text x="291" y="202" text-anchor="middle" font-size="11" font-weight="700" fill="#9A6A00">= M2・M3</text>
+  </g>
+  <path d="M375,179 H395" stroke="#14324E" stroke-width="2" marker-end="url(#ah2)"/>
+  <g>
+    <rect x="399" y="140" width="158" height="78" rx="6" fill="#FFFFFF" stroke="#14324E" stroke-width="2.5"/>
+    <text x="478" y="164" text-anchor="middle" font-size="13.5" font-weight="700" fill="#14324E">Phase 2</text>
+    <text x="478" y="182" text-anchor="middle" font-size="11" fill="#4A6076">API境界 + テスト集中</text>
+    <text x="478" y="202" text-anchor="middle" font-size="11" font-weight="700" fill="#9A6A00">= M3・M6 + 第3部</text>
+  </g>
+  <path d="M562,179 H582" stroke="#14324E" stroke-width="2" marker-end="url(#ah2)"/>
+  <g>
+    <rect x="586" y="140" width="118" height="78" rx="6" fill="#FFF8E8" stroke="#D98E04" stroke-width="2.5"/>
+    <text x="645" y="164" text-anchor="middle" font-size="13.5" font-weight="700" fill="#9A6A00">Phase 3</text>
+    <text x="645" y="182" text-anchor="middle" font-size="11" fill="#9A6A00">検証・FB</text>
+    <text x="645" y="202" text-anchor="middle" font-size="11" font-weight="700" fill="#9A6A00">= M7</text>
+  </g>
+  <!-- feedback loop back to requirement -->
+  <path d="M645,222 V262 H190 V100" fill="none" stroke="#D98E04" stroke-width="2.4" stroke-dasharray="7 5" marker-end="url(#ah)"/>
+  <text x="418" y="284" text-anchor="middle" font-size="12" fill="#9A6A00">ループを閉じて次の要求へ —— ここまでやって「一周」</text>
+</svg>
+<figcaption>図2 改修フェーズ × 学習モジュール対応図 — Phase 0〜3 で開発ループをまるごと一周する</figcaption>
+</figure>
+
+<h2 id="part1"><span class="part">第1部 座学</span>開発プロセスの体系（改修開始前に一周）</h2>
+
+<h3 id="m1">モジュール1：開発のループと進め方</h3>
+<p>ソフトウェア開発は図1のループである。回し方には二流派ある。<strong>ウォーターフォール</strong>は全工程を1回で大きく回す（後戻りが高価）。<strong>アジャイル</strong>は小さく何度も回す（1周ごとに軌道修正できる）。個人開発＋2分おき自動デプロイの KEM_DDENKI は事実上アジャイルであり、だからこそ<em>1周を小さく保つ規律</em>が生命線になる。イテレーションの単位は「1機能 ＝ 要求メモ → 実装 → テスト → デプロイ → 反応を見る」で1周。</p>
+
+<figure>
+<svg viewBox="0 0 720 220" role="img" aria-label="ウォーターフォールとアジャイルの比較図">
+  <text x="20" y="30" font-size="13" font-weight="700" fill="#14324E">ウォーターフォール：1回で大きく回す</text>
+  <g font-size="11.5" fill="#FFFFFF" font-weight="700">
+    <rect x="20"  y="42" width="150" height="34" fill="#14324E" rx="4"/><text x="95"  y="63" text-anchor="middle">要求</text>
+    <rect x="174" y="42" width="150" height="34" fill="#2C4A68" rx="4"/><text x="249" y="63" text-anchor="middle">設計</text>
+    <rect x="328" y="42" width="170" height="34" fill="#3E6284" rx="4"/><text x="413" y="63" text-anchor="middle">実装</text>
+    <rect x="502" y="42" width="120" height="34" fill="#597CA0" rx="4"/><text x="562" y="63" text-anchor="middle">テスト</text>
+    <rect x="626" y="42" width="74"  height="34" fill="#D98E04" rx="4"/><text x="663" y="63" text-anchor="middle">出荷</text>
+  </g>
+  <text x="20" y="100" font-size="11.5" fill="#BB4430">△ 最後まで動くものが出ない。手戻りのコストが巨大</text>
+  <text x="20" y="140" font-size="13" font-weight="700" fill="#14324E">アジャイル：小さく何周も回す（KEM_DDENKI はこちら）</text>
+  <g font-size="10" fill="#FFFFFF" font-weight="700">
+    <g>
+      <rect x="20" y="152" width="34" height="30" fill="#14324E" rx="3"/><text x="37" y="171" text-anchor="middle">要</text>
+      <rect x="56" y="152" width="34" height="30" fill="#2C4A68" rx="3"/><text x="73" y="171" text-anchor="middle">設</text>
+      <rect x="92" y="152" width="34" height="30" fill="#3E6284" rx="3"/><text x="109" y="171" text-anchor="middle">実</text>
+      <rect x="128" y="152" width="34" height="30" fill="#597CA0" rx="3"/><text x="145" y="171" text-anchor="middle">テ</text>
+      <rect x="164" y="152" width="34" height="30" fill="#D98E04" rx="3"/><text x="181" y="171" text-anchor="middle">出</text>
+    </g>
+    <g>
+      <rect x="230" y="152" width="34" height="30" fill="#14324E" rx="3"/><text x="247" y="171" text-anchor="middle">要</text>
+      <rect x="266" y="152" width="34" height="30" fill="#2C4A68" rx="3"/><text x="283" y="171" text-anchor="middle">設</text>
+      <rect x="302" y="152" width="34" height="30" fill="#3E6284" rx="3"/><text x="319" y="171" text-anchor="middle">実</text>
+      <rect x="338" y="152" width="34" height="30" fill="#597CA0" rx="3"/><text x="355" y="171" text-anchor="middle">テ</text>
+      <rect x="374" y="152" width="34" height="30" fill="#D98E04" rx="3"/><text x="391" y="171" text-anchor="middle">出</text>
+    </g>
+    <g>
+      <rect x="440" y="152" width="34" height="30" fill="#14324E" rx="3"/><text x="457" y="171" text-anchor="middle">要</text>
+      <rect x="476" y="152" width="34" height="30" fill="#2C4A68" rx="3"/><text x="493" y="171" text-anchor="middle">設</text>
+      <rect x="512" y="152" width="34" height="30" fill="#3E6284" rx="3"/><text x="529" y="171" text-anchor="middle">実</text>
+      <rect x="548" y="152" width="34" height="30" fill="#597CA0" rx="3"/><text x="565" y="171" text-anchor="middle">テ</text>
+      <rect x="584" y="152" width="34" height="30" fill="#D98E04" rx="3"/><text x="601" y="171" text-anchor="middle">出</text>
+    </g>
+    <text x="648" y="173" font-size="16" fill="#4A6076">…</text>
+  </g>
+  <text x="20" y="208" font-size="11.5" fill="#2E7D4F">○ 毎周動くものが届く。方向転換が安い。ただし1周を小さく保つ規律が必須</text>
+</svg>
+<figcaption>図3 ウォーターフォール vs アジャイル — 同じ工程を「どの粒度で回すか」の違い</figcaption>
+</figure>
+
+<div class="check"><span class="tag">確認</span><span class="q">「今回のフロントエンドの問題は、ループのどの段階を飛ばしたことが原因だったか」を自分の言葉で説明できるか。</span></div>
+
+<h3 id="m2">モジュール2：要求定義</h3>
+<ul>
+  <li><strong>Who（誰が）→ Why（何のために）→ What（何を）の順</strong>で考える。What から始めると機能は増えるが使われないものができる</li>
+  <li>ユーザーストーリー形式：「<em>&lt;ロール&gt; として &lt;目的&gt; のために &lt;機能&gt; がほしい</em>」。例：「現場担当者として、移動中に片手で日報を出したいので、スマホ最適化された入力画面がほしい」</li>
+  <li>非機能要件：機能以外の要求（速度・セキュリティ・使いやすさ・保守しやすさ）。「スマホでも崩れない」は典型的な非機能要件</li>
+  <li>スコープ管理：<strong>やらないことを決めるのも要求定義</strong>（仕様書 §10「変えないもの」がその実践）</li>
+</ul>
+
+<figure>
+<svg viewBox="0 0 720 170" role="img" aria-label="Who Why Whatの順で考える図">
+  <defs>
+    <marker id="ah3" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#14324E"/>
+    </marker>
+  </defs>
+  <rect x="30" y="30" width="180" height="70" rx="8" fill="#FFF8E8" stroke="#D98E04" stroke-width="2.5"/>
+  <text x="120" y="60" text-anchor="middle" font-size="17" font-weight="800" fill="#9A6A00">Who</text>
+  <text x="120" y="82" text-anchor="middle" font-size="12" fill="#9A6A00">誰が使うのか</text>
+  <path d="M215,65 H255" stroke="#14324E" stroke-width="2.5" marker-end="url(#ah3)"/>
+  <rect x="262" y="30" width="180" height="70" rx="8" fill="#FFFFFF" stroke="#14324E" stroke-width="2.5"/>
+  <text x="352" y="60" text-anchor="middle" font-size="17" font-weight="800" fill="#14324E">Why</text>
+  <text x="352" y="82" text-anchor="middle" font-size="12" fill="#4A6076">何のために</text>
+  <path d="M447,65 H487" stroke="#14324E" stroke-width="2.5" marker-end="url(#ah3)"/>
+  <rect x="494" y="30" width="180" height="70" rx="8" fill="#FFFFFF" stroke="#14324E" stroke-width="2.5"/>
+  <text x="584" y="60" text-anchor="middle" font-size="17" font-weight="800" fill="#14324E">What</text>
+  <text x="584" y="82" text-anchor="middle" font-size="12" fill="#4A6076">何を作るか</text>
+  <text x="120" y="128" text-anchor="middle" font-size="11.5" font-weight="700" fill="#2E7D4F">← ここから始める</text>
+  <text x="584" y="128" text-anchor="middle" font-size="11.5" font-weight="700" fill="#BB4430">ここから始めると</text>
+  <text x="584" y="146" text-anchor="middle" font-size="11.5" font-weight="700" fill="#BB4430">45リンクのナビが生まれる</text>
+</svg>
+<figcaption>図4 要求を考える順番 — What 起点は「機能は多いが使いにくい」への最短ルート</figcaption>
+</figure>
+
+<div class="check"><span class="tag">確認</span><span class="q">仕様書 §3.1 のロール表を見ずに、KEM_DDENKI の6ロールと各々の主目的を言えるか。</span></div>
+
+<h3 id="m3">モジュール3：設計の原則</h3>
+<ul>
+  <li><strong>関心の分離</strong>：表示（テンプレート）・業務ロジック（services.py）・データ（models.py）を混ぜない。KEM_DDENKI が services 層を持つのはこの実践</li>
+  <li><strong>結合度は低く、凝集度は高く</strong>：部品同士の依存は少なく、1つの部品の中身は1つの目的に集中</li>
+  <li><strong>DRY</strong>（同じ知識を2箇所に書かない）／<strong>YAGNI</strong>（今要らないものは作らない）／<strong>KISS</strong>（単純に保つ）。評価システム2系統は DRY 違反の実例</li>
+  <li>設計判断は <strong>ADR</strong> に残す。正解を選ぶことより「選んだ理由と捨てた選択肢」を記録することに価値がある</li>
+</ul>
+
+<div class="stack" role="img" aria-label="KEM_DDENKIの3層構造。表示層、業務層、データ層">
+  <div class="layer l1"><span class="nm">表示層</span>　<code>templates/</code> + htmx / Alpine<br><span class="rl">見た目と操作だけを担当。業務ロジックを書かない</span></div>
+  <div class="dep"></div>
+  <div class="layer"><span class="nm">業務層</span>　<code>services.py</code><br><span class="rl">計算・判断・手続きだけを担当。画面の都合を知らない</span></div>
+  <div class="dep"></div>
+  <div class="layer"><span class="nm">データ層</span>　<code>models.py</code> + CompanyScopedManager<br><span class="rl">保存・取得・テナント分離だけを担当</span></div>
+</div>
+<p style="text-align:center;font-size:.85rem;color:var(--ink2);margin-top:-8px">図5 関心の分離 — 各層は<strong>すぐ下の層だけ</strong>に依存する（点線）。飛び越えも逆流もさせない</p>
+
+<div class="check"><span class="tag">確認</span><span class="q">「htmx を選んで Vue を捨てた理由」を、トレードオフの言葉（何を得て何を諦めたか）で説明できるか。</span></div>
+
+<h3 id="m4">モジュール4：実装の規律</h3>
+<ul>
+  <li><strong>ブランチ戦略</strong>：main は常に動く状態を保ち、作業は feature ブランチで行い PR で統合する</li>
+  <li><strong>小さい PR の原則</strong>：1 PR ＝ 1目的。目安は差分400行以下。大きい PR はレビュー不能になり、品質検査が事実上消える</li>
+  <li>コミットメッセージは「何をしたか」ではなく<strong>「なぜしたか」</strong>が伝わるように書く</li>
+  <li><strong>リファクタリング</strong>：外から見た振る舞いを変えずに内部構造を改善すること。機能追加と同じ PR に混ぜない（レビューが濁る）</li>
+</ul>
+
+<figure>
+<svg viewBox="0 0 720 210" role="img" aria-label="mainブランチとfeatureブランチの運用図">
+  <defs>
+    <marker id="ah4" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#4A6076"/>
+    </marker>
+  </defs>
+  <!-- main line -->
+  <line x1="40" y1="60" x2="690" y2="60" stroke="#14324E" stroke-width="3"/>
+  <text x="40" y="42" font-size="13" font-weight="800" fill="#14324E">main（常に動く）</text>
+  <circle cx="70" cy="60" r="7" fill="#14324E"/>
+  <circle cx="320" cy="60" r="9" fill="#2E7D4F"/>
+  <circle cx="600" cy="60" r="9" fill="#2E7D4F"/>
+  <text x="320" y="40" text-anchor="middle" font-size="11" font-weight="700" fill="#2E7D4F">PR#1 マージ</text>
+  <text x="600" y="40" text-anchor="middle" font-size="11" font-weight="700" fill="#2E7D4F">PR#2 マージ</text>
+  <!-- feature 1 -->
+  <path d="M70,60 C110,60 110,120 150,120 H240 C285,120 285,60 315,60" fill="none" stroke="#D98E04" stroke-width="2.6"/>
+  <circle cx="165" cy="120" r="6" fill="#D98E04"/>
+  <circle cx="225" cy="120" r="6" fill="#D98E04"/>
+  <text x="196" y="148" text-anchor="middle" font-size="11.5" fill="#9A6A00">feature/phase0-permissions</text>
+  <text x="196" y="165" text-anchor="middle" font-size="10.5" fill="#4A6076">権限17モジュール化 ＋ テスト</text>
+  <!-- feature 2 -->
+  <path d="M350,60 C390,60 390,120 430,120 H520 C565,120 565,60 595,60" fill="none" stroke="#D98E04" stroke-width="2.6"/>
+  <circle cx="445" cy="120" r="6" fill="#D98E04"/>
+  <circle cx="505" cy="120" r="6" fill="#D98E04"/>
+  <text x="476" y="148" text-anchor="middle" font-size="11.5" fill="#9A6A00">feature/phase0-nav</text>
+  <text x="476" y="165" text-anchor="middle" font-size="10.5" fill="#4A6076">ナビ権限出し分け</text>
+  <!-- review gates -->
+  <path d="M285,95 H305" stroke="#4A6076" stroke-width="1.6" marker-end="url(#ah4)"/>
+  <text x="255" y="99" font-size="10" fill="#4A6076">レビュー＋CI green</text>
+  <text x="360" y="198" text-anchor="middle" font-size="11.5" fill="#14324E">1目的 = 1ブランチ = 1PR。マージのたびに main は「動く状態」を更新する</text>
+</svg>
+<figcaption>図6 小さいPRの運用 — Phase 0 の4項目は4本の feature ブランチとして流す</figcaption>
+</figure>
+
+<div class="check"><span class="tag">確認</span><span class="q">「Phase 0 を1つの巨大PRでやってはいけない理由」を2つ挙げられるか。</span></div>
+
+<h3 id="m5">モジュール5：テストの考え方（概要）</h3>
+<ul>
+  <li>テストの価値は「今動く証明」ではなく<em>「将来の変更を怖くなくすること」</em>（回帰の防止網）</li>
+  <li>テストピラミッド：単体（多・速）＞ 結合（中）＞ E2E（少・遅）の配分が健全 —— 図解は<a href="#pyramid">第3部</a></li>
+  <li>何を優先的にテストするか：壊れると被害が大きい所（金額計算・権限・テナント分離）から</li>
+</ul>
+<div class="check"><span class="tag">確認</span><span class="q">「テストがあると Phase 1 のナビ大改編を安心して進められる」のはなぜか説明できるか。</span></div>
+
+<h3 id="m6">モジュール6：CI/CD とリリース</h3>
+<ul>
+  <li><strong>CI（継続的インテグレーション）</strong>：push のたびに自動でテスト・lint を回し、壊れたら統合させない門番</li>
+  <li><strong>CD（継続的デリバリー/デプロイ）</strong>：人手を介さず本番へ届ける仕組み。KEM_DDENKI の2分おき自動デプロイは CD の実践だが、「壊れたコードも2分で届く」ため <em>CI green 必須とセットで初めて成立する</em></li>
+  <li><strong>expand/contract</strong>：「先に追加 → 両対応期間 → 後で削除」の2段階でスキーマを変え、稼働中システムを止めない</li>
+</ul>
+
+<figure>
+<svg viewBox="0 0 720 250" role="img" aria-label="expand/contractマイグレーションのタイムライン図">
+  <defs>
+    <marker id="ah5" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#14324E"/>
+    </marker>
+  </defs>
+  <line x1="30" y1="200" x2="700" y2="200" stroke="#14324E" stroke-width="2.5" marker-end="url(#ah5)"/>
+  <text x="695" y="222" text-anchor="end" font-size="11" fill="#4A6076">時間</text>
+  <!-- phase blocks -->
+  <g>
+    <rect x="50" y="40" width="180" height="120" rx="8" fill="#FFFFFF" stroke="#2E7D4F" stroke-width="2.5"/>
+    <text x="140" y="66" text-anchor="middle" font-size="13.5" font-weight="800" fill="#2E7D4F">① expand</text>
+    <text x="140" y="88" text-anchor="middle" font-size="11.5" fill="#14324E">新カラムを追加</text>
+    <rect x="83" y="100" width="52" height="26" fill="#E8EEF4" stroke="#4A6076" rx="3"/>
+    <text x="109" y="117" text-anchor="middle" font-size="10.5" fill="#14324E">old</text>
+    <rect x="141" y="100" width="52" height="26" fill="#EAF3EC" stroke="#2E7D4F" rx="3"/>
+    <text x="167" y="117" text-anchor="middle" font-size="10.5" fill="#2E7D4F">new</text>
+    <text x="140" y="148" text-anchor="middle" font-size="10" fill="#4A6076">旧コードもまだ動ける</text>
+    <line x1="140" y1="165" x2="140" y2="196" stroke="#2E7D4F" stroke-width="1.6" stroke-dasharray="4 3"/>
+  </g>
+  <g>
+    <rect x="270" y="40" width="180" height="120" rx="8" fill="#FFF8E8" stroke="#D98E04" stroke-width="2.5"/>
+    <text x="360" y="66" text-anchor="middle" font-size="13.5" font-weight="800" fill="#9A6A00">② 両対応期間</text>
+    <text x="360" y="88" text-anchor="middle" font-size="11.5" fill="#14324E">新コードをデプロイ</text>
+    <text x="360" y="108" text-anchor="middle" font-size="11.5" fill="#14324E">データを新カラムへ移行</text>
+    <text x="360" y="140" text-anchor="middle" font-size="10" fill="#9A6A00">新旧どちらのコードでも壊れない</text>
+    <line x1="360" y1="165" x2="360" y2="196" stroke="#D98E04" stroke-width="1.6" stroke-dasharray="4 3"/>
+  </g>
+  <g>
+    <rect x="490" y="40" width="180" height="120" rx="8" fill="#FFFFFF" stroke="#14324E" stroke-width="2.5"/>
+    <text x="580" y="66" text-anchor="middle" font-size="13.5" font-weight="800" fill="#14324E">③ contract</text>
+    <text x="580" y="88" text-anchor="middle" font-size="11.5" fill="#14324E">旧カラムを削除</text>
+    <rect x="551" y="100" width="58" height="26" fill="#EAF3EC" stroke="#2E7D4F" rx="3"/>
+    <text x="580" y="117" text-anchor="middle" font-size="10.5" fill="#2E7D4F">new のみ</text>
+    <text x="580" y="148" text-anchor="middle" font-size="10" fill="#4A6076">誰も old を参照しなくなってから</text>
+    <line x1="580" y1="165" x2="580" y2="196" stroke="#14324E" stroke-width="1.6" stroke-dasharray="4 3"/>
+  </g>
+  <text x="360" y="240" text-anchor="middle" font-size="11.5" fill="#BB4430">一発 rename すると：デプロイの瞬間、旧コードが新スキーマを参照して稼働中システムが落ちる</text>
+</svg>
+<figcaption>図7 expand/contract — 活線作業の手順書。通電したまま配線を替えるには2段階に分ける</figcaption>
+</figure>
+
+<div class="check"><span class="tag">確認</span><span class="q">expand/contract を使わず一発でカラム名を変更すると何が起きるか説明できるか。</span></div>
+
+<h3 id="m7">モジュール7：運用とフィードバック</h3>
+<ul>
+  <li><strong>運用は開発の一部</strong>：ログ・監視・エラー通知がないと「壊れているのに気づかない」状態になる</li>
+  <li><strong>技術的負債</strong>：速度を優先して後回しにした品質のツケ。悪ではなく<em>借金</em>であり、利子（変更コスト増）を見て計画的に返す。権限マトリクスの10モジュール止まりが実例</li>
+  <li><strong>フィードバックループ</strong>：利用ログ・ユーザーの声（目安箱）を次の要求定義に接続して初めてループが閉じる（図1の⑥→①）</li>
+</ul>
+<div class="check"><span class="tag">確認</span><span class="q">KEM_DDENKI の技術的負債を3つ挙げ、それぞれの「利子」（放置すると何のコストが増えるか）を言えるか。</span></div>
+
+<h2 id="part2"><span class="part">第2部 実践</span>フロントエンド改修と並走する（Phase ごと）</h2>
+<p>ここからは机上ではなく手を動かす。各 Phase は「実践課題」をこなしながら進め、終わったら「学習チェック」を実体験に基づいて言語化する。</p>
+
+<h3 id="p0">Phase 0 と並走 —— テーマ「技術的負債の返済と実装規律」（M4・M7 の実践）</h3>
+<ol>
+  <li>Phase 0 の4項目（権限マトリクス拡張／allowed_apps 整理／ナビ権限出し分け／評価統合）を、<strong>それぞれ独立した PR</strong> として計画・実施する（図6の運用そのまま）</li>
+  <li>各 PR の説明文に「なぜこの変更が必要か」「何をテストしたか」を書く</li>
+  <li>マージ前に自分で diff を全行読み、1件以上「もっと良くできる点」を見つけてから統合する（セルフレビューの習慣化）</li>
+</ol>
+<div class="check"><span class="tag">学習チェック</span><span class="q">PR を4つに分けたことで得られたものを実感として言えるか（レビューのしやすさ・切り戻し範囲・進捗の見えやすさ）。</span></div>
+
+<h3 id="p1">Phase 1 と並走 —— テーマ「要求と設計の実装」（M2・M3 の実践）</h3>
+<ol>
+  <li>新ナビ実装の前に、<strong>ユーザーストーリーを5本</strong>書く（各ロール1本）。仕様書 §3.1 を story 形式に翻訳する練習</li>
+  <li><code>templates/components/</code> の部品を設計するとき「この部品の責務は1つか」を自問する（凝集度の体感）</li>
+  <li>インライン style を1画面ぶん撲滅し、before/after で「同じ変更を全画面に効かせられるか」の違いを確認する（DRY の体感）</li>
+</ol>
+<div class="check"><span class="tag">学習チェック</span><span class="q">「関心の分離」が効いた瞬間（1箇所直したら全画面に反映された等）を具体例で言えるか。</span></div>
+
+<h3 id="p2">Phase 2 と並走 —— テーマ「境界の設計」（M3・M6 ＋ 第3部の実践）</h3>
+<ol>
+  <li><code>/api/v2/</code> の最初のエンドポイント（ガントのタスク配列）を作る前に、<strong>リクエスト／レスポンスの形を先に紙に書く</strong>（契約を先に決める＝契約駆動の入り口）</li>
+  <li>「HTML フラグメントで返すか JSON で返すか」を画面ごとに判断し、判断基準をメモに残す（小さな ADR の練習）</li>
+  <li>htmx 化した画面で expand/contract 的な移行（旧画面と新画面の並走期間）を体験する（図7の考え方を画面に応用）</li>
+</ol>
+<div class="check"><span class="tag">学習チェック</span><span class="q">「API は契約である」の意味を、ガント API を例に説明できるか（契約を守る限り中身を自由に変えられる）。</span></div>
+
+<h3 id="p3">Phase 3 と並走 —— テーマ「フィードバックと検証」（M7 の実践）</h3>
+<ol>
+  <li>新 UI リリース後2週間の利用ログを見て「使われていない画面」を3つ特定する</li>
+  <li>現場担当者1人に画面を触ってもらい、操作に詰まった箇所を観察メモにする（ユーザビリティテストの最小形）</li>
+  <li>観察結果から次の改善候補を要求定義の形（ユーザーストーリー）で書き、<strong>ループを1周閉じる</strong>（図2の点線）</li>
+</ol>
+<div class="check"><span class="tag">学習チェック</span><span class="q">「作った機能」と「使われた機能」のギャップを数字で言えるか。</span></div>
+
+<h2 id="part3"><span class="part">第3部 集中</span>テストと品質（Phase 2 頃から）</h2>
+
+<h3 id="pyramid">3-1. テストピラミッドを KEM_DDENKI に当てはめる</h3>
+
+<figure>
+<svg viewBox="0 0 720 330" role="img" aria-label="テストピラミッド。土台が単体テスト、中間が結合テスト、頂点がE2Eテスト">
+  <!-- pyramid -->
+  <polygon points="360,30 560,290 160,290" fill="#FFFFFF" stroke="#14324E" stroke-width="2.5"/>
+  <line x1="283" y1="190" x2="437" y2="190" stroke="#14324E" stroke-width="2"/>
+  <line x1="243" y1="240" x2="477" y2="240" stroke="#14324E" stroke-width="2"/>
+  <polygon points="360,30 322,140 398,140" fill="#FBE9E2" stroke="none"/>
+  <line x1="322" y1="140" x2="398" y2="140" stroke="#14324E" stroke-width="2"/>
+  <text x="360" y="105" text-anchor="middle" font-size="13" font-weight="800" fill="#BB4430">E2E</text>
+  <text x="360" y="122" text-anchor="middle" font-size="10" fill="#BB4430">5〜10本・遅い</text>
+  <text x="360" y="170" text-anchor="middle" font-size="13.5" font-weight="800" fill="#14324E">結合テスト（中量）</text>
+  <text x="360" y="218" text-anchor="middle" font-size="14" font-weight="800" fill="#14324E">単体テスト（最多・速い）</text>
+  <text x="360" y="268" text-anchor="middle" font-size="11" fill="#4A6076">土台が厚いほど、上の少数のテストが活きる</text>
+  <!-- annotations -->
+  <g font-size="11.5" fill="#14324E">
+    <line x1="405" y1="100" x2="530" y2="72" stroke="#9FB3C8" stroke-width="1.4"/>
+    <text x="536" y="66" font-weight="700">ブラウザ自動操作</text>
+    <text x="536" y="83" fill="#4A6076">主要動線のみ：</text>
+    <text x="536" y="99" fill="#4A6076">ログイン→日報提出→承認</text>
+    <line x1="452" y1="168" x2="530" y2="150" stroke="#9FB3C8" stroke-width="1.4"/>
+    <text x="536" y="146" font-weight="700">Django テストクライアント</text>
+    <text x="536" y="163" fill="#4A6076">view を通す。権限・</text>
+    <text x="536" y="179" fill="#4A6076">テナント越境テストはここ</text>
+    <line x1="492" y1="222" x2="530" y2="216" stroke="#9FB3C8" stroke-width="1.4"/>
+    <text x="536" y="212" font-weight="700">services.py の関数</text>
+    <text x="536" y="229" fill="#4A6076">入力→出力を検証。</text>
+    <text x="536" y="245" fill="#4A6076">DBも画面も介さない。</text>
+    <text x="536" y="261" fill="#4A6076">数百本あってよい</text>
+  </g>
+  <!-- speed axis -->
+  <g font-size="10.5" fill="#4A6076">
+    <line x1="120" y1="60" x2="120" y2="285" stroke="#9FB3C8" stroke-width="1.4"/>
+    <text x="112" y="55" text-anchor="end">遅い</text>
+    <text x="112" y="296" text-anchor="end">速い</text>
+    <text x="96" y="180" text-anchor="middle" transform="rotate(-90 96 180)">実行速度</text>
+  </g>
+</svg>
+<figcaption>図8 テストピラミッド × KEM_DDENKI — どの層に何を書くかまで決めておく</figcaption>
+</figure>
+
+<h3 id="priority">3-2. 何をテストするか —— 優先順位の判断基準</h3>
+<p>すべてはテストできない。<strong>「壊れる確率 × 壊れたときの被害」</strong>で並べて、右上から書く。</p>
+
+<figure>
+<svg viewBox="0 0 720 330" role="img" aria-label="壊れる確率と被害の2軸マトリクスにKEM_DDENKIのテスト対象を配置した図">
+  <defs>
+    <marker id="ah6" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#14324E"/>
+    </marker>
+  </defs>
+  <!-- quadrant background -->
+  <rect x="390" y="40" width="280" height="120" fill="#FBE9E2" opacity="0.55"/>
+  <rect x="110" y="40" width="280" height="120" fill="#FFF8E8" opacity="0.6"/>
+  <rect x="390" y="160" width="280" height="120" fill="#FFF8E8" opacity="0.6"/>
+  <!-- axes -->
+  <line x1="110" y1="280" x2="690" y2="280" stroke="#14324E" stroke-width="2.5" marker-end="url(#ah6)"/>
+  <line x1="110" y1="280" x2="110" y2="30" stroke="#14324E" stroke-width="2.5" marker-end="url(#ah6)"/>
+  <text x="400" y="312" text-anchor="middle" font-size="12.5" font-weight="700" fill="#14324E">壊れたときの被害 →</text>
+  <text x="60" y="160" text-anchor="middle" font-size="12.5" font-weight="700" fill="#14324E" transform="rotate(-90 60 160)">壊れる確率 →</text>
+  <!-- items -->
+  <g font-size="12" font-weight="700">
+    <circle cx="600" cy="75" r="8" fill="#BB4430"/>
+    <text x="600" y="58" text-anchor="middle" fill="#BB4430">① 金額計算（Decimal・原価集計）</text>
+    <circle cx="555" cy="130" r="8" fill="#BB4430"/>
+    <text x="555" y="113" text-anchor="middle" fill="#BB4430">② テナント分離</text>
+    <circle cx="460" cy="115" r="8" fill="#9A6A00"/>
+    <text x="452" y="98" text-anchor="middle" fill="#9A6A00">③ 権限（R/W/A）</text>
+    <circle cx="380" cy="185" r="8" fill="#9A6A00"/>
+    <text x="380" y="168" text-anchor="middle" fill="#9A6A00">④ 業務ロジック分岐</text>
+    <text x="380" y="207" text-anchor="middle" font-size="10.5" fill="#4A6076" font-weight="400">日報承認フロー・工期計算</text>
+    <circle cx="190" cy="245" r="8" fill="#9FB3C8"/>
+    <text x="196" y="228" text-anchor="middle" fill="#4A6076">⑤ 画面の細かい見た目</text>
+    <text x="196" y="264" text-anchor="middle" font-size="10.5" fill="#4A6076" font-weight="400">意図的にテスト対象から外す</text>
+  </g>
+  <text x="655" y="52" text-anchor="end" font-size="11" font-weight="700" fill="#BB4430">最優先ゾーン</text>
+</svg>
+<figcaption>図9 テスト優先マトリクス — ①金額 ②テナント ③権限 の順。⑤は費用対効果で切り捨てる勇気</figcaption>
+</figure>
+
+<h3 id="tdd">3-3. TDD（テスト駆動開発）を1機能で体験する</h3>
+
+<figure>
+<svg viewBox="0 0 720 250" role="img" aria-label="Red Green Refactorのサイクル図">
+  <defs>
+    <marker id="ahr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#4A6076"/>
+    </marker>
+  </defs>
+  <g>
+    <circle cx="150" cy="110" r="62" fill="#FBE9E2" stroke="#BB4430" stroke-width="3"/>
+    <text x="150" y="100" text-anchor="middle" font-size="17" font-weight="800" fill="#BB4430">Red</text>
+    <text x="150" y="122" text-anchor="middle" font-size="11" fill="#BB4430">失敗するテストを</text>
+    <text x="150" y="138" text-anchor="middle" font-size="11" fill="#BB4430">先に書く</text>
+  </g>
+  <path d="M218,95 C270,60 300,60 352,93" fill="none" stroke="#4A6076" stroke-width="2.4" marker-end="url(#ahr)"/>
+  <g>
+    <circle cx="410" cy="110" r="62" fill="#EAF3EC" stroke="#2E7D4F" stroke-width="3"/>
+    <text x="410" y="100" text-anchor="middle" font-size="17" font-weight="800" fill="#2E7D4F">Green</text>
+    <text x="410" y="122" text-anchor="middle" font-size="11" fill="#2E7D4F">最小の実装で</text>
+    <text x="410" y="138" text-anchor="middle" font-size="11" fill="#2E7D4F">テストを通す</text>
+  </g>
+  <path d="M478,95 C530,60 560,60 612,93" fill="none" stroke="#4A6076" stroke-width="2.4" marker-end="url(#ahr)"/>
+  <g>
+    <circle cx="660" cy="110" r="55" fill="#E8EEF4" stroke="#14324E" stroke-width="3"/>
+    <text x="660" y="100" text-anchor="middle" font-size="15" font-weight="800" fill="#14324E">Refactor</text>
+    <text x="660" y="122" text-anchor="middle" font-size="10.5" fill="#14324E">振る舞いを変えず</text>
+    <text x="660" y="137" text-anchor="middle" font-size="10.5" fill="#14324E">構造を整える</text>
+  </g>
+  <path d="M620,155 C520,225 260,225 172,168" fill="none" stroke="#4A6076" stroke-width="2.4" stroke-dasharray="7 5" marker-end="url(#ahr)"/>
+  <text x="400" y="232" text-anchor="middle" font-size="11.5" fill="#4A6076">次のテストへ —— 小さく速く回す</text>
+</svg>
+<figcaption>図10 Red → Green → Refactor — テストが先、実装が後</figcaption>
+</figure>
+
+<p><strong>体験課題</strong>：評価者割当（EvaluatorTarget）の workers 側移植を TDD で行う。「割当のない評価者は対象者を閲覧できない」というテストを<em>先に</em>書き、それを通す実装を後から書く。TDD を常用する必要はないが、「テストを先に書くと設計が良くなる」感覚を一度体験しておく価値は大きい。</p>
+
+<h3 id="review">3-4. コードレビューの観点（セルフレビュー用チェックリスト）</h3>
+<table>
+  <tr><th style="width:6em">観点</th><th>チェック内容</th></tr>
+  <tr><td><strong>正しさ</strong></td><td>境界値（0件・None・権限なし・他テナント）で壊れないか</td></tr>
+  <tr><td><strong>安全</strong></td><td>生 SQL・権限チェック漏れ・秘密情報のコミットはないか</td></tr>
+  <tr><td><strong>明瞭</strong></td><td>3ヶ月後の自分が読んで意図がわかるか。名前は内容を表しているか</td></tr>
+  <tr><td><strong>一貫</strong></td><td>CLAUDE.md の規律（Decimal・simple-history・services 層）に沿っているか</td></tr>
+  <tr><td><strong>規模</strong></td><td>この PR は1目的か。混ざっていたら分割する</td></tr>
+</table>
+
+<h3 id="quality">3-5. 品質はテストより広い（ISO 25010 のつまみ食い）</h3>
+<p>品質特性は8つあるが、社内システムでは特に次の4つを意識する。<strong>テストで担保できるのは主に「機能適合性」だけ</strong>——だから第2部の実践（ユーザー観察・構造の規律）が必要になる。</p>
+<table>
+  <tr><th>品質特性</th><th>意味</th><th>担保する手段</th></tr>
+  <tr><td><strong>機能適合性</strong></td><td>要求を満たすか</td><td>テスト</td></tr>
+  <tr><td><strong>使用性</strong></td><td>迷わず使えるか（← 今回の改修テーマ）</td><td>ユーザー観察</td></tr>
+  <tr><td><strong>保守性</strong></td><td>変えやすいか（← デザインシステムの目的）</td><td>コード構造の規律</td></tr>
+  <tr><td><strong>信頼性</strong></td><td>落ちないか</td><td>監視・CI/CD</td></tr>
+</table>
+
+<h3 id="coverage">3-6. カバレッジの使い方と罠</h3>
+<ul>
+  <li>カバレッジ（テストが通ったコードの割合）は<strong>「テストされていない場所を見つける道具」</strong>であり、目標数値にすると形骸化する</li>
+  <li>services.py と権限まわりのカバレッジだけ意識的に高く保ち、テンプレートや管理画面は追わない</li>
+  <li>実行：<code>pytest --cov=apps --cov-report=term-missing</code> で「Missing 行」を眺める習慣をつける</li>
+</ul>
+
+<h2 id="goal"><span class="part">ゴール</span>修了の目安</h2>
+<ul>
+  <li><strong>序章・第1部</strong>：全モジュールの「確認」に自分の言葉で答えられる</li>
+  <li><strong>第2部</strong>：Phase 0〜3 の学習チェックを実体験に基づいて語れる</li>
+  <li><strong>第3部</strong>：新機能を追加するとき「どの層に・何本のテストを・なぜ書くか」を自分で決められる</li>
+</ul>
+<p>学習の答え合わせ・深掘り・つまずきの相談は、この文書を参照しながら Claude とのチャットで随時行う。</p>
+</main>
+</div>
+<script>
+document.querySelectorAll('nav.toc a').forEach(a=>a.addEventListener('click',()=>{
+  document.querySelector('nav.toc').classList.remove('open');
+}));
+</script>
+</body>
+</html>
