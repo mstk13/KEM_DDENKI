@@ -89,7 +89,11 @@ class AttendEntry(TenantModel):
 
 
 class AttendPlan(TenantModel):
-    """出社予定。作業員1人・1日ぶんの予定を1件で持つ。
+    """出社予定。作業員1人の、1日の中の1つの予定（区分・行き先・時間帯）を1件で持つ。
+
+    1日を時間で分けるとき（午前は A 現場、午後は B 現場）は、同じ日に複数件にする
+    （ADR-0038）。組み合わせのルール（終日の区分は1件だけ・時間帯を重ねない）と
+    保存は apps.attendance.entries に置く。
 
     実績（AttendReport / AttendEntry）とは別テーブルにする。予定は先の日付を
     先回りで埋めるもので、実績は日報から後で入る。同じ行に持つと
@@ -132,8 +136,7 @@ class AttendPlan(TenantModel):
     #   place … 場所の入力欄のラベル。空なら訊かない
     #   span  … 複数日にまたがる登録（何日から何日まで）を許す
     # 出張だけ span を持つ。行先へ行って戻るまでが1件の予定で、
-    # 曜日をまたぐのが普通のため。保存時は日ごとの行に展開する
-    # （1日1行という持ち方を崩すと、出社人数の集計と月グリッドが成り立たない）。
+    # 曜日をまたぐのが普通のため。保存時は日ごとの行に展開する。
     KIND_FIELDS = {
         "office": {"time": True, "place": "", "span": False},
         "site": {"time": True, "place": "現場名", "span": False},
@@ -144,6 +147,10 @@ class AttendPlan(TenantModel):
         "half": {"time": True, "place": "", "span": False},
         "off": {"time": False, "place": "", "span": False},
     }
+
+    # 時刻を持たない区分（出張・有休・休み）。終日の予定なので、
+    # 同じ日に他の予定と一緒には入れさせない（ADR-0038）。
+    ALL_DAY_KINDS = tuple(kind for kind, spec in KIND_FIELDS.items() if not spec["time"])
 
     # 出張などで一度に展開できる日数の上限。
     # 日付の打ち間違い（2026 → 2036）で数千行作らないための歯止め。
@@ -177,11 +184,13 @@ class AttendPlan(TenantModel):
     class Meta:
         verbose_name = "出社予定"
         verbose_name_plural = "出社予定"
-        ordering = ["plan_date", "worker__name"]
-        constraints = [
-            models.UniqueConstraint(
-                fields=["company", "worker", "plan_date"],
-                name="uniq_attend_plan_worker_date",
+        ordering = ["plan_date", "worker__name", "start_time"]
+        # 1人1日1件の一意制約は外した（1日を時間で分けて複数件にする、ADR-0038）。
+        # 同じ日の予定をまとめて引くための索引だけ置く。
+        indexes = [
+            models.Index(
+                fields=["company", "plan_date", "worker"],
+                name="attend_plan_date_worker_idx",
             ),
         ]
 

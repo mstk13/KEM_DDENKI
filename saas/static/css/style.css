@@ -731,6 +731,8 @@ svg.gantt .bar-wrapper .bar-label.big {
 .plan-board .plan-cell-time {
   display: block; font-size: .75rem; color: var(--text-secondary);
 }
+/* 1日を時間で分けて予定が2件以上ある日の「+残りの件数」（ADR-0038）。 */
+.plan-board .plan-cell-extra { font-size: .75rem; margin-left: 1px; }
 
 /* 日付ヘッダの × は、その日を全員ぶん消すためのもの。
    常時出すと誤爆するので、列にカーソルを乗せたときだけ濃くする。 */
@@ -783,12 +785,38 @@ svg.gantt .bar-wrapper .bar-label.big {
 }
 
 /* マスの詳細ダイアログ（区分・時刻・メモ・削除）。 */
+/* margin: auto は、先頭の * { margin: 0 } でブラウザ既定の中央寄せが消えるのを戻すため。 */
 .plan-dialog {
-  border: none; border-radius: var(--radius); padding: 22px;
-  min-width: 320px; max-width: 92vw;
+  margin: auto; border: none; border-radius: var(--radius); padding: 22px;
+  width: 440px; min-width: 320px; max-width: 92vw; max-height: 92vh; overflow-y: auto;
   box-shadow: var(--shadow-lg); color: var(--text-primary);
 }
 .plan-dialog::backdrop { background: rgba(15, 26, 48, .45); }
+
+/* ダイアログの予定1件ぶん。1日を時間で分けたときは件数ぶん枠を並べる（ADR-0038）。 */
+.plan-entry {
+  border: 1px solid var(--border); border-radius: 6px;
+  padding: 10px 12px 0; margin-bottom: 10px;
+}
+.plan-entry-head {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 6px; font-size: .82rem; font-weight: 700; color: var(--text-secondary);
+}
+.plan-entry-remove {
+  border: none; background: none; padding: 2px 4px; cursor: pointer;
+  font-size: .82rem; color: var(--danger);
+}
+/* 件数が増えても縦に伸びすぎないよう、区分と場所・開始と終了をそれぞれ横に並べる。 */
+.plan-entry .form-group { margin-bottom: 10px; }
+.plan-entry-grid {
+  display: grid; grid-template-columns: minmax(7.5em, 2fr) 3fr; gap: 0 10px;
+}
+.plan-entry-time-row { display: flex; gap: 10px; }
+.plan-entry-time-row .form-group { flex: 1; }
+.plan-dialog-error {
+  margin: 10px 0 0; padding: 8px 10px; border-radius: 6px;
+  background: #fdeaea; color: #b91c1c; font-size: .82rem;
+}
 
 /* ---- 1日のタイムライン（24時間） ---- */
 /* 「その日に出るか」しか分からない月グリッドに対して、
@@ -852,11 +880,21 @@ svg.gantt .bar-wrapper .bar-label.big {
 .plan-day-sat { color: #1d4ed8; }
 .plan-day-sun { color: #c02626; }
 
-/* 区分に要らない欄は消さずに無効化する。列を消すと行がずれて、
-   他の人と見比べられなくなるため。 */
+/* 区分に要らない欄は消さずに入力できなくする。列を消すと行がずれて、
+   他の人と見比べられなくなるため。1人に複数行あるときに欄の並びがずれないよう、
+   disabled ではなく readonly にしている（disabled の欄は送信されない）。 */
+.plan-day-table input[readonly],
 .plan-day-table input:disabled, .plan-day-table select:disabled {
   background: #eef1f6; color: var(--text-muted); cursor: not-allowed;
 }
+
+/* 1人の予定を件数ぶんの行にし、氏名は縦にまとめる（ADR-0038）。
+   氏名のセルは1行目の区分の色に染まらないよう白地に戻す。 */
+.plan-day-table .plan-day-name {
+  background: var(--surface); vertical-align: top; text-align: left;
+}
+.plan-day-table tbody.plan-day-worker { border-top: 2px solid var(--border); }
+.plan-day-add { display: block; margin-top: 8px; white-space: nowrap; }
 
 /* 日別シートの行。選んだ区分の色を行そのものに乗せて、
    保存前でも「今この日は誰が出るか」が縦に読めるようにする。 */
