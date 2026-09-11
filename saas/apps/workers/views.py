@@ -152,6 +152,38 @@ def worker_list(request):
     })
 
 
+def _worker_related_counts(worker):
+    """削除で一緒に消える関連データの件数。確認画面に出す。"""
+    rows = [
+        ("日報", worker.daily_reports.count()),
+        ("配置", worker.assignments.count()),
+        ("出社予定", worker.attend_plans.count()),
+        ("保有資格", worker.qualifications.count()),
+        ("健康診断", worker.health_checkups.count()),
+        ("人材評価", worker.evaluations.count()),
+    ]
+    return [(label, n) for label, n in rows if n]
+
+
+@login_required
+def worker_delete(request, pk):
+    """作業員を削除する。関連データ（日報・配置・出社予定など）も一緒に消える。
+
+    在籍情報を残したまま一覧から外したいだけなら「退職」にするのが正しいので、
+    確認画面でその案内も出す。
+    """
+    worker = get_object_or_404(Worker, pk=pk)
+    if request.method == "POST":
+        name = worker.name
+        worker.delete()
+        messages.success(request, f"作業員「{name}」を削除しました。")
+        return redirect("workers:list")
+    return render(request, "workers/confirm_delete.html", {
+        "worker": worker,
+        "related_counts": _worker_related_counts(worker),
+    })
+
+
 @login_required
 def worker_detail(request, pk):
     worker = get_object_or_404(Worker, pk=pk)
