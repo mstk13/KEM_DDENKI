@@ -1,0 +1,10 @@
+{% comment %}
+出社予定の「場所・メモ」に出す候補（登録済みの現場名）。ADR-0037。
+入力欄に list="attend-site-names" を付けると候補が出る。<datalist> は候補を出すだけで、
+候補にない文字もそのまま入力・保存できる（スマホでもキーボードの上に候補が出る）。
+
+コンテキスト: site_names … attendance.plans.site_name_suggestions の結果
+{% endcomment %}
+<datalist id="attend-site-names">
+  {% for name in site_names %}<option value="{{ name }}"></option>{% endfor %}
+</datalist>

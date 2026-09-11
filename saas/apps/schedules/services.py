@@ -341,6 +341,10 @@ def _attach_site_members(company, entries, day):
     どの現場とも一致しない予定（行き先が空・一致なし・複数に一致）は捨てずに返し、
     ホームで1行にまとめて見せる。退職者は配置・予定とも出さない。
 
+    出社予定は1人1日に複数件ありうる（1日を時間で分けた予定、ADR-0038）。
+    予定ごとに突き合わせるので、午前 A・午後 B なら両方の現場カードに
+    それぞれの時間で出る。同じ現場へ2回行くなら時間を並べて1人にまとめる。
+
     クエリは現場数によらず配置・予定の各1回。
     """
     from apps.attendance.models import AttendPlan
@@ -350,30 +354,42 @@ def _attach_site_members(company, entries, day):
     members = {site_id: {} for site_id in site_names}
 
     # unscoped: 他のサービス関数と同じく company を引数で受けて明示的に絞る。
-    # 1人1日1件（uniq_attend_plan_worker_date）なので作業員で引ける。
-    plans = {
-        plan.worker_id: plan
-        for plan in AttendPlan.unscoped.filter(
-            company=company, plan_date=day, worker__is_active=True,
-        ).select_related("worker")
-    }
+    # 1人1日に複数件ありうるので、作業員ごとに開始の早い順で持つ。
+    plans = {}
+    for plan in (
+        AttendPlan.unscoped.filter(company=company, plan_date=day, worker__is_active=True)
+        .select_related("worker")
+        .order_by("start_time", "pk")
+    ):
+        plans.setdefault(plan.worker_id, []).append(plan)
 
-    matched_site = {}
+    matched = set()  # 予定の行き先がどこかの現場と一致した作業員
     unmatched = []
-    for plan in plans.values():
-        if plan.kind not in MEMBER_PLAN_KINDS:
-            continue
-        note = normalize_place(plan.note)
-        hits = [site_id for site_id, name in site_names.items() if _place_matches(note, name)]
-        if len(hits) == 1:
-            matched_site[plan.worker_id] = hits[0]
-            members[hits[0]][plan.worker_id] = _member(plan.worker, plan, labels, is_away=False)
-            continue
-        unmatched.append({
-            **_member(plan.worker, plan, labels, is_away=False),
-            "note": plan.note.strip(),
-            "is_ambiguous": len(hits) > 1,
-        })
+    for worker_plans in plans.values():
+        for plan in worker_plans:
+            if plan.kind not in MEMBER_PLAN_KINDS:
+                continue
+            note = normalize_place(plan.note)
+            hits = [
+                site_id for site_id, name in site_names.items() if _place_matches(note, name)
+            ]
+            if len(hits) != 1:
+                unmatched.append({
+                    **_member(plan.worker, plan, labels, is_away=False),
+                    "note": plan.note.strip(),
+                    "is_ambiguous": len(hits) > 1,
+                })
+                continue
+            matched.add(plan.worker_id)
+            site_members = members[hits[0]]
+            member = site_members.get(plan.worker_id)
+            if member is None:
+                site_members[plan.worker_id] = _member(plan.worker, plan, labels, is_away=False)
+            elif plan.time_label:
+                # 同じ現場へ1日に2回行く（午前と夕方など）。1人にまとめて時間を並べる
+                member["time_label"] = "・".join(
+                    label for label in (member["time_label"], plan.time_label) if label
+                )
 
     if site_names:
         # unscoped: 上と同じ理由。表示する現場の分だけを1クエリで引く。
@@ -390,11 +406,14 @@ def _attach_site_members(company, entries, day):
         for assignment in assignments:
             worker_id = assignment.worker_id
             site_members = members[assignment.site_id]
-            if worker_id in site_members or worker_id in matched_site:
+            if worker_id in site_members or worker_id in matched:
                 # 予定の行き先で決まっている（この現場なら予定の区分・時刻を出し済み）
                 continue
-            plan = plans.get(worker_id)
-            is_away = plan is not None and plan.kind not in ON_SITE_PLAN_KINDS
+            worker_plans = plans.get(worker_id, [])
+            # 現場へ出る予定が1件でもあれば控えめにせず、その予定の区分・時刻を出す
+            on_site = [p for p in worker_plans if p.kind in ON_SITE_PLAN_KINDS]
+            plan = (on_site or worker_plans or [None])[0]
+            is_away = bool(worker_plans) and not on_site
             site_members[worker_id] = _member(assignment.worker, plan, labels, is_away)
 
     for entry in entries:

@@ -4,6 +4,8 @@
 
   * 月グリッド（plan_board） … 行＝作業員 × 列＝日
       - plan_set       … マス1つ（区分・時刻・メモ）。区分が空なら削除
+      - plan_entries   … マスの詳細ダイアログ。1日を時間で分けた複数件をまとめて保存
+                          （tests/test_attendance_plan_multi_entries.py）
       - plan_fill      … 月のうち平日／毎日／同じ曜日／カレンダーで選んだ日を
                           まとめて記入・削除
       - plan_clear_day … その日を全員ぶん削除
@@ -69,21 +71,6 @@ class TestMonthHelpers:
     def test_読めない対象は平日として扱う(self):
         assert fill_days(YEAR, MONTH, "でたらめ") == fill_days(YEAR, MONTH, "weekday")
 
-    def test_カレンダーで選んだ日だけを取り出す(self):
-        days = fill_days(YEAR, MONTH, "dates", ["2026-09-10", "2026-09-03", "2026-09-24"])
-        # 日付順に並び直す
-        assert [d.day for d in days] == [3, 10, 24]
-
-    def test_選んだ日のうち月の外と読めない値と重複は捨てる(self):
-        days = fill_days(YEAR, MONTH, "dates", [
-            "2026-09-03", "2026-09-03", "2026-10-01", "2026-08-31", "でたらめ", "",
-        ])
-        assert [d.day for d in days] == [3]
-
-    def test_選んだ日が無ければ空(self):
-        assert fill_days(YEAR, MONTH, "dates", []) == []
-        assert fill_days(YEAR, MONTH, "dates", None) == []
-
 
 class TestFormatTimeRange:
     """マスは狭いので、分が0のときは省いて短く書く。"""
@@ -117,6 +104,17 @@ class TestBuildPlanBoard:
         board = build_plan_board(company_a, YEAR, MONTH)
         assert [r["worker"].name for r in board["rows"]] == ["田中太郎"]
 
+    def test_作業員一覧と同じ社員番号順に並ぶ(self, company_a):
+        # 作業員一覧と同じく Y→S→E→T→P→A→G の順、同じ文字の中は番号順、未設定は末尾
+        self._worker(company_a, name="伊藤", code="E10")
+        self._worker(company_a, name="加藤", code="A1")
+        self._worker(company_a, name="佐藤", code="E2")
+        self._worker(company_a, name="鈴木", code="")
+        self._worker(company_a, name="山田", code="Y3")
+        board = build_plan_board(company_a, YEAR, MONTH)
+        names = [r["worker"].name for r in board["rows"]]
+        assert names == ["山田", "佐藤", "伊藤", "加藤", "鈴木"]
+
     def test_予定の無い日は空のマスになる(self, company_a):
         worker = self._worker(company_a)
         AttendPlan.unscoped.create(
@@ -140,7 +138,7 @@ class TestBuildPlanBoard:
         cell = build_plan_board(company_a, YEAR, MONTH)["rows"][0]["cells"][2]
 
         assert cell["time_label"] == "7:30-16"
-        assert cell["start_time"] == datetime.time(7, 30)
+        assert cell["start_time"] == "07:30"
 
     def test_時刻未設定のマスは所定どおりとして空にする(self, company_a):
         worker = self._worker(company_a)
@@ -384,59 +382,6 @@ class TestPlanFill:
         assert res.status_code == 404
         assert not AttendPlan.unscoped.filter(worker=worker).exists()
 
-    def test_カレンダーで選んだ日だけ埋まる(self, client, company_a, user_a):
-        worker = self._worker(company_a)
-        client.force_login(user_a)
-        client.post("/attendance/plans/fill/", {
-            "worker": worker.pk, "month": "2026-09", "kind": "site",
-            "target": "dates",
-            "dates": ["2026-09-03", "2026-09-10", "2026-10-01"],
-        })
-
-        plans = AttendPlan.unscoped.filter(worker=worker).order_by("plan_date")
-        # 10/1 は対象月の外なので入らない
-        assert [p.plan_date.day for p in plans] == [3, 10]
-        assert all(p.kind == "site" for p in plans)
-
-    def test_日付を選ばずに送ると何も入らない(self, client, company_a, user_a):
-        worker = self._worker(company_a)
-        client.force_login(user_a)
-        res = client.post("/attendance/plans/fill/", {
-            "worker": worker.pk, "month": "2026-09", "kind": "site",
-            "target": "dates",
-        })
-
-        assert res.status_code == 302
-        assert not AttendPlan.unscoped.filter(worker=worker).exists()
-
-    def test_選んだ日だけ消せる(self, client, company_a, user_a):
-        worker = self._worker(company_a)
-        client.force_login(user_a)
-        client.post("/attendance/plans/fill/", {
-            "worker": worker.pk, "month": "2026-09", "kind": "office",
-            "target": "all",
-        })
-        client.post("/attendance/plans/fill/", {
-            "worker": worker.pk, "month": "2026-09", "kind": "",
-            "target": "dates", "dates": ["2026-09-03", "2026-09-04"],
-        })
-
-        remaining = AttendPlan.unscoped.filter(worker=worker)
-        assert remaining.count() == 28
-        assert not remaining.filter(plan_date__day__in=[3, 4]).exists()
-
-    def test_月グリッドに日付選択のカレンダーが出る(self, client, company_a, user_a):
-        self._worker(company_a)
-        client.force_login(user_a)
-        res = client.get("/attendance/plans/?month=2026-09")
-
-        assert res.status_code == 200
-        body = res.content.decode()
-        assert 'name="dates" value="2026-09-01"' in body
-        assert 'name="dates" value="2026-09-30"' in body
-        # 2026-09-01 は火曜なので、月曜ぶん1マス空ける
-        assert body.count('class="plan-pick-blank"') == 1
-
 
 @pytest.mark.django_db
 class TestPlanSetTimes:
@@ -666,7 +611,8 @@ class TestBuildDaySheet:
 
         sheet = build_day_sheet(company_a, datetime.date(2026, 9, 10))
         assert [r["worker"].name for r in sheet["rows"]] == ["田中太郎", "佐藤次郎"]
-        assert all(r["kind"] == "" for r in sheet["rows"])
+        # 予定が無い人も、記入するための空の1行を持つ
+        assert all(r["plans"] == [] and r["slots"] == [None] for r in sheet["rows"])
 
     def test_その日の予定だけを拾う(self, company_a):
         worker = self._worker(company_a, "田中太郎", "E001")
@@ -681,9 +627,10 @@ class TestBuildDaySheet:
         )
 
         row = build_day_sheet(company_a, datetime.date(2026, 9, 10))["rows"][0]
-        assert row["kind"] == "site"
-        assert row["start_time"] == datetime.time(7, 30)
-        assert row["note"] == "入間基地"
+        [plan] = row["plans"]
+        assert plan.kind == "site"
+        assert plan.start_time == datetime.time(7, 30)
+        assert plan.note == "入間基地"
 
     def test_出社人数と曜日が出る(self, company_a):
         for index, kind in enumerate(["office", "site", "paid"]):
@@ -885,8 +832,8 @@ class TestTripSpan:
         assert [p.plan_date.day for p in plans] == [9, 10, 11]
         assert all(p.kind == "trip" and p.note == "仙台支社" for p in plans)
 
-    def test_1日1行という持ち方は崩さない(self, company_a, user_a, client):
-        """月グリッドと出社人数の集計が成り立つ前提。"""
+    def test_同じ期間をもう一度送っても行は増えない(self, company_a, user_a, client):
+        """出張は終日の区分なので、展開した日ごとに1件だけ（ADR-0038）。"""
         worker = self._worker(company_a)
         client.force_login(user_a)
         client.post("/attendance/plans/set/", {
@@ -1042,22 +989,22 @@ class TestDayTimeline:
             company_a, worker, "site",
             start_time=datetime.time(6, 0), end_time=datetime.time(18, 0),
         )
-        row = self._timeline(company_a)["rows"][0]
+        [seg] = self._timeline(company_a)["rows"][0]["segments"]
 
         # 6:00 は 1日の 25%、6:00〜18:00 は 50%
-        assert row["has_bar"] is True
-        assert float(row["left_pct"]) == pytest.approx(25.0)
-        assert float(row["width_pct"]) == pytest.approx(50.0)
+        assert seg["has_bar"] is True
+        assert float(seg["left_pct"]) == pytest.approx(25.0)
+        assert float(seg["width_pct"]) == pytest.approx(50.0)
 
     def test_時刻未設定なら所定の帯で描く(self, company_a):
         worker = self._worker(company_a)
         self._plan(company_a, worker, "office")
-        row = self._timeline(company_a)["rows"][0]
+        [seg] = self._timeline(company_a)["rows"][0]["segments"]
 
         # 8:00 = 33.33%, 8:00〜17:00 = 9時間 = 37.5%
-        assert float(row["left_pct"]) == pytest.approx(33.3333, abs=0.01)
-        assert float(row["width_pct"]) == pytest.approx(37.5)
-        assert "所定" in row["time_label"]
+        assert float(seg["left_pct"]) == pytest.approx(33.3333, abs=0.01)
+        assert float(seg["width_pct"]) == pytest.approx(37.5)
+        assert "所定" in seg["time_label"]
 
     def test_休む区分は帯にしない(self, company_a):
         """帯にすると「その時間そこにいる」と読めてしまう。"""
@@ -1066,15 +1013,16 @@ class TestDayTimeline:
             self._plan(company_a, worker, kind)
 
         rows = self._timeline(company_a)["rows"]
-        assert [r["has_bar"] for r in rows] == [False, False]
+        assert [r["segments"][0]["has_bar"] for r in rows] == [False, False]
 
     def test_出張は行先だけ出して帯にしない(self, company_a):
         worker = self._worker(company_a)
         self._plan(company_a, worker, "trip", note="仙台支社")
         row = self._timeline(company_a)["rows"][0]
+        [seg] = row["segments"]
 
-        assert row["has_bar"] is False
-        assert row["note"] == "仙台支社"
+        assert seg["has_bar"] is False
+        assert seg["note"] == "仙台支社"
         assert row["label"] == "出張"
 
     def test_日をまたぐ勤務は24時で切って印を付ける(self, company_a):
@@ -1083,12 +1031,12 @@ class TestDayTimeline:
             company_a, worker, "site",
             start_time=datetime.time(22, 0), end_time=datetime.time(6, 0),
         )
-        row = self._timeline(company_a)["rows"][0]
+        [seg] = self._timeline(company_a)["rows"][0]["segments"]
 
-        assert row["crosses_midnight"] is True
-        assert float(row["left_pct"]) == pytest.approx(91.6667, abs=0.01)
+        assert seg["crosses_midnight"] is True
+        assert float(seg["left_pct"]) == pytest.approx(91.6667, abs=0.01)
         # 22:00 から 24:00 まで＝2時間
-        assert float(row["width_pct"]) == pytest.approx(8.3333, abs=0.01)
+        assert float(seg["width_pct"]) == pytest.approx(8.3333, abs=0.01)
 
     def test_予定の無い人は別枠にする(self, company_a):
         working = self._worker(company_a, "働く人", "E001")

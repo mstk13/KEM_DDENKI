@@ -59,39 +59,52 @@
         全員に入れる
       </button>
       <span style="font-size:.82rem;color:var(--text-secondary);">
-        入力欄が変わるだけです。保存を押すまで反映されません。
+        入力欄が変わるだけです。保存を押すまで反映されません（時間で分けてあった人も1件に戻ります）。
       </span>
     </div>
+
+    {% include "attendance/partials/site_name_datalist.html" %}
+    <p class="form-hint" style="margin:0;padding:0 24px 12px;">
+      「現場名・行先」は登録済みの現場から選べます。候補にない場合はそのまま入力してください。<br>
+      「＋ 予定を追加」で1日を時間で分けて複数の予定を入れられます（例: 8:00〜12:00 A現場、13:00〜17:00 B現場）。
+      2件以上に分けるときは、それぞれ開始・終了を入れてください。時間は重ねられず、出張・有休・休みはその日1件だけです。
+    </p>
 
     <div class="table-wrap">
       <table class="plan-day-table">
         <thead>
           <tr>
-            <th style="min-width:160px;">氏名</th>
+            <th style="min-width:170px;">氏名</th>
             <th style="min-width:160px;">区分</th>
             <th style="min-width:220px;">現場名・行先</th>
             <th style="min-width:120px;">開始</th>
             <th style="min-width:120px;">終了</th>
             <th style="min-width:170px;">出張の最終日</th>
+            <th style="min-width:72px;"></th>
           </tr>
         </thead>
-        <tbody>
-          {% for row in rows %}
-          <tr class="plan-day-row{% if row.kind %} plan-kind-{{ row.kind }}{% endif %}">
-            <th scope="row" style="text-align:left;">
+        {% for row in rows %}
+        <tbody class="plan-day-worker" data-worker="{{ row.worker.pk }}">
+          {% for plan in row.slots %}
+          <tr class="plan-day-row{% if plan.kind %} plan-kind-{{ plan.kind }}{% endif %}">
+            {% if forloop.first %}
+            <th scope="rowgroup" rowspan="{{ row.slots|length }}" class="plan-day-name">
               {{ row.worker.name }}
               {% if row.worker.employee_code %}
                 <span style="color:var(--text-secondary);font-size:.78rem;">
                   {{ row.worker.employee_code }}
                 </span>
               {% endif %}
+              <button type="button" class="btn btn-outline btn-sm plan-day-add">＋ 予定を追加</button>
             </th>
+            {% endif %}
             <td>
+              <input type="hidden" name="id_{{ row.worker.pk }}" value="{{ plan.pk }}" class="plan-day-id">
               <select name="kind_{{ row.worker.pk }}" class="form-control plan-day-kind"
-                      data-worker="{{ row.worker.pk }}">
+                      aria-label="{{ row.worker.name }} の区分">
                 <option value="">予定なし</option>
                 {% for value, text in kind_choices %}
-                  <option value="{{ value }}" {% if row.kind == value %}selected{% endif %}>
+                  <option value="{{ value }}" {% if plan.kind == value %}selected{% endif %}>
                     {{ text }}
                   </option>
                 {% endfor %}
@@ -99,34 +112,42 @@
             </td>
             <td>
               <input type="text" name="note_{{ row.worker.pk }}"
-                     class="form-control plan-day-note" data-worker="{{ row.worker.pk }}"
-                     value="{{ row.note }}" maxlength="200">
+                     class="form-control plan-day-note" value="{{ plan.note }}" maxlength="200"
+                     list="attend-site-names" autocomplete="off"
+                     aria-label="{{ row.worker.name }} の現場名・行先">
             </td>
             <td>
               <input type="time" name="start_{{ row.worker.pk }}"
-                     class="form-control plan-day-start" data-worker="{{ row.worker.pk }}"
-                     value="{{ row.start_time|time:'H:i' }}" placeholder="{{ standard_start }}">
+                     class="form-control plan-day-start"
+                     value="{{ plan.start_time|time:'H:i' }}" placeholder="{{ standard_start }}"
+                     aria-label="{{ row.worker.name }} の開始">
             </td>
             <td>
               <input type="time" name="end_{{ row.worker.pk }}"
-                     class="form-control plan-day-end" data-worker="{{ row.worker.pk }}"
-                     value="{{ row.end_time|time:'H:i' }}" placeholder="{{ standard_end }}">
+                     class="form-control plan-day-end"
+                     value="{{ plan.end_time|time:'H:i' }}" placeholder="{{ standard_end }}"
+                     aria-label="{{ row.worker.name }} の終了">
             </td>
             <td>
               <input type="date" name="until_{{ row.worker.pk }}"
-                     class="form-control plan-day-until" data-worker="{{ row.worker.pk }}"
-                     min="{{ date|date:'Y-m-d' }}">
+                     class="form-control plan-day-until" min="{{ date|date:'Y-m-d' }}"
+                     aria-label="{{ row.worker.name }} の出張の最終日">
+            </td>
+            <td>
+              <button type="button" class="btn btn-outline btn-sm plan-day-remove"
+                      title="この予定を外す">外す</button>
             </td>
           </tr>
           {% endfor %}
         </tbody>
+        {% endfor %}
       </table>
     </div>
 
     <div style="padding:16px 24px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
       <button type="submit" class="btn btn-primary">この日の予定を保存</button>
       <span style="font-size:.82rem;color:var(--text-secondary);">
-        区分を「予定なし」にした人は、その日の予定が消えます。
+        区分を「予定なし」にした行は保存しません（外した行の予定は消えます）。
         時刻を空にすると所定（{{ standard_start }}〜{{ standard_end }}）どおりの扱いです。
         出張だけ最終日を入れられます（入れるとその日まで同じ内容で埋まります）。
       </span>
@@ -148,57 +169,151 @@
 document.addEventListener('DOMContentLoaded', function() {
   var WORKING = {{ working_kinds_json|safe }};
   var KIND_FIELDS = {{ kind_fields_json|safe }};
+  var MAX_ENTRIES = {{ max_entries }};
+  var STANDARD_START = '{{ standard_start|escapejs }}';
+  var STANDARD_END = '{{ standard_end|escapejs }}';
   var kinds = Object.keys(KIND_FIELDS);
-  var selects = Array.from(document.querySelectorAll('.plan-day-kind'));
+  var groups = Array.prototype.slice.call(document.querySelectorAll('.plan-day-worker'));
 
-  function fieldsFor(worker) {
-    return {
-      note: document.querySelector('.plan-day-note[data-worker="' + worker + '"]'),
-      start: document.querySelector('.plan-day-start[data-worker="' + worker + '"]'),
-      end: document.querySelector('.plan-day-end[data-worker="' + worker + '"]'),
-      until: document.querySelector('.plan-day-until[data-worker="' + worker + '"]'),
-    };
+  function specOf(kind) {
+    return KIND_FIELDS[kind] || {time: false, place: '', span: false};
   }
 
-  // 区分によって訊く項目が変わる。使わない欄は disabled にして薄く見せる。
+  function rowsOf(group) {
+    return Array.prototype.slice.call(group.querySelectorAll('tr.plan-day-row'));
+  }
+
+  function field(row, name) {
+    return row.querySelector('.plan-day-' + name);
+  }
+
+  // 区分によって訊く項目が変わる。使わない欄は readonly にして薄く見せる。
   // 隠さないのは、列がずれて他の人の行と見比べられなくなるため。
-  function applyRow(select) {
-    var spec = KIND_FIELDS[select.value] || {time: false, place: '', span: false};
-    var f = fieldsFor(select.dataset.worker);
-    var enabled = !!select.value;
+  // disabled にしないのは、disabled の欄は送信されず、1人に複数行あるときに
+  // 同じ名前の欄の並びがずれて、どの行の値か分からなくなるため。
+  function lock(input, locked, clear) {
+    input.readOnly = locked;
+    input.tabIndex = locked ? -1 : 0;
+    if (locked && clear) { input.value = ''; }
+  }
 
-    f.note.disabled = !enabled;
-    f.note.placeholder = spec.place ? spec.place : '（任意）';
-    f.start.disabled = !(enabled && spec.time);
-    f.end.disabled = !(enabled && spec.time);
-    f.until.disabled = !(enabled && spec.span);
-    if (f.start.disabled) { f.start.value = ''; }
-    if (f.end.disabled) { f.end.value = ''; }
-    if (f.until.disabled) { f.until.value = ''; }
-
-    var row = select.closest('tr');
+  function applyRow(row, rowCount) {
+    var kind = field(row, 'kind').value;
+    var spec = specOf(kind);
+    var enabled = !!kind;
+    lock(field(row, 'note'), !enabled, false);
+    field(row, 'note').placeholder = spec.place ? spec.place : '（任意）';
+    lock(field(row, 'start'), !(enabled && spec.time), true);
+    lock(field(row, 'end'), !(enabled && spec.time), true);
+    // 出張の最終日は、その人の予定が出張1件のときだけ
+    lock(field(row, 'until'), !(enabled && spec.span && rowCount === 1), true);
     kinds.forEach(function(k) { row.classList.remove('plan-kind-' + k); });
-    if (select.value) { row.classList.add('plan-kind-' + select.value); }
+    if (kind) { row.classList.add('plan-kind-' + kind); }
+  }
+
+  // 1人ぶんの行をそろえる。氏名は1行目に置いて件数ぶん縦にまとめる。
+  function syncGroup(group) {
+    var rows = rowsOf(group);
+    var name = group.querySelector('.plan-day-name');
+    if (name.parentNode !== rows[0]) { rows[0].insertBefore(name, rows[0].firstChild); }
+    name.rowSpan = rows.length;
+    rows.forEach(function(row) {
+      applyRow(row, rows.length);
+      field(row, 'remove').style.visibility = rows.length > 1 ? 'visible' : 'hidden';
+    });
+    var onlyKind = rows.length === 1 ? field(rows[0], 'kind').value : '';
+    // 出張・有休・休み（終日）の日は1件だけなので、足せないようにする
+    var allDay = !!onlyKind && !specOf(onlyKind).time;
+    var add = name.querySelector('.plan-day-add');
+    add.disabled = allDay || rows.length >= MAX_ENTRIES;
+    add.title = allDay ? '出張・有休・休みの日は予定を1件だけにします' : '1日を時間で分けて予定を追加';
   }
 
   function recount() {
-    var count = selects.filter(function(s) {
-      return WORKING.indexOf(s.value) !== -1;
+    var count = groups.filter(function(group) {
+      return rowsOf(group).some(function(row) {
+        return WORKING.indexOf(field(row, 'kind').value) !== -1;
+      });
     }).length;
     document.getElementById('plan-day-count').textContent = count;
   }
 
-  selects.forEach(function(select) {
-    applyRow(select);
-    select.addEventListener('change', function() { applyRow(select); recount(); });
+  function removeRow(group, row) {
+    var rows = rowsOf(group);
+    if (rows.length < 2) { return; }
+    var name = group.querySelector('.plan-day-name');
+    if (row.contains(name)) {
+      var next = rows[rows.indexOf(row) + 1];
+      next.insertBefore(name, next.firstChild);
+    }
+    row.remove();
+    syncGroup(group);
+    recount();
+  }
+
+  function bindRow(group, row) {
+    field(row, 'kind').addEventListener('change', function() {
+      syncGroup(group);
+      recount();
+    });
+    field(row, 'remove').addEventListener('click', function() { removeRow(group, row); });
+  }
+
+  // 1日を時間で分ける。直前の予定の終了を、足す予定の開始にしておく。
+  function addRow(group) {
+    var rows = rowsOf(group);
+    var last = rows[rows.length - 1];
+    var lastKind = field(last, 'kind').value;
+
+    // まだ予定が無い人は、行を足さずにその行を「現場」にして書き始めてもらう
+    if (rows.length === 1 && !lastKind) {
+      field(last, 'kind').value = 'site';
+      syncGroup(group);
+      recount();
+      field(last, 'note').focus();
+      return;
+    }
+
+    var lastHasTime = specOf(lastKind).time;
+    // 分ける前の1件が「所定どおり」（開始が空欄）なら、所定の開始を入れておく
+    if (rows.length === 1 && lastHasTime && !field(last, 'start').value) {
+      field(last, 'start').value = STANDARD_START;
+    }
+    var start = lastHasTime ? field(last, 'end').value : '';
+
+    var row = last.cloneNode(true);
+    var copiedName = row.querySelector('.plan-day-name');
+    if (copiedName) { copiedName.remove(); }
+    field(row, 'id').value = '';
+    field(row, 'kind').value = 'site';
+    field(row, 'note').value = '';
+    field(row, 'start').value = start;
+    field(row, 'end').value = start && start < STANDARD_END ? STANDARD_END : '';
+    field(row, 'until').value = '';
+    group.appendChild(row);
+    bindRow(group, row);
+    syncGroup(group);
+    recount();
+    field(row, 'note').focus();
+  }
+
+  groups.forEach(function(group) {
+    rowsOf(group).forEach(function(row) { bindRow(group, row); });
+    group.querySelector('.plan-day-add').addEventListener('click', function() {
+      addRow(group);
+    });
+    syncGroup(group);
   });
 
   document.getElementById('plan-day-bulk-apply').addEventListener('click', function() {
     var value = document.getElementById('plan-day-bulk-kind').value;
     if (!value) { return; }
-    selects.forEach(function(select) {
-      select.value = (value === '__clear__') ? '' : value;
-      applyRow(select);
+    groups.forEach(function(group) {
+      var rows = rowsOf(group);
+      // まとめて入れるときは1人1件に戻す（時間で分けてあった行は外す）
+      rows.slice(1).forEach(function(row) { row.remove(); });
+      field(rows[0], 'kind').value = (value === '__clear__') ? '' : value;
+      syncGroup(group);
     });
     recount();
   });
