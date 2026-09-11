@@ -16,6 +16,13 @@ FIELD_CODE_PREFIXES = ("E", "T")
 # 事務の日報に付ける工種。現場ごとの原価区分を保つため、無ければ作る。
 OFFICE_WORK_TYPE_NAME = "事務"
 
+# 現場作業の日報で工種として最初から選べるもの。この順で候補の先頭に出す。
+# 会社に無ければ日報の画面を開いたときに登録する（ensure_standard_work_types）。
+STANDARD_WORK_TYPE_NAMES = ("見積り", "現調", "施工", "試験", "追加工事", "納入")
+
+# 工種の選択肢で「一覧に無い工種を入力する」を表す値
+WORK_TYPE_OTHER = "__other__"
+
 
 def is_office_reporter(user):
     """ログインした人が「事務の日報」を書く区分かどうか。"""
@@ -45,20 +52,49 @@ def resolve_site(company, name):
     return Site.unscoped.create(company=company, code=code, name=name)
 
 
-def resolve_work_type(company, name):
+def resolve_work_type(company, name, display_order=0):
     """工種名から工種を引く。無ければ登録する。"""
     work_type = WorkType.unscoped.filter(company=company, name=name).first()
     if work_type:
         return work_type
     code = _next_code(WorkType.unscoped.filter(company=company), "W")
-    return WorkType.unscoped.create(company=company, code=code, name=name)
+    return WorkType.unscoped.create(
+        company=company, code=code, name=name, display_order=display_order,
+    )
+
+
+def ensure_standard_work_types(company):
+    """標準の工種（STANDARD_WORK_TYPE_NAMES）を会社に揃える。無いものだけ登録する。"""
+    for order, name in enumerate(STANDARD_WORK_TYPE_NAMES, start=1):
+        resolve_work_type(company, name, display_order=order)
+
+
+def work_type_choice_names(company):
+    """日報で選べる工種名。標準の工種を決まった順で先に、その後に他の有効な工種を名前順で。
+
+    手入力で登録された工種も有効なうちはここに入るので、次回から候補として選べる。
+    """
+    active = list(
+        WorkType.unscoped.filter(company=company, is_active=True)
+        .values_list("name", flat=True)
+    )
+    standard = [name for name in STANDARD_WORK_TYPE_NAMES if name in active]
+    others = sorted(name for name in active if name not in STANDARD_WORK_TYPE_NAMES)
+    return standard + others
 
 
 class DailyReportForm(forms.ModelForm):
     """日報の入力フォーム。
 
-    現場・天候・工程・工種は、一覧から選ぶことも手入力することもできる。
+    現場・天候・工程は、一覧から選ぶことも手入力することもできる。
     HTML の datalist を使い、入力された名前が既存に無ければ登録する。
+
+    工種は選択式。標準の工種（見積り・現調・施工・試験・追加工事・納入）を先頭に、
+    登録済みの工種を並べる。一覧に無い工種は「その他」を選んで work_type_other に
+    入力すると登録され、次回から候補に出る。
+
+    開始・終了は時刻だけでなく日付も入れられる（夜間工事などで日をまたぐため）。
+    日付が空なら日報の日付の作業として扱う。
 
     現場・工程・工種は Meta.fields に含めず、save() で解決してから
     instance に入れている。検証中に登録すると、他の欄でエラーになったとき
@@ -92,7 +128,13 @@ class DailyReportForm(forms.ModelForm):
     )
     work_type = forms.CharField(
         label="工種",
-        widget=forms.TextInput(attrs={"list": "worktype-list", "autocomplete": "off"}),
+        widget=forms.Select(),
+    )
+    work_type_other = forms.CharField(
+        label="新しい工種",
+        required=False,
+        max_length=200,
+        widget=forms.TextInput(attrs={"placeholder": "例: 保守点検", "autocomplete": "off"}),
     )
 
     # 1日報＝1作業員（現場・作業員・日付・工種で一意）なので、
@@ -107,8 +149,8 @@ class DailyReportForm(forms.ModelForm):
 
     field_order = [
         "site", "orderer", "workers", "report_date", "weather",
-        "process", "work_type", "work_description",
-        "start_time", "end_time", "work_hours",
+        "process", "work_type", "work_type_other", "work_description",
+        "start_date", "start_time", "end_date", "end_time", "work_hours",
         "is_partner_worker", "partner", "memo",
     ]
 
@@ -119,13 +161,15 @@ class DailyReportForm(forms.ModelForm):
         fields = [
             "report_date",
             "work_description",
-            "start_time", "end_time", "work_hours",
+            "start_date", "start_time", "end_date", "end_time", "work_hours",
             "is_partner_worker", "partner",
             "memo",
         ]
         widgets = {
             "report_date": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
+            "start_date": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
             "start_time": forms.TimeInput(attrs={"type": "time", "class": "form-control"}),
+            "end_date": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
             "end_time": forms.TimeInput(attrs={"type": "time", "class": "form-control"}),
             "work_hours": forms.NumberInput(attrs={"class": "form-control", "step": "0.25"}),
             "work_description": forms.Textarea(attrs={"class": "form-control", "rows": 3}),
@@ -149,10 +193,25 @@ class DailyReportForm(forms.ModelForm):
 
         # start_time/end_time を入力したら work_hours は自動計算されるので任意に
         self.fields["work_hours"].required = False
-        self.fields["start_time"].required = False
-        self.fields["end_time"].required = False
+        for name in ("start_date", "start_time", "end_date", "end_time"):
+            self.fields[name].required = False
 
         if company:
+            ensure_standard_work_types(company)
+            names = work_type_choice_names(company)
+            # 編集中の日報の工種が無効になっていても、選び直せるよう候補に残す
+            current = (
+                self.instance.work_type.name
+                if self.is_edit and self.instance.work_type_id else ""
+            )
+            if current and current not in names:
+                names.append(current)
+            self.fields["work_type"].widget.choices = [
+                ("", "選択してください"),
+                *((name, name) for name in names),
+                (WORK_TYPE_OTHER, "その他（新しい工種を入力）"),
+            ]
+
             # 候補は現場作業の日報を書く区分（E・T）に揃える。
             # この画面が出るのも E・T の人なので、条件を分けると
             # 試用期間（T）の人が自分の日報を作れなくなる。
@@ -223,8 +282,11 @@ class DailyReportForm(forms.ModelForm):
     def clean_work_type(self):
         name = (self.cleaned_data.get("work_type") or "").strip()
         if not name:
-            raise forms.ValidationError("工種を入力してください。")
+            raise forms.ValidationError("工種を選んでください。")
         return name
+
+    def clean_work_type_other(self):
+        return (self.cleaned_data.get("work_type_other") or "").strip()
 
     def clean_process(self):
         return (self.cleaned_data.get("process") or "").strip()
@@ -237,6 +299,14 @@ class DailyReportForm(forms.ModelForm):
                 "会社が特定できないため保存できません。管理者に連絡してください。",
             )
 
+        # 工種で「その他」を選んだら、入力された名前を工種にする（save で登録される）
+        if cleaned.get("work_type") == WORK_TYPE_OTHER:
+            other = cleaned.get("work_type_other") or ""
+            if other:
+                cleaned["work_type"] = other
+            else:
+                self.add_error("work_type_other", "新しい工種を入力してください。")
+
         # 協力会社は「協力会社の作業員」の場合のみ記入する。
         if cleaned.get("is_partner_worker"):
             if not cleaned.get("partner"):
@@ -247,6 +317,18 @@ class DailyReportForm(forms.ModelForm):
         start = cleaned.get("start_time")
         end = cleaned.get("end_time")
         hours = cleaned.get("work_hours")
+
+        # 日をまたぐ入力の整合性。終了日だけ入っていたら開始日は日報の日付とみなす。
+        # 同じ日で終了時刻が開始以前なら翌日の作業とみなし、終了日を翌日に直す
+        # （日付が無かったときの従来の扱いと同じ）。
+        start_day = cleaned.get("start_date") or cleaned.get("report_date")
+        end_day = cleaned.get("end_date")
+        if end_day and start_day and end_day < start_day:
+            self.add_error("end_date", "終了日は開始日より前にできません。")
+        elif end_day and start_day and start and end and end_day == start_day and end <= start:
+            from datetime import timedelta
+
+            cleaned["end_date"] = end_day + timedelta(days=1)
 
         # start_time/end_time が入力されていれば work_hours は自動計算される
         if start and end:
@@ -331,7 +413,9 @@ class DailyReportForm(forms.ModelForm):
                 report_date=proto.report_date,
                 weather=proto.weather,
                 work_description=proto.work_description,
+                start_date=proto.start_date,
                 start_time=proto.start_time,
+                end_date=proto.end_date,
                 end_time=proto.end_time,
                 work_hours=proto.work_hours,
                 is_partner_worker=proto.is_partner_worker,

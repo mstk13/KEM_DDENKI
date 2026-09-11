@@ -9,7 +9,7 @@ from decimal import Decimal
 import pytest
 
 from apps.masters.models import WorkType
-from apps.reports.forms import DailyReportForm
+from apps.reports.forms import STANDARD_WORK_TYPE_NAMES, DailyReportForm
 from apps.reports.models import DailyReport
 from apps.sites.models import Site
 from apps.workers.models import Worker
@@ -34,6 +34,11 @@ def worker(company_a):
         company=company_a, employee_code="E001", name="田中太郎",
         name_kana="タナカタロウ", hourly_cost=3000,
     )
+
+
+def _work_types(company):
+    """標準の工種（日報の画面を開くと自動で揃う）を除いた、会社の工種。"""
+    return WorkType.unscoped.filter(company=company).exclude(name__in=STANDARD_WORK_TYPE_NAMES)
 
 
 def _post(site_name, worker, work_type_name, **overrides):
@@ -69,7 +74,7 @@ class TestFreeTextFields:
         assert report.site_id == site.pk
         assert report.work_type_id == work_type.pk
         assert Site.unscoped.filter(company=company_a).count() == 1
-        assert WorkType.unscoped.filter(company=company_a).count() == 1
+        assert _work_types(company_a).count() == 1
 
     def test_new_names_are_created(self, company_a, site, worker, work_type):
         """一覧に無い名前を手入力したら、その現場・工種が登録される。"""
@@ -90,7 +95,7 @@ class TestFreeTextFields:
     def test_nothing_created_when_form_invalid(self, company_a, site, worker):
         """他の欄でエラーになったとき、現場や工種を作り残さない。"""
         before_sites = Site.unscoped.filter(company=company_a).count()
-        before_types = WorkType.unscoped.filter(company=company_a).count()
+        before_types = _work_types(company_a).count()
 
         # work_hours も start/end も無いので検証に失敗する
         form = DailyReportForm(
@@ -99,7 +104,7 @@ class TestFreeTextFields:
         )
         assert not form.is_valid()
         assert Site.unscoped.filter(company=company_a).count() == before_sites
-        assert WorkType.unscoped.filter(company=company_a).count() == before_types
+        assert _work_types(company_a).count() == before_types
 
     def test_site_is_required(self, company_a, worker, work_type):
         form = DailyReportForm(
