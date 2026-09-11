@@ -43,6 +43,26 @@ def _next_code(queryset, prefix):
     return f"{prefix}{n:04d}"
 
 
+def clean_work_period(form, cleaned):
+    """開始日・終了日・時刻の整合性をそろえる（現場作業・事務の日報で共通）。
+
+    - 開始日が空なら日報の日付を開始日とみなす
+    - 終了日が開始日より前はエラー
+    - 同じ日で終了時刻が開始以前なら翌日の作業とみなし、終了日を翌日に直す
+      （日付が無かったときの従来の扱いと同じ）
+    """
+    from datetime import timedelta
+
+    start = cleaned.get("start_time")
+    end = cleaned.get("end_time")
+    start_day = cleaned.get("start_date") or cleaned.get("report_date")
+    end_day = cleaned.get("end_date")
+    if end_day and start_day and end_day < start_day:
+        form.add_error("end_date", "終了日は開始日より前にできません。")
+    elif end_day and start_day and start and end and end_day == start_day and end <= start:
+        cleaned["end_date"] = end_day + timedelta(days=1)
+
+
 def resolve_site(company, name):
     """現場名から現場を引く。無ければ登録する（コードは自動採番）。"""
     site = Site.unscoped.filter(company=company, name=name).first()
@@ -318,17 +338,7 @@ class DailyReportForm(forms.ModelForm):
         end = cleaned.get("end_time")
         hours = cleaned.get("work_hours")
 
-        # 日をまたぐ入力の整合性。終了日だけ入っていたら開始日は日報の日付とみなす。
-        # 同じ日で終了時刻が開始以前なら翌日の作業とみなし、終了日を翌日に直す
-        # （日付が無かったときの従来の扱いと同じ）。
-        start_day = cleaned.get("start_date") or cleaned.get("report_date")
-        end_day = cleaned.get("end_date")
-        if end_day and start_day and end_day < start_day:
-            self.add_error("end_date", "終了日は開始日より前にできません。")
-        elif end_day and start_day and start and end and end_day == start_day and end <= start:
-            from datetime import timedelta
-
-            cleaned["end_date"] = end_day + timedelta(days=1)
+        clean_work_period(self, cleaned)
 
         # start_time/end_time が入力されていれば work_hours は自動計算される
         if start and end:
@@ -444,16 +454,28 @@ class OfficeDailyReportForm(forms.Form):
 
     保存すると現場1件につき日報1件をつくる（現場・作業員・日付・工種で一意）。
     勤務時間は最初の現場にだけ計上する。全件に入れると勤怠が二重になるため。
+
+    開始・終了は現場作業の日報と同じく日付も入れられる（日をまたぐ勤務のため）。
     """
 
     report_date = forms.DateField(
         label="日付",
         widget=forms.DateInput(attrs={"type": "date", "class": "form-control"}),
     )
+    start_date = forms.DateField(
+        label="開始日",
+        required=False,
+        widget=forms.DateInput(attrs={"type": "date", "class": "form-control"}),
+    )
     start_time = forms.TimeField(
         label="開始時間",
         required=False,
         widget=forms.TimeInput(attrs={"type": "time", "class": "form-control"}),
+    )
+    end_date = forms.DateField(
+        label="終了日",
+        required=False,
+        widget=forms.DateInput(attrs={"type": "date", "class": "form-control"}),
     )
     end_time = forms.TimeField(
         label="終了時間",
@@ -525,6 +547,8 @@ class OfficeDailyReportForm(forms.Form):
 
         self.entries = entries
 
+        clean_work_period(self, cleaned)
+
         start = cleaned.get("start_time")
         end = cleaned.get("end_time")
         if not (start and end) and not cleaned.get("work_hours"):
@@ -556,7 +580,9 @@ class OfficeDailyReportForm(forms.Form):
                 work_description=entry["work_description"],
                 memo=self.cleaned_data.get("memo", "") if first else "",
                 # 勤務時間は最初の現場にだけ計上する
+                start_date=self.cleaned_data.get("start_date") if first else None,
                 start_time=self.cleaned_data.get("start_time") if first else None,
+                end_date=self.cleaned_data.get("end_date") if first else None,
                 end_time=self.cleaned_data.get("end_time") if first else None,
                 work_hours=(
                     self.cleaned_data.get("work_hours") or 0 if first else 0
