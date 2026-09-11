@@ -297,7 +297,11 @@ def safety_complete(request, pk):
 
 @login_required
 def monthly_summary(request):
-    """月別集計画面。"""
+    """月次サマリ画面。
+
+    作業員一覧と同じ社員番号順で作業員ごとの勤怠集計を出し、
+    氏名をタップするとその月の日報一覧が開く（各行から日報の画面へ）。
+    """
     from datetime import date
 
     year = int(request.GET.get("year", date.today().year))
