@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}作業員削除 — {{ worker.name }}{% endblock %}
+{% block topbar_title %}作業員削除{% endblock %}
+
+{% block content %}
+<div class="card" style="max-width:520px;">
+  <div class="card-body">
+    <p>作業員「{{ worker.name }}」{% if worker.employee_code %}（{{ worker.employee_code }}）{% endif %}を削除しますか？</p>
+    {% if related_counts %}
+    <p style="color:var(--danger,#c02626);font-size:.9rem;">
+      この作業員に紐づく次のデータも一緒に消えます。元に戻せません。
+    </p>
+    <ul style="margin:0 0 12px 1.2em;font-size:.9rem;">
+      {% for label, n in related_counts %}
+      <li>{{ label }}: {{ n }}件</li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p style="color:var(--text-secondary);font-size:.9rem;">元に戻せません。</p>
+    {% endif %}
+    <p style="color:var(--text-secondary);font-size:.85rem;">
+      過去の記録を残したまま一覧から外すだけなら、削除ではなく
+      <a href="{% url 'workers:edit' worker.pk %}">編集</a>で「有効」を外して退職者にしてください。
+    </p>
+    <form method="post">
+      {% csrf_token %}
+      <div class="form-actions">
+        <button type="submit" class="btn btn-danger">削除する</button>
+        <a href="{% url 'workers:list' %}" class="btn btn-outline">キャンセル</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

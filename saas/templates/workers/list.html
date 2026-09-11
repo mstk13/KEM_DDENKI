@@ -55,7 +55,7 @@
           <td>{{ w.job_title|default:"-" }}</td>
           <td>{{ w.position|default:"-" }}</td>
           {% if is_president %}<td>{{ w.hourly_cost|floatformat:0 }} 円/h</td>{% endif %}
-          <td><a href="{% url 'workers:edit' w.pk %}" class="btn btn-outline btn-sm">編集</a></td>
+          <td style="white-space:nowrap;"><a href="{% url 'workers:edit' w.pk %}" class="btn btn-outline btn-sm">編集</a> <a href="{% url 'workers:delete' w.pk %}" class="btn btn-danger btn-sm">削除</a></td>
         </tr>
         {% empty %}
         <tr><td colspan="7"><div class="empty"><div class="empty-icon">&#x1f465;</div><p>該当する作業員がいません</p></div></td></tr>
@@ -80,7 +80,7 @@
           <td>{{ w.job_title|default:"-" }}</td>
           <td>{{ w.position|default:"-" }}</td>
           {% if is_president %}<td>{{ w.hourly_cost|floatformat:0 }} 円/h</td>{% endif %}
-          <td><a href="{% url 'workers:edit' w.pk %}" class="btn btn-outline btn-sm">編集</a></td>
+          <td style="white-space:nowrap;"><a href="{% url 'workers:edit' w.pk %}" class="btn btn-outline btn-sm">編集</a> <a href="{% url 'workers:delete' w.pk %}" class="btn btn-danger btn-sm">削除</a></td>
         </tr>
         {% endfor %}
       </tbody>

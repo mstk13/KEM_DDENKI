@@ -11,6 +11,7 @@ urlpatterns = [
     path("new/", views.worker_create, name="create"),
     path("<int:pk>/", views.worker_detail, name="detail"),
     path("<int:pk>/edit/", views.worker_edit, name="edit"),
+    path("<int:pk>/delete/", views.worker_delete, name="delete"),
     path("evaluations/", views.evaluation_list, name="evaluations"),
     path("evaluations/new/", views.evaluation_create, name="eval_create"),
     path("evaluations/<int:pk>/", views.evaluation_detail, name="eval_detail"),
