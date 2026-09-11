@@ -30,7 +30,10 @@
   - 開始日・終了日は日報の日付に追従して自動で埋まる（手で変えた日付は残す）
   - 同じ日で終了時刻が開始以前なら、終了日を翌日に直す（画面でも保存時でも同じ扱い）
   - 終了日が開始日より前はエラー
-- 事務の日報（`OfficeDailyReportForm`）は1日ぶんの勤務時間を入れるものなので変えない
+- 事務の日報（`OfficeDailyReportForm`、社員番号 G / S / A / P の人）にも同じ開始日・終了日の欄を置く。
+  当初は「1日ぶんの勤務時間を入れるものなので変えない」としたが、プロダクトオーナー（社員番号 G）が
+  「日報を書く」を開いて日付欄が無いと報告したため、同日に追加した。日付は勤務時間と同じく最初の現場にだけ入る
+- 日付・時刻の整合性の判定は `clean_work_period()` に置き、両方のフォームから呼ぶ
 
 ### 工種の選択
 
@@ -57,8 +60,9 @@
 
 - モデル変更: `apps/reports/models.py`（`start_date` / `end_date`、`work_period()`）、
   マイグレーション `reports/0006_dailyreport_start_date_end_date`
-- 変更: `apps/reports/forms.py`（日付欄、工種の選択肢、`ensure_standard_work_types` / `work_type_choice_names`）、
-  `apps/reports/views.py`（`worktype_names` を廃止）、`templates/reports/form.html`
+- 変更: `apps/reports/forms.py`（日付欄、`clean_work_period`、工種の選択肢、
+  `ensure_standard_work_types` / `work_type_choice_names`）、`apps/reports/views.py`（`worktype_names` を廃止）、
+  `templates/reports/form.html`、`templates/reports/office_form.html`
 - 追加テスト: `tests/test_report_datetime_worktype.py`
 - 既存データ: `start_date` / `end_date` は空のまま。空なら従来どおりの計算になる
 - 月次サマリ・原価（労務費）は `work_hours` を使うので、計算式が変わらない限り影響なし
