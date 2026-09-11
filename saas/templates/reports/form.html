@@ -3,6 +3,12 @@
 {% block topbar_title %}{% if form.instance.pk %}日報を編集{% else %}日報を書く{% endif %}{% endblock %}
 
 {% block content %}
+<style>
+  /* 開始・終了は「日付 + 時刻」を1行に並べる。狭い画面では縦に落ちる */
+  .period-row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .period-row > .form-control { flex: 1 1 140px; min-width: 0; }
+</style>
+
 <div class="page-header">
   <h1>{% if form.instance.pk %}日報を編集{% else %}日報を書く{% endif %}</h1>
 </div>
@@ -12,11 +18,35 @@
     <form method="post">
       {% csrf_token %}
       {% for field in form %}
+      {% if field.name == "work_type_other" or field.name == "start_time" or field.name == "end_time" or field.name == "end_date" %}
+      {# work_type の直後 / 開始日・終了日の行でまとめて出す #}
+      {% elif field.name == "start_date" %}
+      <div class="form-group">
+        <label for="{{ form.start_date.id_for_label }}">開始（日付・時刻）</label>
+        <div class="period-row">{{ form.start_date }}{{ form.start_time }}</div>
+        {{ form.start_date.errors }}{{ form.start_time.errors }}
+      </div>
+      <div class="form-group">
+        <label for="{{ form.end_date.id_for_label }}">終了（日付・時刻）</label>
+        <div class="period-row">{{ form.end_date }}{{ form.end_time }}</div>
+        <div class="form-hint">日をまたぐ作業は終了日を翌日にしてください。終了時刻が開始より前なら自動で翌日になります。</div>
+        {{ form.end_date.errors }}{{ form.end_time.errors }}
+      </div>
+      {% else %}
       <div class="form-group">
         <label for="{{ field.id_for_label }}">{{ field.label }}</label>
         {{ field }}
-        {% if field.name == "site" or field.name == "process" or field.name == "work_type" %}
+        {% if field.name == "site" or field.name == "process" %}
         <div class="form-hint">一覧から選ぶか、直接入力できます。新しい名前はそのまま登録されます。</div>
+        {% endif %}
+        {% if field.name == "work_type" %}
+        <div class="form-hint">一覧に無い工種は「その他」を選んで入力してください。登録され、次回から候補に出ます。</div>
+        {{ field.errors }}
+        <div id="work-type-other-wrap" style="margin-top:8px;" {% if form.work_type.value != "__other__" and not form.work_type_other.errors %}hidden{% endif %}>
+          <label for="{{ form.work_type_other.id_for_label }}">{{ form.work_type_other.label }}</label>
+          {{ form.work_type_other }}
+          {{ form.work_type_other.errors }}
+        </div>
         {% endif %}
         {% if field.name == "workers" %}
         <div class="form-hint">
@@ -25,10 +55,11 @@
         </div>
         {% endif %}
         {% if field.name == "work_hours" %}
-        <div class="form-hint">開始時間と終了時間を入れると自動で計算されます（8時間を超える場合は休憩1時間を差し引きます）。</div>
+        <div class="form-hint">開始と終了を入れると自動で計算されます（8時間を超える場合は休憩1時間を差し引きます）。</div>
         {% endif %}
-        {{ field.errors }}
+        {% if field.name != "work_type" %}{{ field.errors }}{% endif %}
       </div>
+      {% endif %}
       {% endfor %}
       <div class="form-actions">
         <button type="submit" name="action" value="draft" class="btn btn-outline">下書き保存</button>
@@ -52,9 +83,6 @@
 <datalist id="process-list">
   {% for name in process_names %}<option value="{{ name }}"></option>{% endfor %}
 </datalist>
-<datalist id="worktype-list">
-  {% for name in worktype_names %}<option value="{{ name }}"></option>{% endfor %}
-</datalist>
 
 <script>
 (function () {
@@ -72,9 +100,41 @@
     if (!orderer.value) fillOrderer();
   }
 
-  // ---- 開始・終了時間から作業時間を自動計算 ----
+  // ---- 工種で「その他」を選んだら入力欄を出す ----
+  var workType = document.getElementById('id_work_type');
+  var otherWrap = document.getElementById('work-type-other-wrap');
+  var otherInput = document.getElementById('id_work_type_other');
+  function toggleOther() {
+    if (!workType || !otherWrap) return;
+    var isOther = workType.value === '__other__';
+    otherWrap.hidden = !isOther;
+    if (isOther && otherInput) otherInput.focus();
+  }
+  if (workType) {
+    workType.addEventListener('change', toggleOther);
+  }
+
+  // ---- 開始日・終了日を日報の日付に合わせて埋める ----
+  // 空のまま、または日報の日付と同じだったときだけ追従する（手で変えた日付は残す）。
+  var reportDate = document.getElementById('id_report_date');
+  var startDate = document.getElementById('id_start_date');
+  var endDate = document.getElementById('id_end_date');
+  var lastReportDate = reportDate ? reportDate.value : '';
+  function followReportDate() {
+    if (!reportDate || !startDate || !endDate) return;
+    var v = reportDate.value;
+    if (!startDate.value || startDate.value === lastReportDate) startDate.value = v;
+    if (!endDate.value || endDate.value === lastReportDate) endDate.value = v;
+    lastReportDate = v;
+  }
+  if (reportDate) {
+    reportDate.addEventListener('change', followReportDate);
+    if (reportDate.value) followReportDate();
+  }
+
+  // ---- 開始・終了から作業時間を自動計算 ----
   // 計算式はサーバ側 DailyReport.calculate_hours と同じにする。
-  // 日をまたぐ場合は翌日扱い、8時間を超えたら休憩1時間を差し引く。
+  // 同じ日で終了が開始以前なら翌日扱い（終了日も翌日に直す）、8時間を超えたら休憩1時間を差し引く。
   var start = document.getElementById('id_start_time');
   var end = document.getElementById('id_end_time');
   var hours = document.getElementById('id_work_hours');
@@ -82,20 +142,38 @@
     var m = /^(\d{1,2}):(\d{2})/.exec(v || '');
     return m ? parseInt(m[1], 10) * 60 + parseInt(m[2], 10) : null;
   }
+  function toDays(v) {
+    var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v || '');
+    return m ? Date.UTC(+m[1], +m[2] - 1, +m[3]) / 86400000 : null;
+  }
+  function fromDays(d) {
+    return new Date(d * 86400000).toISOString().slice(0, 10);
+  }
   function calcHours() {
     if (!start || !end || !hours) return;
     var s = toMinutes(start.value);
     var e = toMinutes(end.value);
     if (s === null || e === null) return;
-    var total = e - s;
-    if (total <= 0) total += 24 * 60;
+    var sd = startDate ? toDays(startDate.value) : null;
+    var ed = endDate ? toDays(endDate.value) : null;
+    var total;
+    if (sd !== null && ed !== null) {
+      if (ed < sd) return; // サーバ側でエラーにする
+      if (ed === sd && e <= s) {
+        ed = sd + 1;
+        endDate.value = fromDays(ed);
+      }
+      total = (ed - sd) * 24 * 60 + (e - s);
+    } else {
+      total = e - s;
+      if (total <= 0) total += 24 * 60;
+    }
     if (total > 480) total -= 60;
     hours.value = (Math.round((total / 60) * 100) / 100).toFixed(2);
   }
-  if (start && end) {
-    start.addEventListener('change', calcHours);
-    end.addEventListener('change', calcHours);
-  }
+  [start, end, startDate, endDate].forEach(function (el) {
+    if (el) el.addEventListener('change', calcHours);
+  });
 })();
 </script>
 {% endblock %}

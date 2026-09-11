@@ -47,7 +47,6 @@ def report_list(request):
 def _report_form_context(company):
     """日報フォームの候補一覧と、現場→発注先の対応表を返す。"""
     from apps.core.json_utils import json_for_script
-    from apps.masters.models import WorkType
     from apps.sites.models import Process, Site
 
     sites = list(
@@ -61,11 +60,6 @@ def _report_form_context(company):
         "process_names": sorted({
             p.name for p in Process.unscoped.filter(company=company)
         }),
-        "worktype_names": list(
-            WorkType.unscoped.filter(company=company, is_active=True)
-            .order_by("name")
-            .values_list("name", flat=True)
-        ),
         # 現場名を入れたら発注先を自動で埋めるための対応表
         "site_orderer_json": json_for_script(
             {s.name: (str(s.customer) if s.customer else "") for s in sites}
