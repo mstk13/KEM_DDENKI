@@ -20,6 +20,7 @@ from apps.attendance.plans import (
     parse_clock,
     parse_date,
     parse_month,
+    site_name_suggestions,
 )
 from apps.core.json_utils import json_for_script
 from apps.workers.models import Worker
@@ -86,6 +87,8 @@ def plan_board(request):
         **board,
         "kind_choices": AttendPlan.Kind.choices,
         "kind_fields_json": json_for_script(AttendPlan.KIND_FIELDS),
+        # 「場所・メモ」の候補（登録済みの現場名）。候補にない行き先も入力できる（ADR-0037）
+        "site_names": site_name_suggestions(request.user.company),
         "fill_targets": FILL_TARGETS,
         "timeline": timeline,
         "working_labels": [
@@ -320,6 +323,8 @@ def plan_day(request):
         "kind_fields_json": json_for_script(AttendPlan.KIND_FIELDS),
         # 行の色と出社人数を保存前に画面側で更新するため、稼働区分を渡す
         "working_kinds_json": json_for_script(list(AttendPlan.WORKING_KINDS)),
+        # 「現場名・行先」の候補（登録済みの現場名）。候補にない行き先も入力できる（ADR-0037）
+        "site_names": site_name_suggestions(request.user.company),
         "standard_start": settings_dict.get("standard_start", ""),
         "standard_end": settings_dict.get("standard_end", ""),
     })

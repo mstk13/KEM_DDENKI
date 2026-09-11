@@ -117,6 +117,37 @@ def _workers(company):
     )
 
 
+# 「場所・メモ」の候補に出す現場の状態（ADR-0037）。この順に並べる。
+# 完工・請求済・中止の現場へ行く予定を立てることは無いので候補に出さない。
+SUGGESTED_SITE_STATUSES = ("in_progress", "ordered", "estimating")
+
+
+def site_name_suggestions(company) -> list[str]:
+    """出社予定の「場所・メモ」に候補として出す現場名（ADR-0037）。
+
+    施工中 → 受注済 → 見積中の順、同じ状態の中は現場名順。同じ名前は1つにまとめる。
+    候補は入力の手助けで、候補にない行き先もそのまま保存できる（note は自由入力のまま）。
+    候補から選ぶと現場名と一字一句同じになるので、ホームの現場カードの参加者
+    （ADR-0036 の行き先と現場名の突き合わせ）にも確実に載る。
+    """
+    from apps.sites.models import Site
+
+    rank = {status: i for i, status in enumerate(SUGGESTED_SITE_STATUSES)}
+    # unscoped: _workers と同じく company を引数で受けて明示的に絞る。
+    rows = Site.unscoped.filter(
+        company=company, status__in=SUGGESTED_SITE_STATUSES,
+    ).values_list("name", "status")
+
+    names = []
+    seen = set()
+    for name, _status in sorted(rows, key=lambda row: (rank[row[1]], row[0])):
+        name = name.strip()
+        if name and name not in seen:
+            seen.add(name)
+            names.append(name)
+    return names
+
+
 def build_plan_board(company, year: int, month: int) -> dict:
     """月の出社予定表を組み立てる。
 

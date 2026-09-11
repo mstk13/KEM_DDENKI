@@ -63,6 +63,11 @@
       </span>
     </div>
 
+    {% include "attendance/partials/site_name_datalist.html" %}
+    <p class="form-hint" style="margin:0;padding:0 24px 12px;">
+      「現場名・行先」は登録済みの現場から選べます。候補にない場合はそのまま入力してください。
+    </p>
+
     <div class="table-wrap">
       <table class="plan-day-table">
         <thead>
@@ -100,7 +105,8 @@
             <td>
               <input type="text" name="note_{{ row.worker.pk }}"
                      class="form-control plan-day-note" data-worker="{{ row.worker.pk }}"
-                     value="{{ row.note }}" maxlength="200">
+                     value="{{ row.note }}" maxlength="200"
+                     list="attend-site-names" autocomplete="off">
             </td>
             <td>
               <input type="time" name="start_{{ row.worker.pk }}"
