@@ -123,14 +123,13 @@ def get_monthly_summary(company, year: int, month: int):
 
     作業員ごとに次を返す（作業員一覧と同じ社員番号順）。
     - worker … Worker。画面では社員番号と氏名を作業員一覧と同じ表記で出す
-    - work_days / total_regular / total_overtime / total_hours
-      … 承認済の日報だけを集計（従来どおり）
-    - reports … その月の日報すべて（下書き・提出済も含む）。日付順。
+    - work_days / total_regular / total_overtime / total_hours … 承認済の日報を集計
+    - reports … その月の承認済の日報。日付順。
       氏名をタップしたときに一覧で見せ、各行から日報の画面へ飛ぶ
     - report_count … reports の件数
 
-    行に載せるのは「その月に日報が1件でもある作業員」。承認前の日報しかない
-    人も行に出し、時間は 0 のまま日報を辿れるようにする。
+    対象は承認済の日報だけ。下書き・提出済は集計にも一覧にも入れない
+    （承認前の内容が実績として見えないようにするため）。
     """
     from collections import defaultdict
 
@@ -141,6 +140,7 @@ def get_monthly_summary(company, year: int, month: int):
             company=company,
             report_date__year=year,
             report_date__month=month,
+            status=DailyReport.Status.APPROVED,
         )
         .select_related("worker", "site", "work_type")
         .order_by("report_date", "created_at", "pk")
@@ -155,15 +155,14 @@ def get_monthly_summary(company, year: int, month: int):
     summary = []
     for worker in sort_workers_by_code(workers.values()):
         rows = by_worker[worker.pk]
-        approved = [r for r in rows if r.status == DailyReport.Status.APPROVED]
         summary.append({
             "worker": worker,
             "worker__pk": worker.pk,
             "worker__name": worker.name,
-            "work_days": len({r.report_date for r in approved}),
-            "total_regular": _sum_or_none(r.regular_hours for r in approved),
-            "total_overtime": _sum_or_none(r.overtime_hours for r in approved),
-            "total_hours": _sum_or_none(r.work_hours for r in approved),
+            "work_days": len({r.report_date for r in rows}),
+            "total_regular": _sum_or_none(r.regular_hours for r in rows),
+            "total_overtime": _sum_or_none(r.overtime_hours for r in rows),
+            "total_hours": _sum_or_none(r.work_hours for r in rows),
             "reports": rows,
             "report_count": len(rows),
         })
