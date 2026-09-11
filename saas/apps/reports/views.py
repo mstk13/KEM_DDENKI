@@ -144,9 +144,26 @@ def report_create(request):
     return render(request, "reports/form.html", ctx)
 
 
+def _back_url(request):
+    """編集後に戻る先（next）。月次サマリなど、日報を開いた元の画面に戻すために使う。
+
+    GET では ?next=、POST ではフォームの hidden から受ける。
+    同じホスト内の URL だけ許す（外部サイトへ飛ばされないように）。
+    """
+    from django.utils.http import url_has_allowed_host_and_scheme
+
+    value = (request.POST.get("next") or request.GET.get("next") or "").strip()
+    if value and url_has_allowed_host_and_scheme(
+        value, allowed_hosts={request.get_host()}, require_https=request.is_secure(),
+    ):
+        return value
+    return ""
+
+
 @login_required
 def report_edit(request, pk):
     report = get_object_or_404(DailyReport, pk=pk)
+    back_url = _back_url(request)
     if request.method == "POST":
         form = DailyReportForm(
             request.POST, instance=report, company=request.user.company,
@@ -161,12 +178,14 @@ def report_edit(request, pk):
                 company=request.user.company, user=request.user, status=status,
             )
             messages.success(request, "日報を更新しました。")
-            return redirect("reports:list")
+            return redirect(back_url or "reports:list")
     else:
         form = DailyReportForm(instance=report, company=request.user.company)
     ctx = {
         "form": form,
         "can_delete": can_delete_report(request.user, report),
+        # 月次サマリなどから開いたときは、保存・戻るでその画面（同じ作業員が開いた状態）に戻す
+        "back_url": back_url,
         **_report_form_context(request.user.company),
     }
     return render(request, "reports/form.html", ctx)
@@ -305,6 +324,20 @@ def monthly_summary(request):
     month = int(request.GET.get("month", date.today().month))
 
     summary = get_monthly_summary(request.user.company, year, month)
+
+    # 各日報へのリンクに next を付け、日報の保存・戻るで「この月・この作業員を開いた
+    # 状態」の月次サマリに戻れるようにする（#worker-<pk> で該当の行が開く）。
+    from urllib.parse import urlencode
+
+    from django.urls import reverse
+
+    base = f"{reverse('reports:monthly_summary')}?year={year}&month={month}"
+    for row in summary:
+        back = f"{base}#worker-{row['worker'].pk}"
+        for report in row["reports"]:
+            report.edit_url = (
+                reverse("reports:edit", args=[report.pk]) + "?" + urlencode({"next": back})
+            )
 
     return render(request, "reports/monthly_summary.html", {
         "summary": summary,

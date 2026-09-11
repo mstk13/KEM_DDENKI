@@ -1,9 +1,11 @@
 """月次サマリ: 作業員一覧と同じ表記・並び順で、氏名の下にその月の承認済の日報一覧を出す。"""
 
 from decimal import Decimal
+from urllib.parse import urlencode
 
 import pytest
 from django.urls import reverse
+from django.utils.html import escape
 
 from apps.masters.models import WorkType
 from apps.reports.models import DailyReport
@@ -133,6 +135,53 @@ class TestMonthlySummaryPage:
         assert f'data-worker-toggle="{w.pk}"' in html
         assert reverse("reports:edit", args=[r1.pk]) in html
         assert reverse("reports:edit", args=[r2.pk]) not in html
+        # 日報のリンクには「この月・この作業員を開いた状態」に戻る next が付く
+        back = f"/reports/monthly/?year=2026&month=9#worker-{w.pk}"
+        link = reverse("reports:edit", args=[r1.pk]) + "?" + urlencode({"next": back})
+        assert escape(link) in html
+
+    def test_日報の保存と戻るで月次サマリの同じ作業員に戻る(
+        self, client, user_a, company_a, site_a, work_type_a,
+    ):
+        w = _worker(company_a, "E1", "電工太郎")
+        r1 = _report(company_a, site_a, w, work_type_a, "2026-09-01", status=APPROVED)
+        client.force_login(user_a)
+        back = f"/reports/monthly/?year=2026&month=9#worker-{w.pk}"
+        edit_url = reverse("reports:edit", args=[r1.pk])
+
+        res = client.get(edit_url, {"next": back})
+
+        assert res.status_code == 200
+        html = res.content.decode()
+        # 属性値なので & は &amp; になる
+        assert f'<input type="hidden" name="next" value="{escape(back)}">' in html
+        assert f'href="{escape(back)}" class="btn btn-outline">戻る</a>' in html
+
+        res = client.post(edit_url, {
+            "site": site_a.name, "workers": [w.pk], "report_date": "2026-09-01",
+            "weather": "", "process": "", "process_other": "",
+            "work_type": work_type_a.name, "work_description": "",
+            "start_date": "", "start_time": "", "end_date": "", "end_time": "",
+            "work_hours": "8.00", "partner": "", "memo": "",
+            "next": back,
+        })
+
+        assert res.status_code == 302
+        assert res["Location"] == back
+
+    def test_他サイトへの_nextは無視して一覧に戻る(
+        self, client, user_a, company_a, site_a, work_type_a,
+    ):
+        w = _worker(company_a, "E1", "電工太郎")
+        r1 = _report(company_a, site_a, w, work_type_a, "2026-09-01", status=APPROVED)
+        client.force_login(user_a)
+
+        res = client.get(reverse("reports:edit", args=[r1.pk]), {"next": "https://evil.example/"})
+
+        assert res.status_code == 200
+        html = res.content.decode()
+        assert 'name="next"' not in html
+        assert "キャンセル" in html
 
     def test_承認済の日報が無い月は空表示(self, client, user_a, company_a, site_a, work_type_a):
         w = _worker(company_a, "E1", "電工太郎")
