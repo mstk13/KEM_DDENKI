@@ -66,7 +66,7 @@ class TestSuggestionsOnScreens:
         assert '<datalist id="attend-site-names">' in html
         assert '<option value="A社ビル新築"></option>' in html
         assert "B社の現場" not in html
-        assert 'id="plan-dialog-note" maxlength="200"' in html
+        assert 'class="form-control plan-entry-note" maxlength="200"' in html
         assert 'list="attend-site-names"' in html
 
     def test_日シートの行き先欄に候補が付く(self, client, company_a, user_a):

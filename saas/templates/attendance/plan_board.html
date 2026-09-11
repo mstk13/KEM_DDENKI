@@ -78,7 +78,8 @@
     <p style="margin:10px 0 0;font-size:.82rem;color:var(--text-secondary);">
       「火曜日」を選ぶと、この月の火曜だけをまとめて記入します。
       時刻を空にすると所定（{{ standard_start }}〜{{ standard_end }}）どおりの扱いです。
-      上書きにチェックを入れないと、すでに入っている日はそのまま残ります。
+      上書きにチェックを入れないと、すでに入っている日はそのまま残ります
+      （上書きすると、時間で分けてあった日も1件にまとめ直します）。
     </p>
   </div>
 </div>
@@ -88,7 +89,7 @@
     <h2>{{ year }}年{{ month }}月</h2>
     <span style="font-size:.82rem;color:var(--text-secondary);">
       区分を選んでマスをクリックで記入／同じ区分をもう一度で消去。
-      マスをダブルクリックで現場名・時刻を入力
+      マスをダブルクリックで現場名・時刻の入力と、1日を時間で分けた予定の追加
     </span>
   </div>
 
@@ -103,7 +104,8 @@
     <p style="margin:10px 0 0;font-size:.82rem;color:var(--text-secondary);">
       マスの文字は区分の頭1文字です（出＝出社／現＝現場／直＝直行直帰／宅＝在宅／
       張＝出張／有＝有休／半＝半休／休＝休み）。正式名称と現場名はマスにカーソルを
-      合わせると出ます。<br>
+      合わせると出ます。「現+1」のように数字が付いたマスは、1日を時間で分けて予定が
+      2件以上ある日です（ダブルクリックで全件を編集）。<br>
       最下行の「出社人数」は {{ working_labels|join:"・" }} を数えています。
       日付の数字を押すと、その日を全員ぶんまとめて記入する画面に移ります。
       × はその日を全員ぶん削除します。
@@ -148,12 +150,14 @@
                       data-date="{{ cell.date|date:'Y-m-d' }}"
                       data-date-label="{{ cell.date|date:'n月j日' }}（{{ cell.weekday }}）"
                       data-kind="{{ cell.kind }}"
-                      data-start="{{ cell.start_time|time:'H:i' }}"
-                      data-end="{{ cell.end_time|time:'H:i' }}"
+                      data-start="{{ cell.start_time }}"
+                      data-end="{{ cell.end_time }}"
                       data-note="{{ cell.note }}"
+                      data-count="{{ cell.count }}"
+                      data-entries="{{ cell.entries_json }}"
                       data-working="{% if cell.is_working %}1{% else %}0{% endif %}"
-                      title="{{ row.worker.name }} {{ cell.date|date:'n月j日' }}{% if cell.label %} {{ cell.label }}{% endif %}{% if cell.note %} / {{ cell.note }}{% endif %}{% if cell.time_label %} {{ cell.time_label }}{% endif %}">
-                <span class="plan-cell-label">{{ cell.short }}</span>
+                      title="{{ row.worker.name }} {{ cell.date|date:'n月j日' }}{% if cell.detail %} {{ cell.detail }}{% endif %}">
+                <span class="plan-cell-label">{{ cell.short }}{% if cell.extra %}<span class="plan-cell-extra">+{{ cell.extra }}</span>{% endif %}</span>
                 <span class="plan-cell-time">{{ cell.time_label }}</span>
               </button>
             </td>
@@ -237,18 +241,20 @@
           {% if timeline.now_pct %}
             <span class="plan-timeline-now" style="left:{{ timeline.now_pct }}%;"></span>
           {% endif %}
-          {% if row.has_bar %}
-            <span class="plan-timeline-bar plan-kind-{{ row.kind }}"
-                  style="left:{{ row.left_pct }}%;width:{{ row.width_pct }}%;"
-                  title="{{ row.worker.name }} {{ row.label }}{% if row.note %} / {{ row.note }}{% endif %} {{ row.time_label }}{% if row.crosses_midnight %}（翌日へ続く）{% endif %}">
-              {{ row.label }}{% if row.note %}／{{ row.note }}{% endif %}
-              <span class="plan-timeline-bar-time">{{ row.time_label }}</span>
-            </span>
-          {% else %}
-            <span class="plan-timeline-flat plan-kind-{{ row.kind }}">
-              {{ row.label }}{% if row.note %}／{{ row.note }}{% endif %}（終日）
-            </span>
-          {% endif %}
+          {% for seg in row.segments %}
+            {% if seg.has_bar %}
+              <span class="plan-timeline-bar plan-kind-{{ seg.kind }}"
+                    style="left:{{ seg.left_pct }}%;width:{{ seg.width_pct }}%;"
+                    title="{{ row.worker.name }} {{ seg.label }}{% if seg.note %} / {{ seg.note }}{% endif %} {{ seg.time_label }}{% if seg.crosses_midnight %}（翌日へ続く）{% endif %}">
+                {{ seg.label }}{% if seg.note %}／{{ seg.note }}{% endif %}
+                <span class="plan-timeline-bar-time">{{ seg.time_label }}</span>
+              </span>
+            {% else %}
+              <span class="plan-timeline-flat plan-kind-{{ seg.kind }}">
+                {{ seg.label }}{% if seg.note %}／{{ seg.note }}{% endif %}（終日）
+              </span>
+            {% endif %}
+          {% endfor %}
         </div>
       </div>
       {% endfor %}
@@ -256,7 +262,8 @@
   </div>
 
   <div style="padding:14px 24px;font-size:.82rem;color:var(--text-secondary);">
-    横軸は0時から24時。時刻を入れていない予定は所定（{{ standard_start }}〜{{ standard_end }}）の帯で描いています。<br>
+    横軸は0時から24時。時刻を入れていない予定は所定（{{ standard_start }}〜{{ standard_end }}）の帯で描いています。
+    1日を時間で分けた人は、予定ごとに帯を並べています。<br>
     有休・休み・出張は時間が決まらないので帯にせず、行の左に区分だけ出します。
     {% if timeline.idle %}
       <br>この日の予定が入っていない人:
@@ -288,42 +295,24 @@
     <h3 id="plan-dialog-title" style="margin:0 0 4px;font-size:1.05rem;"></h3>
     <p id="plan-dialog-sub" style="margin:0 0 14px;font-size:.85rem;color:var(--text-secondary);"></p>
 
-    <div class="form-group">
-      <label>区分</label>
-      <select class="form-control" id="plan-dialog-kind">
-        {% for value, text in kind_choices %}
-          <option value="{{ value }}">{{ text }}</option>
-        {% endfor %}
-      </select>
-    </div>
+    {% include "attendance/partials/site_name_datalist.html" %}
+    <div id="plan-dialog-entries"></div>
 
-    <div class="form-group" id="plan-dialog-place-row">
-      <label id="plan-dialog-place-label" for="plan-dialog-note">場所・メモ</label>
-      {% include "attendance/partials/site_name_datalist.html" %}
-      <input type="text" class="form-control" id="plan-dialog-note" maxlength="200"
-             list="attend-site-names" autocomplete="off">
-      <p class="form-hint">登録済みの現場から選べます。候補にない場合はそのまま入力してください。</p>
-    </div>
-
-    <div id="plan-dialog-time-row">
-      <div style="display:flex;gap:10px;">
-        <div class="form-group" style="flex:1;">
-          <label>開始時刻</label>
-          <input type="time" class="form-control" id="plan-dialog-start">
-        </div>
-        <div class="form-group" style="flex:1;">
-          <label>終了時刻</label>
-          <input type="time" class="form-control" id="plan-dialog-end">
-        </div>
-      </div>
-      <p style="margin:-6px 0 12px;font-size:.78rem;color:var(--text-secondary);">
-        空欄なら所定（{{ standard_start }}〜{{ standard_end }}）どおりとして扱います。
-      </p>
-    </div>
+    <button type="button" class="btn btn-outline btn-sm" id="plan-dialog-add">
+      ＋ 時間を分けて予定を追加
+    </button>
+    <p class="form-hint" id="plan-dialog-add-hint" style="display:none;">
+      出張・有休・休みの日は、予定を1件だけにします。
+    </p>
+    <p class="form-hint" style="margin:8px 0 12px;">
+      現場名は登録済みの現場から選べます（候補にない場合はそのまま入力）。
+      時刻が空欄の予定は所定（{{ standard_start }}〜{{ standard_end }}）どおりとして扱います。
+      2件以上に分けるときは、それぞれ開始・終了を入れてください（時間は重ねられません）。
+    </p>
 
     <div id="plan-dialog-span-row">
       <div class="form-group">
-        <label>いつまで（この日から）</label>
+        <label for="plan-dialog-until">いつまで（この日から）</label>
         <input type="date" class="form-control" id="plan-dialog-until">
       </div>
       <p style="margin:-6px 0 12px;font-size:.78rem;color:var(--text-secondary);">
@@ -332,9 +321,11 @@
       </p>
     </div>
 
-    <div style="display:flex;gap:8px;justify-content:space-between;margin-top:16px;">
+    <p id="plan-dialog-error" class="plan-dialog-error" role="alert" style="display:none;"></p>
+
+    <div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:space-between;margin-top:16px;">
       <button type="button" class="btn btn-outline" id="plan-dialog-delete"
-              style="color:var(--danger);border-color:var(--danger);">この日を削除</button>
+              style="color:var(--danger);border-color:var(--danger);">この日の予定を削除</button>
       <span style="display:flex;gap:8px;">
         <button type="button" class="btn btn-outline" id="plan-dialog-cancel">キャンセル</button>
         <button type="button" class="btn btn-primary" id="plan-dialog-save">保存</button>
@@ -343,14 +334,57 @@
   </form>
 </dialog>
 
+{# ダイアログの予定1件ぶん。件数ぶん複製して並べる（ADR-0038） #}
+<template id="plan-entry-template">
+  <div class="plan-entry">
+    <div class="plan-entry-head">
+      <span class="plan-entry-no">予定</span>
+      <button type="button" class="plan-entry-remove">この予定を外す</button>
+    </div>
+    <div class="plan-entry-grid">
+      <div class="form-group">
+        <label data-for="kind">区分</label>
+        <select class="form-control plan-entry-kind">
+          {% for value, text in kind_choices %}
+            <option value="{{ value }}">{{ text }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label data-for="note" class="plan-entry-place-label">場所・メモ</label>
+        <input type="text" class="form-control plan-entry-note" maxlength="200"
+               list="attend-site-names" autocomplete="off">
+      </div>
+    </div>
+    <div class="plan-entry-time-row">
+      <div class="form-group">
+        <label data-for="start">開始時刻</label>
+        <input type="time" class="form-control plan-entry-start">
+      </div>
+      <div class="form-group">
+        <label data-for="end">終了時刻</label>
+        <input type="time" class="form-control plan-entry-end">
+      </div>
+    </div>
+  </div>
+</template>
+
 <script>
 document.addEventListener('DOMContentLoaded', function() {
   var setUrl = '{% url "attendance:plan_set" %}';
+  var entriesUrl = '{% url "attendance:plan_entries" %}';
   var KIND_FIELDS = {{ kind_fields_json|safe }};
+  var MAX_ENTRIES = {{ max_entries }};
+  var STANDARD_START = '{{ standard_start|escapejs }}';
+  var STANDARD_END = '{{ standard_end|escapejs }}';
   var token = document.querySelector('#plan-csrf [name=csrfmiddlewaretoken]');
   var palette = document.getElementById('plan-palette');
   var dialog = document.getElementById('plan-dialog');
   var kinds = Object.keys(KIND_FIELDS);
+
+  function specOf(kind) {
+    return KIND_FIELDS[kind] || {time: true, place: '', span: false};
+  }
 
   function activeKind() {
     var active = palette.querySelector('.plan-kind.active');
@@ -387,6 +421,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if (total) { total.textContent = count; }
   }
 
+  // マスは1件目の区分の1文字。2件以上なら「+残りの件数」を添える。
   function paint(cell, data) {
     kinds.forEach(function(k) { cell.classList.remove('plan-kind-' + k); });
     if (data.kind) { cell.classList.add('plan-kind-' + data.kind); }
@@ -394,24 +429,32 @@ document.addEventListener('DOMContentLoaded', function() {
     cell.dataset.start = data.start_time;
     cell.dataset.end = data.end_time;
     cell.dataset.note = data.note;
+    cell.dataset.count = data.count;
+    cell.dataset.entries = JSON.stringify(data.entries || []);
     cell.dataset.working = data.is_working ? '1' : '0';
-    cell.querySelector('.plan-cell-label').textContent = data.short || '';
+    var label = cell.querySelector('.plan-cell-label');
+    label.textContent = data.short || '';
+    if (data.extra) {
+      var extra = document.createElement('span');
+      extra.className = 'plan-cell-extra';
+      extra.textContent = '+' + data.extra;
+      label.appendChild(extra);
+    }
     cell.querySelector('.plan-cell-time').textContent = data.time_label;
     cell.title = cell.dataset.workerName + ' ' + cell.dataset.dateLabel
-      + (data.label ? ' ' + data.label : '')
-      + (data.note ? ' / ' + data.note : '')
-      + (data.time_label ? ' ' + data.time_label : '');
+      + (data.detail ? ' ' + data.detail : '');
     recountColumn(cell.dataset.date);
     recountRow(cell);
   }
 
-  function save(cell, params) {
+  // 保存してマスを描き直す。失敗したら、応答の中身を err.data に持たせて reject する。
+  function post(url, cell, params) {
     var body = new URLSearchParams(Object.assign({
       worker: cell.dataset.worker,
       date: cell.dataset.date,
     }, params));
     cell.disabled = true;
-    return fetch(setUrl, {
+    return fetch(url, {
       method: 'POST',
       headers: {
         'X-CSRFToken': token ? token.value : '',
@@ -419,57 +462,142 @@ document.addEventListener('DOMContentLoaded', function() {
       },
       body: body.toString(),
     }).then(function(res) {
-      if (!res.ok) {
-        return res.json().then(function(d) { throw new Error(d.error); });
-      }
-      return res.json();
+      return res.json().catch(function() { return {}; }).then(function(data) {
+        if (!res.ok) {
+          var err = new Error(data.error || ('保存できませんでした（' + res.status + '）'));
+          err.data = data;
+          throw err;
+        }
+        return data;
+      });
     }).then(function(data) {
       // 期間で入れたときは他の日のマスも変わっているので読み直す
-      if (data.reload) { location.reload(); return; }
+      if (data.reload) { location.reload(); return data; }
       paint(cell, data);
-    }).catch(function(err) {
-      alert('保存できませんでした: ' + err.message);
+      return data;
     }).finally(function() {
       cell.disabled = false;
     });
   }
 
-  // --- マスの詳細ダイアログ ---
+  // --- マスの詳細ダイアログ（1日ぶんの予定を件数ぶん並べる） ---
   var editing = null;
+  var entriesBox = document.getElementById('plan-dialog-entries');
+  var entryTemplate = document.getElementById('plan-entry-template');
+  var addButton = document.getElementById('plan-dialog-add');
+  var errorBox = document.getElementById('plan-dialog-error');
+  var entrySeq = 0;
 
-  // 区分によって訊く項目が変わる。現場なら現場名、出張なら行先と戻る日。
-  function applyKindFields() {
-    var kind = document.getElementById('plan-dialog-kind').value;
-    var spec = KIND_FIELDS[kind] || {time: true, place: '', span: false};
-    document.getElementById('plan-dialog-place-label').textContent =
-      spec.place || '場所・メモ';
-    document.getElementById('plan-dialog-note').placeholder =
-      spec.place ? spec.place + 'を入力' : '任意';
-    document.getElementById('plan-dialog-time-row').style.display =
-      spec.time ? '' : 'none';
+  function entryRows() {
+    return Array.prototype.slice.call(entriesBox.querySelectorAll('.plan-entry'));
+  }
+
+  function field(row, name) {
+    return row.querySelector('.plan-entry-' + name);
+  }
+
+  function addEntry(data) {
+    var row = entryTemplate.content.firstElementChild.cloneNode(true);
+    entrySeq += 1;
+    ['kind', 'note', 'start', 'end'].forEach(function(name) {
+      var input = field(row, name);
+      input.id = 'plan-entry-' + name + '-' + entrySeq;
+      row.querySelector('[data-for="' + name + '"]').htmlFor = input.id;
+    });
+    row.dataset.id = data.id || '';
+    field(row, 'kind').value = data.kind;
+    field(row, 'note').value = data.note || '';
+    field(row, 'start').value = data.start_time || '';
+    field(row, 'end').value = data.end_time || '';
+    field(row, 'kind').addEventListener('change', refreshEntries);
+    row.querySelector('.plan-entry-remove').addEventListener('click', function() {
+      row.remove();
+      refreshEntries();
+    });
+    entriesBox.appendChild(row);
+    return row;
+  }
+
+  // 区分によって訊く項目が変わる。現場なら現場名と時刻、出張なら行先と戻る日。
+  // 出張・有休・休み（終日）の日は1件だけなので「追加」を止める。
+  function refreshEntries() {
+    var rows = entryRows();
+    rows.forEach(function(row, index) {
+      var spec = specOf(field(row, 'kind').value);
+      row.querySelector('.plan-entry-no').textContent =
+        rows.length > 1 ? (index + 1) + '件目' : '予定';
+      row.querySelector('.plan-entry-remove').style.display = rows.length > 1 ? '' : 'none';
+      row.querySelector('.plan-entry-place-label').textContent = spec.place || '場所・メモ';
+      field(row, 'note').placeholder = spec.place ? spec.place + 'を入力' : '任意';
+      row.querySelector('.plan-entry-time-row').style.display = spec.time ? '' : 'none';
+    });
+    var single = rows.length === 1 ? specOf(field(rows[0], 'kind').value) : null;
+    var allDay = !!single && !single.time;
+    addButton.disabled = allDay || rows.length >= MAX_ENTRIES;
+    document.getElementById('plan-dialog-add-hint').style.display = allDay ? '' : 'none';
     document.getElementById('plan-dialog-span-row').style.display =
-      spec.span ? '' : 'none';
+      single && single.span ? '' : 'none';
+  }
+
+  function showError(message) {
+    errorBox.textContent = message || '';
+    errorBox.style.display = message ? '' : 'none';
   }
 
   function openDialog(cell) {
     editing = cell;
+    var entries = JSON.parse(cell.dataset.entries || '[]');
     document.getElementById('plan-dialog-title').textContent =
       cell.dataset.workerName + '　' + cell.dataset.dateLabel;
     document.getElementById('plan-dialog-sub').textContent =
-      cell.dataset.kind ? '登録済みの予定を編集します' : '新しく予定を入れます';
-    document.getElementById('plan-dialog-kind').value =
-      cell.dataset.kind || activeKind() || kinds[0];
-    document.getElementById('plan-dialog-start').value = cell.dataset.start || '';
-    document.getElementById('plan-dialog-end').value = cell.dataset.end || '';
-    document.getElementById('plan-dialog-note').value = cell.dataset.note || '';
+      entries.length > 1 ? 'この日は予定が ' + entries.length + ' 件あります'
+        : entries.length ? '登録済みの予定を編集します' : '新しく予定を入れます';
+    entriesBox.innerHTML = '';
+    if (entries.length) {
+      entries.forEach(addEntry);
+    } else {
+      addEntry({kind: activeKind() || kinds[0]});
+    }
     document.getElementById('plan-dialog-until').value = '';
     document.getElementById('plan-dialog-delete').style.visibility =
-      cell.dataset.kind ? 'visible' : 'hidden';
-    applyKindFields();
+      entries.length ? 'visible' : 'hidden';
+    showError('');
+    refreshEntries();
     dialog.showModal();
   }
 
-  document.getElementById('plan-dialog-kind').addEventListener('change', applyKindFields);
+  // 1日を時間で分ける。直前の予定の終了を、足す予定の開始にしておく。
+  addButton.addEventListener('click', function() {
+    var rows = entryRows();
+    var last = rows[rows.length - 1];
+    var lastHasTime = specOf(field(last, 'kind').value).time;
+    // 分ける前の1件が「所定どおり」（開始が空欄）なら、所定の開始を入れておく
+    if (rows.length === 1 && lastHasTime && !field(last, 'start').value) {
+      field(last, 'start').value = STANDARD_START;
+    }
+    var start = lastHasTime ? field(last, 'end').value : '';
+    var row = addEntry({
+      kind: 'site',
+      start_time: start,
+      end_time: start && start < STANDARD_END ? STANDARD_END : '',
+    });
+    refreshEntries();
+    field(row, 'note').focus();
+  });
+
+  function collectEntries() {
+    return entryRows().map(function(row) {
+      var kind = field(row, 'kind').value;
+      var spec = specOf(kind);
+      return {
+        id: row.dataset.id,
+        kind: kind,
+        start_time: spec.time ? field(row, 'start').value : '',
+        end_time: spec.time ? field(row, 'end').value : '',
+        note: field(row, 'note').value,
+      };
+    });
+  }
 
   document.getElementById('plan-dialog-cancel').addEventListener('click', function() {
     dialog.close();
@@ -477,20 +605,29 @@ document.addEventListener('DOMContentLoaded', function() {
 
   document.getElementById('plan-dialog-save').addEventListener('click', function() {
     if (!editing) { return; }
-    var kind = document.getElementById('plan-dialog-kind').value;
-    var spec = KIND_FIELDS[kind] || {};
-    save(editing, {
-      kind: kind,
-      start_time: spec.time ? document.getElementById('plan-dialog-start').value : '',
-      end_time: spec.time ? document.getElementById('plan-dialog-end').value : '',
-      note: document.getElementById('plan-dialog-note').value,
-      until: spec.span ? document.getElementById('plan-dialog-until').value : '',
-    }).then(function() { dialog.close(); });
+    var entries = collectEntries();
+    var single = entries.length === 1 ? specOf(entries[0].kind) : null;
+    showError('');
+    post(entriesUrl, editing, {
+      entries: JSON.stringify(entries),
+      until: single && single.span ? document.getElementById('plan-dialog-until').value : '',
+    }).then(function() {
+      dialog.close();
+    }).catch(function(err) {
+      showError(err.message);
+    });
   });
 
   document.getElementById('plan-dialog-delete').addEventListener('click', function() {
     if (!editing) { return; }
-    save(editing, {kind: ''}).then(function() { dialog.close(); });
+    var count = Number(editing.dataset.count || 0);
+    if (count > 1 && !confirm('この日の予定 ' + count + ' 件をすべて削除しますか？')) { return; }
+    showError('');
+    post(entriesUrl, editing, {entries: '[]'}).then(function() {
+      dialog.close();
+    }).catch(function(err) {
+      showError(err.message);
+    });
   });
 
   // --- マスの操作 ---
@@ -504,15 +641,28 @@ document.addEventListener('DOMContentLoaded', function() {
       if (pending) { clearTimeout(pending); }
       pending = setTimeout(function() {
         pending = null;
+        // 時間で分けてある日（予定が2件以上）は、塗ると1件に潰れてしまうのでダイアログで直す
+        if (Number(cell.dataset.count || 0) > 1) {
+          openDialog(cell);
+          return;
+        }
         var kind = activeKind();
         // 同じ区分をもう一度塗ったら消す
         if (kind && cell.dataset.kind === kind) { kind = ''; }
         // 塗り替えでは現場名と時刻を引き継ぐ。区分だけ変えたいことのほうが多い。
-        save(cell, {
+        post(setUrl, cell, {
           kind: kind,
           start_time: kind ? (cell.dataset.start || '') : '',
           end_time: kind ? (cell.dataset.end || '') : '',
           note: kind ? (cell.dataset.note || '') : '',
+        }).catch(function(err) {
+          if (err.data && err.data.multiple) {
+            // 別の画面で時間を分けてあった。最新の予定で描き直してからダイアログを開く
+            paint(cell, err.data);
+            openDialog(cell);
+            return;
+          }
+          alert('保存できませんでした: ' + err.message);
         });
       }, CLICK_DELAY);
     });
