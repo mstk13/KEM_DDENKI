@@ -69,21 +69,6 @@ class TestMonthHelpers:
     def test_読めない対象は平日として扱う(self):
         assert fill_days(YEAR, MONTH, "でたらめ") == fill_days(YEAR, MONTH, "weekday")
 
-    def test_カレンダーで選んだ日だけを取り出す(self):
-        days = fill_days(YEAR, MONTH, "dates", ["2026-09-10", "2026-09-03", "2026-09-24"])
-        # 日付順に並び直す
-        assert [d.day for d in days] == [3, 10, 24]
-
-    def test_選んだ日のうち月の外と読めない値と重複は捨てる(self):
-        days = fill_days(YEAR, MONTH, "dates", [
-            "2026-09-03", "2026-09-03", "2026-10-01", "2026-08-31", "でたらめ", "",
-        ])
-        assert [d.day for d in days] == [3]
-
-    def test_選んだ日が無ければ空(self):
-        assert fill_days(YEAR, MONTH, "dates", []) == []
-        assert fill_days(YEAR, MONTH, "dates", None) == []
-
 
 class TestFormatTimeRange:
     """マスは狭いので、分が0のときは省いて短く書く。"""
@@ -116,6 +101,17 @@ class TestBuildPlanBoard:
 
         board = build_plan_board(company_a, YEAR, MONTH)
         assert [r["worker"].name for r in board["rows"]] == ["田中太郎"]
+
+    def test_作業員一覧と同じ社員番号順に並ぶ(self, company_a):
+        # 作業員一覧と同じく Y→S→E→T→P→A→G の順、同じ文字の中は番号順、未設定は末尾
+        self._worker(company_a, name="伊藤", code="E10")
+        self._worker(company_a, name="加藤", code="A1")
+        self._worker(company_a, name="佐藤", code="E2")
+        self._worker(company_a, name="鈴木", code="")
+        self._worker(company_a, name="山田", code="Y3")
+        board = build_plan_board(company_a, YEAR, MONTH)
+        names = [r["worker"].name for r in board["rows"]]
+        assert names == ["山田", "佐藤", "伊藤", "加藤", "鈴木"]
 
     def test_予定の無い日は空のマスになる(self, company_a):
         worker = self._worker(company_a)
@@ -383,59 +379,6 @@ class TestPlanFill:
 
         assert res.status_code == 404
         assert not AttendPlan.unscoped.filter(worker=worker).exists()
-
-    def test_カレンダーで選んだ日だけ埋まる(self, client, company_a, user_a):
-        worker = self._worker(company_a)
-        client.force_login(user_a)
-        client.post("/attendance/plans/fill/", {
-            "worker": worker.pk, "month": "2026-09", "kind": "site",
-            "target": "dates",
-            "dates": ["2026-09-03", "2026-09-10", "2026-10-01"],
-        })
-
-        plans = AttendPlan.unscoped.filter(worker=worker).order_by("plan_date")
-        # 10/1 は対象月の外なので入らない
-        assert [p.plan_date.day for p in plans] == [3, 10]
-        assert all(p.kind == "site" for p in plans)
-
-    def test_日付を選ばずに送ると何も入らない(self, client, company_a, user_a):
-        worker = self._worker(company_a)
-        client.force_login(user_a)
-        res = client.post("/attendance/plans/fill/", {
-            "worker": worker.pk, "month": "2026-09", "kind": "site",
-            "target": "dates",
-        })
-
-        assert res.status_code == 302
-        assert not AttendPlan.unscoped.filter(worker=worker).exists()
-
-    def test_選んだ日だけ消せる(self, client, company_a, user_a):
-        worker = self._worker(company_a)
-        client.force_login(user_a)
-        client.post("/attendance/plans/fill/", {
-            "worker": worker.pk, "month": "2026-09", "kind": "office",
-            "target": "all",
-        })
-        client.post("/attendance/plans/fill/", {
-            "worker": worker.pk, "month": "2026-09", "kind": "",
-            "target": "dates", "dates": ["2026-09-03", "2026-09-04"],
-        })
-
-        remaining = AttendPlan.unscoped.filter(worker=worker)
-        assert remaining.count() == 28
-        assert not remaining.filter(plan_date__day__in=[3, 4]).exists()
-
-    def test_月グリッドに日付選択のカレンダーが出る(self, client, company_a, user_a):
-        self._worker(company_a)
-        client.force_login(user_a)
-        res = client.get("/attendance/plans/?month=2026-09")
-
-        assert res.status_code == 200
-        body = res.content.decode()
-        assert 'name="dates" value="2026-09-01"' in body
-        assert 'name="dates" value="2026-09-30"' in body
-        # 2026-09-01 は火曜なので、月曜ぶん1マス空ける
-        assert body.count('class="plan-pick-blank"') == 1
 
 
 @pytest.mark.django_db

@@ -21,7 +21,7 @@ from apps.workers.models import (
     Worker,
     WorkerEvaluation,
     WorkerQualification,
-    employee_code_sort_key,
+    sort_workers_by_code,
 )
 
 
@@ -114,14 +114,7 @@ def document_alert_dashboard(request):
 
 def _sort_by_employee_code(qs):
     """社員番号のアルファベット部ごとに番号順へ並べる。同順位はフリガナ（なければ氏名）順。"""
-    return sorted(
-        qs,
-        key=lambda w: (
-            employee_code_sort_key(w.employee_code),
-            w.name_kana or w.name,
-            w.name,
-        ),
-    )
+    return sort_workers_by_code(qs)
 
 
 @login_required
