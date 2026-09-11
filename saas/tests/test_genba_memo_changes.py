@@ -13,7 +13,7 @@ from decimal import Decimal
 
 import pytest
 
-from apps.masters.models import Supplier, WorkType
+from apps.masters.models import CostCategory, Supplier, WorkType
 from apps.permissions.models import Role, UserRole
 from apps.permissions.services import can_approve_report
 from apps.reports.forms import DailyReportForm
@@ -194,6 +194,55 @@ class TestApprovalPermission:
         )
         UserRole.unscoped.create(company=company_a, user=user_a, role=role)
         assert can_approve_report(user_a) is True
+
+    def test_developer_position_can_approve(self, company_a, user_a):
+        """IT 担当は役職「Developer」。本番はロールが0件なので役職で通す（ADR-0039）。"""
+        position = Position.unscoped.create(company=company_a, name="Developer", rank=8)
+        Worker.unscoped.create(
+            company=company_a, name="開発花子", hourly_cost=0,
+            position=position, user=user_a,
+        )
+        user_a.refresh_from_db()
+        assert can_approve_report(user_a) is True
+
+    @pytest.mark.parametrize("name", ["役員", "正社員", "developer"])
+    def test_other_positions_cannot_approve(self, company_a, user_a, name):
+        """社長・Developer 以外の役職は承認できない。役職名は大文字小文字も一致させる。"""
+        position = Position.unscoped.create(company=company_a, name=name, rank=5)
+        Worker.unscoped.create(
+            company=company_a, name="一般次郎", hourly_cost=0,
+            position=position, user=user_a,
+        )
+        user_a.refresh_from_db()
+        assert can_approve_report(user_a) is False
+
+    def test_developer_position_sees_approve_button_and_can_approve(
+        self, client, company_a, user_a, site, worker, work_type,
+    ):
+        # 承認すると労務費を計上する。原価区分は全テナント共通のシステム定義（apps/core/seed.py）
+        CostCategory.objects.get_or_create(
+            code="labor", defaults={"name": "労務費", "display_order": 2},
+        )
+        position = Position.unscoped.create(company=company_a, name="Developer", rank=8)
+        Worker.unscoped.create(
+            company=company_a, name="開発花子", hourly_cost=0,
+            position=position, user=user_a,
+        )
+        report = DailyReport.unscoped.create(
+            company=company_a, site=site, worker=worker,
+            report_date="2026-08-01", work_type=work_type,
+            work_hours=Decimal("8.00"),
+            status=DailyReport.Status.SUBMITTED,
+        )
+        client.force_login(user_a)
+
+        body = client.get("/reports/").content.decode()
+        assert f"/reports/{report.pk}/approve/" in body
+        assert "選択した日報を一括承認" in body
+
+        client.get(f"/reports/{report.pk}/approve/")
+        report.refresh_from_db()
+        assert report.status == DailyReport.Status.APPROVED
 
     def test_approve_view_forbidden_for_plain_user(
         self, client, company_a, user_a, site, worker, work_type,
