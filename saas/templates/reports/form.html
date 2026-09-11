@@ -17,6 +17,7 @@
   <div class="card-body">
     <form method="post">
       {% csrf_token %}
+      {% if back_url %}<input type="hidden" name="next" value="{{ back_url }}">{% endif %}
       {% for field in form %}
       {% if field.name == "process_other" or field.name == "start_time" or field.name == "end_time" or field.name == "end_date" %}
       {# process の直後 / 開始日・終了日の行でまとめて出す #}
@@ -64,7 +65,11 @@
       <div class="form-actions">
         <button type="submit" name="action" value="draft" class="btn btn-outline">下書き保存</button>
         <button type="submit" name="action" value="submit" class="btn btn-primary">提出する</button>
+        {% if back_url %}
+        <a href="{{ back_url }}" class="btn btn-outline">戻る</a>
+        {% else %}
         <a href="{% url 'reports:list' %}" class="btn btn-outline">キャンセル</a>
+        {% endif %}
         {% if form.instance.pk and can_delete %}
         <a href="{% url 'reports:delete' form.instance.pk %}" class="btn btn-outline btn-danger-link" style="margin-left:auto;color:var(--danger);">この日報を削除</a>
         {% endif %}
