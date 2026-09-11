@@ -142,12 +142,23 @@ def is_president(user) -> bool:
     return bool(profile and profile.position and profile.position.name == "社長")
 
 
+# 日報を承認できる役職（社長は is_president で見る）。IT 担当の役職は「Developer」。
+# developer ロールは本番で0件のため、ロールだけで判定すると IT が承認できない（ADR-0039）。
+REPORT_APPROVER_POSITIONS = ("Developer",)
+
+
 def can_approve_report(user) -> bool:
     """日報を承認できるユーザーかどうかを判定する。
 
-    承認できるのは社長と IT（developer ロール）のみ。
+    承認できるのは社長と IT のみ（ADR-0007）。
+      * 社長 … is_president（superuser・president ロール・役職「社長」）
+      * IT   … developer ロール、または役職「Developer」（ADR-0039）
     """
-    return is_president(user) or has_role(user, "developer")
+    return (
+        is_president(user)
+        or has_role(user, "developer")
+        or get_position_name(user) in REPORT_APPROVER_POSITIONS
+    )
 
 
 def can_delete_report(user, report) -> bool:
