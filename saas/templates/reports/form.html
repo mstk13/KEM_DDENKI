@@ -18,8 +18,8 @@
     <form method="post">
       {% csrf_token %}
       {% for field in form %}
-      {% if field.name == "work_type_other" or field.name == "start_time" or field.name == "end_time" or field.name == "end_date" %}
-      {# work_type の直後 / 開始日・終了日の行でまとめて出す #}
+      {% if field.name == "process_other" or field.name == "start_time" or field.name == "end_time" or field.name == "end_date" %}
+      {# process の直後 / 開始日・終了日の行でまとめて出す #}
       {% elif field.name == "start_date" %}
       <div class="form-group">
         <label for="{{ form.start_date.id_for_label }}">開始（日付・時刻）</label>
@@ -36,16 +36,16 @@
       <div class="form-group">
         <label for="{{ field.id_for_label }}">{{ field.label }}</label>
         {{ field }}
-        {% if field.name == "site" or field.name == "process" %}
+        {% if field.name == "site" or field.name == "work_type" %}
         <div class="form-hint">一覧から選ぶか、直接入力できます。新しい名前はそのまま登録されます。</div>
         {% endif %}
-        {% if field.name == "work_type" %}
-        <div class="form-hint">一覧に無い工種は「その他」を選んで入力してください。登録され、次回から候補に出ます。</div>
+        {% if field.name == "process" %}
+        <div class="form-hint">一覧に無い工程は「その他」を選んで入力してください。この現場の工程として登録され、次回から候補に出ます。</div>
         {{ field.errors }}
-        <div id="work-type-other-wrap" style="margin-top:8px;" {% if form.work_type.value != "__other__" and not form.work_type_other.errors %}hidden{% endif %}>
-          <label for="{{ form.work_type_other.id_for_label }}">{{ form.work_type_other.label }}</label>
-          {{ form.work_type_other }}
-          {{ form.work_type_other.errors }}
+        <div id="process-other-wrap" style="margin-top:8px;" {% if form.process.value != "__other__" and not form.process_other.errors %}hidden{% endif %}>
+          <label for="{{ form.process_other.id_for_label }}">{{ form.process_other.label }}</label>
+          {{ form.process_other }}
+          {{ form.process_other.errors }}
         </div>
         {% endif %}
         {% if field.name == "workers" %}
@@ -57,7 +57,7 @@
         {% if field.name == "work_hours" %}
         <div class="form-hint">開始と終了を入れると自動で計算されます（8時間を超える場合は休憩1時間を差し引きます）。</div>
         {% endif %}
-        {% if field.name != "work_type" %}{{ field.errors }}{% endif %}
+        {% if field.name != "process" %}{{ field.errors }}{% endif %}
       </div>
       {% endif %}
       {% endfor %}
@@ -80,8 +80,8 @@
 <datalist id="weather-list">
   {% for name in weather_choices %}<option value="{{ name }}"></option>{% endfor %}
 </datalist>
-<datalist id="process-list">
-  {% for name in process_names %}<option value="{{ name }}"></option>{% endfor %}
+<datalist id="worktype-list">
+  {% for name in worktype_names %}<option value="{{ name }}"></option>{% endfor %}
 </datalist>
 
 <script>
@@ -100,18 +100,18 @@
     if (!orderer.value) fillOrderer();
   }
 
-  // ---- 工種で「その他」を選んだら入力欄を出す ----
-  var workType = document.getElementById('id_work_type');
-  var otherWrap = document.getElementById('work-type-other-wrap');
-  var otherInput = document.getElementById('id_work_type_other');
+  // ---- 工程で「その他」を選んだら入力欄を出す ----
+  var process = document.getElementById('id_process');
+  var otherWrap = document.getElementById('process-other-wrap');
+  var otherInput = document.getElementById('id_process_other');
   function toggleOther() {
-    if (!workType || !otherWrap) return;
-    var isOther = workType.value === '__other__';
+    if (!process || !otherWrap) return;
+    var isOther = process.value === '__other__';
     otherWrap.hidden = !isOther;
     if (isOther && otherInput) otherInput.focus();
   }
-  if (workType) {
-    workType.addEventListener('change', toggleOther);
+  if (process) {
+    process.addEventListener('change', toggleOther);
   }
 
   // ---- 開始日・終了日を日報の日付に合わせて埋める ----

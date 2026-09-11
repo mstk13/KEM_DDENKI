@@ -1,9 +1,9 @@
-"""日報フォーム: 開始・終了に日付を持てること（日またぎ）と、工種の選択式＋手入力。
+"""日報フォーム: 開始・終了に日付を持てること（日またぎ）と、工程の選択式＋手入力。
 
 - 開始日・終了日を入れると、日をまたぐ作業時間が正しく計算される
 - 日付が空なら従来どおり日報の日付の作業として扱う（終了が開始以前なら翌日扱い）
-- 工種は標準の6つ（見積り・現調・施工・試験・追加工事・納入）を先頭に、登録済みの
-  工種を続けて選べる。「その他」で入力した工種は登録され、次回から候補に出る
+- 工程は標準の6つ（見積り・現調・施工・試験・追加工事・納入）を先頭に、会社で使われて
+  いる工程を続けて選べる。「その他」で入力した工程はその現場に登録され、次回から候補に出る
 """
 
 import datetime
@@ -14,13 +14,13 @@ from django.urls import reverse
 
 from apps.masters.models import WorkType
 from apps.reports.forms import (
-    STANDARD_WORK_TYPE_NAMES,
-    WORK_TYPE_OTHER,
+    PROCESS_OTHER,
+    STANDARD_PROCESS_NAMES,
     DailyReportForm,
     OfficeDailyReportForm,
 )
 from apps.reports.models import DailyReport
-from apps.sites.models import Site
+from apps.sites.models import Process, Site
 from apps.workers.models import Worker
 
 
@@ -53,7 +53,7 @@ def _post(site_name, worker, work_type_name, **overrides):
         "weather": "",
         "process": "",
         "work_type": work_type_name,
-        "work_type_other": "",
+        "process_other": "",
         "work_description": "配線作業",
         "start_date": "",
         "start_time": "",
@@ -253,94 +253,101 @@ class TestOfficeCrossDayPeriod:
 
 
 @pytest.mark.django_db
-class TestWorkTypeChoices:
+class TestProcessChoices:
     def _choice_values(self, form):
-        return [value for value, _label in form.fields["work_type"].widget.choices]
+        return [value for value, _label in form.fields["process"].widget.choices]
 
-    def test_標準の工種が登録され先頭に順番どおり並ぶ(self, company_a, work_type):
-        form = DailyReportForm(company=company_a)
+    def test_標準の工程が先頭に順番どおり並ぶ(self, company_a, site, work_type):
+        Process.unscoped.create(company=company_a, site=site, work_type=work_type, name="配線")
 
-        values = self._choice_values(form)
-        assert values[0] == ""
-        assert tuple(values[1:7]) == STANDARD_WORK_TYPE_NAMES
-        # 既にある工種はその後ろ、最後に「その他」
-        assert values[7:] == ["電気幹線", WORK_TYPE_OTHER]
-        assert WorkType.unscoped.filter(
-            company=company_a, name__in=STANDARD_WORK_TYPE_NAMES,
-        ).count() == 6
-
-    def test_標準の工種は二重に登録しない(self, company_a):
-        DailyReportForm(company=company_a)
-        DailyReportForm(company=company_a)
-
-        assert WorkType.unscoped.filter(company=company_a).count() == 6
-
-    def test_無効にした工種は候補に出ない(self, company_a, work_type):
-        work_type.is_active = False
-        work_type.save()
-
-        assert "電気幹線" not in self._choice_values(DailyReportForm(company=company_a))
-
-    def test_その他で入力した工種が登録され次回の候補に出る(
-        self, company_a, site, worker,
-    ):
-        report = _save(company_a, _post(
-            site.name, worker, WORK_TYPE_OTHER, work_type_other="保守点検", work_hours="8.00",
-        ))
-
-        assert report.work_type.name == "保守点検"
-        assert report.work_type.company_id == company_a.pk
         values = self._choice_values(DailyReportForm(company=company_a))
-        assert values.index("保守点検") > values.index("納入")
-        assert values[-1] == WORK_TYPE_OTHER
 
-    def test_その他を選んで空のままはエラー(self, company_a, site, worker):
-        form = DailyReportForm(data=_post(
-            site.name, worker, WORK_TYPE_OTHER, work_hours="8.00",
-        ), company=company_a)
+        assert values[0] == ""
+        assert tuple(values[1:7]) == STANDARD_PROCESS_NAMES
+        # 会社で使われている工程はその後ろ、最後に「その他」
+        assert values[7:] == ["配線", PROCESS_OTHER]
 
-        assert not form.is_valid()
-        assert "work_type_other" in form.errors
-        assert not WorkType.unscoped.filter(company=company_a, code__startswith="W").exclude(
-            name__in=STANDARD_WORK_TYPE_NAMES,
-        ).exists()
+    def test_標準の工程は事前には登録しない(self, company_a):
+        DailyReportForm(company=company_a)
 
-    def test_工種未選択はエラー(self, company_a, site, worker):
-        form = DailyReportForm(data=_post(
-            site.name, worker, "", work_hours="8.00",
-        ), company=company_a)
+        assert not Process.unscoped.filter(company=company_a).exists()
 
-        assert not form.is_valid()
-        assert "work_type" in form.errors
-
-    def test_編集中の日報の工種が無効でも候補に残る(
+    def test_標準の工程を選ぶとその現場の工程として登録される(
         self, company_a, site, worker, work_type,
     ):
+        report = _save(company_a, _post(
+            site.name, worker, work_type.name, process="施工", work_hours="8.00",
+        ))
+
+        assert report.process.name == "施工"
+        assert report.process.site_id == site.pk
+
+    def test_その他で入力した工程が登録され次回の候補に出る(
+        self, company_a, site, worker, work_type,
+    ):
+        report = _save(company_a, _post(
+            site.name, worker, work_type.name,
+            process=PROCESS_OTHER, process_other="保守点検", work_hours="8.00",
+        ))
+
+        assert report.process.name == "保守点検"
+        assert report.process.site_id == site.pk
+        values = self._choice_values(DailyReportForm(company=company_a))
+        assert values.index("保守点検") > values.index("納入")
+        assert values[-1] == PROCESS_OTHER
+
+    def test_その他を選んで空のままはエラー(self, company_a, site, worker, work_type):
+        form = DailyReportForm(data=_post(
+            site.name, worker, work_type.name, process=PROCESS_OTHER, work_hours="8.00",
+        ), company=company_a)
+
+        assert not form.is_valid()
+        assert "process_other" in form.errors
+        assert not Process.unscoped.filter(company=company_a).exists()
+
+    def test_工程は空でもよい(self, company_a, site, worker, work_type):
+        report = _save(company_a, _post(site.name, worker, work_type.name, work_hours="8.00"))
+
+        assert report.process is None
+
+    def test_編集中の日報の工程が選ばれた状態で開く(
+        self, company_a, site, worker, work_type,
+    ):
+        process = Process.unscoped.create(
+            company=company_a, site=site, work_type=work_type, name="配線",
+        )
         report = DailyReport.unscoped.create(
             company=company_a, site=site, worker=worker, work_type=work_type,
-            report_date="2026-09-01", work_hours=Decimal("8.00"),
+            process=process, report_date="2026-09-01", work_hours=Decimal("8.00"),
         )
-        work_type.is_active = False
-        work_type.save()
 
         form = DailyReportForm(instance=report, company=company_a)
 
-        assert "電気幹線" in self._choice_values(form)
-        assert form.initial["work_type"] == "電気幹線"
+        assert form.initial["process"] == "配線"
+        assert "配線" in self._choice_values(form)
+
+    def test_工種は手入力のまま(self, company_a, site, worker):
+        """工種は一覧に無い名前を直接送っても登録される（従来どおり）。"""
+        report = _save(company_a, _post(site.name, worker, "弱電", work_hours="8.00"))
+
+        assert report.work_type.name == "弱電"
 
 
 @pytest.mark.django_db
 class TestReportFormPage:
-    def test_画面に工種の選択肢と開始日終了日の欄が出る(self, client, user_a, company_a):
+    def test_画面に工程の選択肢と開始日終了日の欄が出る(self, client, user_a, company_a):
         client.force_login(user_a)
 
         res = client.get(reverse("reports:create"))
 
         assert res.status_code == 200
         html = res.content.decode()
-        assert '<select name="work_type"' in html
-        for name in STANDARD_WORK_TYPE_NAMES:
+        assert '<select name="process"' in html
+        for name in STANDARD_PROCESS_NAMES:
             assert f'<option value="{name}">{name}</option>' in html
-        assert 'name="work_type_other"' in html
+        assert 'name="process_other"' in html
+        # 工種は手入力（datalist）のまま
+        assert 'name="work_type"' in html
+        assert 'list="worktype-list"' in html
         assert 'name="start_date"' in html
         assert 'name="end_date"' in html
