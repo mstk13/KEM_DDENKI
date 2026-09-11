@@ -16,12 +16,13 @@ FIELD_CODE_PREFIXES = ("E", "T")
 # 事務の日報に付ける工種。現場ごとの原価区分を保つため、無ければ作る。
 OFFICE_WORK_TYPE_NAME = "事務"
 
-# 現場作業の日報で工種として最初から選べるもの。この順で候補の先頭に出す。
-# 会社に無ければ日報の画面を開いたときに登録する（ensure_standard_work_types）。
-STANDARD_WORK_TYPE_NAMES = ("見積り", "現調", "施工", "試験", "追加工事", "納入")
+# 現場作業の日報で工程として最初から選べるもの。この順で候補の先頭に出す。
+# 工程は現場ごとに持つ（Process は site に紐づく）ので、事前には登録せず、
+# 日報を保存したときにその現場の工程として登録する（_resolve_process）。
+STANDARD_PROCESS_NAMES = ("見積り", "現調", "施工", "試験", "追加工事", "納入")
 
-# 工種の選択肢で「一覧に無い工種を入力する」を表す値
-WORK_TYPE_OTHER = "__other__"
+# 工程の選択肢で「一覧に無い工程を入力する」を表す値
+PROCESS_OTHER = "__other__"
 
 
 def is_office_reporter(user):
@@ -72,46 +73,36 @@ def resolve_site(company, name):
     return Site.unscoped.create(company=company, code=code, name=name)
 
 
-def resolve_work_type(company, name, display_order=0):
+def resolve_work_type(company, name):
     """工種名から工種を引く。無ければ登録する。"""
     work_type = WorkType.unscoped.filter(company=company, name=name).first()
     if work_type:
         return work_type
     code = _next_code(WorkType.unscoped.filter(company=company), "W")
-    return WorkType.unscoped.create(
-        company=company, code=code, name=name, display_order=display_order,
-    )
+    return WorkType.unscoped.create(company=company, code=code, name=name)
 
 
-def ensure_standard_work_types(company):
-    """標準の工種（STANDARD_WORK_TYPE_NAMES）を会社に揃える。無いものだけ登録する。"""
-    for order, name in enumerate(STANDARD_WORK_TYPE_NAMES, start=1):
-        resolve_work_type(company, name, display_order=order)
+def process_choice_names(company):
+    """日報で選べる工程名。標準の工程を決まった順で先に、その後に会社で使われている工程を名前順で。
 
-
-def work_type_choice_names(company):
-    """日報で選べる工種名。標準の工種を決まった順で先に、その後に他の有効な工種を名前順で。
-
-    手入力で登録された工種も有効なうちはここに入るので、次回から候補として選べる。
+    「その他」で入力して登録された工程もここに入るので、次回から候補として選べる。
     """
-    active = list(
-        WorkType.unscoped.filter(company=company, is_active=True)
-        .values_list("name", flat=True)
+    used = set(
+        Process.unscoped.filter(company=company).values_list("name", flat=True)
     )
-    standard = [name for name in STANDARD_WORK_TYPE_NAMES if name in active]
-    others = sorted(name for name in active if name not in STANDARD_WORK_TYPE_NAMES)
-    return standard + others
+    others = sorted(name for name in used if name not in STANDARD_PROCESS_NAMES)
+    return list(STANDARD_PROCESS_NAMES) + others
 
 
 class DailyReportForm(forms.ModelForm):
     """日報の入力フォーム。
 
-    現場・天候・工程は、一覧から選ぶことも手入力することもできる。
+    現場・天候・工種は、一覧から選ぶことも手入力することもできる。
     HTML の datalist を使い、入力された名前が既存に無ければ登録する。
 
-    工種は選択式。標準の工種（見積り・現調・施工・試験・追加工事・納入）を先頭に、
-    登録済みの工種を並べる。一覧に無い工種は「その他」を選んで work_type_other に
-    入力すると登録され、次回から候補に出る。
+    工程は選択式。標準の工程（見積り・現調・施工・試験・追加工事・納入）を先頭に、
+    会社で使われている工程を並べる。一覧に無い工程は「その他」を選んで process_other に
+    入力すると、その現場の工程として登録され、次回から候補に出る。
 
     開始・終了は時刻だけでなく日付も入れられる（夜間工事などで日をまたぐため）。
     日付が空なら日報の日付の作業として扱う。
@@ -144,17 +135,17 @@ class DailyReportForm(forms.ModelForm):
     process = forms.CharField(
         label="工程",
         required=False,
-        widget=forms.TextInput(attrs={"list": "process-list", "autocomplete": "off"}),
-    )
-    work_type = forms.CharField(
-        label="工種",
         widget=forms.Select(),
     )
-    work_type_other = forms.CharField(
-        label="新しい工種",
+    process_other = forms.CharField(
+        label="新しい工程",
         required=False,
         max_length=200,
         widget=forms.TextInput(attrs={"placeholder": "例: 保守点検", "autocomplete": "off"}),
+    )
+    work_type = forms.CharField(
+        label="工種",
+        widget=forms.TextInput(attrs={"list": "worktype-list", "autocomplete": "off"}),
     )
 
     # 1日報＝1作業員（現場・作業員・日付・工種で一意）なので、
@@ -169,7 +160,7 @@ class DailyReportForm(forms.ModelForm):
 
     field_order = [
         "site", "orderer", "workers", "report_date", "weather",
-        "process", "work_type", "work_type_other", "work_description",
+        "process", "process_other", "work_type", "work_description",
         "start_date", "start_time", "end_date", "end_time", "work_hours",
         "is_partner_worker", "partner", "memo",
     ]
@@ -217,19 +208,18 @@ class DailyReportForm(forms.ModelForm):
             self.fields[name].required = False
 
         if company:
-            ensure_standard_work_types(company)
-            names = work_type_choice_names(company)
-            # 編集中の日報の工種が無効になっていても、選び直せるよう候補に残す
+            names = process_choice_names(company)
+            # 編集中の日報の工程が候補に無くても、選び直せるよう候補に残す
             current = (
-                self.instance.work_type.name
-                if self.is_edit and self.instance.work_type_id else ""
+                self.instance.process.name
+                if self.is_edit and self.instance.process_id else ""
             )
             if current and current not in names:
                 names.append(current)
-            self.fields["work_type"].widget.choices = [
-                ("", "選択してください"),
+            self.fields["process"].widget.choices = [
+                ("", "（なし）"),
                 *((name, name) for name in names),
-                (WORK_TYPE_OTHER, "その他（新しい工種を入力）"),
+                (PROCESS_OTHER, "その他（新しい工程を入力）"),
             ]
 
             # 候補は現場作業の日報を書く区分（E・T）に揃える。
@@ -302,14 +292,14 @@ class DailyReportForm(forms.ModelForm):
     def clean_work_type(self):
         name = (self.cleaned_data.get("work_type") or "").strip()
         if not name:
-            raise forms.ValidationError("工種を選んでください。")
+            raise forms.ValidationError("工種を入力してください。")
         return name
-
-    def clean_work_type_other(self):
-        return (self.cleaned_data.get("work_type_other") or "").strip()
 
     def clean_process(self):
         return (self.cleaned_data.get("process") or "").strip()
+
+    def clean_process_other(self):
+        return (self.cleaned_data.get("process_other") or "").strip()
 
     def clean(self):
         cleaned = super().clean()
@@ -319,13 +309,14 @@ class DailyReportForm(forms.ModelForm):
                 "会社が特定できないため保存できません。管理者に連絡してください。",
             )
 
-        # 工種で「その他」を選んだら、入力された名前を工種にする（save で登録される）
-        if cleaned.get("work_type") == WORK_TYPE_OTHER:
-            other = cleaned.get("work_type_other") or ""
+        # 工程で「その他」を選んだら、入力された名前を工程にする
+        # （save でその現場の工程として登録される）
+        if cleaned.get("process") == PROCESS_OTHER:
+            other = cleaned.get("process_other") or ""
             if other:
-                cleaned["work_type"] = other
+                cleaned["process"] = other
             else:
-                self.add_error("work_type_other", "新しい工種を入力してください。")
+                self.add_error("process_other", "新しい工程を入力してください。")
 
         # 協力会社は「協力会社の作業員」の場合のみ記入する。
         if cleaned.get("is_partner_worker"):
