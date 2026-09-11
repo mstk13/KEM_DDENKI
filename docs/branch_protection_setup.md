@@ -105,7 +105,9 @@ git reset --hard origin/main   # 試したコミットを消す
 ## 開発メンバーを追加するとき
 
 1. https://github.com/mstk13/KEM_DDENKI/settings/access で招待する（**Write** 権限）
-2. Tailscale にその人の端末を追加する（開発環境・本番を見るのに必要）
+2. Tailscale にその人の端末を追加する（開発環境・本番を見るのに必要）。
+   端末に Tailscale を入れ、共有アカウント **kec.apps.network@gmail.com**（Google でログイン）で
+   サインインしてもらう。パスワードは直接伝え、リポジトリには書かない（手順: [tailscale_setup.md](tailscale_setup.md)）
 3. [開発者ガイド](developer_guide.md) を渡す
 
 Admin 権限は渡さないでください。Write があれば `developer` への push と PR 作成はできます。

@@ -18,7 +18,9 @@
 | **本番** | https://desktop-rmsk0vg.tail8efe0d.ts.net/ | `main` ブランチが**自動で**反映される | 社員全員 |
 
 - 開発環境と本番は、**データベースも完全に別**です。開発環境で何をしても本番のデータは壊れません。
-- どちらも Tailscale VPN の中からのみ開けます。
+- どちらも Tailscale VPN の中からのみ開けます。Tailscale を入れ、共有アカウント
+  **kec.apps.network@gmail.com**（Google でログイン。パスワードは管理者に確認）でサインインしてください
+  （手順: [tailscale_setup.md](tailscale_setup.md)）。
 - 開発環境のログイン: 社員番号 `admin` ／ 管理者パスワードは管理者に確認してください。
 
 > [!WARNING]

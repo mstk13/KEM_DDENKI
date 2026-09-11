@@ -146,7 +146,28 @@
 > このURLは社内ネットワーク（Tailscale VPN）の中からしか開けません。
 > 会社のWi-Fiにつないでいても、**その端末に Tailscale が入っていないと開けません**。
 > 逆に Tailscale さえ入っていれば、自宅でも現場でも同じURLで使えます。
-> 端末の追加は管理者に依頼してください（手順: [docs/tailscale_setup.md](docs/tailscale_setup.md)）。
+> 初めて使う端末は、先に下の [Tailscale に登録する](#tailscale-に登録する) を済ませてください。
+
+### Tailscale に登録する
+
+アプリを開く前に、**端末ごとに最初の1回だけ**行います。
+
+| 項目 | 値 |
+|------|-----|
+| ログイン方法 | **Google** |
+| 共有アカウント | **kec.apps.network@gmail.com** |
+| パスワード | 管理者（mstk13）に確認してください（ここには書きません） |
+
+1. Tailscale を入れる
+   - PC（Windows / Mac）: https://tailscale.com/download
+   - iPhone: App Store で「Tailscale」
+   - Android: Google Play で「Tailscale」
+2. Tailscale を開いて **Log in**（スマホは **Get Started**）
+3. **Google** を選び、共有アカウント **kec.apps.network@gmail.com** でログイン
+4. VPN の許可を求められたら **許可**（iPhone は「Allow」、Android は「OK」）
+5. Tailscale が **Connected（接続中）** になっていれば完了
+
+端末ごとの詳しい手順と、つながらないときの対処は [docs/tailscale_setup.md](docs/tailscale_setup.md) にあります。
 
 ### ログイン
 
@@ -160,6 +181,8 @@
 ---
 
 ## 🖥️ PC（Windows / Mac）の場合
+
+**事前準備**: Tailscale を入れ、共有アカウント **kec.apps.network@gmail.com** でログインしておく（[Tailscale に登録する](#tailscale-に登録する)）。
 
 1. **Chrome** または **Edge** で https://desktop-rmsk0vg.tail8efe0d.ts.net/ を開く
 2. 社員番号を入れてログイン
@@ -177,7 +200,7 @@
 
 ## 📱 iPhone（iOS）の場合
 
-**事前準備**: App Store から **Tailscale** を入れ、管理者に招待してもらってサインインしておく。
+**事前準備**: App Store から **Tailscale** を入れ、共有アカウント **kec.apps.network@gmail.com** でサインインしておく（[Tailscale に登録する](#tailscale-に登録する)）。
 
 1. **Safari** で https://desktop-rmsk0vg.tail8efe0d.ts.net/ を開く
    （Safari 以外だとホーム画面に追加できません）
@@ -192,7 +215,7 @@
 
 ## 📱 Android の場合
 
-**事前準備**: Google Play から **Tailscale** を入れ、管理者に招待してもらってサインインしておく。
+**事前準備**: Google Play から **Tailscale** を入れ、共有アカウント **kec.apps.network@gmail.com** でサインインしておく（[Tailscale に登録する](#tailscale-に登録する)）。
 
 1. **Chrome** で https://desktop-rmsk0vg.tail8efe0d.ts.net/ を開く
 2. 社員番号を入れてログイン
@@ -273,6 +296,7 @@
 ### 前提条件
 
 - [Git](https://git-scm.com/)
+- [Tailscale](https://tailscale.com/download)（開発環境・本番を開くのに必要。共有アカウント **kec.apps.network@gmail.com** で Google ログイン → [Tailscale に登録する](#tailscale-に登録する)）
 - [Docker Desktop](https://www.docker.com/products/docker-desktop/)（Windows / Mac）または Docker Engine + Docker Compose（Linux）
 - Python 3.12+（Docker外で開発する場合）
 
