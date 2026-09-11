@@ -77,6 +77,22 @@ def employee_code_sort_key(code):
     return (0, rank, prefix, number, rest.strip().upper(), code.upper())
 
 
+def sort_workers_by_code(workers):
+    """作業員を社員番号順（employee_code_sort_key）に並べたリストを返す。
+
+    同順位はフリガナ（なければ氏名）順。作業員一覧・社員名簿・出社予定など、
+    作業員を並べる画面はすべてこれを通して同じ順にする。
+    """
+    return sorted(
+        workers,
+        key=lambda w: (
+            employee_code_sort_key(w.employee_code),
+            w.name_kana or w.name,
+            w.name,
+        ),
+    )
+
+
 class Worker(TenantModel):
     """作業員。日報・原価計算の主体。
 

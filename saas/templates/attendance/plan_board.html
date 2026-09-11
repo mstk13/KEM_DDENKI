@@ -44,7 +44,7 @@
       </div>
       <div class="form-group" style="margin-bottom:0;">
         <label>対象日</label>
-        <select name="target" class="form-control" id="plan-fill-target">
+        <select name="target" class="form-control">
           {% for value, text in fill_targets %}
             <option value="{{ value }}">{{ text }}</option>
           {% endfor %}
@@ -74,34 +74,9 @@
         既に入っている日も上書きする
       </label>
       <button type="submit" class="btn btn-primary">この月に反映</button>
-
-      {# 対象日で「日付を選ぶ」を選んだときだけ出すミニカレンダー。
-         曜日で決まらない飛び飛びの日を1回で埋めるためのもの。
-         チェックボックスをそのまま dates として送る。 #}
-      <div class="plan-pick" id="plan-pick" hidden>
-        <div class="plan-pick-head">
-          <span>{{ year }}年{{ month }}月 — 記入する日をクリック</span>
-          <span class="plan-pick-count" id="plan-pick-count">0日を選択</span>
-          <button type="button" class="btn btn-outline btn-sm" id="plan-pick-clear">選択を解除</button>
-        </div>
-        <div class="plan-pick-grid">
-          <span class="plan-pick-wd">月</span><span class="plan-pick-wd">火</span>
-          <span class="plan-pick-wd">水</span><span class="plan-pick-wd">木</span>
-          <span class="plan-pick-wd">金</span><span class="plan-pick-wd plan-day-sat">土</span>
-          <span class="plan-pick-wd plan-day-sun">日</span>
-          {% for _ in lead_blanks %}<span class="plan-pick-blank"></span>{% endfor %}
-          {% for day in days %}
-            <label class="plan-pick-day{% if day.is_saturday %} plan-saturday{% elif day.is_sunday %} plan-sunday{% endif %}{% if day.is_today %} plan-today{% endif %}">
-              <input type="checkbox" name="dates" value="{{ day.date|date:'Y-m-d' }}">
-              <span>{{ day.day }}</span>
-            </label>
-          {% endfor %}
-        </div>
-      </div>
     </form>
     <p style="margin:10px 0 0;font-size:.82rem;color:var(--text-secondary);">
       「火曜日」を選ぶと、この月の火曜だけをまとめて記入します。
-      「日付を選ぶ」にするとカレンダーが出るので、記入したい日だけをクリックしてください。
       時刻を空にすると所定（{{ standard_start }}〜{{ standard_end }}）どおりの扱いです。
       上書きにチェックを入れないと、すでに入っている日はそのまま残ります。
     </p>
@@ -544,44 +519,6 @@ document.addEventListener('DOMContentLoaded', function() {
       openDialog(cell);
     });
   });
-
-  // --- まとめて記入: 対象日を「日付を選ぶ」にしたときだけカレンダーを出す ---
-  var fillTarget = document.getElementById('plan-fill-target');
-  var pick = document.getElementById('plan-pick');
-  var pickBoxes = pick.querySelectorAll('input[name=dates]');
-  var pickCount = document.getElementById('plan-pick-count');
-
-  function recountPicked() {
-    var n = 0;
-    pickBoxes.forEach(function(box) { if (box.checked) { n += 1; } });
-    pickCount.textContent = n + '日を選択';
-  }
-
-  function togglePick() {
-    var on = fillTarget.value === 'dates';
-    pick.hidden = !on;
-    // 隠れているときは日付を送らない。曜日指定のつもりで前回の選択が
-    // 混ざらないようにするため。
-    pickBoxes.forEach(function(box) { box.disabled = !on; });
-  }
-
-  fillTarget.addEventListener('change', togglePick);
-  pickBoxes.forEach(function(box) { box.addEventListener('change', recountPicked); });
-  document.getElementById('plan-pick-clear').addEventListener('click', function() {
-    pickBoxes.forEach(function(box) { box.checked = false; });
-    recountPicked();
-  });
-  fillTarget.closest('form').addEventListener('submit', function(ev) {
-    if (fillTarget.value !== 'dates') { return; }
-    var any = false;
-    pickBoxes.forEach(function(box) { if (box.checked) { any = true; } });
-    if (!any) {
-      ev.preventDefault();
-      alert('記入する日をカレンダーから選んでください');
-    }
-  });
-  togglePick();
-  recountPicked();
 
   // --- 日付ごとの削除 ---
   var clearForm = document.getElementById('plan-clear-day-form');
