@@ -121,27 +121,60 @@ def create_safety_records_for_date(site, check_date: date, workers):
 def get_monthly_summary(company, year: int, month: int):
     """月別集計データを取得する。
 
-    - 作業員別の作業時間（通常・残業）
-    - 出勤日数
+    作業員ごとに次を返す（作業員一覧と同じ社員番号順）。
+    - worker … Worker。画面では社員番号と氏名を作業員一覧と同じ表記で出す
+    - work_days / total_regular / total_overtime / total_hours
+      … 承認済の日報だけを集計（従来どおり）
+    - reports … その月の日報すべて（下書き・提出済も含む）。日付順。
+      氏名をタップしたときに一覧で見せ、各行から日報の画面へ飛ぶ
+    - report_count … reports の件数
+
+    行に載せるのは「その月に日報が1件でもある作業員」。承認前の日報しかない
+    人も行に出し、時間は 0 のまま日報を辿れるようにする。
     """
-    from django.db.models import Count, Sum
+    from collections import defaultdict
 
-    reports = DailyReport.unscoped.filter(
-        company=company,
-        report_date__year=year,
-        report_date__month=month,
-        status=DailyReport.Status.APPROVED,
-    )
+    from apps.workers.models import sort_workers_by_code
 
-    summary = (
-        reports.values("worker__name", "worker__pk")
-        .annotate(
-            work_days=Count("report_date", distinct=True),
-            total_regular=Sum("regular_hours"),
-            total_overtime=Sum("overtime_hours"),
-            total_hours=Sum("work_hours"),
+    reports = (
+        DailyReport.unscoped.filter(
+            company=company,
+            report_date__year=year,
+            report_date__month=month,
         )
-        .order_by("worker__name")
+        .select_related("worker", "site", "work_type")
+        .order_by("report_date", "created_at", "pk")
     )
 
-    return list(summary)
+    by_worker: dict[int, list[DailyReport]] = defaultdict(list)
+    workers = {}
+    for report in reports:
+        by_worker[report.worker_id].append(report)
+        workers[report.worker_id] = report.worker
+
+    summary = []
+    for worker in sort_workers_by_code(workers.values()):
+        rows = by_worker[worker.pk]
+        approved = [r for r in rows if r.status == DailyReport.Status.APPROVED]
+        summary.append({
+            "worker": worker,
+            "worker__pk": worker.pk,
+            "worker__name": worker.name,
+            "work_days": len({r.report_date for r in approved}),
+            "total_regular": _sum_or_none(r.regular_hours for r in approved),
+            "total_overtime": _sum_or_none(r.overtime_hours for r in approved),
+            "total_hours": _sum_or_none(r.work_hours for r in approved),
+            "reports": rows,
+            "report_count": len(rows),
+        })
+    return summary
+
+
+def _sum_or_none(values):
+    """Sum() と同じく、値が1つも無ければ None、あれば合計（None は 0 扱い）。"""
+    from decimal import Decimal
+
+    total = None
+    for value in values:
+        total = (total or Decimal("0")) + (value or Decimal("0"))
+    return total
