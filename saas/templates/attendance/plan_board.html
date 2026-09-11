@@ -298,8 +298,11 @@
     </div>
 
     <div class="form-group" id="plan-dialog-place-row">
-      <label id="plan-dialog-place-label">場所・メモ</label>
-      <input type="text" class="form-control" id="plan-dialog-note" maxlength="200">
+      <label id="plan-dialog-place-label" for="plan-dialog-note">場所・メモ</label>
+      {% include "attendance/partials/site_name_datalist.html" %}
+      <input type="text" class="form-control" id="plan-dialog-note" maxlength="200"
+             list="attend-site-names" autocomplete="off">
+      <p class="form-hint">登録済みの現場から選べます。候補にない場合はそのまま入力してください。</p>
     </div>
 
     <div id="plan-dialog-time-row">
