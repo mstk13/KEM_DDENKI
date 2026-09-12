@@ -4,12 +4,7 @@ from django.core.exceptions import PermissionDenied
 from django.shortcuts import get_object_or_404, redirect, render
 
 from apps.permissions.services import can_approve_report, can_delete_report
-from apps.reports.forms import (
-    DailyReportForm,
-    OfficeDailyReportForm,
-    is_field_worker,
-    is_office_reporter,
-)
+from apps.reports.forms import DailyReportForm, is_field_worker
 from apps.reports.models import DailyReport, SafetyRecord
 from apps.reports.services import (
     alert_safety_incomplete,
@@ -71,57 +66,9 @@ def _report_form_context(company):
     }
 
 
-def _office_report_create(request):
-    """事務の日報。1日ぶんの時間＋現場ごとの作業内容を書く。"""
-    worker = getattr(request.user, "worker_profile", None)
-
-    if request.method == "POST":
-        form = OfficeDailyReportForm(
-            request.POST, company=request.user.company, worker=worker,
-        )
-        if form.is_valid():
-            status = (
-                DailyReport.Status.SUBMITTED
-                if request.POST.get("action") == "submit"
-                else None
-            )
-            saved, skipped = form.save_reports(user=request.user, status=status)
-            messages.success(request, f"{len(saved)}件の日報を保存しました。")
-            if skipped:
-                messages.warning(
-                    request,
-                    "、".join(skipped)
-                    + " は同じ日付の日報が既にあるため作成しませんでした。",
-                )
-            return redirect("reports:list")
-    else:
-        form = OfficeDailyReportForm(company=request.user.company, worker=worker)
-
-    # 保存に失敗して画面に戻ったとき、入力済みの現場を復元するために渡す
-    from apps.core.json_utils import json_for_script
-
-    previous = [
-        {"site": e["site_name"], "work": e["work_description"]}
-        for e in getattr(form, "entries", [])
-    ]
-
-    ctx = {
-        "form": form,
-        "worker": worker,
-        "previous_entries_json": json_for_script(previous),
-        **_report_form_context(request.user.company),
-    }
-    return render(request, "reports/office_form.html", ctx)
-
-
 @login_required
 def report_create(request):
-    # 社員番号が G/S/A/P の人は、1日に複数現場ぶんの事務内容を書く形式にする。
-    # ?mode=field を付けると、事務の人でも現場作業員の日報をまとめて書ける。
-    office_user = is_office_reporter(request.user)
-    if office_user and request.GET.get("mode") != "field":
-        return _office_report_create(request)
-
+    """日報を書く。役職・社員番号に関係なく全員が同じ形式（ADR-0043）。"""
     if request.method == "POST":
         form = DailyReportForm(request.POST, company=request.user.company)
         if form.is_valid():
@@ -153,11 +100,7 @@ def report_create(request):
             form.initial["workers"] = [profile.pk]
             form.worker_rows = []
             form._build_worker_rows()
-    ctx = {
-        "form": form,
-        "office_user": office_user,
-        **_report_form_context(request.user.company),
-    }
+    ctx = {"form": form, **_report_form_context(request.user.company)}
     return render(request, "reports/form.html", ctx)
 
 

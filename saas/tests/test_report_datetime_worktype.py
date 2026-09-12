@@ -17,7 +17,6 @@ from apps.reports.forms import (
     PROCESS_OTHER,
     STANDARD_PROCESS_NAMES,
     DailyReportForm,
-    OfficeDailyReportForm,
 )
 from apps.reports.models import DailyReport
 from apps.sites.models import Process, Site
@@ -161,95 +160,6 @@ class TestCrossDayPeriod:
 
         assert len(saved) == 2
         assert {r.end_date for r in saved} == {datetime.date(2026, 9, 2)}
-
-
-@pytest.fixture
-def office_worker(company_a, user_a):
-    return Worker.unscoped.create(
-        company=company_a, employee_code="G001", name="開発太郎",
-        hourly_cost=3000, user=user_a,
-    )
-
-
-def _office_post(**overrides):
-    data = {
-        "report_date": "2026-09-01",
-        "start_date": "",
-        "start_time": "",
-        "end_date": "",
-        "end_time": "",
-        "work_hours": "",
-        "memo": "",
-        "site_001": "A社ビル新築",
-        "work_description_001": "見積書作成",
-    }
-    data.update(overrides)
-    return data
-
-
-@pytest.mark.django_db
-class TestOfficeCrossDayPeriod:
-    """事務の日報（社員番号 G / S / A / P）も開始日・終了日を持てる。"""
-
-    def test_日をまたぐ勤務時間を計算する(self, company_a, office_worker, site):
-        form = OfficeDailyReportForm(data=_office_post(
-            start_date="2026-09-01", start_time="22:00",
-            end_date="2026-09-02", end_time="06:00",
-        ), company=company_a, worker=office_worker)
-        assert form.is_valid(), form.errors
-        saved, _ = form.save_reports(user=None)
-
-        assert saved[0].start_date == datetime.date(2026, 9, 1)
-        assert saved[0].end_date == datetime.date(2026, 9, 2)
-        assert saved[0].work_hours == Decimal("8.00")
-
-    def test_同じ日で終了が開始以前なら終了日を翌日にする(
-        self, company_a, office_worker, site,
-    ):
-        form = OfficeDailyReportForm(data=_office_post(
-            start_date="2026-09-01", start_time="22:00",
-            end_date="2026-09-01", end_time="06:00",
-        ), company=company_a, worker=office_worker)
-        assert form.is_valid(), form.errors
-        saved, _ = form.save_reports(user=None)
-
-        assert saved[0].end_date == datetime.date(2026, 9, 2)
-        assert saved[0].work_hours == Decimal("8.00")
-
-    def test_終了日が開始日より前はエラー(self, company_a, office_worker, site):
-        form = OfficeDailyReportForm(data=_office_post(
-            start_date="2026-09-02", start_time="08:00",
-            end_date="2026-09-01", end_time="17:00",
-        ), company=company_a, worker=office_worker)
-
-        assert not form.is_valid()
-        assert "end_date" in form.errors
-
-    def test_日付は最初の現場にだけ入る(self, company_a, office_worker, site):
-        form = OfficeDailyReportForm(data=_office_post(
-            start_date="2026-09-01", start_time="22:00",
-            end_date="2026-09-02", end_time="06:00",
-            site_002="B社倉庫", work_description_002="図面確認",
-        ), company=company_a, worker=office_worker)
-        assert form.is_valid(), form.errors
-        saved, _ = form.save_reports(user=None)
-
-        assert len(saved) == 2
-        assert saved[0].end_date == datetime.date(2026, 9, 2)
-        assert saved[1].start_date is None
-        assert saved[1].end_date is None
-
-    def test_事務の画面にも開始日終了日の欄が出る(self, client, office_worker, user_a):
-        user_a.refresh_from_db()
-        client.force_login(user_a)
-
-        res = client.get(reverse("reports:create"))
-
-        assert res.status_code == 200
-        html = res.content.decode()
-        assert "携わった現場" in html
-        assert 'name="start_date"' in html
-        assert 'name="end_date"' in html
 
 
 @pytest.mark.django_db
