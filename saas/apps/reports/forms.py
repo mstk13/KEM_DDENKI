@@ -1,10 +1,9 @@
 from django import forms
-from django.db.models import Case, IntegerField, Q, Value, When
 
 from apps.masters.models import Supplier, WorkType
 from apps.reports.models import DailyReport
 from apps.sites.models import Process, Site
-from apps.workers.models import Worker
+from apps.workers.models import Worker, sort_workers_by_code
 
 # 日報の書式は、ログインした人の社員番号の接頭辞で決まる。
 #   E（電工・事務の正社員）・T（試用期間） … 現場作業の日報
@@ -23,6 +22,12 @@ STANDARD_PROCESS_NAMES = ("見積り", "現調", "施工", "試験", "追加工�
 
 # 工程の選択肢で「一覧に無い工程を入力する」を表す値
 PROCESS_OTHER = "__other__"
+
+
+def is_field_worker(worker):
+    """現場作業の区分（社員番号が E・T で始まる）かどうか。"""
+    code = (getattr(worker, "employee_code", "") or "").strip()
+    return code.startswith(FIELD_CODE_PREFIXES)
 
 
 def is_office_reporter(user):
@@ -236,26 +241,11 @@ class DailyReportForm(forms.ModelForm):
                 (PROCESS_OTHER, "その他（新しい工程を入力）"),
             ]
 
-            # 候補は現場作業の日報を書く区分（E・T）に揃える。
-            # この画面が出るのも E・T の人なので、条件を分けると
-            # 試用期間（T）の人が自分の日報を作れなくなる。
-            # 並びはフリガナの50音順（未登録の人は氏名で並べ、後ろに回す）。
-            code_filter = Q()
-            for prefix in FIELD_CODE_PREFIXES:
-                code_filter |= Q(employee_code__startswith=prefix)
-
-            self.fields["workers"].queryset = (
-                Worker.unscoped.filter(
-                    code_filter, company=company, is_active=True,
-                )
-                .annotate(
-                    kana_missing=Case(
-                        When(Q(name_kana="") | Q(name_kana__isnull=True), then=Value(1)),
-                        default=Value(0),
-                        output_field=IntegerField(),
-                    ),
-                )
-                .order_by("kana_missing", "name_kana", "name")
+            # 候補は在籍中の全員。画面では現場作業の区分（E・T）を左、
+            # それ以外（事務など。現場に出ることもある）を右に分けて出す。
+            # 並びは作業員一覧と同じ社員番号順（_build_worker_rows で並べる）。
+            self.fields["workers"].queryset = Worker.unscoped.filter(
+                company=company, is_active=True,
             )
             self.fields["partner"].queryset = Supplier.unscoped.filter(
                 company=company, is_active=True,
@@ -296,7 +286,10 @@ class DailyReportForm(forms.ModelForm):
                 self.initial["orderer"] = str(obj.site.customer)
 
     def _build_worker_rows(self):
-        """作業員ごとの行（チェック＋その人だけの開始・終了時刻）をつくる。"""
+        """作業員ごとの行（チェック＋その人だけの開始・終了時刻・作業時間）をつくる。
+
+        worker_rows は全員、worker_rows_field は E・T、worker_rows_other はそれ以外。
+        """
         if self.is_bound:
             # テストなどで素の dict が渡ることもあるので getlist に頼らない
             if hasattr(self.data, "getlist"):
@@ -309,21 +302,36 @@ class DailyReportForm(forms.ModelForm):
         else:
             selected = {str(v) for v in (self.initial.get("workers") or [])}
         time_attrs = {"type": "time", "class": "form-control"}
-        for worker in self.fields["workers"].queryset:
+        self.worker_rows_field = []
+        self.worker_rows_other = []
+        for worker in sort_workers_by_code(self.fields["workers"].queryset):
             start_name = f"start_time_{worker.pk}"
             end_name = f"end_time_{worker.pk}"
+            hours_name = f"work_hours_{worker.pk}"
             self.fields[start_name] = forms.TimeField(
                 required=False, widget=forms.TimeInput(attrs=dict(time_attrs)),
             )
             self.fields[end_name] = forms.TimeField(
                 required=False, widget=forms.TimeInput(attrs=dict(time_attrs)),
             )
-            self.worker_rows.append({
+            self.fields[hours_name] = forms.DecimalField(
+                required=False, min_value=0, max_digits=5, decimal_places=2,
+                widget=forms.NumberInput(attrs={
+                    "class": "form-control", "step": "0.25", "placeholder": "時間",
+                }),
+            )
+            row = {
                 "worker": worker,
                 "checked": str(worker.pk) in selected,
                 "start": self[start_name],
                 "end": self[end_name],
-            })
+                "hours": self[hours_name],
+            }
+            self.worker_rows.append(row)
+            if is_field_worker(worker):
+                self.worker_rows_field.append(row)
+            else:
+                self.worker_rows_other.append(row)
 
     # テンプレートの通常ループで出さない欄（作業員の行や編集の反映欄で別に出す）
     @property
@@ -332,6 +340,7 @@ class DailyReportForm(forms.ModelForm):
         for row in self.worker_rows:
             names.add(row["start"].name)
             names.add(row["end"].name)
+            names.add(row["hours"].name)
         return names
 
     def worker_times(self, worker):
@@ -341,6 +350,10 @@ class DailyReportForm(forms.ModelForm):
         if start and end:
             return start, end
         return None
+
+    def worker_hours(self, worker):
+        """その作業員だけの作業時間。空なら None。"""
+        return self.cleaned_data.get(f"work_hours_{worker.pk}") or None
 
     def clean_workers(self):
         workers = self.cleaned_data.get("workers")
@@ -430,9 +443,11 @@ class DailyReportForm(forms.ModelForm):
         if start and end:
             return cleaned
 
-        # 共通の時間が無くても、選ばれた全員に個別の時間が入っていれば足りる
+        # 共通の時間が無くても、選ばれた全員に個別の時間か作業時間が入っていれば足りる
         chosen = cleaned.get("workers")
-        if chosen and not self.is_edit and all(self.worker_times(w) for w in chosen):
+        if chosen and not self.is_edit and all(
+            self.worker_times(w) or self.worker_hours(w) for w in chosen
+        ):
             return cleaned
 
         if not hours:
@@ -533,6 +548,21 @@ class DailyReportForm(forms.ModelForm):
                 continue
 
             times = self.worker_times(worker)
+            own_hours = self.worker_hours(worker)
+            # 作業時間の優先順:
+            #   その人の開始・終了があれば、モデルの save がそこから計算する
+            #   無くてその人の作業時間があれば、その値（共通の開始・終了は
+            #   その人には当てはまらないので入れない。入れると save で上書きされる）
+            #   どちらも無ければ共通の値
+            if times:
+                start_time, end_time = times
+                hours = proto.work_hours or 0
+            elif own_hours:
+                start_time, end_time = None, None
+                hours = own_hours
+            else:
+                start_time, end_time = proto.start_time, proto.end_time
+                hours = proto.work_hours or 0
             report = DailyReport(
                 company=company,
                 created_by=user,
@@ -543,11 +573,11 @@ class DailyReportForm(forms.ModelForm):
                 report_date=proto.report_date,
                 weather=proto.weather,
                 work_description=proto.work_description,
-                start_date=proto.start_date,
-                start_time=times[0] if times else proto.start_time,
-                end_date=proto.end_date,
-                end_time=times[1] if times else proto.end_time,
-                work_hours=proto.work_hours or 0,
+                start_date=proto.start_date if start_time else None,
+                start_time=start_time,
+                end_date=proto.end_date if end_time else None,
+                end_time=end_time,
+                work_hours=hours,
                 is_partner_worker=proto.is_partner_worker,
                 partner=proto.partner,
                 memo=proto.memo,

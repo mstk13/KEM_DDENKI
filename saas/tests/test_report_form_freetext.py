@@ -255,8 +255,8 @@ class TestMultipleWorkers:
 
 @pytest.mark.django_db
 class TestWorkerChoices:
-    def test_only_field_workers_are_selectable(self, company_a):
-        """現場作業の区分（E・T）の作業員だけが候補に出る。"""
+    def test_all_active_workers_split_by_field_code(self, company_a):
+        """在籍中の全員が候補。E・T は左（現場）、それ以外は右に分かれる。"""
         Worker.unscoped.create(
             company=company_a, employee_code="E001", name="田中",
             name_kana="タナカ", hourly_cost=3000,
@@ -265,7 +265,6 @@ class TestWorkerChoices:
             company=company_a, employee_code="T001", name="佐藤",
             name_kana="サトウ", hourly_cost=3000,
         )
-        # 事務の区分は出さない
         for code, name in [("G001", "鈴木"), ("S001", "高橋"),
                            ("A001", "伊藤"), ("P001", "渡辺")]:
             Worker.unscoped.create(
@@ -273,10 +272,11 @@ class TestWorkerChoices:
             )
 
         form = DailyReportForm(company=company_a)
-        codes = sorted(
-            form.fields["workers"].queryset.values_list("employee_code", flat=True)
-        )
-        assert codes == ["E001", "T001"]
+        assert form.fields["workers"].queryset.count() == 6
+        assert [r["worker"].employee_code for r in form.worker_rows_field] == ["E001", "T001"]
+        assert [r["worker"].employee_code for r in form.worker_rows_other] == [
+            "S001", "P001", "A001", "G001",
+        ]
 
     def test_inactive_workers_are_excluded(self, company_a):
         Worker.unscoped.create(
@@ -285,15 +285,16 @@ class TestWorkerChoices:
         )
         form = DailyReportForm(company=company_a)
         assert form.fields["workers"].queryset.count() == 0
+        assert form.worker_rows == []
 
-    def test_sorted_by_kana(self, company_a):
-        """フリガナの50音順に並ぶ。"""
+    def test_sorted_by_employee_code(self, company_a):
+        """作業員一覧と同じ社員番号順に並ぶ（フリガナ順ではない）。"""
         Worker.unscoped.create(
             company=company_a, employee_code="E003", name="渡辺",
             name_kana="ワタナベ", hourly_cost=3000,
         )
         Worker.unscoped.create(
-            company=company_a, employee_code="E001", name="伊藤",
+            company=company_a, employee_code="E010", name="伊藤",
             name_kana="イトウ", hourly_cost=3000,
         )
         Worker.unscoped.create(
@@ -302,23 +303,27 @@ class TestWorkerChoices:
         )
 
         form = DailyReportForm(company=company_a)
-        names = list(form.fields["workers"].queryset.values_list("name", flat=True))
-        assert names == ["伊藤", "佐藤", "渡辺"]
+        names = [r["worker"].name for r in form.worker_rows_field]
+        assert names == ["佐藤", "渡辺", "伊藤"]
 
-    def test_workers_without_kana_go_last(self, company_a):
-        """フリガナが未登録の人は後ろに回す（並びが崩れないように）。"""
+    def test_workers_without_code_go_last_in_other_column(self, company_a):
+        """社員番号が無い人は右の列の末尾（フリガナ順）。"""
         Worker.unscoped.create(
-            company=company_a, employee_code="E001", name="山田",
-            name_kana="", hourly_cost=3000,
+            company=company_a, employee_code="", name="山田",
+            name_kana="ヤマダ", hourly_cost=3000,
         )
         Worker.unscoped.create(
-            company=company_a, employee_code="E002", name="伊藤",
+            company=company_a, employee_code="", name="伊藤",
             name_kana="イトウ", hourly_cost=3000,
+        )
+        Worker.unscoped.create(
+            company=company_a, employee_code="S001", name="高橋",
+            name_kana="タカハシ", hourly_cost=3000,
         )
 
         form = DailyReportForm(company=company_a)
-        names = list(form.fields["workers"].queryset.values_list("name", flat=True))
-        assert names == ["伊藤", "山田"]
+        names = [r["worker"].name for r in form.worker_rows_other]
+        assert names == ["高橋", "伊藤", "山田"]
 
 
 @pytest.mark.django_db

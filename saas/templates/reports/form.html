@@ -7,12 +7,17 @@
   /* 開始・終了は「日付 + 時刻」を1行に並べる。狭い画面では縦に落ちる */
   .period-row { display: flex; gap: 8px; flex-wrap: wrap; }
   .period-row > .form-control { flex: 1 1 140px; min-width: 0; }
-  /* 作業員の行。チェックした人だけ、その人の開始・終了時刻の欄を出す */
+  /* 作業員の行。左が現場（E・T）、右がそれ以外。チェックした人だけ、
+     その人の開始・終了時刻と作業時間の欄を出す。狭い画面では縦に並ぶ */
+  .worker-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 720px) { .worker-cols { grid-template-columns: 1fr; } }
+  .worker-col-title { font-size: .82rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 6px; }
   .worker-rows { display: flex; flex-direction: column; gap: 6px; }
   .worker-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-  .worker-row-name { display: flex; align-items: center; gap: 6px; min-width: 160px; cursor: pointer; }
-  .worker-row-times { display: flex; align-items: center; gap: 6px; font-size: .82rem; color: var(--text-secondary); }
-  .worker-row-times .form-control { width: 120px; }
+  .worker-row-name { display: flex; align-items: center; gap: 6px; min-width: 120px; cursor: pointer; }
+  .worker-row-times { display: flex; align-items: center; gap: 6px; font-size: .82rem; color: var(--text-secondary); flex-wrap: wrap; }
+  .worker-row-times .form-control { width: 104px; }
+  .worker-row-times .worker-hours { width: 80px; }
 </style>
 
 <div class="page-header">
@@ -31,24 +36,24 @@
       <div class="form-group">
         <label>{{ field.label }}</label>
         {{ field.errors }}
-        <div class="worker-rows">
-          {% for row in form.worker_rows %}
-          <div class="worker-row">
-            <label class="worker-row-name">
-              <input type="checkbox" name="workers" value="{{ row.worker.pk }}" class="worker-check"{% if row.checked %} checked{% endif %}>
-              {{ row.worker.name }}
-            </label>
-            <div class="worker-row-times"{% if not row.checked %} hidden{% endif %}>
-              <span>時間を変える:</span>
-              {{ row.start }}<span>〜</span>{{ row.end }}
-              {{ row.start.errors }}{{ row.end.errors }}
+        <div class="worker-cols">
+          <div>
+            <div class="worker-col-title">現場（社員番号 E・T）</div>
+            <div class="worker-rows">
+              {% for row in form.worker_rows_field %}{% include "reports/_worker_row.html" %}{% empty %}<span style="color:var(--text-muted);font-size:.82rem;">該当者なし</span>{% endfor %}
             </div>
           </div>
-          {% endfor %}
+          <div>
+            <div class="worker-col-title">その他の作業員</div>
+            <div class="worker-rows">
+              {% for row in form.worker_rows_other %}{% include "reports/_worker_row.html" %}{% empty %}<span style="color:var(--text-muted);font-size:.82rem;">該当者なし</span>{% endfor %}
+            </div>
+          </div>
         </div>
         <div class="form-hint">
-          社員番号が E・T で始まる方のみ表示しています。複数選べます。選んだ人数分の日報ができます。
-          人によって時間が違うときは、その人の欄に開始・終了を入れてください（空なら下の共通の時間を使います）。
+          複数選べます。選んだ人数分の日報ができます。
+          人によって時間が違うときは、その人の欄に開始・終了を入れてください（作業時間は自動で入ります）。
+          空なら下の共通の時間を使います。作業時間だけ直接入れることもできます。
         </div>
       </div>
       {% elif field.name == "start_date" %}
@@ -229,6 +234,32 @@
   }
   [start, end, startDate, endDate].forEach(function (el) {
     if (el) el.addEventListener('change', calcHours);
+  });
+
+  // ---- 作業員ごとの開始・終了から、その人の作業時間を自動計算 ----
+  // 日付は共通の開始日・終了日を使う。計算式は上と同じ。
+  function calcRowHours(row) {
+    var s = toMinutes(row.querySelector('.worker-start').value);
+    var e = toMinutes(row.querySelector('.worker-end').value);
+    var out = row.querySelector('.worker-hours');
+    if (s === null || e === null || !out) return;
+    var sd = startDate ? toDays(startDate.value) : null;
+    var ed = endDate ? toDays(endDate.value) : null;
+    var total;
+    if (sd !== null && ed !== null && ed >= sd) {
+      if (ed === sd && e <= s) ed = sd + 1;
+      total = (ed - sd) * 24 * 60 + (e - s);
+    } else {
+      total = e - s;
+      if (total <= 0) total += 24 * 60;
+    }
+    if (total > 480) total -= 60;
+    out.value = (Math.round((total / 60) * 100) / 100).toFixed(2);
+  }
+  document.querySelectorAll('.worker-row').forEach(function (row) {
+    row.querySelectorAll('.worker-start, .worker-end').forEach(function (el) {
+      el.addEventListener('change', function () { calcRowHours(row); });
+    });
   });
 })();
 </script>

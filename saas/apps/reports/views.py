@@ -7,6 +7,7 @@ from apps.permissions.services import can_approve_report, can_delete_report
 from apps.reports.forms import (
     DailyReportForm,
     OfficeDailyReportForm,
+    is_field_worker,
     is_office_reporter,
 )
 from apps.reports.models import DailyReport, SafetyRecord
@@ -141,10 +142,14 @@ def report_create(request):
                 )
             return redirect("reports:list")
     else:
-        # ログインした人の作業員を最初からチェックしておく（候補にいる人だけ）
+        # ログインした人が現場作業の区分（E・T）なら最初からチェックしておく。
+        # 事務の人が代わりに書くときは、本人の日報を作るのが目的ではないので付けない。
         form = DailyReportForm(company=request.user.company)
         profile = getattr(request.user, "worker_profile", None)
-        if profile and form.fields["workers"].queryset.filter(pk=profile.pk).exists():
+        if (
+            profile and is_field_worker(profile)
+            and form.fields["workers"].queryset.filter(pk=profile.pk).exists()
+        ):
             form.initial["workers"] = [profile.pk]
             form.worker_rows = []
             form._build_worker_rows()

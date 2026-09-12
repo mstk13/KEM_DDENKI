@@ -1,0 +1,16 @@
+{# 日報のまとめて登録の作業員1人ぶんの行。form.html の worker_rows_field / worker_rows_other から使う #}
+<div class="worker-row">
+  <label class="worker-row-name">
+    <input type="checkbox" name="workers" value="{{ row.worker.pk }}" class="worker-check"{% if row.checked %} checked{% endif %}>
+    {{ row.worker.name }}
+  </label>
+  <div class="worker-row-times"{% if not row.checked %} hidden{% endif %}>
+    <span>時間を変える:</span>
+    <input type="time" name="{{ row.start.html_name }}" id="{{ row.start.id_for_label }}" class="form-control worker-start" value="{{ row.start.value|default_if_none:'' }}">
+    <span>〜</span>
+    <input type="time" name="{{ row.end.html_name }}" id="{{ row.end.id_for_label }}" class="form-control worker-end" value="{{ row.end.value|default_if_none:'' }}">
+    <input type="number" name="{{ row.hours.html_name }}" id="{{ row.hours.id_for_label }}" class="form-control worker-hours" step="0.25" min="0" placeholder="時間" value="{{ row.hours.value|default_if_none:'' }}">
+    <span>h</span>
+    {{ row.start.errors }}{{ row.end.errors }}{{ row.hours.errors }}
+  </div>
+</div>
