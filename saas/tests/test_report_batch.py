@@ -1,0 +1,236 @@
+"""日報のまとめて登録まわり。
+
+- ログインした人の作業員を最初からチェックしておく
+- 作業員ごとに開始・終了時刻を変えられる
+- 2人以上でまとめて作った日報は同じ組（batch）になり、編集で他の人にも反映できる
+- 事務の人（G/S/A/P）も ?mode=field で現場作業員の日報をまとめて書ける
+- 社員番号が無い人は職種・役職に「事務」が入っていれば事務の日報
+"""
+import datetime
+from decimal import Decimal
+
+import pytest
+from django.urls import reverse
+
+from apps.reports.forms import is_office_reporter
+from apps.reports.models import DailyReport
+from apps.workers.models import JobTitle, Worker
+
+
+def _worker(company, name, code, user=None):
+    return Worker.unscoped.create(
+        company=company, name=name, employee_code=code, hourly_cost=3000, user=user,
+    )
+
+
+def _data(workers, **overrides):
+    data = {
+        "site": "A社ビル",
+        "workers": [w.pk for w in workers],
+        "report_date": "2026-09-01",
+        "weather": "",
+        "process": "",
+        "work_type": "電気",
+        "work_description": "配線",
+        "start_date": "",
+        "start_time": "09:00",
+        "end_date": "",
+        "end_time": "18:00",
+        "work_hours": "",
+        "partner": "",
+        "memo": "",
+        "action": "draft",
+    }
+    data.update(overrides)
+    return data
+
+
+@pytest.fixture
+def me(company_a, user_a):
+    return _worker(company_a, "自分", "E001", user=user_a)
+
+
+@pytest.fixture
+def others(company_a):
+    return [_worker(company_a, "相方", "E002"), _worker(company_a, "三人目", "E003")]
+
+
+@pytest.mark.django_db
+class TestSelfChecked:
+    def test_自分が最初からチェックされている(self, client, user_a, me, others):
+        client.force_login(user_a)
+        res = client.get(reverse("reports:create"))
+        assert res.status_code == 200
+        rows = {r["worker"].pk: r["checked"] for r in res.context["form"].worker_rows}
+        assert rows[me.pk] is True
+        assert rows[others[0].pk] is False
+
+    def test_候補にいない人はチェックしない(self, client, user_a, company_a, others):
+        # G の人は候補（E・T）に出ないのでチェックも付かない
+        _worker(company_a, "事務の人", "G001", user=user_a)
+        client.force_login(user_a)
+        res = client.get(reverse("reports:create") + "?mode=field")
+        assert res.status_code == 200
+        assert not any(r["checked"] for r in res.context["form"].worker_rows)
+
+
+@pytest.mark.django_db
+class TestPerWorkerTimes:
+    def test_人ごとの時間がその人だけに使われる(self, client, user_a, me, others):
+        client.force_login(user_a)
+        data = _data([me, others[0]])
+        data[f"start_time_{others[0].pk}"] = "10:00"
+        data[f"end_time_{others[0].pk}"] = "20:00"
+        res = client.post(reverse("reports:create"), data)
+        assert res.status_code == 302
+
+        mine = DailyReport.unscoped.get(worker=me)
+        theirs = DailyReport.unscoped.get(worker=others[0])
+        assert (mine.start_time, mine.end_time) == (datetime.time(9, 0), datetime.time(18, 0))
+        assert mine.work_hours == Decimal("8.00")
+        assert (theirs.start_time, theirs.end_time) == (datetime.time(10, 0), datetime.time(20, 0))
+        assert theirs.work_hours == Decimal("9.00")
+
+    def test_片方だけ入れるとエラー(self, client, user_a, me):
+        client.force_login(user_a)
+        data = _data([me])
+        data[f"start_time_{me.pk}"] = "10:00"
+        res = client.post(reverse("reports:create"), data)
+        assert res.status_code == 200
+        assert f"end_time_{me.pk}" in res.context["form"].errors
+        assert not DailyReport.unscoped.exists()
+
+    def test_共通の時間が空でも全員に個別の時間があれば保存できる(self, client, user_a, me):
+        client.force_login(user_a)
+        data = _data([me], start_time="", end_time="", work_hours="")
+        data[f"start_time_{me.pk}"] = "08:00"
+        data[f"end_time_{me.pk}"] = "17:00"
+        res = client.post(reverse("reports:create"), data)
+        assert res.status_code == 302
+        assert DailyReport.unscoped.get(worker=me).work_hours == Decimal("8.00")
+
+
+@pytest.mark.django_db
+class TestBatchPropagation:
+    def _create(self, client, me, others, **overrides):
+        data = _data([me, *others], **overrides)
+        data[f"start_time_{others[1].pk}"] = "10:00"
+        data[f"end_time_{others[1].pk}"] = "19:00"
+        client.post(reverse("reports:create"), data)
+        return {r.worker_id: r for r in DailyReport.unscoped.all()}
+
+    def test_2人以上なら同じ組になる(self, client, user_a, me, others):
+        client.force_login(user_a)
+        reports = self._create(client, me, others)
+        batches = {r.batch for r in reports.values()}
+        assert len(batches) == 1 and None not in batches
+
+    def test_1人なら組は付かない(self, client, user_a, me):
+        client.force_login(user_a)
+        client.post(reverse("reports:create"), _data([me]))
+        assert DailyReport.unscoped.get().batch is None
+
+    def test_編集で他の人の日報にも内容が反映される(self, client, user_a, me, others):
+        client.force_login(user_a)
+        reports = self._create(client, me, others)
+        mine = reports[me.pk]
+
+        data = _data([me], work_description="配線と結線", start_time="08:00", end_time="17:00")
+        data["apply_to_batch"] = "on"
+        res = client.post(reverse("reports:edit", args=[mine.pk]), data)
+        assert res.status_code == 302
+
+        same_times = DailyReport.unscoped.get(worker=others[0])
+        own_times = DailyReport.unscoped.get(worker=others[1])
+        assert same_times.work_description == "配線と結線"
+        assert own_times.work_description == "配線と結線"
+        # 時間が自分と同じだった人は揃う、人ごとに変えてあった人はそのまま
+        assert (same_times.start_time, same_times.end_time) == (
+            datetime.time(8, 0), datetime.time(17, 0),
+        )
+        assert (own_times.start_time, own_times.end_time) == (
+            datetime.time(10, 0), datetime.time(19, 0),
+        )
+
+    def test_チェックを外せば他の人には反映しない(self, client, user_a, me, others):
+        client.force_login(user_a)
+        reports = self._create(client, me, others)
+        data = _data([me], work_description="自分だけ")
+        res = client.post(reverse("reports:edit", args=[reports[me.pk].pk]), data)
+        assert res.status_code == 302
+        assert DailyReport.unscoped.get(worker=me).work_description == "自分だけ"
+        assert DailyReport.unscoped.get(worker=others[0]).work_description == "配線"
+
+    def test_承認済みの日報には反映しない(self, client, user_a, me, others):
+        client.force_login(user_a)
+        reports = self._create(client, me, others)
+        DailyReport.unscoped.filter(worker=others[0]).update(
+            status=DailyReport.Status.APPROVED,
+        )
+        data = _data([me], work_description="変更後")
+        data["apply_to_batch"] = "on"
+        client.post(reverse("reports:edit", args=[reports[me.pk].pk]), data)
+        assert DailyReport.unscoped.get(worker=others[0]).work_description == "配線"
+        assert DailyReport.unscoped.get(worker=others[1]).work_description == "変更後"
+
+    def test_編集画面に反映の欄が出る(self, client, user_a, me, others):
+        client.force_login(user_a)
+        reports = self._create(client, me, others)
+        res = client.get(reverse("reports:edit", args=[reports[me.pk].pk]))
+        assert res.status_code == 200
+        body = res.content.decode()
+        assert 'name="apply_to_batch"' in body
+        assert "相方" in body and "三人目" in body
+
+    def test_1人で作った日報には反映の欄が出ない(self, client, user_a, me):
+        client.force_login(user_a)
+        client.post(reverse("reports:create"), _data([me]))
+        report = DailyReport.unscoped.get()
+        res = client.get(reverse("reports:edit", args=[report.pk]))
+        assert 'name="apply_to_batch"' not in res.content.decode()
+
+
+@pytest.mark.django_db
+class TestOfficeUserFieldMode:
+    def test_事務の人はそのままだと事務の日報(self, client, user_a, company_a):
+        _worker(company_a, "事務の人", "G001", user=user_a)
+        client.force_login(user_a)
+        res = client.get(reverse("reports:create"))
+        assert "reports/office_form.html" in [t.name for t in res.templates]
+        assert "現場作業員の日報をまとめて書く" in res.content.decode()
+
+    def test_mode_fieldで現場作業員の日報をまとめて書ける(self, client, user_a, company_a, others):
+        _worker(company_a, "事務の人", "G001", user=user_a)
+        client.force_login(user_a)
+        res = client.get(reverse("reports:create") + "?mode=field")
+        assert "reports/form.html" in [t.name for t in res.templates]
+
+        res = client.post(reverse("reports:create") + "?mode=field", _data(others))
+        assert res.status_code == 302
+        assert DailyReport.unscoped.filter(worker__in=others).count() == 2
+
+    def test_現場の人にはmode_fieldでも普通の日報(self, client, user_a, me):
+        client.force_login(user_a)
+        res = client.get(reverse("reports:create") + "?mode=field")
+        assert "reports/form.html" in [t.name for t in res.templates]
+
+
+@pytest.mark.django_db
+class TestOfficeReporterByJobTitle:
+    def test_社員番号が無く職種が事務なら事務の日報(self, company_a, user_a):
+        job = JobTitle.unscoped.create(company=company_a, name="事務")
+        Worker.unscoped.create(
+            company=company_a, name="番号なし", employee_code="", hourly_cost=0,
+            job_title=job, user=user_a,
+        )
+        user_a.refresh_from_db()
+        assert is_office_reporter(user_a) is True
+
+    def test_社員番号があればそちらを優先(self, company_a, user_a):
+        job = JobTitle.unscoped.create(company=company_a, name="事務")
+        Worker.unscoped.create(
+            company=company_a, name="現場の人", employee_code="E009", hourly_cost=0,
+            job_title=job, user=user_a,
+        )
+        user_a.refresh_from_db()
+        assert is_office_reporter(user_a) is False

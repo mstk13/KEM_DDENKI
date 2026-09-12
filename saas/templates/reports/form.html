@@ -7,6 +7,12 @@
   /* 開始・終了は「日付 + 時刻」を1行に並べる。狭い画面では縦に落ちる */
   .period-row { display: flex; gap: 8px; flex-wrap: wrap; }
   .period-row > .form-control { flex: 1 1 140px; min-width: 0; }
+  /* 作業員の行。チェックした人だけ、その人の開始・終了時刻の欄を出す */
+  .worker-rows { display: flex; flex-direction: column; gap: 6px; }
+  .worker-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .worker-row-name { display: flex; align-items: center; gap: 6px; min-width: 160px; cursor: pointer; }
+  .worker-row-times { display: flex; align-items: center; gap: 6px; font-size: .82rem; color: var(--text-secondary); }
+  .worker-row-times .form-control { width: 120px; }
 </style>
 
 <div class="page-header">
@@ -19,8 +25,32 @@
       {% csrf_token %}
       {% if back_url %}<input type="hidden" name="next" value="{{ back_url }}">{% endif %}
       {% for field in form %}
-      {% if field.name == "process_other" or field.name == "start_time" or field.name == "end_time" or field.name == "end_date" %}
-      {# process の直後 / 開始日・終了日の行でまとめて出す #}
+      {% if field.name == "process_other" or field.name == "start_time" or field.name == "end_time" or field.name == "end_date" or field.name in form.side_field_names %}
+      {# process の直後 / 開始日・終了日の行 / 作業員の行 でまとめて出す #}
+      {% elif field.name == "workers" and form.worker_rows %}
+      <div class="form-group">
+        <label>{{ field.label }}</label>
+        {{ field.errors }}
+        <div class="worker-rows">
+          {% for row in form.worker_rows %}
+          <div class="worker-row">
+            <label class="worker-row-name">
+              <input type="checkbox" name="workers" value="{{ row.worker.pk }}" class="worker-check"{% if row.checked %} checked{% endif %}>
+              {{ row.worker.name }}
+            </label>
+            <div class="worker-row-times"{% if not row.checked %} hidden{% endif %}>
+              <span>時間を変える:</span>
+              {{ row.start }}<span>〜</span>{{ row.end }}
+              {{ row.start.errors }}{{ row.end.errors }}
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        <div class="form-hint">
+          社員番号が E・T で始まる方のみ表示しています。複数選べます。選んだ人数分の日報ができます。
+          人によって時間が違うときは、その人の欄に開始・終了を入れてください（空なら下の共通の時間を使います）。
+        </div>
+      </div>
       {% elif field.name == "start_date" %}
       <div class="form-group">
         <label for="{{ form.start_date.id_for_label }}">開始（日付・時刻）</label>
@@ -62,11 +92,24 @@
       </div>
       {% endif %}
       {% endfor %}
+      {% if form.batch_siblings %}
+      <div class="form-group">
+        <label class="worker-row-name">
+          {{ form.apply_to_batch }} {{ form.apply_to_batch.label }}
+        </label>
+        <div class="form-hint">
+          まとめて作った {% for r in form.batch_siblings %}{{ r.worker.name }}{% if not forloop.last %}、{% endif %}{% endfor %} の日報にも同じ内容を入れます。
+          時間は、この日報と同じ時間だった人だけ揃えます（人ごとに変えてある時間はそのまま）。承認済みの日報は変えません。
+        </div>
+      </div>
+      {% endif %}
       <div class="form-actions">
         <button type="submit" name="action" value="draft" class="btn btn-outline">下書き保存</button>
         <button type="submit" name="action" value="submit" class="btn btn-primary">提出する</button>
         {% if back_url %}
         <a href="{{ back_url }}" class="btn btn-outline">戻る</a>
+        {% elif office_user %}
+        <a href="{% url 'reports:create' %}" class="btn btn-outline">事務の日報に戻る</a>
         {% else %}
         <a href="{% url 'reports:list' %}" class="btn btn-outline">キャンセル</a>
         {% endif %}
@@ -104,6 +147,14 @@
     site.addEventListener('change', fillOrderer);
     if (!orderer.value) fillOrderer();
   }
+
+  // ---- 作業員をチェックしたら、その人だけの時間の欄を出す ----
+  document.querySelectorAll('.worker-check').forEach(function (box) {
+    box.addEventListener('change', function () {
+      var times = box.closest('.worker-row').querySelector('.worker-row-times');
+      if (times) times.hidden = !box.checked;
+    });
+  });
 
   // ---- 工程で「その他」を選んだら入力欄を出す ----
   var process = document.getElementById('id_process');
