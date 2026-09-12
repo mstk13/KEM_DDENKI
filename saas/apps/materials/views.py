@@ -23,6 +23,7 @@ from apps.materials.models import (
 )
 from apps.materials.purchase_history import copy_item_to_order, search_purchase_history
 from apps.materials.services import compare_quotations, inspect_delivery
+from apps.offline.decorators import offline_resendable
 
 
 @login_required
@@ -586,6 +587,7 @@ def po_csv_import(request, site_id=None):
 
 
 @login_required
+@offline_resendable
 def delivery_create(request, po_pk):
     """納品を記録する（画像アップロード対応）。"""
     po = get_object_or_404(PurchaseOrder, pk=po_pk)
