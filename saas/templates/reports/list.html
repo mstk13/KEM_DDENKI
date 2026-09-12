@@ -40,6 +40,9 @@
         {% if selected_month %}
         <a href="?{% if selected_status %}status={{ selected_status }}{% endif %}" class="btn btn-outline">すべての月</a>
         {% endif %}
+        {% if reports %}
+        <a href="{% url 'reports:list_pdf' %}{% if list_pdf_query %}?{{ list_pdf_query }}{% endif %}" class="btn btn-outline" target="_blank" rel="noopener">この一覧をPDF</a>
+        {% endif %}
       </div>
       {% if can_approve and submitted_count %}
       <div class="form-group" style="margin-bottom:0;margin-left:auto;">
@@ -91,6 +94,7 @@
               <a href="{% url 'reports:approve' r.pk %}" class="btn btn-success btn-sm">承認</a>
               {% endif %}
               <a href="{% url 'reports:edit' r.pk %}" class="btn btn-outline btn-sm">編集</a>
+              <a href="{% url 'reports:pdf' r.pk %}" class="btn btn-outline btn-sm" target="_blank" rel="noopener">PDF</a>
               {% if r.can_delete %}
               <a href="{% url 'reports:delete' r.pk %}" class="btn btn-outline btn-sm" style="color:var(--danger);">削除</a>
               {% endif %}

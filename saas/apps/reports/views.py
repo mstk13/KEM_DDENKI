@@ -2,6 +2,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 
 from apps.permissions.services import can_approve_report, can_delete_report
 from apps.reports.forms import DailyReportForm
@@ -30,12 +31,11 @@ def _parse_list_month(value):
     return year, month
 
 
-@login_required
-def report_list(request):
-    from django.utils import timezone
+def _filtered_reports(request):
+    """一覧の絞り込み（状態・月）を当てた日報と、選ばれた状態・月を返す。
 
-    from apps.attendance.plans import shift_month
-
+    一覧の画面と一覧の PDF で同じ条件を使うため共通にしている。
+    """
     reports = DailyReport.objects.select_related(
         "worker", "site", "work_type"
     ).order_by("-report_date", "-created_at")
@@ -46,15 +46,34 @@ def report_list(request):
 
     # 月で絞る（指定なし・読めない値は全期間）
     parsed = _parse_list_month(request.GET.get("month", "").strip())
+    if parsed:
+        year, month = parsed
+        reports = reports.filter(report_date__year=year, report_date__month=month)
+    return reports, selected_status, parsed
+
+
+@login_required
+def report_list(request):
+    from django.utils import timezone
+
+    from apps.attendance.plans import shift_month
+
+    reports, selected_status, parsed = _filtered_reports(request)
     selected_month = ""
     prev_month = next_month = ""
     if parsed:
         year, month = parsed
-        reports = reports.filter(report_date__year=year, report_date__month=month)
         selected_month = f"{year}-{month:02d}"
         prev_month = shift_month(year, month, -1)
         next_month = shift_month(year, month, 1)
     today = timezone.localdate()
+
+    # 「この一覧をPDF」に今の絞り込みを引き継ぐ（& はテンプレートで &amp; にエスケープされる）
+    from urllib.parse import urlencode
+
+    list_pdf_query = urlencode(
+        {k: v for k, v in (("month", selected_month), ("status", selected_status)) if v}
+    )
 
     # 削除ボタンを出すかどうかを行ごとに決める（承認済には出さない）。
     reports = list(reports)
@@ -72,11 +91,75 @@ def report_list(request):
         "prev_month": prev_month,
         "next_month": next_month,
         "this_month": f"{today.year}-{today.month:02d}",
+        "list_pdf_query": list_pdf_query,
         "can_approve": can_approve_report(request.user),
         "submitted_count": DailyReport.objects.filter(
             status=DailyReport.Status.SUBMITTED
         ).count(),
     })
+
+
+# 一覧の PDF に入れる日報の上限。全期間のまま押すと数千ページになり、
+# サーバーの応答が返らなくなるため。超えたら月などで絞ってもらう（ADR-0049）。
+REPORT_PDF_MAX = 300
+
+
+def _pdf_response(pdf_bytes, filename):
+    from django.http import HttpResponse
+    from django.utils.http import content_disposition_header
+
+    response = HttpResponse(pdf_bytes, content_type="application/pdf")
+    # inline: ブラウザで開いてから保存・印刷できるようにする。日本語のファイル名は
+    # filename*（RFC 5987）で送る（そのまま入れるとブラウザによって文字化けする）。
+    response["Content-Disposition"] = content_disposition_header(False, filename)
+    return response
+
+
+def _report_prefetch(queryset):
+    return queryset.select_related(
+        "company", "worker", "site__customer", "work_type", "process",
+        "partner", "created_by", "approved_by",
+    )
+
+
+@login_required
+def report_pdf(request, pk):
+    """日報 1 件を PDF で出す（ADR-0049）。"""
+    from apps.reports.pdf import generate_reports_pdf
+
+    report = get_object_or_404(_report_prefetch(DailyReport.objects.all()), pk=pk)
+    filename = f"日報_{report.report_date:%Y-%m-%d}_{report.worker}.pdf"
+    return _pdf_response(generate_reports_pdf([report]), filename)
+
+
+@login_required
+def report_list_pdf(request):
+    """一覧の絞り込み（状態・月）のまま、並んでいる日報を 1 件 1 ページで PDF にする。"""
+    from urllib.parse import urlencode
+
+    from apps.reports.pdf import generate_reports_pdf
+
+    reports, selected_status, parsed = _filtered_reports(request)
+    back_params = {k: v for k, v in (("month", request.GET.get("month", "")),
+                                     ("status", selected_status)) if v}
+    back = reverse("reports:list") + (f"?{urlencode(back_params)}" if back_params else "")
+
+    count = reports.count()
+    if not count:
+        messages.warning(request, "PDF にする日報がありません。")
+        return redirect(back)
+    if count > REPORT_PDF_MAX:
+        messages.error(
+            request,
+            f"日報が {count} 件あり、一度に PDF にできる {REPORT_PDF_MAX} 件を超えています。"
+            "月や状態で絞ってから出してください。",
+        )
+        return redirect(back)
+
+    # 印刷して綴じる用途なので、PDF の中は日付の古い順に並べる
+    reports = _report_prefetch(reports).order_by("report_date", "worker__employee_code", "pk")
+    label = f"{parsed[0]}-{parsed[1]:02d}" if parsed else "全期間"
+    return _pdf_response(generate_reports_pdf(list(reports)), f"日報_{label}.pdf")
 
 
 def _report_form_context(company):

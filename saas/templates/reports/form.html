@@ -169,6 +169,9 @@
         {% else %}
         <a href="{% url 'reports:list' %}" class="btn btn-outline">キャンセル</a>
         {% endif %}
+        {% if form.instance.pk %}
+        <a href="{% url 'reports:pdf' form.instance.pk %}" class="btn btn-outline" target="_blank" rel="noopener">PDF</a>
+        {% endif %}
         {% if form.instance.pk and can_delete %}
         <a href="{% url 'reports:delete' form.instance.pk %}" class="btn btn-outline btn-danger-link" style="margin-left:auto;color:var(--danger);">この日報を削除</a>
         {% endif %}
