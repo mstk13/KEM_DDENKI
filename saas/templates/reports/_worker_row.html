@@ -5,7 +5,7 @@
     <span title="{{ row.worker.name }}">{{ row.worker.name }}</span>
   </label>
   <div class="worker-row-times"{% if not row.checked %} hidden{% endif %}>
-    <span>時間を変える</span>
+    <span>時間変更</span>
     <input type="time" name="{{ row.start.html_name }}" id="{{ row.start.id_for_label }}" class="form-control worker-start" value="{{ row.start.value|default_if_none:'' }}" title="開始">
     <span>〜</span>
     <input type="time" name="{{ row.end.html_name }}" id="{{ row.end.id_for_label }}" class="form-control worker-end" value="{{ row.end.value|default_if_none:'' }}" title="終了">
