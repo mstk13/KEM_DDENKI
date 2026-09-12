@@ -9,38 +9,54 @@
   .period-row > .form-control { flex: 1 1 140px; min-width: 0; }
   /* 作業員の行。左が現場（E・T）、右がそれ以外。チェックした人だけ、
      その人の開始・終了時刻と作業時間の欄を出す。狭い画面では縦に並ぶ */
-  .worker-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-  @media (max-width: 720px) { .worker-cols { grid-template-columns: 1fr; } }
+  /* minmax(0,1fr): 中身が折り返せない行でも列が広がらず、枠の中で欄が縮む */
+  .worker-cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; }
+  .worker-cols > div { min-width: 0; }
+  @media (max-width: 720px) { .worker-cols { grid-template-columns: minmax(0, 1fr); } }
   .worker-col-title { font-size: .82rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 6px; }
-  /* 1人1行に収める。氏名は幅を固定して長い名前は省略、時刻と作業時間は最小幅まで詰める */
-  .worker-rows { display: flex; flex-direction: column; gap: 4px; }
-  .worker-row { display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; min-width: 0; }
+  /* 1人1行。列の幅いっぱいに広げ、余った幅は時刻・作業時間の欄に配る。長い氏名は省略 */
+  .worker-rows { display: flex; flex-direction: column; gap: 8px; }
+  .worker-row { display: flex; align-items: center; gap: 10px; flex-wrap: nowrap; min-width: 0; width: 100%; }
   /* .form-group label（display:block）より強い指定にして、チェックと氏名を横並びにする */
   .form-group .worker-row-name {
-    display: flex; align-items: center; gap: 4px; flex: 0 0 96px; min-width: 0;
-    margin: 0; cursor: pointer; font-size: .88rem; font-weight: 500;
+    display: flex; align-items: center; gap: 6px; flex: 0 0 26%; max-width: 180px; min-width: 0;
+    margin: 0; cursor: pointer; font-size: 1rem; font-weight: 600;
   }
-  .form-group .worker-row-name input { flex: 0 0 auto; margin: 0; }
+  .form-group .worker-row-name input { flex: 0 0 auto; margin: 0; width: 18px; height: 18px; }
   .form-group .worker-row-name span {
     flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
   .worker-row-times {
-    display: flex; align-items: center; gap: 3px; flex: 1 1 auto; min-width: 0;
-    font-size: .74rem; color: var(--text-secondary); white-space: nowrap;
+    display: flex; align-items: center; gap: 6px; flex: 1 1 auto; min-width: 0;
+    font-size: .88rem; color: var(--text-secondary); white-space: nowrap;
   }
-  /* 共通の input[type="time"].form-control（幅100%・高さ42px）より強い指定にして詰める */
+  /* 共通の input[type="time"].form-control（幅100%・高さ42px）より強い指定にする */
   .worker-row-times input.form-control,
   .worker-row-times input[type="time"].form-control {
-    padding: 4px 4px; font-size: .8rem; height: auto; min-height: 30px;
+    padding: 6px 8px; font-size: 1rem; height: auto; min-height: 40px;
+    width: auto; min-width: 0;
   }
-  .worker-row-times input[type="time"].form-control { width: 82px; flex: 0 0 82px; }
-  .worker-row-times input.worker-hours { width: 54px; flex: 0 0 54px; text-align: right; }
-  /* スマホ幅では「時間を変える」の文字を消し、欄をさらに詰めて1行に収める */
-  @media (max-width: 480px) {
-    .form-group .worker-row-name { flex-basis: 108px; }
+  /* 最小幅は文字（09:00 / 8.00）が欠けない幅。余りは 3:3:2 で配る */
+  .worker-row-times input[type="time"].form-control { flex: 3 1 96px; min-width: 96px; }
+  .worker-row-times input.worker-hours { flex: 2 1 64px; min-width: 64px; text-align: right; }
+  /* 中くらいの幅では「時間を変える」の文字を消し、氏名を狭めて欄に幅を回す */
+  @media (max-width: 1200px) {
     .worker-row-times > span:first-child { display: none; }
-    .worker-row-times input[type="time"].form-control { width: 72px; flex-basis: 72px; padding: 4px 2px; }
-    .worker-row-times input.worker-hours { width: 48px; flex-basis: 48px; padding: 4px 2px; }
+    .form-group .worker-row-name { flex-basis: 22%; font-size: .95rem; }
+    .worker-row-times input.form-control,
+    .worker-row-times input[type="time"].form-control { padding: 6px 4px; font-size: .95rem; }
+    .worker-row-times input[type="time"].form-control { flex-basis: 88px; min-width: 88px; }
+    .worker-row-times input.worker-hours { flex-basis: 58px; min-width: 58px; }
+  }
+  /* スマホ幅では氏名の行と時間の行の2段にして、時間の欄を幅いっぱいに使う */
+  @media (max-width: 480px) {
+    .worker-row { flex-wrap: wrap; gap: 6px 10px; }
+    .form-group .worker-row-name { flex: 1 1 100%; max-width: none; font-size: 1rem; }
+    .worker-row-times { flex: 1 1 100%; gap: 4px; }
+    .worker-row-times input.form-control,
+    .worker-row-times input[type="time"].form-control { font-size: .9rem; padding: 6px 2px; }
+    .worker-row-times input[type="time"].form-control { flex-basis: 84px; min-width: 84px; }
+    .worker-row-times input.worker-hours { flex-basis: 54px; min-width: 54px; }
   }
 </style>
 
