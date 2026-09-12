@@ -15,8 +15,8 @@ from django.urls import reverse
 
 from apps.masters.models import Customer, WorkType
 from apps.reports import views as report_views
-from apps.reports.models import DailyReport
-from apps.sites.models import Site
+from apps.reports.models import DailyReport, DailyReportMaterial
+from apps.sites.models import Process, Site
 from apps.workers.models import Worker
 
 
@@ -70,6 +70,24 @@ class TestSingleReportPdf:
                          "山陽建設株式会社", "電気幹線", "08:00 〜 18:00", "9.00 時間",
                          "幹線ケーブル敷設", "分電盤結線", "雨のため午後は屋内"):
             assert expected in text, expected
+
+    def test_工程は名前だけ_材料の数量は余計な0を付けない(self, client, user_a, data, company_a):
+        report = data["sep10"]
+        report.process = Process.unscoped.create(
+            company=company_a, site=report.site, work_type=report.work_type, name="施工",
+        )
+        report.save()
+        for name, qty, unit in (("CVケーブル 60sq", "45.00", "m"), ("圧着端子", "12.50", "個")):
+            DailyReportMaterial.unscoped.create(
+                company=company_a, daily_report=report, material_name=name,
+                quantity_used=qty, unit=unit,
+            )
+        client.force_login(user_a)
+        text = _pages(client.get(reverse("reports:pdf", args=[report.pk])))[0]
+        assert "施工" in text
+        assert "A社ビル新築 - 施工" not in text
+        assert "CVケーブル 60sq 45 m" in text
+        assert "圧着端子 12.5 個" in text
 
     def test_記号を含む作業内容もそのまま載る(self, client, user_a, data):
         client.force_login(user_a)

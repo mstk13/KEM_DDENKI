@@ -70,6 +70,14 @@ def _time_label(day, time):
     return f"{day.month}/{day.day} {time:%H:%M}" if day else f"{time:%H:%M}"
 
 
+def _quantity(value):
+    """数量を「45」「12.5」のように余計な 0 を付けずに出す。"""
+    if value is None:
+        return "-"
+    text = f"{value.normalize():f}" if hasattr(value, "normalize") else f"{value:g}"
+    return text
+
+
 def _hours(value):
     return f"{value:.2f} 時間" if value is not None else "-"
 
@@ -148,7 +156,7 @@ def _materials_table(report, width):
     data = [[_p("材料", STYLE_LABEL), _p("数量", STYLE_LABEL), _p("単位", STYLE_LABEL)]]
     for item in materials:
         name = item.material.name if item.material_id else item.material_name
-        data.append([_p(name), _p(f"{item.quantity_used:g}"), _p(item.unit)])
+        data.append([_p(name), _p(_quantity(item.quantity_used)), _p(item.unit)])
     table = Table(data, colWidths=[width - 50 * mm, 28 * mm, 22 * mm])
     table.setStyle(TableStyle([
         ("GRID", (0, 0), (-1, -1), 0.6, _BORDER),
@@ -194,7 +202,8 @@ def _report_elements(report, width):
              ("天候", report.get_weather_display() or "-")],
             [("作業員", str(report.worker)), ("協力会社", partner)],
             [("現場", str(site) if site else "-"), ("発注先", orderer)],
-            [("工程", str(report.process) if report.process_id else "-"),
+            # 工程の文字列表現は「現場 - 工程」なので、現場の行と重ならないよう名前だけ出す
+            [("工程", report.process.name if report.process_id else "-"),
              ("工種", str(report.work_type) if report.work_type_id else "-")],
             [("開始〜終了", _period_label(report)), ("作業時間", _hours(report.work_hours))],
             [("通常時間", _hours(report.regular_hours)),
