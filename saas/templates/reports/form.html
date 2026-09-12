@@ -11,7 +11,8 @@
      その人の開始・終了時刻と作業時間の欄を出す。狭い画面では縦に並ぶ */
   /* minmax(0,1fr): 中身が折り返せない行でも列が広がらず、枠の中で欄が縮む */
   .worker-cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; margin-top: 10px; }
-  .worker-cols[hidden] { display: none; }
+  /* .btn / .worker-cols は display を持つので hidden 属性だけでは消えない */
+  .worker-cols[hidden], #open-all-workers[hidden] { display: none; }
   .worker-cols > div { min-width: 0; }
   @media (max-width: 720px) { .worker-cols { grid-template-columns: minmax(0, 1fr); } }
   .worker-col-title { font-size: .82rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 6px; }
