@@ -3,7 +3,8 @@
 - ログインした人の作業員を最初からチェックしておく
 - 作業員ごとに開始・終了時刻を変えられる
 - 2人以上でまとめて作った日報は同じ組（batch）になり、編集で他の人にも反映できる
-- 役職・社員番号に関係なく同じ形式。E・T 以外の人は右の列に出る
+- 役職・社員番号に関係なく同じ形式。基本は自分の行だけ出し、
+  「作業員の日報をまとめて書く」で他の人の一覧（E・T が左、それ以外が右）を開く
 """
 import datetime
 from decimal import Decimal
@@ -59,19 +60,51 @@ class TestSelfChecked:
         client.force_login(user_a)
         res = client.get(reverse("reports:create"))
         assert res.status_code == 200
-        rows = {r["worker"].pk: r["checked"] for r in res.context["form"].worker_rows}
-        assert rows[me.pk] is True
-        assert rows[others[0].pk] is False
+        form = res.context["form"]
+        assert form.self_row["worker"].pk == me.pk
+        assert form.self_row["checked"] is True
+        # 自分は一覧（左右の列）には出ない
+        assert me.pk not in [r["worker"].pk for r in form.worker_rows_field]
+        assert not any(r["checked"] for r in form.worker_rows_field + form.worker_rows_other)
 
-    def test_ET以外の人は右側に出るがチェックはしない(self, client, user_a, company_a, others):
-        # G の人は候補に出る（右側）が、代わりに書くのが目的なのでチェックは付けない
+    def test_ET以外の人でも自分がチェックされる(self, client, user_a, company_a, others):
         office = _worker(company_a, "事務の人", "G001", user=user_a)
         client.force_login(user_a)
+        form = client.get(reverse("reports:create")).context["form"]
+        assert form.self_row["worker"].pk == office.pk
+        assert form.self_row["checked"] is True
+        assert form.worker_rows_other == []
+
+    def test_最初は一覧が閉じていてボタンが出る(self, client, user_a, me, others):
+        client.force_login(user_a)
         res = client.get(reverse("reports:create"))
-        assert res.status_code == 200
         form = res.context["form"]
-        assert not any(r["checked"] for r in form.worker_rows)
-        assert [r["worker"].pk for r in form.worker_rows_other] == [office.pk]
+        assert form.show_all_workers is False
+        body = res.content.decode()
+        assert 'id="open-all-workers"' in body
+        assert 'id="all-workers" hidden' in body
+
+    def test_作業員でないユーザーは一覧が最初から開く(self, client, user_a, others):
+        client.force_login(user_a)
+        res = client.get(reverse("reports:create"))
+        form = res.context["form"]
+        assert form.self_row is None
+        assert form.show_all_workers is True
+        assert 'id="open-all-workers"' not in res.content.decode()
+
+    def test_他の人を選んでエラーで戻ると一覧が開いたまま(self, client, user_a, me, others):
+        client.force_login(user_a)
+        data = _data([me, others[0]], site="")  # 現場が空でエラー
+        res = client.post(reverse("reports:create"), data)
+        assert res.status_code == 200
+        assert res.context["form"].show_all_workers is True
+
+    def test_一覧を開いたままエラーで戻ると開いたまま(self, client, user_a, me):
+        client.force_login(user_a)
+        data = _data([me], site="", show_all_workers="1")
+        res = client.post(reverse("reports:create"), data)
+        assert res.status_code == 200
+        assert res.context["form"].show_all_workers is True
 
 
 @pytest.mark.django_db
@@ -81,9 +114,8 @@ class TestWorkerColumns:
         no_code = _worker(company_a, "番号なし", "")
         client.force_login(user_a)
         form = client.get(reverse("reports:create")).context["form"]
-        assert [r["worker"].pk for r in form.worker_rows_field] == [
-            me.pk, others[0].pk, others[1].pk,
-        ]
+        # 自分（me）は上の行に出るので、列には他の人だけ
+        assert [r["worker"].pk for r in form.worker_rows_field] == [others[0].pk, others[1].pk]
         assert [r["worker"].pk for r in form.worker_rows_other] == [office.pk, no_code.pk]
 
     def test_その他の作業員も日報を作れる(self, client, user_a, company_a, me):

@@ -4,7 +4,7 @@ from django.core.exceptions import PermissionDenied
 from django.shortcuts import get_object_or_404, redirect, render
 
 from apps.permissions.services import can_approve_report, can_delete_report
-from apps.reports.forms import DailyReportForm, is_field_worker
+from apps.reports.forms import DailyReportForm
 from apps.reports.models import DailyReport, SafetyRecord
 from apps.reports.services import (
     alert_safety_incomplete,
@@ -69,8 +69,13 @@ def _report_form_context(company):
 @login_required
 def report_create(request):
     """日報を書く。役職・社員番号に関係なく全員が同じ形式（ADR-0043）。"""
+    # ログインした人の作業員。基本は自分の日報を書く画面にし、
+    # 「作業員の日報をまとめて書く」を押したときだけ他の人の一覧を出す。
+    profile = getattr(request.user, "worker_profile", None)
     if request.method == "POST":
-        form = DailyReportForm(request.POST, company=request.user.company)
+        form = DailyReportForm(
+            request.POST, company=request.user.company, self_worker=profile,
+        )
         if form.is_valid():
             status = (
                 DailyReport.Status.SUBMITTED
@@ -89,17 +94,7 @@ def report_create(request):
                 )
             return redirect("reports:list")
     else:
-        # ログインした人が現場作業の区分（E・T）なら最初からチェックしておく。
-        # 事務の人が代わりに書くときは、本人の日報を作るのが目的ではないので付けない。
-        form = DailyReportForm(company=request.user.company)
-        profile = getattr(request.user, "worker_profile", None)
-        if (
-            profile and is_field_worker(profile)
-            and form.fields["workers"].queryset.filter(pk=profile.pk).exists()
-        ):
-            form.initial["workers"] = [profile.pk]
-            form.worker_rows = []
-            form._build_worker_rows()
+        form = DailyReportForm(company=request.user.company, self_worker=profile)
     ctx = {"form": form, **_report_form_context(request.user.company)}
     return render(request, "reports/form.html", ctx)
 

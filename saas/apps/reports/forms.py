@@ -145,7 +145,7 @@ class DailyReportForm(forms.ModelForm):
     # 人ごとに時間が違うときは、作業員の行の start_time_<pk> / end_time_<pk> に
     # 入れると、その人だけ共通の時間の代わりに使う（__init__ で人数分つくる）。
     workers = forms.ModelMultipleChoiceField(
-        label="作業員の日報をまとめて書く",
+        label="作業員",
         # 読み込み時に評価されるため、テナント判定を通らない unscoped を使う。
         # 実際の候補は __init__ で会社ごとに絞る。
         queryset=Worker.unscoped.none(),
@@ -181,9 +181,12 @@ class DailyReportForm(forms.ModelForm):
             "memo": forms.Textarea(attrs={"class": "form-control", "rows": 2}),
         }
 
-    def __init__(self, *args, company=None, **kwargs):
+    def __init__(self, *args, company=None, self_worker=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.company = company
+        # ログインした人の作業員。新規作成では最初からチェックし、
+        # 一覧（左右の列）とは別に「自分」の行として出す。
+        self.self_worker = self_worker
 
         self.is_edit = bool(self.instance and self.instance.pk)
 
@@ -230,7 +233,14 @@ class DailyReportForm(forms.ModelForm):
         # 新規作成では、作業員ごとに時間を変えられる欄を人数分つくる。
         # 編集は1人だけなので共通の欄で足りる。
         self.worker_rows = []
+        self.self_row = None
         if not self.is_edit:
+            if (
+                not self.is_bound and self.self_worker
+                and "workers" not in self.initial
+                and self.fields["workers"].queryset.filter(pk=self.self_worker.pk).exists()
+            ):
+                self.initial["workers"] = [self.self_worker.pk]
             self._build_worker_rows()
 
         # 編集で、まとめて作った他の人の日報にも反映するかどうか。
@@ -263,7 +273,8 @@ class DailyReportForm(forms.ModelForm):
     def _build_worker_rows(self):
         """作業員ごとの行（チェック＋その人だけの開始・終了時刻・作業時間）をつくる。
 
-        worker_rows は全員、worker_rows_field は E・T、worker_rows_other はそれ以外。
+        worker_rows は全員。self_row はログインした人（一覧とは別に上に出す）、
+        worker_rows_field は E・T、worker_rows_other はそれ以外（どちらも自分を除く）。
         """
         if self.is_bound:
             # テストなどで素の dict が渡ることもあるので getlist に頼らない
@@ -303,10 +314,29 @@ class DailyReportForm(forms.ModelForm):
                 "hours": self[hours_name],
             }
             self.worker_rows.append(row)
-            if is_field_worker(worker):
+            if self.self_worker and worker.pk == self.self_worker.pk:
+                self.self_row = row
+            elif is_field_worker(worker):
                 self.worker_rows_field.append(row)
             else:
                 self.worker_rows_other.append(row)
+
+    @property
+    def show_all_workers(self):
+        """一覧（左右の列）を最初から開いた状態で出すか。
+
+        自分の行が無い（ログインした人が作業員でない）ときは一覧しか無いので開く。
+        入力エラーで戻ってきたときは、一覧を開いていたか、自分以外を選んでいれば開く。
+        """
+        if self.self_row is None:
+            return True
+        if not self.is_bound:
+            return False
+        if str(self.data.get("show_all_workers") or "") == "1":
+            return True
+        return any(
+            row["checked"] for row in self.worker_rows_field + self.worker_rows_other
+        )
 
     # テンプレートの通常ループで出さない欄（作業員の行や編集の反映欄で別に出す）
     @property
