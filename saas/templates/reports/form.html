@@ -12,12 +12,36 @@
   .worker-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
   @media (max-width: 720px) { .worker-cols { grid-template-columns: 1fr; } }
   .worker-col-title { font-size: .82rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 6px; }
-  .worker-rows { display: flex; flex-direction: column; gap: 6px; }
-  .worker-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-  .worker-row-name { display: flex; align-items: center; gap: 6px; min-width: 120px; cursor: pointer; }
-  .worker-row-times { display: flex; align-items: center; gap: 6px; font-size: .82rem; color: var(--text-secondary); flex-wrap: wrap; }
-  .worker-row-times .form-control { width: 104px; }
-  .worker-row-times .worker-hours { width: 80px; }
+  /* 1人1行に収める。氏名は幅を固定して長い名前は省略、時刻と作業時間は最小幅まで詰める */
+  .worker-rows { display: flex; flex-direction: column; gap: 4px; }
+  .worker-row { display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; min-width: 0; }
+  /* .form-group label（display:block）より強い指定にして、チェックと氏名を横並びにする */
+  .form-group .worker-row-name {
+    display: flex; align-items: center; gap: 4px; flex: 0 0 96px; min-width: 0;
+    margin: 0; cursor: pointer; font-size: .88rem; font-weight: 500;
+  }
+  .form-group .worker-row-name input { flex: 0 0 auto; margin: 0; }
+  .form-group .worker-row-name span {
+    flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .worker-row-times {
+    display: flex; align-items: center; gap: 3px; flex: 1 1 auto; min-width: 0;
+    font-size: .74rem; color: var(--text-secondary); white-space: nowrap;
+  }
+  /* 共通の input[type="time"].form-control（幅100%・高さ42px）より強い指定にして詰める */
+  .worker-row-times input.form-control,
+  .worker-row-times input[type="time"].form-control {
+    padding: 4px 4px; font-size: .8rem; height: auto; min-height: 30px;
+  }
+  .worker-row-times input[type="time"].form-control { width: 82px; flex: 0 0 82px; }
+  .worker-row-times input.worker-hours { width: 54px; flex: 0 0 54px; text-align: right; }
+  /* スマホ幅では「時間を変える」の文字を消し、欄をさらに詰めて1行に収める */
+  @media (max-width: 480px) {
+    .form-group .worker-row-name { flex-basis: 108px; }
+    .worker-row-times > span:first-child { display: none; }
+    .worker-row-times input[type="time"].form-control { width: 72px; flex-basis: 72px; padding: 4px 2px; }
+    .worker-row-times input.worker-hours { width: 48px; flex-basis: 48px; padding: 4px 2px; }
+  }
 </style>
 
 <div class="page-header">
