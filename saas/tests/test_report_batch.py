@@ -3,8 +3,7 @@
 - ログインした人の作業員を最初からチェックしておく
 - 作業員ごとに開始・終了時刻を変えられる
 - 2人以上でまとめて作った日報は同じ組（batch）になり、編集で他の人にも反映できる
-- 事務の人（G/S/A/P）も ?mode=field で現場作業員の日報をまとめて書ける
-- 社員番号が無い人は職種・役職に「事務」が入っていれば事務の日報
+- 役職・社員番号に関係なく同じ形式。E・T 以外の人は右の列に出る
 """
 import datetime
 from decimal import Decimal
@@ -12,9 +11,8 @@ from decimal import Decimal
 import pytest
 from django.urls import reverse
 
-from apps.reports.forms import is_office_reporter
 from apps.reports.models import DailyReport
-from apps.workers.models import JobTitle, Worker
+from apps.workers.models import Worker
 
 
 def _worker(company, name, code, user=None):
@@ -65,11 +63,11 @@ class TestSelfChecked:
         assert rows[me.pk] is True
         assert rows[others[0].pk] is False
 
-    def test_事務の人は右側に出るがチェックはしない(self, client, user_a, company_a, others):
+    def test_ET以外の人は右側に出るがチェックはしない(self, client, user_a, company_a, others):
         # G の人は候補に出る（右側）が、代わりに書くのが目的なのでチェックは付けない
         office = _worker(company_a, "事務の人", "G001", user=user_a)
         client.force_login(user_a)
-        res = client.get(reverse("reports:create") + "?mode=field")
+        res = client.get(reverse("reports:create"))
         assert res.status_code == 200
         form = res.context["form"]
         assert not any(r["checked"] for r in form.worker_rows)
@@ -250,46 +248,16 @@ class TestBatchPropagation:
 
 
 @pytest.mark.django_db
-class TestOfficeUserFieldMode:
-    def test_事務の人はそのままだと事務の日報(self, client, user_a, company_a):
-        _worker(company_a, "事務の人", "G001", user=user_a)
+class TestSameFormForEveryone:
+    @pytest.mark.parametrize("code", ["G001", "S001", "A001", "P001", "Y001", ""])
+    def test_どの社員番号でも同じ日報フォーム(self, client, user_a, company_a, others, code):
+        _worker(company_a, "誰か", code, user=user_a)
         client.force_login(user_a)
         res = client.get(reverse("reports:create"))
-        assert "reports/office_form.html" in [t.name for t in res.templates]
-        assert "現場作業員の日報をまとめて書く" in res.content.decode()
-
-    def test_mode_fieldで現場作業員の日報をまとめて書ける(self, client, user_a, company_a, others):
-        _worker(company_a, "事務の人", "G001", user=user_a)
-        client.force_login(user_a)
-        res = client.get(reverse("reports:create") + "?mode=field")
+        assert res.status_code == 200
         assert "reports/form.html" in [t.name for t in res.templates]
+        assert "作業員の日報をまとめて書く" in res.content.decode()
 
-        res = client.post(reverse("reports:create") + "?mode=field", _data(others))
+        res = client.post(reverse("reports:create"), _data(others))
         assert res.status_code == 302
         assert DailyReport.unscoped.filter(worker__in=others).count() == 2
-
-    def test_現場の人にはmode_fieldでも普通の日報(self, client, user_a, me):
-        client.force_login(user_a)
-        res = client.get(reverse("reports:create") + "?mode=field")
-        assert "reports/form.html" in [t.name for t in res.templates]
-
-
-@pytest.mark.django_db
-class TestOfficeReporterByJobTitle:
-    def test_社員番号が無く職種が事務なら事務の日報(self, company_a, user_a):
-        job = JobTitle.unscoped.create(company=company_a, name="事務")
-        Worker.unscoped.create(
-            company=company_a, name="番号なし", employee_code="", hourly_cost=0,
-            job_title=job, user=user_a,
-        )
-        user_a.refresh_from_db()
-        assert is_office_reporter(user_a) is True
-
-    def test_社員番号があればそちらを優先(self, company_a, user_a):
-        job = JobTitle.unscoped.create(company=company_a, name="事務")
-        Worker.unscoped.create(
-            company=company_a, name="現場の人", employee_code="E009", hourly_cost=0,
-            job_title=job, user=user_a,
-        )
-        user_a.refresh_from_db()
-        assert is_office_reporter(user_a) is False

@@ -153,8 +153,6 @@
         <button type="submit" name="action" value="submit" class="btn btn-primary">提出する</button>
         {% if back_url %}
         <a href="{{ back_url }}" class="btn btn-outline">戻る</a>
-        {% elif office_user %}
-        <a href="{% url 'reports:create' %}" class="btn btn-outline">事務の日報に戻る</a>
         {% else %}
         <a href="{% url 'reports:list' %}" class="btn btn-outline">キャンセル</a>
         {% endif %}
