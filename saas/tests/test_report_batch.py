@@ -65,13 +65,43 @@ class TestSelfChecked:
         assert rows[me.pk] is True
         assert rows[others[0].pk] is False
 
-    def test_候補にいない人はチェックしない(self, client, user_a, company_a, others):
-        # G の人は候補（E・T）に出ないのでチェックも付かない
-        _worker(company_a, "事務の人", "G001", user=user_a)
+    def test_事務の人は右側に出るがチェックはしない(self, client, user_a, company_a, others):
+        # G の人は候補に出る（右側）が、代わりに書くのが目的なのでチェックは付けない
+        office = _worker(company_a, "事務の人", "G001", user=user_a)
         client.force_login(user_a)
         res = client.get(reverse("reports:create") + "?mode=field")
         assert res.status_code == 200
-        assert not any(r["checked"] for r in res.context["form"].worker_rows)
+        form = res.context["form"]
+        assert not any(r["checked"] for r in form.worker_rows)
+        assert [r["worker"].pk for r in form.worker_rows_other] == [office.pk]
+
+
+@pytest.mark.django_db
+class TestWorkerColumns:
+    def test_左がETで右がそれ以外_社員番号順(self, client, user_a, company_a, me, others):
+        office = _worker(company_a, "事務の人", "S001")
+        no_code = _worker(company_a, "番号なし", "")
+        client.force_login(user_a)
+        form = client.get(reverse("reports:create")).context["form"]
+        assert [r["worker"].pk for r in form.worker_rows_field] == [
+            me.pk, others[0].pk, others[1].pk,
+        ]
+        assert [r["worker"].pk for r in form.worker_rows_other] == [office.pk, no_code.pk]
+
+    def test_その他の作業員も日報を作れる(self, client, user_a, company_a, me):
+        office = _worker(company_a, "事務の人", "S001")
+        client.force_login(user_a)
+        res = client.post(reverse("reports:create"), _data([me, office]))
+        assert res.status_code == 302
+        assert DailyReport.unscoped.filter(worker=office).exists()
+
+    def test_画面に2列の見出しと作業時間欄が出る(self, client, user_a, company_a, me):
+        _worker(company_a, "事務の人", "S001")
+        client.force_login(user_a)
+        body = client.get(reverse("reports:create")).content.decode()
+        assert "現場（社員番号 E・T）" in body
+        assert "その他の作業員" in body
+        assert f'name="work_hours_{me.pk}"' in body
 
 
 @pytest.mark.django_db
@@ -99,6 +129,35 @@ class TestPerWorkerTimes:
         assert res.status_code == 200
         assert f"end_time_{me.pk}" in res.context["form"].errors
         assert not DailyReport.unscoped.exists()
+
+    def test_人ごとの作業時間だけ入れるとその値が使われる(self, client, user_a, me, others):
+        client.force_login(user_a)
+        data = _data([me, others[0]])
+        data[f"work_hours_{others[0].pk}"] = "4.5"
+        res = client.post(reverse("reports:create"), data)
+        assert res.status_code == 302
+        assert DailyReport.unscoped.get(worker=me).work_hours == Decimal("8.00")
+        theirs = DailyReport.unscoped.get(worker=others[0])
+        assert theirs.work_hours == Decimal("4.50")
+        # 共通の開始・終了はその人には当てはまらないので入れない
+        assert (theirs.start_time, theirs.end_time) == (None, None)
+
+    def test_人ごとの開始終了があれば作業時間の手入力より計算を優先(self, client, user_a, me):
+        client.force_login(user_a)
+        data = _data([me])
+        data[f"start_time_{me.pk}"] = "10:00"
+        data[f"end_time_{me.pk}"] = "15:00"
+        data[f"work_hours_{me.pk}"] = "1"
+        client.post(reverse("reports:create"), data)
+        assert DailyReport.unscoped.get(worker=me).work_hours == Decimal("5.00")
+
+    def test_共通の時間が空でも全員に作業時間があれば保存できる(self, client, user_a, me):
+        client.force_login(user_a)
+        data = _data([me], start_time="", end_time="", work_hours="")
+        data[f"work_hours_{me.pk}"] = "6"
+        res = client.post(reverse("reports:create"), data)
+        assert res.status_code == 302
+        assert DailyReport.unscoped.get(worker=me).work_hours == Decimal("6.00")
 
     def test_共通の時間が空でも全員に個別の時間があれば保存できる(self, client, user_a, me):
         client.force_login(user_a)
