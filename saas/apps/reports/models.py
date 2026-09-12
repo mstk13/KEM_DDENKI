@@ -73,7 +73,11 @@ class DailyReport(TenantModel):
     work_description = models.TextField("作業内容", blank=True)
 
     # 時間管理
+    # 日をまたぐ作業（夜間工事など）のため、開始・終了は日付も持てる。
+    # 日付が空のときは report_date の作業として扱い、終了時刻が開始以前なら翌日とみなす。
+    start_date = models.DateField("開始日", null=True, blank=True)
     start_time = models.TimeField("開始時間", null=True, blank=True)
+    end_date = models.DateField("終了日", null=True, blank=True)
     end_time = models.TimeField("終了時間", null=True, blank=True)
     work_hours = models.DecimalField(
         "作業時間",
@@ -124,6 +128,10 @@ class DailyReport(TenantModel):
     )
     approved_at = models.DateTimeField("承認日時", null=True, blank=True)
 
+    # 代表者が複数の作業員をまとめて登録したとき、同時に作った日報に同じ値を入れる。
+    # 後で代表者が内容を直したとき、同じ組の他の人の日報にも反映するための目印。
+    batch = models.UUIDField("まとめて作成の組", null=True, blank=True, db_index=True)
+
     history = HistoricalRecords()
 
     class Meta:
@@ -134,20 +142,46 @@ class DailyReport(TenantModel):
     def __str__(self):
         return f"{self.report_date} {self.worker} @ {self.site}"
 
+    def batch_siblings(self):
+        """同じ組でまとめて作られた、自分以外の日報。組が無ければ空。"""
+        if not self.batch:
+            return DailyReport.unscoped.none()
+        return (
+            DailyReport.unscoped.filter(company_id=self.company_id, batch=self.batch)
+            .exclude(pk=self.pk)
+            .select_related("worker")
+        )
+
+    def work_period(self):
+        """開始・終了の日時を (start, end) で返す。時刻が無ければ None。
+
+        開始日が空なら日報の日付。終了日が空なら開始日と同じ日とし、
+        終了時刻が開始以前なら翌日とみなす（従来どおり）。
+        """
+        if not self.start_time or not self.end_time:
+            return None
+
+        from datetime import datetime, timedelta
+
+        start_day = self.start_date or self.report_date
+        start_dt = datetime.combine(start_day, self.start_time)
+        if self.end_date:
+            end_dt = datetime.combine(self.end_date, self.end_time)
+        else:
+            end_dt = datetime.combine(start_day, self.end_time)
+            if end_dt <= start_dt:
+                end_dt += timedelta(days=1)
+        return start_dt, end_dt
+
     def calculate_hours(self):
         """開始・終了時間から通常時間と残業時間を自動計算する。
 
         基準: 8時間を超えた分が残業。
         """
-        if not self.start_time or not self.end_time:
+        period = self.work_period()
+        if not period:
             return
-
-        from datetime import datetime, timedelta
-
-        start_dt = datetime.combine(self.report_date, self.start_time)
-        end_dt = datetime.combine(self.report_date, self.end_time)
-        if end_dt <= start_dt:
-            end_dt += timedelta(days=1)
+        start_dt, end_dt = period
 
         # 休憩1時間を差し引き（8時間以上の場合）
         total_minutes = (end_dt - start_dt).total_seconds() / 60

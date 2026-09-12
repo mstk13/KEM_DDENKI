@@ -4,11 +4,7 @@ from django.core.exceptions import PermissionDenied
 from django.shortcuts import get_object_or_404, redirect, render
 
 from apps.permissions.services import can_approve_report, can_delete_report
-from apps.reports.forms import (
-    DailyReportForm,
-    OfficeDailyReportForm,
-    is_office_reporter,
-)
+from apps.reports.forms import DailyReportForm
 from apps.reports.models import DailyReport, SafetyRecord
 from apps.reports.services import (
     alert_safety_incomplete,
@@ -18,8 +14,28 @@ from apps.reports.services import (
 )
 
 
+def _parse_list_month(value):
+    """日報一覧の月指定 "YYYY-MM" を (年, 月) にする。空や読めない値は None（全期間）。
+
+    勤怠の parse_month は読めないと今月にするが、一覧では「指定なし＝全期間」に
+    したいので別に持つ（今月に絞ると先月以前の未承認が見えなくなる。ADR-0047）。
+    """
+    from datetime import date
+
+    try:
+        year, month = (int(part) for part in (value or "").split("-"))
+        date(year, month, 1)
+    except (ValueError, TypeError):
+        return None
+    return year, month
+
+
 @login_required
 def report_list(request):
+    from django.utils import timezone
+
+    from apps.attendance.plans import shift_month
+
     reports = DailyReport.objects.select_related(
         "worker", "site", "work_type"
     ).order_by("-report_date", "-created_at")
@@ -27,6 +43,18 @@ def report_list(request):
     selected_status = request.GET.get("status", "")
     if selected_status:
         reports = reports.filter(status=selected_status)
+
+    # 月で絞る（指定なし・読めない値は全期間）
+    parsed = _parse_list_month(request.GET.get("month", "").strip())
+    selected_month = ""
+    prev_month = next_month = ""
+    if parsed:
+        year, month = parsed
+        reports = reports.filter(report_date__year=year, report_date__month=month)
+        selected_month = f"{year}-{month:02d}"
+        prev_month = shift_month(year, month, -1)
+        next_month = shift_month(year, month, 1)
+    today = timezone.localdate()
 
     # 削除ボタンを出すかどうかを行ごとに決める（承認済には出さない）。
     reports = list(reports)
@@ -37,6 +65,13 @@ def report_list(request):
         "reports": reports,
         "status_choices": DailyReport.Status.choices,
         "selected_status": selected_status,
+        "selected_month": selected_month,
+        "month_label": (
+            f"{int(selected_month[:4])}年{int(selected_month[5:])}月" if selected_month else ""
+        ),
+        "prev_month": prev_month,
+        "next_month": next_month,
+        "this_month": f"{today.year}-{today.month:02d}",
         "can_approve": can_approve_report(request.user),
         "submitted_count": DailyReport.objects.filter(
             status=DailyReport.Status.SUBMITTED
@@ -48,7 +83,7 @@ def _report_form_context(company):
     """日報フォームの候補一覧と、現場→発注先の対応表を返す。"""
     from apps.core.json_utils import json_for_script
     from apps.masters.models import WorkType
-    from apps.sites.models import Process, Site
+    from apps.sites.models import Site
 
     sites = list(
         Site.unscoped.filter(company=company)
@@ -58,9 +93,6 @@ def _report_form_context(company):
     return {
         "site_names": [s.name for s in sites],
         "weather_choices": [label for _v, label in DailyReport.Weather.choices],
-        "process_names": sorted({
-            p.name for p in Process.unscoped.filter(company=company)
-        }),
         "worktype_names": list(
             WorkType.unscoped.filter(company=company, is_active=True)
             .order_by("name")
@@ -73,57 +105,16 @@ def _report_form_context(company):
     }
 
 
-def _office_report_create(request):
-    """事務の日報。1日ぶんの時間＋現場ごとの作業内容を書く。"""
-    worker = getattr(request.user, "worker_profile", None)
-
-    if request.method == "POST":
-        form = OfficeDailyReportForm(
-            request.POST, company=request.user.company, worker=worker,
-        )
-        if form.is_valid():
-            status = (
-                DailyReport.Status.SUBMITTED
-                if request.POST.get("action") == "submit"
-                else None
-            )
-            saved, skipped = form.save_reports(user=request.user, status=status)
-            messages.success(request, f"{len(saved)}件の日報を保存しました。")
-            if skipped:
-                messages.warning(
-                    request,
-                    "、".join(skipped)
-                    + " は同じ日付の日報が既にあるため作成しませんでした。",
-                )
-            return redirect("reports:list")
-    else:
-        form = OfficeDailyReportForm(company=request.user.company, worker=worker)
-
-    # 保存に失敗して画面に戻ったとき、入力済みの現場を復元するために渡す
-    from apps.core.json_utils import json_for_script
-
-    previous = [
-        {"site": e["site_name"], "work": e["work_description"]}
-        for e in getattr(form, "entries", [])
-    ]
-
-    ctx = {
-        "form": form,
-        "worker": worker,
-        "previous_entries_json": json_for_script(previous),
-        **_report_form_context(request.user.company),
-    }
-    return render(request, "reports/office_form.html", ctx)
-
-
 @login_required
 def report_create(request):
-    # 社員番号が G/S/A/P の人は、1日に複数現場ぶんの事務内容を書く形式にする
-    if is_office_reporter(request.user):
-        return _office_report_create(request)
-
+    """日報を書く。役職・社員番号に関係なく全員が同じ形式（ADR-0043）。"""
+    # ログインした人の作業員。基本は自分の日報を書く画面にし、
+    # 「作業員の日報をまとめて書く」を押したときだけ他の人の一覧を出す。
+    profile = getattr(request.user, "worker_profile", None)
     if request.method == "POST":
-        form = DailyReportForm(request.POST, company=request.user.company)
+        form = DailyReportForm(
+            request.POST, company=request.user.company, self_worker=profile,
+        )
         if form.is_valid():
             status = (
                 DailyReport.Status.SUBMITTED
@@ -142,14 +133,31 @@ def report_create(request):
                 )
             return redirect("reports:list")
     else:
-        form = DailyReportForm(company=request.user.company)
+        form = DailyReportForm(company=request.user.company, self_worker=profile)
     ctx = {"form": form, **_report_form_context(request.user.company)}
     return render(request, "reports/form.html", ctx)
+
+
+def _back_url(request):
+    """編集後に戻る先（next）。月次サマリなど、日報を開いた元の画面に戻すために使う。
+
+    GET では ?next=、POST ではフォームの hidden から受ける。
+    同じホスト内の URL だけ許す（外部サイトへ飛ばされないように）。
+    """
+    from django.utils.http import url_has_allowed_host_and_scheme
+
+    value = (request.POST.get("next") or request.GET.get("next") or "").strip()
+    if value and url_has_allowed_host_and_scheme(
+        value, allowed_hosts={request.get_host()}, require_https=request.is_secure(),
+    ):
+        return value
+    return ""
 
 
 @login_required
 def report_edit(request, pk):
     report = get_object_or_404(DailyReport, pk=pk)
+    back_url = _back_url(request)
     if request.method == "POST":
         form = DailyReportForm(
             request.POST, instance=report, company=request.user.company,
@@ -164,12 +172,24 @@ def report_edit(request, pk):
                 company=request.user.company, user=request.user, status=status,
             )
             messages.success(request, "日報を更新しました。")
-            return redirect("reports:list")
+            if form.propagated:
+                names = "、".join(str(r.worker) for r in form.propagated)
+                messages.success(request, f"一緒に作った {names} の日報にも反映しました。")
+            if form.propagate_skipped:
+                names = "、".join(str(w) for w in form.propagate_skipped)
+                messages.warning(
+                    request,
+                    f"{names} の日報は同じ現場・日付・工種の日報が既にあるため"
+                    "反映できませんでした。",
+                )
+            return redirect(back_url or "reports:list")
     else:
         form = DailyReportForm(instance=report, company=request.user.company)
     ctx = {
         "form": form,
         "can_delete": can_delete_report(request.user, report),
+        # 月次サマリなどから開いたときは、保存・戻るでその画面（同じ作業員が開いた状態）に戻す
+        "back_url": back_url,
         **_report_form_context(request.user.company),
     }
     return render(request, "reports/form.html", ctx)
@@ -297,13 +317,31 @@ def safety_complete(request, pk):
 
 @login_required
 def monthly_summary(request):
-    """月別集計画面。"""
+    """月次サマリ画面。
+
+    作業員一覧と同じ社員番号順で作業員ごとの勤怠集計を出し、
+    氏名をタップするとその月の承認済の日報一覧が開く（各行から日報の画面へ）。
+    """
     from datetime import date
 
     year = int(request.GET.get("year", date.today().year))
     month = int(request.GET.get("month", date.today().month))
 
     summary = get_monthly_summary(request.user.company, year, month)
+
+    # 各日報へのリンクに next を付け、日報の保存・戻るで「この月・この作業員を開いた
+    # 状態」の月次サマリに戻れるようにする（#worker-<pk> で該当の行が開く）。
+    from urllib.parse import urlencode
+
+    from django.urls import reverse
+
+    base = f"{reverse('reports:monthly_summary')}?year={year}&month={month}"
+    for row in summary:
+        back = f"{base}#worker-{row['worker'].pk}"
+        for report in row["reports"]:
+            report.edit_url = (
+                reverse("reports:edit", args=[report.pk]) + "?" + urlencode({"next": back})
+            )
 
     return render(request, "reports/monthly_summary.html", {
         "summary": summary,

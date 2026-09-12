@@ -1,15 +1,34 @@
 {% extends "base.html" %}
-{% block title %}月別集計 — {{ APP_NAME }}{% endblock %}
-{% block topbar_title %}月別集計{% endblock %}
+{% block title %}月次サマリ — {{ APP_NAME }}{% endblock %}
+{% block topbar_title %}月次サマリ{% endblock %}
 
 {% block content %}
+<style>
+  /* 氏名の行はタップで開閉する。開いた行は少し色を付けて「いま開いている行」を分かりやすくする */
+  .ms-worker { cursor: pointer; }
+  .ms-worker:hover { background: var(--surface-hover); }
+  .ms-worker[aria-expanded="true"] { background: var(--surface-hover); }
+  .ms-worker .ms-caret {
+    display: inline-block; width: 1em; color: var(--text-muted);
+    transition: transform .15s ease;
+  }
+  .ms-worker[aria-expanded="true"] .ms-caret { transform: rotate(90deg); }
+  .ms-detail > td { padding: 0 0 12px; background: var(--surface-hover); }
+  .ms-detail table { margin: 0; }
+  .ms-detail thead th { font-size: .8rem; }
+  .ms-report { cursor: pointer; }
+  .ms-report:hover { background: var(--surface); }
+  .ms-report a { color: inherit; text-decoration: none; }
+  .ms-report a:hover { text-decoration: underline; }
+</style>
+
 <div class="page-header">
-  <h1>月別集計</h1>
+  <h1>月次サマリ</h1>
 </div>
 
 <!-- 月選択 -->
 <div class="card" style="margin-bottom:16px;padding:16px;">
-  <form method="get" style="display:flex;gap:12px;align-items:end;">
+  <form method="get" style="display:flex;gap:12px;align-items:end;flex-wrap:wrap;">
     <div>
       <label class="form-label">年</label>
       <input type="number" name="year" value="{{ year }}" class="form-control" style="width:100px;">
@@ -25,33 +44,77 @@
 <div class="card">
   <div class="card-header">
     <h2>{{ year }}年{{ month }}月 勤怠集計</h2>
+    <span style="color:var(--text-muted);font-size:.82rem;">
+      承認済の日報のみ集計。氏名をタップするとその月の承認済の日報一覧が開きます
+    </span>
   </div>
   <div class="table-wrap">
     <table>
       <thead>
         <tr>
-          <th>氏名</th>
-          <th>出勤日</th>
-          <th>通常時間</th>
-          <th>残業時間</th>
-          <th>合計時間</th>
+          <th style="width:1%;"></th>
+          <th style="white-space:nowrap;">社員番号</th>
+          <th style="white-space:nowrap;">氏名</th>
+          <th style="white-space:nowrap;">出勤日</th>
+          <th style="white-space:nowrap;">通常時間</th>
+          <th style="white-space:nowrap;">残業時間</th>
+          <th style="white-space:nowrap;">合計時間</th>
+          <th style="white-space:nowrap;">日報</th>
         </tr>
       </thead>
       <tbody>
         {% for row in summary %}
-        <tr>
-          <td>{{ row.worker__name }}</td>
+        <tr class="ms-worker" id="worker-{{ row.worker.pk }}"
+            role="button" tabindex="0" aria-expanded="false"
+            aria-controls="worker-{{ row.worker.pk }}-reports"
+            data-worker-toggle="{{ row.worker.pk }}">
+          <td><span class="ms-caret" aria-hidden="true">▶</span></td>
+          <td>{{ row.worker.employee_code|default:"-" }}</td>
+          <td style="font-weight:600;">{{ row.worker.name }}</td>
           <td>{{ row.work_days }}日</td>
           <td>{{ row.total_regular|default:"—" }}h</td>
           <td>{{ row.total_overtime|default:"0" }}h</td>
           <td style="font-weight:600;">{{ row.total_hours|default:"—" }}h</td>
+          <td>{{ row.report_count }}件</td>
+        </tr>
+        <tr class="ms-detail" id="worker-{{ row.worker.pk }}-reports" hidden>
+          <td colspan="8">
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th style="white-space:nowrap;">日付</th>
+                    <th>現場</th>
+                    <th>工種</th>
+                    <th style="white-space:nowrap;">時間</th>
+                    <th style="width:1%;"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for r in row.reports %}
+                  {# 行のどこをタップしても日報の画面へ。リンクは JS が無くても使えるよう日付と右端に置く #}
+                  {# edit_url は next 付き（この月・この作業員を開いた状態の月次サマリ）。保存・戻るでここに戻る #}
+                  <tr class="ms-report" data-report-url="{{ r.edit_url }}">
+                    <td style="white-space:nowrap;"><a href="{{ r.edit_url }}">{{ r.report_date }}</a></td>
+                    <td>{{ r.site }}</td>
+                    <td>{{ r.work_type|default:"-" }}</td>
+                    <td style="white-space:nowrap;">{{ r.work_hours }}h</td>
+                    <td style="white-space:nowrap;text-align:right;">
+                      <a href="{{ r.edit_url }}" class="btn btn-outline btn-sm">開く</a>
+                    </td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </td>
         </tr>
         {% empty %}
         <tr>
-          <td colspan="5">
+          <td colspan="8">
             <div class="empty">
               <div class="empty-icon">📊</div>
-              <p>承認済みの日報がありません</p>
+              <p>承認済の日報がありません</p>
             </div>
           </td>
         </tr>
@@ -60,4 +123,46 @@
     </table>
   </div>
 </div>
+
+<script>
+(function () {
+  function setOpen(row, open) {
+    var detail = document.getElementById(row.getAttribute("aria-controls"));
+    if (!detail) return;
+    row.setAttribute("aria-expanded", open ? "true" : "false");
+    detail.hidden = !open;
+    // 開いた人を URL に残し、日報の画面から「戻る」で来たときも同じ人が開いたままになるようにする
+    if (window.history.replaceState) {
+      window.history.replaceState(null, "", open ? "#" + row.id : window.location.pathname + window.location.search);
+    }
+  }
+
+  document.querySelectorAll("[data-worker-toggle]").forEach(function (row) {
+    row.addEventListener("click", function () {
+      setOpen(row, row.getAttribute("aria-expanded") !== "true");
+    });
+    row.addEventListener("keydown", function (e) {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        setOpen(row, row.getAttribute("aria-expanded") !== "true");
+      }
+    });
+  });
+
+  // 日報の行はどこをタップしても開く。リンクやボタンを押したときは二重に飛ばない
+  document.querySelectorAll("[data-report-url]").forEach(function (row) {
+    row.addEventListener("click", function (e) {
+      if (e.target.closest("a")) return;
+      window.location.href = row.getAttribute("data-report-url");
+    });
+  });
+
+  // 日報の画面から戻ったときなど、URL の #worker-<pk> があればその人を開いた状態にする
+  var hash = window.location.hash;
+  if (hash && /^#worker-\d+$/.test(hash)) {
+    var target = document.querySelector(hash);
+    if (target && target.hasAttribute("data-worker-toggle")) setOpen(target, true);
+  }
+})();
+</script>
 {% endblock %}
