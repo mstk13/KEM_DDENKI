@@ -15,13 +15,31 @@
         <label for="filter-month">月</label>
         <div style="display:flex;gap:6px;align-items:center;">
           {% if selected_month %}
-          <a href="?month={{ prev_month }}{% if selected_status %}&status={{ selected_status }}{% endif %}" class="btn btn-outline btn-sm" title="前の月">&lsaquo; 前月</a>
+          <a href="?{{ prev_query }}" class="btn btn-outline btn-sm" title="前の月">&lsaquo; 前月</a>
           {% endif %}
           <input type="month" id="filter-month" name="month" class="form-control" value="{{ selected_month }}" style="width:auto;">
           {% if selected_month %}
-          <a href="?month={{ next_month }}{% if selected_status %}&status={{ selected_status }}{% endif %}" class="btn btn-outline btn-sm" title="次の月">翌月 &rsaquo;</a>
+          <a href="?{{ next_query }}" class="btn btn-outline btn-sm" title="次の月">翌月 &rsaquo;</a>
           {% endif %}
         </div>
+      </div>
+      <div class="form-group" style="margin-bottom:0;">
+        <label for="filter-site">現場</label>
+        <select id="filter-site" name="site" class="form-control" style="max-width:260px;">
+          <option value="">すべての現場</option>
+          {% for s in site_choices %}
+          <option value="{{ s.pk }}" {% if selected_site == s.pk %}selected{% endif %}>{{ s.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group" style="margin-bottom:0;">
+        <label for="filter-worker">作業員</label>
+        <select id="filter-worker" name="worker" class="form-control" style="max-width:200px;">
+          <option value="">すべての作業員</option>
+          {% for w in worker_choices %}
+          <option value="{{ w.pk }}" {% if selected_worker == w.pk %}selected{% endif %}>{{ w.name }}</option>
+          {% endfor %}
+        </select>
       </div>
       <div class="form-group" style="margin-bottom:0;">
         <label for="filter-status">状態</label>
@@ -35,10 +53,13 @@
       <div class="form-group" style="margin-bottom:0;">
         <button type="submit" class="btn btn-outline">絞り込む</button>
         {% if selected_month != this_month %}
-        <a href="?month={{ this_month }}{% if selected_status %}&status={{ selected_status }}{% endif %}" class="btn btn-outline">今月</a>
+        <a href="?{{ this_month_query }}" class="btn btn-outline">今月</a>
         {% endif %}
         {% if selected_month %}
-        <a href="?{% if selected_status %}status={{ selected_status }}{% endif %}" class="btn btn-outline">すべての月</a>
+        <a href="?{{ all_months_query }}" class="btn btn-outline">すべての月</a>
+        {% endif %}
+        {% if selected_site or selected_worker %}
+        <a href="?{% if selected_month %}month={{ selected_month }}{% endif %}" class="btn btn-outline">現場・作業員を外す</a>
         {% endif %}
         {% if reports %}
         <a href="{% url 'reports:list_pdf' %}{% if list_pdf_query %}?{{ list_pdf_query }}{% endif %}" class="btn btn-outline" target="_blank" rel="noopener">この一覧をPDF</a>
@@ -54,7 +75,7 @@
 </div>
 
 <p style="margin:0 0 10px;color:var(--text-secondary);font-size:.88rem;">
-  {% if month_label %}{{ month_label }}の日報{% else %}すべての月の日報{% endif %}: {{ reports|length }}件
+  {{ scope_label }}の日報: {{ reports|length }}件
 </p>
 
 <form method="post" action="{% url 'reports:approve_bulk' %}">
