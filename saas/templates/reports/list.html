@@ -12,6 +12,18 @@
   <div class="card-body">
     <form method="get" style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;">
       <div class="form-group" style="margin-bottom:0;">
+        <label for="filter-month">月</label>
+        <div style="display:flex;gap:6px;align-items:center;">
+          {% if selected_month %}
+          <a href="?month={{ prev_month }}{% if selected_status %}&status={{ selected_status }}{% endif %}" class="btn btn-outline btn-sm" title="前の月">&lsaquo; 前月</a>
+          {% endif %}
+          <input type="month" id="filter-month" name="month" class="form-control" value="{{ selected_month }}" style="width:auto;">
+          {% if selected_month %}
+          <a href="?month={{ next_month }}{% if selected_status %}&status={{ selected_status }}{% endif %}" class="btn btn-outline btn-sm" title="次の月">翌月 &rsaquo;</a>
+          {% endif %}
+        </div>
+      </div>
+      <div class="form-group" style="margin-bottom:0;">
         <label for="filter-status">状態</label>
         <select id="filter-status" name="status" class="form-control">
           <option value="">すべて</option>
@@ -22,6 +34,12 @@
       </div>
       <div class="form-group" style="margin-bottom:0;">
         <button type="submit" class="btn btn-outline">絞り込む</button>
+        {% if selected_month != this_month %}
+        <a href="?month={{ this_month }}{% if selected_status %}&status={{ selected_status }}{% endif %}" class="btn btn-outline">今月</a>
+        {% endif %}
+        {% if selected_month %}
+        <a href="?{% if selected_status %}status={{ selected_status }}{% endif %}" class="btn btn-outline">すべての月</a>
+        {% endif %}
       </div>
       {% if can_approve and submitted_count %}
       <div class="form-group" style="margin-bottom:0;margin-left:auto;">
@@ -31,6 +49,10 @@
     </form>
   </div>
 </div>
+
+<p style="margin:0 0 10px;color:var(--text-secondary);font-size:.88rem;">
+  {% if month_label %}{{ month_label }}の日報{% else %}すべての月の日報{% endif %}: {{ reports|length }}件
+</p>
 
 <form method="post" action="{% url 'reports:approve_bulk' %}">
   {% csrf_token %}

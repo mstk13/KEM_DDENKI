@@ -14,8 +14,28 @@ from apps.reports.services import (
 )
 
 
+def _parse_list_month(value):
+    """日報一覧の月指定 "YYYY-MM" を (年, 月) にする。空や読めない値は None（全期間）。
+
+    勤怠の parse_month は読めないと今月にするが、一覧では「指定なし＝全期間」に
+    したいので別に持つ（今月に絞ると先月以前の未承認が見えなくなる。ADR-0047）。
+    """
+    from datetime import date
+
+    try:
+        year, month = (int(part) for part in (value or "").split("-"))
+        date(year, month, 1)
+    except (ValueError, TypeError):
+        return None
+    return year, month
+
+
 @login_required
 def report_list(request):
+    from django.utils import timezone
+
+    from apps.attendance.plans import shift_month
+
     reports = DailyReport.objects.select_related(
         "worker", "site", "work_type"
     ).order_by("-report_date", "-created_at")
@@ -23,6 +43,18 @@ def report_list(request):
     selected_status = request.GET.get("status", "")
     if selected_status:
         reports = reports.filter(status=selected_status)
+
+    # 月で絞る（指定なし・読めない値は全期間）
+    parsed = _parse_list_month(request.GET.get("month", "").strip())
+    selected_month = ""
+    prev_month = next_month = ""
+    if parsed:
+        year, month = parsed
+        reports = reports.filter(report_date__year=year, report_date__month=month)
+        selected_month = f"{year}-{month:02d}"
+        prev_month = shift_month(year, month, -1)
+        next_month = shift_month(year, month, 1)
+    today = timezone.localdate()
 
     # 削除ボタンを出すかどうかを行ごとに決める（承認済には出さない）。
     reports = list(reports)
@@ -33,6 +65,13 @@ def report_list(request):
         "reports": reports,
         "status_choices": DailyReport.Status.choices,
         "selected_status": selected_status,
+        "selected_month": selected_month,
+        "month_label": (
+            f"{int(selected_month[:4])}年{int(selected_month[5:])}月" if selected_month else ""
+        ),
+        "prev_month": prev_month,
+        "next_month": next_month,
+        "this_month": f"{today.year}-{today.month:02d}",
         "can_approve": can_approve_report(request.user),
         "submitted_count": DailyReport.objects.filter(
             status=DailyReport.Status.SUBMITTED
