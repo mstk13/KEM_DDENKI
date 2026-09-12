@@ -50,7 +50,7 @@
           <div class="user-name">{{ user.get_full_name|default:user.username }}</div>
           <div class="user-company">{% if user.company %}{{ user.company.name }}{% endif %}</div>
         </div>
-        <form method="post" action="{% url 'logout' %}" style="display:inline">
+        <form method="post" action="{% url 'logout' %}" style="display:inline" data-offline-logout>
           {% csrf_token %}
           <button type="submit" class="logout-btn">ログアウト</button>
         </form>
@@ -65,6 +65,11 @@
         <span class="topbar-title">{% block topbar_title %}{% endblock %}</span>
       </div>
       <div class="topbar-right" style="display:flex;align-items:center;gap:16px;">
+        {% if user.is_authenticated %}
+        {# 圏外で端末に保存し、まだ送れていない入力の件数（ADR-0048）。0件のときは隠す #}
+        <a href="{% url 'offline:outbox' %}" id="offline-outbox-badge" class="offline-outbox-badge"
+           style="display:none;" title="この端末に保存した、未送信の入力">未送信 <span data-count>0</span></a>
+        {% endif %}
         <a href="{% url 'notification_list' %}" style="position:relative;text-decoration:none;font-size:20px;" title="通知">
           &#x1f514;
           <span id="notification-badge" class="topbar-notification-badge"></span>
@@ -95,5 +100,10 @@
 
 </div>
 <script src="{% static 'js/app.js' %}"></script>
+{% if user.is_authenticated %}
+<script src="{% static 'js/offline-db.js' %}"></script>
+<script src="{% static 'js/offline.js' %}" data-sw-url="{% url 'service_worker' %}"
+        data-outbox-url="{% url 'offline:outbox' %}"></script>
+{% endif %}
 </body>
 </html>
