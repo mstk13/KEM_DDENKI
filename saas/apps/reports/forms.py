@@ -26,10 +26,22 @@ PROCESS_OTHER = "__other__"
 
 
 def is_office_reporter(user):
-    """ログインした人が「事務の日報」を書く区分かどうか。"""
+    """ログインした人が「事務の日報」を書く区分かどうか。
+
+    社員番号の先頭（G / S / A / P）で決める。社員番号が未設定の人は
+    職種・役職の名前に「事務」が入っていれば事務とみなす。
+    """
     profile = getattr(user, "worker_profile", None)
-    code = getattr(profile, "employee_code", "") or ""
-    return code.startswith(OFFICE_CODE_PREFIXES)
+    if profile is None:
+        return False
+    code = (profile.employee_code or "").strip()
+    if code:
+        return code.startswith(OFFICE_CODE_PREFIXES)
+    names = (
+        str(profile.job_title) if profile.job_title_id else "",
+        str(profile.position) if profile.position_id else "",
+    )
+    return any("事務" in n for n in names)
 
 
 def _next_code(queryset, prefix):
@@ -150,6 +162,8 @@ class DailyReportForm(forms.ModelForm):
 
     # 1日報＝1作業員（現場・作業員・日付・工種で一意）なので、
     # 複数選ばれたときは人数分の日報を作る。
+    # 人ごとに時間が違うときは、作業員の行の start_time_<pk> / end_time_<pk> に
+    # 入れると、その人だけ共通の時間の代わりに使う（__init__ で人数分つくる）。
     workers = forms.ModelMultipleChoiceField(
         label="作業員",
         # 読み込み時に評価されるため、テナント判定を通らない unscoped を使う。
@@ -248,6 +262,28 @@ class DailyReportForm(forms.ModelForm):
             )
             self.fields["partner"].required = False
 
+        # 新規作成では、作業員ごとに時間を変えられる欄を人数分つくる。
+        # 編集は1人だけなので共通の欄で足りる。
+        self.worker_rows = []
+        if not self.is_edit:
+            self._build_worker_rows()
+
+        # 編集で、まとめて作った他の人の日報にも反映するかどうか。
+        # 同じ組の日報が無ければ欄を出さない。
+        self.batch_siblings = []
+        if self.is_edit and self.instance.batch:
+            self.batch_siblings = list(
+                self.instance.batch_siblings().exclude(
+                    status=DailyReport.Status.APPROVED,
+                ).order_by("worker__name"),
+            )
+            if self.batch_siblings:
+                self.fields["apply_to_batch"] = forms.BooleanField(
+                    label="一緒に作った他の作業員の日報にも反映する",
+                    required=False,
+                    initial=True,
+                )
+
         # 編集時は、名前で入力する欄に現在の値を表示する
         obj = self.instance
         if self.is_edit:
@@ -258,6 +294,53 @@ class DailyReportForm(forms.ModelForm):
             self.initial["weather"] = obj.weather
             if obj.site_id and obj.site.customer_id:
                 self.initial["orderer"] = str(obj.site.customer)
+
+    def _build_worker_rows(self):
+        """作業員ごとの行（チェック＋その人だけの開始・終了時刻）をつくる。"""
+        if self.is_bound:
+            # テストなどで素の dict が渡ることもあるので getlist に頼らない
+            if hasattr(self.data, "getlist"):
+                raw = self.data.getlist("workers")
+            else:
+                raw = self.data.get("workers") or []
+                if not isinstance(raw, (list, tuple)):
+                    raw = [raw]
+            selected = {str(v) for v in raw}
+        else:
+            selected = {str(v) for v in (self.initial.get("workers") or [])}
+        time_attrs = {"type": "time", "class": "form-control"}
+        for worker in self.fields["workers"].queryset:
+            start_name = f"start_time_{worker.pk}"
+            end_name = f"end_time_{worker.pk}"
+            self.fields[start_name] = forms.TimeField(
+                required=False, widget=forms.TimeInput(attrs=dict(time_attrs)),
+            )
+            self.fields[end_name] = forms.TimeField(
+                required=False, widget=forms.TimeInput(attrs=dict(time_attrs)),
+            )
+            self.worker_rows.append({
+                "worker": worker,
+                "checked": str(worker.pk) in selected,
+                "start": self[start_name],
+                "end": self[end_name],
+            })
+
+    # テンプレートの通常ループで出さない欄（作業員の行や編集の反映欄で別に出す）
+    @property
+    def side_field_names(self):
+        names = {"apply_to_batch"}
+        for row in self.worker_rows:
+            names.add(row["start"].name)
+            names.add(row["end"].name)
+        return names
+
+    def worker_times(self, worker):
+        """その作業員だけの (開始時刻, 終了時刻)。両方入っていなければ None。"""
+        start = self.cleaned_data.get(f"start_time_{worker.pk}")
+        end = self.cleaned_data.get(f"end_time_{worker.pk}")
+        if start and end:
+            return start, end
+        return None
 
     def clean_workers(self):
         workers = self.cleaned_data.get("workers")
@@ -331,8 +414,25 @@ class DailyReportForm(forms.ModelForm):
 
         clean_work_period(self, cleaned)
 
+        # 作業員ごとの時間は、開始・終了の片方だけでは計算できない
+        for row in self.worker_rows:
+            if not row["checked"]:
+                continue
+            w_start = cleaned.get(row["start"].name)
+            w_end = cleaned.get(row["end"].name)
+            if bool(w_start) != bool(w_end):
+                self.add_error(
+                    row["end"].name if w_start else row["start"].name,
+                    f"{row['worker'].name} の開始・終了時刻は両方入れてください。",
+                )
+
         # start_time/end_time が入力されていれば work_hours は自動計算される
         if start and end:
+            return cleaned
+
+        # 共通の時間が無くても、選ばれた全員に個別の時間が入っていれば足りる
+        chosen = cleaned.get("workers")
+        if chosen and not self.is_edit and all(self.worker_times(w) for w in chosen):
             return cleaned
 
         if not hours:
@@ -372,14 +472,28 @@ class DailyReportForm(forms.ModelForm):
             )
         return super().save(commit=False)
 
+    # 同じ組の日報に写す内容。時間は人ごとに違うことがあるので別扱い（下）。
+    BATCH_SHARED_FIELDS = (
+        "site", "work_type", "process", "report_date", "weather",
+        "work_description", "is_partner_worker", "partner", "memo",
+    )
+    TIME_FIELDS = ("start_date", "start_time", "end_date", "end_time", "work_hours")
+
     def save_reports(self, *, company, user, status=None):
         """選ばれた作業員の人数分の日報を保存する。
 
         1日報＝1作業員（現場・作業員・日付・工種で一意）なので、
-        複数選ばれたときは同じ内容の日報を人数分つくる。
+        複数選ばれたときは同じ内容の日報を人数分つくる。人ごとの時刻が
+        入っていればその人だけ共通の時刻の代わりに使う。2人以上のときは
+        同じ組（batch）の印を付け、後で代表者が直したときに揃えられるようにする。
+
+        編集で「他の作業員の日報にも反映」が付いていれば、同じ組の日報に
+        内容を写す（self.propagated / self.propagate_skipped に結果を入れる）。
 
         戻り値は (保存した日報のリスト, 既にあって飛ばした作業員のリスト)。
         """
+        import uuid
+
         from django.db import IntegrityError, transaction
 
         site = self._resolve_site(self.cleaned_data["site"])
@@ -387,6 +501,12 @@ class DailyReportForm(forms.ModelForm):
         process = self._resolve_process(
             self.cleaned_data.get("process"), site, work_type,
         )
+
+        # 編集前の時間。同じ組の日報のうち、時間がこれと同じだった人だけ時間も揃える
+        before_times = None
+        if self.is_edit:
+            original = DailyReport.unscoped.get(pk=self.instance.pk)
+            before_times = {name: getattr(original, name) for name in self.TIME_FIELDS}
 
         proto = super().save(commit=False)
         proto.site = site
@@ -396,14 +516,23 @@ class DailyReportForm(forms.ModelForm):
         if status is not None:
             proto.status = status
 
+        self.propagated = []
+        self.propagate_skipped = []
+
+        workers = list(self.cleaned_data["workers"])
+        batch = uuid.uuid4() if (not self.is_edit and len(workers) > 1) else None
+
         saved, skipped = [], []
-        for worker in self.cleaned_data["workers"]:
+        for worker in workers:
             if self.is_edit:
                 proto.worker = worker
                 proto.save()
                 saved.append(proto)
+                if self.cleaned_data.get("apply_to_batch"):
+                    self._propagate_to_batch(proto, before_times)
                 continue
 
+            times = self.worker_times(worker)
             report = DailyReport(
                 company=company,
                 created_by=user,
@@ -415,14 +544,15 @@ class DailyReportForm(forms.ModelForm):
                 weather=proto.weather,
                 work_description=proto.work_description,
                 start_date=proto.start_date,
-                start_time=proto.start_time,
+                start_time=times[0] if times else proto.start_time,
                 end_date=proto.end_date,
-                end_time=proto.end_time,
-                work_hours=proto.work_hours,
+                end_time=times[1] if times else proto.end_time,
+                work_hours=proto.work_hours or 0,
                 is_partner_worker=proto.is_partner_worker,
                 partner=proto.partner,
                 memo=proto.memo,
                 status=proto.status,
+                batch=batch,
             )
             try:
                 # 同じ現場・日付・工種で既に日報がある作業員は飛ばす。
@@ -435,6 +565,32 @@ class DailyReportForm(forms.ModelForm):
             saved.append(report)
 
         return saved, skipped
+
+    def _propagate_to_batch(self, report, before_times):
+        """同じ組の日報に内容を写す。承認済みは触らない。
+
+        時間は、編集前のこの日報と同じ時間だった人だけ新しい時間に揃える
+        （人ごとに変えてあった時間はそのまま残す）。
+        現場・日付・工種を変えた結果、その人の別の日報とぶつかるものは飛ばす。
+        """
+        from django.db import IntegrityError, transaction
+
+        for sibling in self.batch_siblings:
+            for name in self.BATCH_SHARED_FIELDS:
+                setattr(sibling, name, getattr(report, name))
+            same_times = before_times is not None and all(
+                getattr(sibling, name) == before_times[name] for name in self.TIME_FIELDS
+            )
+            if same_times:
+                for name in self.TIME_FIELDS:
+                    setattr(sibling, name, getattr(report, name))
+            try:
+                with transaction.atomic():
+                    sibling.save()
+            except IntegrityError:
+                self.propagate_skipped.append(sibling.worker)
+                continue
+            self.propagated.append(sibling)
 
 
 class OfficeDailyReportForm(forms.Form):

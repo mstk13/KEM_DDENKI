@@ -115,8 +115,10 @@ def _office_report_create(request):
 
 @login_required
 def report_create(request):
-    # 社員番号が G/S/A/P の人は、1日に複数現場ぶんの事務内容を書く形式にする
-    if is_office_reporter(request.user):
+    # 社員番号が G/S/A/P の人は、1日に複数現場ぶんの事務内容を書く形式にする。
+    # ?mode=field を付けると、事務の人でも現場作業員の日報をまとめて書ける。
+    office_user = is_office_reporter(request.user)
+    if office_user and request.GET.get("mode") != "field":
         return _office_report_create(request)
 
     if request.method == "POST":
@@ -139,8 +141,18 @@ def report_create(request):
                 )
             return redirect("reports:list")
     else:
+        # ログインした人の作業員を最初からチェックしておく（候補にいる人だけ）
         form = DailyReportForm(company=request.user.company)
-    ctx = {"form": form, **_report_form_context(request.user.company)}
+        profile = getattr(request.user, "worker_profile", None)
+        if profile and form.fields["workers"].queryset.filter(pk=profile.pk).exists():
+            form.initial["workers"] = [profile.pk]
+            form.worker_rows = []
+            form._build_worker_rows()
+    ctx = {
+        "form": form,
+        "office_user": office_user,
+        **_report_form_context(request.user.company),
+    }
     return render(request, "reports/form.html", ctx)
 
 
@@ -178,6 +190,16 @@ def report_edit(request, pk):
                 company=request.user.company, user=request.user, status=status,
             )
             messages.success(request, "日報を更新しました。")
+            if form.propagated:
+                names = "、".join(str(r.worker) for r in form.propagated)
+                messages.success(request, f"一緒に作った {names} の日報にも反映しました。")
+            if form.propagate_skipped:
+                names = "、".join(str(w) for w in form.propagate_skipped)
+                messages.warning(
+                    request,
+                    f"{names} の日報は同じ現場・日付・工種の日報が既にあるため"
+                    "反映できませんでした。",
+                )
             return redirect(back_url or "reports:list")
     else:
         form = DailyReportForm(instance=report, company=request.user.company)

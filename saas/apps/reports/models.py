@@ -128,6 +128,10 @@ class DailyReport(TenantModel):
     )
     approved_at = models.DateTimeField("承認日時", null=True, blank=True)
 
+    # 代表者が複数の作業員をまとめて登録したとき、同時に作った日報に同じ値を入れる。
+    # 後で代表者が内容を直したとき、同じ組の他の人の日報にも反映するための目印。
+    batch = models.UUIDField("まとめて作成の組", null=True, blank=True, db_index=True)
+
     history = HistoricalRecords()
 
     class Meta:
@@ -137,6 +141,16 @@ class DailyReport(TenantModel):
 
     def __str__(self):
         return f"{self.report_date} {self.worker} @ {self.site}"
+
+    def batch_siblings(self):
+        """同じ組でまとめて作られた、自分以外の日報。組が無ければ空。"""
+        if not self.batch:
+            return DailyReport.unscoped.none()
+        return (
+            DailyReport.unscoped.filter(company_id=self.company_id, batch=self.batch)
+            .exclude(pk=self.pk)
+            .select_related("worker")
+        )
 
     def work_period(self):
         """開始・終了の日時を (start, end) で返す。時刻が無ければ None。

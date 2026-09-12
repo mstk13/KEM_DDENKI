@@ -11,6 +11,7 @@
 
 <div class="page-header">
   <h1>日報を書く</h1>
+  <a href="{% url 'reports:create' %}?mode=field" class="btn btn-outline">現場作業員の日報をまとめて書く</a>
 </div>
 
 {% if not worker %}
