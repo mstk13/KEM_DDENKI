@@ -82,7 +82,15 @@ class TestSelfChecked:
         assert form.show_all_workers is False
         body = res.content.decode()
         assert 'id="open-all-workers"' in body
+        assert 'aria-expanded="false"' in body
         assert 'id="all-workers" hidden' in body
+
+    def test_一覧を開いた状態で戻るとボタンは閉じる表示(self, client, user_a, me):
+        client.force_login(user_a)
+        data = _data([me], site="", show_all_workers="1")
+        body = client.post(reverse("reports:create"), data).content.decode()
+        assert 'aria-expanded="true"' in body
+        assert "作業員の一覧を閉じる" in body
 
     def test_作業員でないユーザーは一覧が最初から開く(self, client, user_a, others):
         client.force_login(user_a)
