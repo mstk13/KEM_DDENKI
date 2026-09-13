@@ -1,7 +1,7 @@
 """現場詳細の見積と実行予算の内訳。
 
 見積（Quotation）と見積明細（QuotationItem）は元から現場に紐づいている。
-現場詳細の「見積内訳」の欄（明細行を並べていた）は ADR-0050 で外し、
+現場詳細の「見積内訳」の欄（明細行を並べていた）は ADR-0051 で外し、
 見積は「材料の受発注」の行から明細画面へ開く。ここで固定するのは3点:
 
 1. 現場詳細に見積の明細行は出さず、材料の受発注の行から見積の明細画面へ辿れること
@@ -127,7 +127,7 @@ class TestQuotationBreakdownOnSiteDetail:
     def test_site_detail_has_no_breakdown_section(
         self, plain_client, site_a, issued_quotation,
     ):
-        """見積内訳の欄は外した（ADR-0050）。明細は見積の明細画面で見る。"""
+        """見積内訳の欄は外した（ADR-0051）。明細は見積の明細画面で見る。"""
         body = plain_client.get(
             reverse("sites:detail", args=[site_a.pk])
         ).content.decode("utf-8")

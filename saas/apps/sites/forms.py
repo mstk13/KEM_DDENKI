@@ -270,7 +270,7 @@ def photo_site_choices(company):
 
 
 class SitePhotoQuickUploadForm(SitePhotoUploadForm):
-    """ホームから、現場を選んですぐ写真を登録するフォーム（ADR-0050）。"""
+    """ホームから、現場を選んですぐ写真を登録するフォーム（ADR-0051）。"""
 
     site = forms.ModelChoiceField(
         label="現場",

@@ -268,7 +268,7 @@ a:hover { color: var(--brand-dark); }
   background: #ecfdf5; color: #065f46; font-size: .88rem;
 }
 
-/* 現場写真（ADR-0050）。縮小画像を 4:3 に切りそろえて並べる */
+/* 現場写真（ADR-0051）。縮小画像を 4:3 に切りそろえて並べる */
 .photo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 12px; }
 .photo-tile {
   margin: 0; display: flex; flex-direction: column;
