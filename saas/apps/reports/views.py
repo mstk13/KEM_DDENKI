@@ -31,25 +31,82 @@ def _parse_list_month(value):
     return year, month
 
 
+def _parse_pk(value):
+    """URL の現場・作業員の指定を整数にする。空や読めない値は None（絞らない）。"""
+    try:
+        pk = int((value or "").strip())
+    except ValueError:
+        return None
+    return pk if pk > 0 else None
+
+
 def _filtered_reports(request):
-    """一覧の絞り込み（状態・月）を当てた日報と、選ばれた状態・月を返す。
+    """一覧の絞り込み（状態・月・現場・作業員）を当てた日報と、選ばれた条件を返す。
 
     一覧の画面と一覧の PDF で同じ条件を使うため共通にしている。
+    DailyReport.objects は自社の日報だけなので、他社の現場・作業員の番号を
+    指定されても何も出ない。
     """
     reports = DailyReport.objects.select_related(
         "worker", "site", "work_type"
     ).order_by("-report_date", "-created_at")
 
-    selected_status = request.GET.get("status", "")
-    if selected_status:
-        reports = reports.filter(status=selected_status)
-
-    # 月で絞る（指定なし・読めない値は全期間）
-    parsed = _parse_list_month(request.GET.get("month", "").strip())
-    if parsed:
-        year, month = parsed
+    filters = {
+        "status": request.GET.get("status", ""),
+        # 月（指定なし・読めない値は全期間）
+        "month": _parse_list_month(request.GET.get("month", "").strip()),
+        "site": _parse_pk(request.GET.get("site")),
+        "worker": _parse_pk(request.GET.get("worker")),
+    }
+    if filters["status"]:
+        reports = reports.filter(status=filters["status"])
+    if filters["month"]:
+        year, month = filters["month"]
         reports = reports.filter(report_date__year=year, report_date__month=month)
-    return reports, selected_status, parsed
+    if filters["site"]:
+        reports = reports.filter(site_id=filters["site"])
+    if filters["worker"]:
+        reports = reports.filter(worker_id=filters["worker"])
+    return reports, filters
+
+
+def _filter_query(filters, **overrides):
+    """絞り込みを URL のクエリにする。overrides で一部を差し替える（month="" で外す）。"""
+    from urllib.parse import urlencode
+
+    values = {
+        "month": f"{filters['month'][0]}-{filters['month'][1]:02d}" if filters["month"] else "",
+        "status": filters["status"],
+        "site": filters["site"] or "",
+        "worker": filters["worker"] or "",
+    }
+    values.update(overrides)
+    return urlencode({k: v for k, v in values.items() if v})
+
+
+def _filter_labels(filters):
+    """選ばれた現場・作業員の名前（件数表示と PDF のファイル名に使う）。"""
+    from apps.sites.models import Site
+    from apps.workers.models import Worker
+
+    site = Site.objects.filter(pk=filters["site"]).first() if filters["site"] else None
+    worker = Worker.objects.filter(pk=filters["worker"]).first() if filters["worker"] else None
+    return (site.name if site else ""), (worker.name if worker else "")
+
+
+def _filter_choices():
+    """現場・作業員の選択肢。自社の日報に出てくるものだけにする（ADR-0050）。
+
+    登録済みの全現場を出すと完了した現場まで並び、選びにくくなるため。
+    """
+    from apps.sites.models import Site
+    from apps.workers.models import Worker, sort_workers_by_code
+
+    site_ids = DailyReport.objects.values_list("site_id", flat=True).distinct()
+    worker_ids = DailyReport.objects.values_list("worker_id", flat=True).distinct()
+    sites = list(Site.objects.filter(pk__in=site_ids).order_by("name"))
+    workers = sort_workers_by_code(Worker.objects.filter(pk__in=worker_ids))
+    return sites, workers
 
 
 @login_required
@@ -58,40 +115,50 @@ def report_list(request):
 
     from apps.attendance.plans import shift_month
 
-    reports, selected_status, parsed = _filtered_reports(request)
+    reports, filters = _filtered_reports(request)
     selected_month = ""
-    prev_month = next_month = ""
-    if parsed:
-        year, month = parsed
+    prev_query = next_query = ""
+    if filters["month"]:
+        year, month = filters["month"]
         selected_month = f"{year}-{month:02d}"
-        prev_month = shift_month(year, month, -1)
-        next_month = shift_month(year, month, 1)
+        prev_query = _filter_query(filters, month=shift_month(year, month, -1))
+        next_query = _filter_query(filters, month=shift_month(year, month, 1))
     today = timezone.localdate()
+    this_month = f"{today.year}-{today.month:02d}"
 
-    # 「この一覧をPDF」に今の絞り込みを引き継ぐ（& はテンプレートで &amp; にエスケープされる）
-    from urllib.parse import urlencode
-
-    list_pdf_query = urlencode(
-        {k: v for k, v in (("month", selected_month), ("status", selected_status)) if v}
+    site_label, worker_label = _filter_labels(filters)
+    month_label = (
+        f"{int(selected_month[:4])}年{int(selected_month[5:])}月" if selected_month else ""
     )
+    # 件数の見出し。「2026年9月・A社ビル・電工太郎の日報」のように選んだ条件を並べる
+    scope_parts = (month_label or "すべての月", site_label, worker_label)
+    scope_label = "・".join(x for x in scope_parts if x)
 
     # 削除ボタンを出すかどうかを行ごとに決める（承認済には出さない）。
     reports = list(reports)
     for r in reports:
         r.can_delete = can_delete_report(request.user, r)
 
+    sites, workers = _filter_choices()
     return render(request, "reports/list.html", {
         "reports": reports,
         "status_choices": DailyReport.Status.choices,
-        "selected_status": selected_status,
+        "selected_status": filters["status"],
         "selected_month": selected_month,
-        "month_label": (
-            f"{int(selected_month[:4])}年{int(selected_month[5:])}月" if selected_month else ""
-        ),
-        "prev_month": prev_month,
-        "next_month": next_month,
-        "this_month": f"{today.year}-{today.month:02d}",
-        "list_pdf_query": list_pdf_query,
+        "selected_site": filters["site"],
+        "selected_worker": filters["worker"],
+        "site_choices": sites,
+        "worker_choices": workers,
+        "month_label": month_label,
+        "scope_label": scope_label,
+        "this_month": this_month,
+        # 前月・翌月・今月・すべての月・PDF のリンクは、他の絞り込みを引き継ぐ
+        # （& はテンプレートで &amp; にエスケープされる）
+        "prev_query": prev_query,
+        "next_query": next_query,
+        "this_month_query": _filter_query(filters, month=this_month),
+        "all_months_query": _filter_query(filters, month=""),
+        "list_pdf_query": _filter_query(filters),
         "can_approve": can_approve_report(request.user),
         "submitted_count": DailyReport.objects.filter(
             status=DailyReport.Status.SUBMITTED
@@ -134,15 +201,12 @@ def report_pdf(request, pk):
 
 @login_required
 def report_list_pdf(request):
-    """一覧の絞り込み（状態・月）のまま、並んでいる日報を 1 件 1 ページで PDF にする。"""
-    from urllib.parse import urlencode
-
+    """一覧の絞り込み（状態・月・現場・作業員）のまま、日報を 1 件 1 ページで PDF にする。"""
     from apps.reports.pdf import generate_reports_pdf
 
-    reports, selected_status, parsed = _filtered_reports(request)
-    back_params = {k: v for k, v in (("month", request.GET.get("month", "")),
-                                     ("status", selected_status)) if v}
-    back = reverse("reports:list") + (f"?{urlencode(back_params)}" if back_params else "")
+    reports, filters = _filtered_reports(request)
+    query = _filter_query(filters)
+    back = reverse("reports:list") + (f"?{query}" if query else "")
 
     count = reports.count()
     if not count:
@@ -152,13 +216,17 @@ def report_list_pdf(request):
         messages.error(
             request,
             f"日報が {count} 件あり、一度に PDF にできる {REPORT_PDF_MAX} 件を超えています。"
-            "月や状態で絞ってから出してください。",
+            "月・現場・作業員などで絞ってから出してください。",
         )
         return redirect(back)
 
     # 印刷して綴じる用途なので、PDF の中は日付の古い順に並べる
     reports = _report_prefetch(reports).order_by("report_date", "worker__employee_code", "pk")
-    label = f"{parsed[0]}-{parsed[1]:02d}" if parsed else "全期間"
+    month = filters["month"]
+    site_label, worker_label = _filter_labels(filters)
+    parts = [f"{month[0]}-{month[1]:02d}" if month else "全期間", site_label, worker_label]
+    # ファイル名に使えない文字（/ \ など）は _ にする
+    label = "_".join(p for p in parts if p).translate(str.maketrans('\\/:*?"<>|', "_________"))
     return _pdf_response(generate_reports_pdf(list(reports)), f"日報_{label}.pdf")
 
 

@@ -8,6 +8,7 @@ from django.db import models
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 
+from apps.offline.decorators import offline_resendable
 from apps.workers.forms import (
     AppPermissionForm,
     HealthCheckupForm,
@@ -937,6 +938,7 @@ def evaluation_edit(request, pk):
 # ---- Worker Qualifications (資格) ----
 
 @login_required
+@offline_resendable
 def qualification_create(request, worker_pk):
     worker = get_object_or_404(Worker, pk=worker_pk)
     if request.method == "POST":
@@ -957,6 +959,7 @@ def qualification_create(request, worker_pk):
 
 
 @login_required
+@offline_resendable
 def qualification_edit(request, pk):
     qual = get_object_or_404(WorkerQualification.objects.select_related("worker"), pk=pk)
     if request.method == "POST":
@@ -988,6 +991,7 @@ def qualification_delete(request, pk):
 # ---- Health Checkups (健康診断) ----
 
 @login_required
+@offline_resendable
 def health_checkup_create(request, worker_pk):
     worker = get_object_or_404(Worker, pk=worker_pk)
     if request.method == "POST":
@@ -1008,6 +1012,7 @@ def health_checkup_create(request, worker_pk):
 
 
 @login_required
+@offline_resendable
 def health_checkup_edit(request, pk):
     checkup = get_object_or_404(HealthCheckup.objects.select_related("worker"), pk=pk)
     if request.method == "POST":

@@ -238,6 +238,82 @@ a:hover { color: var(--brand-dark); }
   border-radius: 50%; background: #ef4444; color: #fff;
   font-size: 12px;
 }
+/* 圏外で端末に保存し、まだ送れていない入力の件数（ADR-0048）。0件のときは JS が隠す */
+.offline-outbox-badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 2px 10px; border-radius: 999px;
+  background: #fef3c7; color: #92400e;
+  font-size: 12px; font-weight: 700; text-decoration: none; white-space: nowrap;
+}
+/* 「送信しました」「端末に保存しました」の知らせ */
+.offline-toast {
+  position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 1000;
+  max-width: 92vw; padding: 10px 16px; border-radius: 8px;
+  background: #1a2744; color: #fff; font-size: .88rem;
+  box-shadow: 0 8px 24px rgba(15, 26, 48, .25);
+}
+/* 未送信の入力の一覧（offline/outbox.html） */
+.offline-list { list-style: none; margin: 12px 0 16px; padding: 0; }
+.offline-item {
+  display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: flex-start; justify-content: space-between;
+  padding: 12px 14px; margin-bottom: 10px;
+  border: 1px solid var(--border); border-radius: 8px;
+}
+.offline-item-title { font-weight: 700; }
+.offline-item-meta { font-size: .82rem; color: var(--text-secondary); }
+.offline-item-error { font-size: .82rem; color: #b91c1c; }
+.offline-item-actions { display: flex; gap: 8px; }
+.offline-notice {
+  padding: 10px 12px; border-radius: 6px;
+  background: #ecfdf5; color: #065f46; font-size: .88rem;
+}
+
+/* 現場写真（ADR-0051）。縮小画像を 4:3 に切りそろえて並べる */
+.photo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 12px; }
+.photo-tile {
+  margin: 0; display: flex; flex-direction: column;
+  border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--surface);
+}
+.photo-tile-image { display: block; background: var(--border-light); }
+.photo-tile-image img { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; }
+.photo-tile-body { display: flex; flex-direction: column; gap: 3px; padding: 8px 10px 10px; font-size: .82rem; }
+.photo-tile-location { font-weight: 700; overflow-wrap: anywhere; }
+.photo-tile-meta { color: var(--text-muted); font-size: .8rem; }
+.photo-tile-note { color: var(--text-secondary); white-space: pre-wrap; overflow-wrap: anywhere; }
+.photo-tile-actions { margin-top: 4px; }
+.photo-kind-filter { display: flex; flex-wrap: wrap; gap: 6px; }
+.photo-kind-chip {
+  padding: 5px 12px; border: 1px solid var(--border); border-radius: 999px;
+  background: var(--surface); color: var(--text-secondary);
+  font-size: .85rem; text-decoration: none; white-space: nowrap;
+}
+.photo-kind-chip.is-active { background: var(--brand); border-color: var(--brand); color: var(--white); }
+.photo-kind-chip.is-empty { color: var(--text-muted); border-style: dashed; }
+.photo-search { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 12px; }
+.photo-search .form-control { flex: 1 1 220px; width: auto; }
+.photo-count { margin: 6px 0 10px; font-size: .88rem; color: var(--text-secondary); }
+.photo-pager { display: flex; gap: 8px; justify-content: center; margin-top: 16px; }
+.photo-edit-preview {
+  display: block; max-width: 100%; max-height: 320px;
+  border: 1px solid var(--border); border-radius: 8px; margin-bottom: 8px;
+}
+/* 撮影日ごとの見出し */
+.photo-day + .photo-day { margin-top: 20px; }
+.photo-day-heading {
+  display: flex; align-items: baseline; gap: 8px;
+  margin: 0 0 10px; padding-bottom: 6px; border-bottom: 1px solid var(--border-light);
+  font-size: .95rem; font-weight: 700; color: var(--text-primary);
+}
+.photo-day-heading a { color: inherit; text-decoration: none; }
+.photo-day-count { font-size: .8rem; font-weight: 500; color: var(--text-muted); }
+.photo-search .photo-date-select { flex: 0 1 220px; }
+@media (max-width: 480px) {
+  .photo-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+}
+/* ホームの「現場写真を撮る」と、現場カードの「写真を撮る」 */
+.home-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.home-site-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: auto; }
+.home-site-actions .home-site-schedule { margin-top: 0; }
 
 .hamburger {
   display: none;

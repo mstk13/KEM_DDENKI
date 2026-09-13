@@ -5,6 +5,7 @@ from django.http import JsonResponse
 from django.urls import include, path
 
 from apps.core.views import audit_log, dashboard
+from apps.offline.views import service_worker
 
 
 def _deployed_version():
@@ -42,6 +43,9 @@ def health_check(request):
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("health/", health_check),
+    # 圏外保存（ADR-0048）。Service Worker は扱う画面より上の階層に置く必要があるので直下
+    path("sw.js", service_worker, name="service_worker"),
+    path("offline/", include("apps.offline.urls")),
     # Auth
     path("login/", include("apps.accounts.urls")),
     path("logout/", include("apps.accounts.urls_logout")),

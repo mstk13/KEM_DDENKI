@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}現場写真 — {{ site.name }} — {{ APP_NAME }}{% endblock %}
+{% block topbar_title %}現場写真{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>{{ site.name }} — 現場写真</h1>
+  <div>
+    <a href="{% url 'sites:photo_upload' site.pk %}{% if kind %}?kind={{ kind }}{% endif %}" class="btn btn-primary btn-sm">+ 写真を登録</a>
+    <a href="{% url 'sites:detail' site.pk %}#site-photos" class="btn btn-outline btn-sm">現場詳細に戻る</a>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-body">
+    <div class="photo-kind-filter">
+      <a href="?{{ query_without_kind }}"
+         class="photo-kind-chip{% if not kind %} is-active{% endif %}">すべて {{ photo_total }}</a>
+      {% for k in kind_counts %}
+      <a href="?kind={{ k.value }}{% if query_without_kind %}&amp;{{ query_without_kind }}{% endif %}"
+         class="photo-kind-chip{% if kind == k.value %} is-active{% endif %}{% if not k.count %} is-empty{% endif %}">{{ k.label }} {{ k.count }}</a>
+      {% endfor %}
+    </div>
+    <form method="get" class="photo-search">
+      {% if kind %}<input type="hidden" name="kind" value="{{ kind }}">{% endif %}
+      {# 撮影日で絞り込む。選ぶとすぐに切り替える #}
+      <select name="date" class="form-control photo-date-select" aria-label="撮影日" onchange="this.form.submit()">
+        <option value="">すべての日</option>
+        {% for row in day_counts %}
+        <option value="{{ row.taken_on|date:'Y-m-d' }}"{% if row.taken_on == day %} selected{% endif %}>{{ row.taken_on|date:"Y年n月j日（D）" }} {{ row.count }}枚</option>
+        {% endfor %}
+      </select>
+      <input type="search" name="q" value="{{ q }}" class="form-control"
+             placeholder="撮影場所・メモで探す（例: 分電盤）" list="photo-location-options">
+      <button type="submit" class="btn btn-outline btn-sm">探す</button>
+      {% if q %}<a href="?{{ query_without_q }}" class="btn btn-outline btn-sm">解除</a>{% endif %}
+    </form>
+    <datalist id="photo-location-options">
+      {% for location in location_choices %}<option value="{{ location }}">{% endfor %}
+    </datalist>
+  </div>
+</div>
+
+<div class="card" style="margin-top:16px;">
+  <div class="card-body">
+    {% if photo_days %}
+    <p class="photo-count">
+      {{ page.paginator.count }} 枚{% if page.paginator.num_pages > 1 %}（{{ page.number }} / {{ page.paginator.num_pages }} ページ）{% endif %}
+    </p>
+    {% include "sites/_photo_tiles.html" with photo_days=photo_days show_actions=True %}
+    {% if page.paginator.num_pages > 1 %}
+    <div class="photo-pager">
+      {% if page.has_previous %}
+      <a href="?{% if query_without_page %}{{ query_without_page }}&amp;{% endif %}page={{ page.previous_page_number }}" class="btn btn-outline btn-sm">前へ</a>
+      {% endif %}
+      {% if page.has_next %}
+      <a href="?{% if query_without_page %}{{ query_without_page }}&amp;{% endif %}page={{ page.next_page_number }}" class="btn btn-outline btn-sm">次へ</a>
+      {% endif %}
+    </div>
+    {% endif %}
+    {% else %}
+    <div class="empty" style="padding:20px;">
+      <p>{% if kind or q or day %}条件に合う写真はありません。{% else %}この現場の写真はまだありません。{% endif %}</p>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

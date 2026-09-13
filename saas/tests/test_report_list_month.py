@@ -77,8 +77,8 @@ class TestReportListMonth:
     def test_前月翌月は年をまたぐ(self, client, user_a, reports):
         client.force_login(user_a)
         res = client.get(reverse("reports:list") + "?month=2026-01")
-        assert res.context["prev_month"] == "2025-12"
-        assert res.context["next_month"] == "2026-02"
+        assert res.context["prev_query"] == "month=2025-12"
+        assert res.context["next_query"] == "month=2026-02"
 
     def test_画面に月の欄と件数が出る(self, client, user_a, reports):
         client.force_login(user_a)

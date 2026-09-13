@@ -5,7 +5,9 @@
 {% block content %}
 <div class="page-header"><h1>納品を記録: PO-{{ po.pk }} {{ po.site.name }}</h1></div>
 <div class="card">
-  <form method="post" enctype="multipart/form-data" style="padding:24px;">
+  {# 圏外なら端末に保存し、電波が戻ったら送る（ADR-0048） #}
+  <form method="post" enctype="multipart/form-data" style="padding:24px;" data-offline-form
+        data-offline-label="納品の記録（PO-{{ po.pk }} {{ po.site.name }}）">
     {% csrf_token %}
     {% for field in form %}
     <div class="form-group" style="margin-bottom:16px;">

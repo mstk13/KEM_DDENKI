@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% block title %}未送信の入力 — {{ APP_NAME }}{% endblock %}
+{% block topbar_title %}未送信の入力{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>未送信の入力</h1>
+</div>
+
+<div class="card">
+  <div class="card-body">
+    <p id="offline-saved-notice" class="offline-notice" style="display:none;">
+      圏外のため、この端末に保存しました。電波が戻ったら自動で送ります。
+    </p>
+    <p id="offline-connection" class="offline-item-meta"></p>
+
+    <ul id="offline-list" class="offline-list"></ul>
+    <p id="offline-empty" class="offline-item-meta" style="display:none;">未送信の入力はありません。</p>
+
+    <div class="form-actions">
+      <button type="button" class="btn btn-primary" id="offline-send-all">今すぐ送る</button>
+    </div>
+
+    <p class="form-hint" style="margin-top:16px;">
+      圏外で保存した入力（写真・書類を含む）は、送り終えるまでこの端末の中にあります。
+      送り終えたら端末から消します。ログアウトすると、未送信の入力も端末から消えます。<br>
+      端末には必ず画面ロックを設定してください。<br>
+      圏外でも開けるのは、電波のあるときに一度開いた入力画面だけです。
+    </p>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  var offline = window.KecOffline;
+  var list = document.getElementById('offline-list');
+  var empty = document.getElementById('offline-empty');
+  var connection = document.getElementById('offline-connection');
+  if (!offline) {
+    connection.textContent = 'この端末では圏外保存を使えません。';
+    return;
+  }
+
+  if (new URLSearchParams(location.search).has('saved')) {
+    document.getElementById('offline-saved-notice').style.display = '';
+  }
+
+  var STATUS = {
+    pending: '未送信',
+    login: 'ログインが必要',
+    error: '送れませんでした',
+  };
+
+  function button(label, className, onClick) {
+    var el = document.createElement('button');
+    el.type = 'button';
+    el.className = 'btn btn-sm ' + className;
+    el.textContent = label;
+    el.addEventListener('click', onClick);
+    return el;
+  }
+
+  function render() {
+    connection.textContent = navigator.onLine
+      ? '電波があります。未送信の入力は自動で送ります。'
+      : '圏外です。電波が戻ったら自動で送ります。';
+    return offline.db.list().then(function (items) {
+      list.innerHTML = '';
+      empty.style.display = items.length ? 'none' : '';
+      items.forEach(function (item) {
+        var li = document.createElement('li');
+        li.className = 'offline-item';
+
+        var body = document.createElement('div');
+        var title = document.createElement('div');
+        title.className = 'offline-item-title';
+        title.textContent = item.label;
+        var meta = document.createElement('div');
+        meta.className = 'offline-item-meta';
+        var files = item.fields.filter(function (f) { return f.file; }).length;
+        meta.textContent = STATUS[item.status] + '・保存 ' + new Date(item.savedAt).toLocaleString('ja-JP')
+          + (files ? '・ファイル ' + files + ' 件' : '');
+        body.appendChild(title);
+        body.appendChild(meta);
+        if (item.message) {
+          var error = document.createElement('div');
+          error.className = 'offline-item-error';
+          error.textContent = item.message;
+          body.appendChild(error);
+        }
+
+        var actions = document.createElement('div');
+        actions.className = 'offline-item-actions';
+        actions.appendChild(button('送る', 'btn-outline', function () {
+          item.status = 'pending';
+          item.message = '';
+          offline.db.put(item).then(offline.flush).then(render);
+        }));
+        actions.appendChild(button('削除', 'btn-outline offline-item-delete', function () {
+          if (!confirm('この入力を端末から削除しますか？ 送っていない内容は失われます。')) { return; }
+          offline.db.remove(item.id).then(offline.refreshBadge).then(render);
+        }));
+
+        li.appendChild(body);
+        li.appendChild(actions);
+        list.appendChild(li);
+      });
+    });
+  }
+
+  document.getElementById('offline-send-all').addEventListener('click', function () {
+    offline.flush().then(render);
+  });
+  document.addEventListener('kec-offline-changed', render);
+  window.addEventListener('online', render);
+  window.addEventListener('offline', render);
+  render();
+});
+</script>
+{% endblock %}

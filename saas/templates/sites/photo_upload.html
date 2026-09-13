@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}現場写真を登録 — {{ APP_NAME }}{% endblock %}
+{% block topbar_title %}現場写真を登録{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>{{ site.name }} — 写真を登録</h1>
+  <a href="{% url 'sites:photo_list' site.pk %}" class="btn btn-outline btn-sm">写真の一覧に戻る</a>
+</div>
+
+<div class="card">
+  <div class="card-body">
+    {# 圏外なら端末に保存し、電波が戻ったら送る（ADR-0048） #}
+    <form method="post" enctype="multipart/form-data" data-offline-form
+          data-offline-label="現場写真（{{ site.name }}）">
+      {% csrf_token %}
+      {{ form.non_field_errors }}
+      {% for field in form %}
+      <div class="form-group">
+        <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+        {{ field }}
+        {% if field.name == "images" %}<p id="photo-selected" class="photo-count" hidden></p>{% endif %}
+        {% if field.help_text %}<small style="color:var(--text-secondary);">{{ field.help_text }}</small>{% endif %}
+        {{ field.errors }}
+      </div>
+      {% endfor %}
+      <datalist id="photo-location-options">
+        {% for location in form.location_choices %}<option value="{{ location }}">{% endfor %}
+      </datalist>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">登録する</button>
+        <a href="{% url 'sites:photo_list' site.pk %}" class="btn btn-outline">キャンセル</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+// 選んだ枚数を出す。スマホのファイル選択では、何枚選べたかが画面に残らないため。
+(function () {
+  var input = document.getElementById('{{ form.images.id_for_label }}');
+  var out = document.getElementById('photo-selected');
+  if (!input || !out) return;
+  input.addEventListener('change', function () {
+    var count = input.files ? input.files.length : 0;
+    out.hidden = count === 0;
+    out.textContent = count + ' 枚選んでいます';
+  });
+})();
+</script>
+{% endblock %}

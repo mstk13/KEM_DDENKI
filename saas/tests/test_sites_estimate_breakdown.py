@@ -1,10 +1,10 @@
-"""現場詳細から見積の内訳明細を見る。
+"""現場詳細の見積と実行予算の内訳。
 
-見積（Quotation）と見積明細（QuotationItem）は元から現場に紐づいていたが、
-現場詳細からは**明細へ辿れなかった**（見積行の操作列が空だった）。
-ここで固定するのは3点:
+見積（Quotation）と見積明細（QuotationItem）は元から現場に紐づいている。
+現場詳細の「見積内訳」の欄（明細行を並べていた）は ADR-0051 で外し、
+見積は「材料の受発注」の行から明細画面へ開く。ここで固定するのは3点:
 
-1. 現場詳細に見積の明細行そのものが出ること
+1. 現場詳細に見積の明細行は出さず、材料の受発注の行から見積の明細画面へ辿れること
 2. 自社発行の見積で相手先が空欄にならないこと（supplier ではなく customer 側）
 3. 実行予算の内訳は原価扱いなので、権限が無ければ出ないこと
 """
@@ -120,39 +120,29 @@ def cost_client(client, company_a, django_user_model):
 
 
 # ---------------------------------------------------------------------------
-# 見積内訳
+# 見積（材料の受発注の行）
 # ---------------------------------------------------------------------------
 
 class TestQuotationBreakdownOnSiteDetail:
-    def test_site_detail_has_a_breakdown_section(self, plain_client, site_a):
-        body = plain_client.get(
-            reverse("sites:detail", args=[site_a.pk])
-        ).content.decode("utf-8")
-
-        assert "見積内訳" in body
-
-    def test_line_items_are_shown_inline(
+    def test_site_detail_has_no_breakdown_section(
         self, plain_client, site_a, issued_quotation,
     ):
-        """見積詳細へ移らなくても、現場詳細で明細そのものが読める。"""
+        """見積内訳の欄は外した（ADR-0051）。明細は見積の明細画面で見る。"""
         body = plain_client.get(
             reverse("sites:detail", args=[site_a.pk])
         ).content.decode("utf-8")
 
-        assert "電線管" in body
-        assert "E19 溶融亜鉛メッキ" in body
-        assert "別途足場" in body
-        assert "盤据付" in body
+        assert "見積内訳" not in body
+        assert "E19 溶融亜鉛メッキ" not in body
+        assert "別途足場" not in body
 
-    def test_quotation_number_and_source_file_are_shown(
+    def test_quotations_context_does_not_prefetch_line_items(
         self, plain_client, site_a, issued_quotation,
     ):
-        body = plain_client.get(
-            reverse("sites:detail", args=[site_a.pk])
-        ).content.decode("utf-8")
+        """明細を出さなくなったので、見積ごとに明細を引かない。"""
+        res = plain_client.get(reverse("sites:detail", args=[site_a.pk]))
 
-        assert "Q-2026-0142" in body
-        assert "estimate.csv" in body
+        assert not res.context["quotations"]._prefetch_related_lookups
 
     def test_issued_quotation_shows_the_customer_as_counterparty(
         self, plain_client, site_a, issued_quotation,
@@ -180,7 +170,7 @@ class TestQuotationBreakdownOnSiteDetail:
             reverse("sites:detail", args=[site_a.pk])
         ).content.decode("utf-8")
 
-        assert "紐づく見積はまだありません" in body
+        assert "この現場の見積・発注はまだ登録されていません" in body
 
     def test_another_companys_quotation_is_not_listed(
         self, plain_client, site_a, company_b,
@@ -188,7 +178,7 @@ class TestQuotationBreakdownOnSiteDetail:
         other_site = Site.unscoped.create(
             company=company_b, code="S001", name="B社現場", contract_amount=0,
         )
-        Quotation.unscoped.create(
+        other = Quotation.unscoped.create(
             company=company_b,
             kind=Quotation.Kind.ISSUED,
             site=other_site,
@@ -201,7 +191,7 @@ class TestQuotationBreakdownOnSiteDetail:
             reverse("sites:detail", args=[site_a.pk])
         ).content.decode("utf-8")
 
-        assert "B-SHOULD-NOT-APPEAR" not in body
+        assert reverse("materials:quotation_detail", args=[other.pk]) not in body
 
 
 # ---------------------------------------------------------------------------
