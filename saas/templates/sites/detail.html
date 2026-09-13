@@ -280,7 +280,7 @@
          class="photo-kind-chip{% if not k.count %} is-empty{% endif %}">{{ k.label }} {{ k.count }}</a>
       {% endfor %}
     </div>
-    {% include "sites/_photo_tiles.html" with photos=recent_photos %}
+    {% include "sites/_photo_tiles.html" with photo_days=photo_days %}
     {% else %}
     <div class="empty" style="padding:20px;">
       <p>

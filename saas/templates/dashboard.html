@@ -5,7 +5,11 @@
 {% block content %}
 <div class="page-header">
   <h1>ホーム</h1>
-  <a href="{% url 'reports:create' %}" class="btn btn-primary">+ 日報を書く</a>
+  <div class="home-actions">
+    {# 現場詳細を開かずに、現場を選んですぐ写真を撮る（ADR-0050） #}
+    <a href="{% url 'sites:photo_quick' %}" class="btn btn-outline">📷 現場写真を撮る</a>
+    <a href="{% url 'reports:create' %}" class="btn btn-primary">+ 日報を書く</a>
+  </div>
 </div>
 
 <div class="stats">
@@ -107,7 +111,10 @@
         <p class="home-site-empty">今週の工程・マイルストーンはありません</p>
         {% endif %}
 
-        <a class="btn btn-outline home-site-schedule" href="{% url 'schedules:detail' s.site_id %}">工程を見る</a>
+        <div class="home-site-actions">
+          <a class="btn btn-outline home-site-schedule" href="{% url 'schedules:detail' s.site_id %}">工程を見る</a>
+          <a class="btn btn-outline home-site-schedule" href="{% url 'sites:photo_quick' %}?site={{ s.site_id }}">📷 写真を撮る</a>
+        </div>
       </article>
       {% endfor %}
     </div>

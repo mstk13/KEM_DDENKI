@@ -132,11 +132,13 @@ class TestUpload:
             assert photo.location == "2F 東側 分電盤"
             assert photo.note == "配線前"
 
-    def test_保存先は会社と現場ごとで_元のファイル名を使わない(self, logged_in, site_a, media):
-        _upload(logged_in, site_a, [_jpeg("IMG_0001.jpg")])
+    def test_保存先は会社と現場と撮影日ごとで_元のファイル名を使わない(
+        self, logged_in, site_a, media,
+    ):
+        _upload(logged_in, site_a, [_jpeg("IMG_0001.jpg")], taken_on="2026-09-05")
 
         photo = SitePhoto.unscoped.get()
-        prefix = f"site_photos/{site_a.company_id}/{site_a.pk}/"
+        prefix = f"site_photos/{site_a.company_id}/{site_a.pk}/2026-09-05/"
         assert photo.image.name.startswith(prefix)
         assert "IMG_0001" not in photo.image.name
         assert photo.thumbnail.name.startswith(prefix + "thumbs/")
@@ -399,6 +401,98 @@ class TestListEditDelete:
 
 
 # ---------------------------------------------------------------------------
+# 撮影日ごとに分ける
+# ---------------------------------------------------------------------------
+
+@pytest.mark.django_db
+class TestPhotoDays:
+    def _days(self, res):
+        return [
+            (group["date"], group["count"], len(group["photos"]))
+            for group in res.context["photo_days"]
+        ]
+
+    def test_一覧は撮影日ごとに新しい日から分けて出す(self, logged_in, site_a, media):
+        _photo(site_a, taken_on=date(2026, 9, 1))
+        _photo(site_a, taken_on=date(2026, 9, 3))
+        _photo(site_a, taken_on=date(2026, 9, 1))
+
+        res = logged_in.get(reverse("sites:photo_list", args=[site_a.pk]))
+
+        assert self._days(res) == [(date(2026, 9, 3), 1, 1), (date(2026, 9, 1), 2, 2)]
+        body = res.content.decode()
+        assert body.index("2026年9月3日") < body.index("2026年9月1日")
+
+    def test_日付で絞り込んでも_日付の候補はすべての日を出す(self, logged_in, site_a, media):
+        _photo(site_a, taken_on=date(2026, 9, 1))
+        _photo(site_a, taken_on=date(2026, 9, 3))
+
+        res = logged_in.get(
+            reverse("sites:photo_list", args=[site_a.pk]), {"date": "2026-09-01"},
+        )
+
+        assert self._days(res) == [(date(2026, 9, 1), 1, 1)]
+        assert [row["taken_on"] for row in res.context["day_counts"]] == [
+            date(2026, 9, 3), date(2026, 9, 1),
+        ]
+
+    def test_日付の候補は種類の絞り込みを反映する(self, logged_in, site_a, media):
+        _photo(site_a, taken_on=date(2026, 9, 1), kind=SitePhoto.Kind.SURVEY)
+        _photo(site_a, taken_on=date(2026, 9, 3), kind=SitePhoto.Kind.DURING)
+
+        res = logged_in.get(
+            reverse("sites:photo_list", args=[site_a.pk]), {"kind": "survey"},
+        )
+
+        assert res.context["day_counts"] == [{"taken_on": date(2026, 9, 1), "count": 1}]
+
+    def test_読めない日付は絞り込まない(self, logged_in, site_a, media):
+        _photo(site_a, taken_on=date(2026, 9, 1))
+
+        res = logged_in.get(
+            reverse("sites:photo_list", args=[site_a.pk]), {"date": "2026-13-40"},
+        )
+
+        assert res.context["day"] is None
+        assert len(res.context["photo_days"]) == 1
+
+    def test_ページを分けても見出しはその日の全部の枚数を出す(
+        self, logged_in, site_a, media, monkeypatch,
+    ):
+        monkeypatch.setattr("apps.sites.views.PHOTOS_PER_PAGE", 2)
+        for _ in range(3):
+            _photo(site_a, taken_on=date(2026, 9, 1))
+
+        res = logged_in.get(reverse("sites:photo_list", args=[site_a.pk]))
+
+        assert self._days(res) == [(date(2026, 9, 1), 3, 2)]
+
+    def test_絞り込みを変えてもほかの絞り込みを保つ(self, logged_in, site_a, media):
+        _photo(site_a, taken_on=date(2026, 9, 1))
+
+        res = logged_in.get(
+            reverse("sites:photo_list", args=[site_a.pk]),
+            {"kind": "during", "q": "廊下", "date": "2026-09-01"},
+        )
+
+        assert res.context["query_without_kind"] == "q=%E5%BB%8A%E4%B8%8B&date=2026-09-01"
+        assert res.context["query_without_q"] == "kind=during&date=2026-09-01"
+
+    def test_現場詳細でも撮影日ごとに分ける(self, logged_in, site_a, media):
+        _photo(site_a, taken_on=date(2026, 9, 1))
+        _photo(site_a, taken_on=date(2026, 9, 2))
+
+        res = logged_in.get(_detail(site_a))
+
+        assert [group["date"] for group in res.context["photo_days"]] == [
+            date(2026, 9, 2), date(2026, 9, 1),
+        ]
+        assert f"{reverse('sites:photo_list', args=[site_a.pk])}?date=2026-09-02" in (
+            res.content.decode()
+        )
+
+
+# ---------------------------------------------------------------------------
 # 現場詳細
 # ---------------------------------------------------------------------------
 
@@ -458,6 +552,150 @@ class TestSiteDetail:
         assert "<h2>見積もり/実経費</h2>" not in body
         assert "<h2>材料の受発注</h2>" in body
         assert "<h2>現場写真</h2>" in body
+
+
+# ---------------------------------------------------------------------------
+# ホームから現場を選んですぐ撮る
+# ---------------------------------------------------------------------------
+
+def _site(company, code, status, name=None):
+    return Site.unscoped.create(
+        company=company, code=code, name=name or code, status=status, contract_amount=0,
+    )
+
+
+def _quick_post(client, site_pk, files, *, headers=None, **fields):
+    data = {
+        "site": site_pk,
+        "images": files,
+        "kind": SitePhoto.Kind.DURING,
+        "location": "1F 廊下",
+        "taken_on": "",
+        "note": "",
+    }
+    data.update(fields)
+    return client.post(reverse("sites:photo_quick"), data, **(headers or {}))
+
+
+@pytest.mark.django_db
+class TestQuickUpload:
+    def test_ホームに現場を選んで撮る入口と_現場ごとの入口がある(self, logged_in, company_a):
+        site = _site(company_a, "S010", Site.Status.IN_PROGRESS)
+
+        body = logged_in.get(reverse("dashboard")).content.decode()
+
+        quick = reverse("sites:photo_quick")
+        assert f'href="{quick}"' in body
+        assert f'href="{quick}?site={site.pk}"' in body
+
+    def test_候補は施工中から並び_請求済と中止は出さない(self, logged_in, company_a, company_b):
+        _site(company_a, "完工", Site.Status.COMPLETED)
+        _site(company_a, "見積中", Site.Status.ESTIMATING)
+        _site(company_a, "中止", Site.Status.CANCELLED)
+        _site(company_a, "受注済", Site.Status.ORDERED)
+        _site(company_a, "請求済", Site.Status.BILLED)
+        _site(company_a, "施工中", Site.Status.IN_PROGRESS)
+        _site(company_b, "他社の施工中", Site.Status.IN_PROGRESS)
+
+        res = logged_in.get(reverse("sites:photo_quick"))
+
+        names = [site.name for site in res.context["form"].fields["site"].queryset]
+        assert names == ["施工中", "受注済", "見積中", "完工"]
+
+    def test_指定した現場を選んだ状態で開く(self, logged_in, company_a):
+        site = _site(company_a, "S010", Site.Status.IN_PROGRESS)
+
+        res = logged_in.get(reverse("sites:photo_quick"), {"site": site.pk})
+
+        assert res.context["form"].initial["site"] == site.pk
+
+    def test_指定が無ければ前に写真を登録した現場を選んだ状態で開く(
+        self, logged_in, company_a, user_a, media,
+    ):
+        _site(company_a, "S010", Site.Status.IN_PROGRESS)
+        last = _site(company_a, "S011", Site.Status.IN_PROGRESS)
+        _photo(last, created_by=user_a)
+
+        res = logged_in.get(reverse("sites:photo_quick"))
+
+        assert res.context["form"].initial["site"] == last.pk
+
+    def test_候補に無い現場を指定されても選ばない(self, client, user_b, company_a):
+        other_company_site = _site(company_a, "S010", Site.Status.IN_PROGRESS)
+        client.force_login(user_b)
+
+        res = client.get(reverse("sites:photo_quick"), {"site": other_company_site.pk})
+
+        assert res.context["form"].initial["site"] is None
+
+    def test_選んだ現場に登録して_その現場の写真の一覧へ戻る(self, logged_in, company_a, media):
+        _site(company_a, "S010", Site.Status.IN_PROGRESS)
+        target = _site(company_a, "S011", Site.Status.ORDERED)
+
+        res = _quick_post(logged_in, target.pk, [_jpeg()], location="2F 東側 分電盤")
+
+        assert res.status_code == 302
+        assert res["Location"] == reverse("sites:photo_list", args=[target.pk])
+        photo = SitePhoto.unscoped.get()
+        assert (photo.site, photo.location) == (target, "2F 東側 分電盤")
+
+    def test_現場を選ばないと登録しない(self, logged_in, media):
+        res = _quick_post(logged_in, "", [_jpeg()])
+
+        assert res.status_code == 200
+        assert "site" in res.context["form"].errors
+        assert not SitePhoto.unscoped.exists()
+
+    def test_他社の現場には登録できない(self, client, user_b, company_a, media):
+        other_company_site = _site(company_a, "S010", Site.Status.IN_PROGRESS)
+        client.force_login(user_b)
+
+        res = _quick_post(client, other_company_site.pk, [_jpeg()])
+
+        assert "site" in res.context["form"].errors
+        assert not SitePhoto.unscoped.exists()
+
+    def test_撮影場所の候補を現場ごとに渡す(self, logged_in, company_a, media):
+        first = _site(company_a, "S010", Site.Status.IN_PROGRESS)
+        second = _site(company_a, "S011", Site.Status.IN_PROGRESS)
+        _photo(first, location="屋上")
+        _photo(first, location="1F 廊下")
+        _photo(first, location="1F 廊下")
+        _photo(second, location="外観 北面")
+
+        res = logged_in.get(reverse("sites:photo_quick"), {"site": first.pk})
+
+        assert res.context["location_map"] == {
+            str(first.pk): ["1F 廊下", "屋上"],
+            str(second.pk): ["外観 北面"],
+        }
+        assert res.context["form"].location_choices == ["1F 廊下", "屋上"]
+
+    def test_圏外から送り直しても二重に登録しない(self, logged_in, company_a, media):
+        site = _site(company_a, "S010", Site.Status.IN_PROGRESS)
+        key = str(uuid.uuid4())
+
+        first = _quick_post(
+            logged_in, site.pk, [_jpeg()], client_request_id=key, headers=RESEND,
+        )
+        again = _quick_post(
+            logged_in, site.pk, [_jpeg()], client_request_id=key, headers=RESEND,
+        )
+
+        assert first.json() == {
+            "ok": True, "location": reverse("sites:photo_list", args=[site.pk]),
+        }
+        assert again.json()["duplicate"] is True
+        assert SitePhoto.unscoped.count() == 1
+
+    def test_登録画面は圏外保存の部品と現場の選択が付く(self, logged_in, company_a):
+        _site(company_a, "S010", Site.Status.IN_PROGRESS)
+
+        html = logged_in.get(reverse("sites:photo_quick")).content.decode()
+
+        assert "data-offline-form" in html
+        assert 'name="site"' in html
+        assert 'id="photo-location-map"' in html
 
 
 # ---------------------------------------------------------------------------

@@ -2,6 +2,7 @@ import mimetypes
 import tempfile
 from datetime import date
 from pathlib import Path
+from urllib.parse import urlencode
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -12,6 +13,7 @@ from django.http import FileResponse, Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
+from django.utils.dateparse import parse_date
 
 from apps.costs.models import BudgetItem
 from apps.costs.services import get_site_cost_summary
@@ -30,7 +32,9 @@ from apps.sites.forms import (
     ProcessForm,
     SiteForm,
     SitePhotoForm,
+    SitePhotoQuickUploadForm,
     SitePhotoUploadForm,
+    photo_site_choices,
 )
 from apps.sites.importer import FIELD_LABELS, parse_rows, read_rows
 from apps.sites.line_items import (
@@ -91,6 +95,8 @@ def site_detail(request, pk):
     # 現場写真（ADR-0050）。内訳書・内訳明細書と見積内訳の欄は外し、その場所に置く。
     # 詳細では新しいものを数枚だけ出し、残りは写真の一覧で見る。
     photo_kind_counts = _photo_kind_counts(site)
+    recent_photos = list(site.photos.select_related("created_by")[:DETAIL_PHOTO_COUNT])
+    recent_days = {photo.taken_on for photo in recent_photos}
 
     return render(request, "sites/detail.html", {
         "site": site,
@@ -107,8 +113,11 @@ def site_detail(request, pk):
             .order_by("-quotation_date")
         ),
         "budget_items": budget_items,
-        "recent_photos": list(
-            site.photos.select_related("created_by")[:DETAIL_PHOTO_COUNT]
+        "recent_photos": recent_photos,
+        # 撮影日ごとに分けて出す。見出しの枚数は、ここに出ていない分も含めたその日の枚数
+        "photo_days": _group_photos_by_day(
+            recent_photos,
+            _photo_day_counts(site.photos.filter(taken_on__in=recent_days)),
         ),
         "photo_kind_counts": photo_kind_counts,
         "photo_total": sum(row["count"] for row in photo_kind_counts),
@@ -556,30 +565,143 @@ def _photo_location_choices(site):
     return [row["location"] for row in rows]
 
 
+def _photo_location_map(sites):
+    """現場ごとの撮影場所の候補（よく使う順に30件まで）。
+
+    ホームから撮る画面では現場を選び直せるので、候補を現場ごとに渡しておき、
+    画面の中で入れ替える（圏外でも入れ替えられるように、問い合わせはしない）。
+    """
+    rows = (
+        SitePhoto.objects.filter(site_id__in=[site.pk for site in sites])
+        .order_by().values("site_id", "location")
+        .annotate(n=Count("pk"))
+        .order_by("site_id", "-n", "location")
+    )
+    result: dict[str, list[str]] = {}
+    for row in rows:
+        locations = result.setdefault(str(row["site_id"]), [])
+        if len(locations) < 30:
+            locations.append(row["location"])
+    return result
+
+
+def _default_photo_site(request, sites):
+    """ホームから撮る画面で、最初に選んでおく現場。
+
+    ?site= で指定されていればその現場、無ければこの人が前に写真を登録した現場。
+    候補（sites）に無い現場は選ばない（他社の現場・中止の現場を指定されても使わない）。
+    """
+    ids = {site.pk for site in sites}
+    requested = request.GET.get("site", "")
+    if requested.isdigit() and int(requested) in ids:
+        return int(requested)
+    return (
+        SitePhoto.objects.filter(created_by=request.user, site_id__in=ids)
+        .order_by("-created_at", "-pk")
+        .values_list("site_id", flat=True)
+        .first()
+    )
+
+
+def _save_photo_upload(request, site, form):
+    """登録フォームの内容で写真を保存し、その現場の写真の一覧へ戻す。"""
+    data = form.cleaned_data
+    # 何枚かのうち途中で失敗したら、どれも登録しない（送り直しで二重にしないため）
+    with transaction.atomic():
+        photos = save_site_photos(
+            site=site,
+            user=request.user,
+            files=data["images"],
+            kind=data["kind"],
+            location=data["location"],
+            taken_on=data["taken_on"],
+            note=data["note"],
+            today=timezone.localdate(),
+        )
+    messages.success(
+        request, f"現場「{site.name}」に写真を {len(photos)} 枚登録しました。"
+    )
+    return redirect("sites:photo_list", pk=site.pk)
+
+
+def _photo_day_counts(photos):
+    """撮影日ごとの枚数を、新しい日から返す。"""
+    return list(
+        photos.order_by().values("taken_on")
+        .annotate(count=Count("pk"))
+        .order_by("-taken_on")
+    )
+
+
+def _group_photos_by_day(photos, day_counts):
+    """撮影日の新しい順に並んだ写真を、撮影日ごとにまとめる（自動で日付ごとに分ける）。
+
+    見出しの枚数は day_counts から取る。ページを分けたときも、その日の全部の枚数を出すため。
+    """
+    totals = {row["taken_on"]: row["count"] for row in day_counts}
+    groups = []
+    for photo in photos:
+        if not groups or groups[-1]["date"] != photo.taken_on:
+            groups.append({
+                "date": photo.taken_on,
+                "count": totals.get(photo.taken_on, 0),
+                "photos": [],
+            })
+        groups[-1]["photos"].append(photo)
+    return groups
+
+
+def _parse_day(value):
+    """?date=YYYY-MM-DD を読む。読めなければ None（絞り込まない）。"""
+    try:
+        return parse_date(value or "")
+    except ValueError:  # 2026-13-40 のように形は合っていても日付として無いもの
+        return None
+
+
+def _query(**params):
+    """空でない絞り込みだけでクエリ文字列を作る。"""
+    return urlencode({key: value for key, value in params.items() if value})
+
+
 @login_required
 def site_photo_list(request, pk):
-    """現場写真の一覧。種類と、撮影場所・メモの文字で絞り込む。"""
+    """現場写真の一覧。撮影日ごとに分けて出し、種類・日付・撮影場所やメモの文字で絞り込む。"""
     site = get_object_or_404(Site, pk=pk)
     kind = request.GET.get("kind", "")
     if kind not in SitePhoto.Kind.values:
         kind = ""
     q = request.GET.get("q", "").strip()
+    day = _parse_day(request.GET.get("date"))
+    day_param = day.isoformat() if day else ""
 
     photos = site.photos.select_related("created_by")
     if kind:
         photos = photos.filter(kind=kind)
     if q:
         photos = photos.filter(Q(location__icontains=q) | Q(note__icontains=q))
+    # 日付の候補は、種類と文字の絞り込みまでを反映した枚数で出す
+    day_counts = _photo_day_counts(photos)
+    if day:
+        photos = photos.filter(taken_on=day)
 
+    page = Paginator(photos, PHOTOS_PER_PAGE).get_page(request.GET.get("page"))
     kind_counts = _photo_kind_counts(site)
     return render(request, "sites/photo_list.html", {
         "site": site,
-        "page": Paginator(photos, PHOTOS_PER_PAGE).get_page(request.GET.get("page")),
+        "page": page,
+        "photo_days": _group_photos_by_day(page.object_list, day_counts),
         "kind": kind,
         "q": q,
+        "day": day,
+        "day_counts": day_counts,
         "kind_counts": kind_counts,
         "photo_total": sum(row["count"] for row in kind_counts),
         "location_choices": _photo_location_choices(site),
+        # 絞り込みを1つ変えるときに、ほかの絞り込みを保つためのクエリ文字列
+        "query_without_kind": _query(q=q, date=day_param),
+        "query_without_q": _query(kind=kind, date=day_param),
+        "query_without_page": _query(kind=kind, q=q, date=day_param),
     })
 
 
@@ -598,23 +720,7 @@ def site_photo_upload(request, pk):
             request.POST, request.FILES, location_choices=location_choices,
         )
         if form.is_valid():
-            data = form.cleaned_data
-            # 何枚かのうち途中で失敗したら、どれも登録しない（送り直しで二重にしないため）
-            with transaction.atomic():
-                photos = save_site_photos(
-                    site=site,
-                    user=request.user,
-                    files=data["images"],
-                    kind=data["kind"],
-                    location=data["location"],
-                    taken_on=data["taken_on"],
-                    note=data["note"],
-                    today=timezone.localdate(),
-                )
-            messages.success(
-                request, f"現場「{site.name}」に写真を {len(photos)} 枚登録しました。"
-            )
-            return redirect("sites:photo_list", pk=site.pk)
+            return _save_photo_upload(request, site, form)
     else:
         kind = request.GET.get("kind")
         form = SitePhotoUploadForm(
@@ -625,6 +731,41 @@ def site_photo_upload(request, pk):
         )
 
     return render(request, "sites/photo_upload.html", {"site": site, "form": form})
+
+
+@login_required
+@offline_resendable
+def site_photo_quick_upload(request):
+    """ホームから、現場を選んですぐ写真を登録する。
+
+    現場詳細を開かなくても撮れるようにする入口。現場ごとの登録画面と違い、
+    **この1画面を一度開いておけば、圏外でもどの現場の写真も撮れる**（ADR-0048）。
+    """
+    company = request.user.company
+    sites = list(photo_site_choices(company))
+    location_map = _photo_location_map(sites)
+
+    if request.method == "POST":
+        form = SitePhotoQuickUploadForm(
+            request.POST,
+            request.FILES,
+            company=company,
+            location_choices=location_map.get(request.POST.get("site", ""), []),
+        )
+        if form.is_valid():
+            return _save_photo_upload(request, form.cleaned_data["site"], form)
+    else:
+        initial_site = _default_photo_site(request, sites)
+        form = SitePhotoQuickUploadForm(
+            company=company,
+            location_choices=location_map.get(str(initial_site), []),
+            initial={"site": initial_site, "kind": SitePhoto.Kind.DURING},
+        )
+
+    return render(request, "sites/photo_quick_upload.html", {
+        "form": form,
+        "location_map": location_map,
+    })
 
 
 @login_required

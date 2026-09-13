@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from django import forms
+from django.db.models import Case, IntegerField, Value, When
 
 from apps.accounts.models import User
 from apps.masters.models import Customer, WorkType
@@ -240,6 +241,48 @@ class SitePhotoUploadForm(_LocationChoicesMixin, forms.Form):
                 f"{MAX_PHOTO_MB}MB を超える写真は登録できません: {'、'.join(too_big)}"
             )
         return images
+
+
+# ホームから写真を撮るときの現場の候補と並び順。撮るのは主に施工中なので先頭にする。
+# 請求済・中止の現場は現場で撮ることがないので出さない（現場詳細からは今までどおり登録できる）。
+PHOTO_SITE_STATUSES = (
+    Site.Status.IN_PROGRESS,
+    Site.Status.ORDERED,
+    Site.Status.ESTIMATING,
+    Site.Status.COMPLETED,
+)
+
+
+def photo_site_choices(company):
+    """写真を撮る現場の候補。施工中 → 受注済 → 見積中 → 完工、同じ状態の中は新しい現場から。"""
+    if company is None:
+        return Site.objects.none()
+    rank = Case(
+        *[When(status=status, then=Value(i)) for i, status in enumerate(PHOTO_SITE_STATUSES)],
+        output_field=IntegerField(),
+    )
+    # unscoped: 会社を明示して絞る。フォームの候補はテナントの文脈に頼らず決めたいため
+    return (
+        Site.unscoped.filter(company=company, status__in=PHOTO_SITE_STATUSES)
+        .annotate(status_rank=rank)
+        .order_by("status_rank", "-created_at", "-pk")
+    )
+
+
+class SitePhotoQuickUploadForm(SitePhotoUploadForm):
+    """ホームから、現場を選んですぐ写真を登録するフォーム（ADR-0050）。"""
+
+    site = forms.ModelChoiceField(
+        label="現場",
+        queryset=Site.objects.none(),
+        empty_label="現場を選んでください",
+    )
+
+    field_order = ["site", "images", "kind", "location", "taken_on", "note"]
+
+    def __init__(self, *args, company=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["site"].queryset = photo_site_choices(company)
 
 
 class SitePhotoForm(_LocationChoicesMixin, forms.ModelForm):

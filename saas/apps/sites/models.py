@@ -200,20 +200,29 @@ class Process(TenantModel):
         return f"{self.site} - {self.name}"
 
 
+def _site_photo_folder(instance):
+    """会社・現場・撮影日ごとのフォルダ。バックアップから取り出すときも日付で探せる。
+
+    あとで撮影日を直しても、ファイルは動かさない（元のフォルダのまま）。
+    """
+    day = instance.taken_on.strftime("%Y-%m-%d") if instance.taken_on else "undated"
+    return f"site_photos/{instance.company_id}/{instance.site_id}/{day}"
+
+
 def site_photo_path(instance, filename):
     """現場写真の保存先。
 
-    会社・現場ごとのフォルダに分け、ファイル名は推測できない乱数にする。スマホの
-    ファイル名（IMG_1234.jpg）は現場をまたいで重なるうえ、連番から他の写真を
-    当てられてしまうため。元の名前は original_filename に残す。
+    ファイル名は推測できない乱数にする。スマホのファイル名（IMG_1234.jpg）は
+    現場をまたいで重なるうえ、連番から他の写真を当てられてしまうため。
+    元の名前は original_filename に残す。
     """
     suffix = Path(filename).suffix.lower()[:10] or ".jpg"
-    return f"site_photos/{instance.company_id}/{instance.site_id}/{uuid.uuid4().hex}{suffix}"
+    return f"{_site_photo_folder(instance)}/{uuid.uuid4().hex}{suffix}"
 
 
 def site_photo_thumbnail_path(instance, filename):
     """一覧用の縮小画像の保存先。縮小画像は常に JPEG で作る。"""
-    return f"site_photos/{instance.company_id}/{instance.site_id}/thumbs/{uuid.uuid4().hex}.jpg"
+    return f"{_site_photo_folder(instance)}/thumbs/{uuid.uuid4().hex}.jpg"
 
 
 class SitePhoto(TenantModel):
