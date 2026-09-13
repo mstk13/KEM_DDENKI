@@ -14,7 +14,7 @@ urlpatterns = [
     path("<int:pk>/boq/edit/", views.site_boq_edit, name="boq_edit"),
     path("<int:pk>/boq/import/", views.site_boq_import, name="boq_import"),
     path("<int:pk>/boq/export/", views.site_boq_export, name="boq_export"),
-    # 現場写真（ADR-0050）
+    # 現場写真（ADR-0051）
     path("photos/new/", views.site_photo_quick_upload, name="photo_quick"),
     path("<int:pk>/photos/", views.site_photo_list, name="photo_list"),
     path("<int:pk>/photos/new/", views.site_photo_upload, name="photo_upload"),

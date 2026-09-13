@@ -748,7 +748,7 @@ class TestRebuildTree:
 
 @pytest.mark.django_db
 class TestSiteDetailBoqSection:
-    """現場詳細の内訳書・内訳明細書の欄は外した（ADR-0050。その場所に現場写真を置く）。
+    """現場詳細の内訳書・内訳明細書の欄は外した（ADR-0051。その場所に現場写真を置く）。
 
     取り込んだ内訳書のデータと、表形式の編集画面は残している。
     """
