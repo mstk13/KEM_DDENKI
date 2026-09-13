@@ -1,14 +1,17 @@
+import mimetypes
 import tempfile
 from datetime import date
-from decimal import Decimal
 from pathlib import Path
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.core.paginator import Paginator
 from django.db import transaction
-from django.db.models import ProtectedError
+from django.db.models import Count, ProtectedError, Q
+from django.http import FileResponse, Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
+from django.utils import timezone
 
 from apps.costs.models import BudgetItem
 from apps.costs.services import get_site_cost_summary
@@ -20,15 +23,23 @@ from apps.materials.services import (
     create_quotation_from_lines,
     match_lines_to_materials,
 )
+from apps.offline.decorators import offline_resendable
 from apps.permissions.services import has_module_permission
-from apps.sites.forms import EstimateUploadForm, ProcessForm, SiteForm
+from apps.sites.forms import (
+    EstimateUploadForm,
+    ProcessForm,
+    SiteForm,
+    SitePhotoForm,
+    SitePhotoUploadForm,
+)
 from apps.sites.importer import FIELD_LABELS, parse_rows, read_rows
 from apps.sites.line_items import (
     deserialize_lines,
     extract_lines,
     serialize_lines,
 )
-from apps.sites.models import EstimateImport, Process, Site
+from apps.sites.models import EstimateImport, Process, Site, SitePhoto
+from apps.sites.photos import save_site_photos
 from apps.sites.services import (
     APPLY_FIELDS,
     apply_estimate_to_site,
@@ -77,7 +88,9 @@ def site_detail(request, pk):
         else None
     )
 
-    boq_lines = list(_site_boq_lines(site))
+    # 現場写真（ADR-0050）。内訳書・内訳明細書と見積内訳の欄は外し、その場所に置く。
+    # 詳細では新しいものを数枚だけ出し、残りは写真の一覧で見る。
+    photo_kind_counts = _photo_kind_counts(site)
 
     return render(request, "sites/detail.html", {
         "site": site,
@@ -87,20 +100,18 @@ def site_detail(request, pk):
         "purchase_orders": site.purchase_orders.select_related("supplier").order_by(
             "-order_date"
         ),
-        # 見積内訳。明細まで現場詳細で開けるようにするので prefetch する
-        # （見積ごとに N+1 で明細を引くと、取り込んだ現場で一気に重くなる）。
-        # customer も select_related する。自社発行の見積は supplier が空で、
-        # 相手先は customer 側に入っているため。
+        # 材料の受発注の見積行。自社発行の見積は supplier が空で、相手先は
+        # customer 側に入っているため customer も引く。
         "quotations": (
             site.quotations.select_related("supplier", "customer")
-            .prefetch_related("items__material")
             .order_by("-quotation_date")
         ),
         "budget_items": budget_items,
-        # 内訳書・内訳明細書。階層ツリーなので parent も一緒に引く。
-        "boq_lines": boq_lines,
-        "boq_total": _boq_total(boq_lines),
-        "boq_meisai_count": sum(1 for line in boq_lines if line.is_meisai),
+        "recent_photos": list(
+            site.photos.select_related("created_by")[:DETAIL_PHOTO_COUNT]
+        ),
+        "photo_kind_counts": photo_kind_counts,
+        "photo_total": sum(row["count"] for row in photo_kind_counts),
         **summary,
     })
 
@@ -512,11 +523,179 @@ def process_delete(request, pk):
 
 
 # ===================================================================
+# 現場写真（ADR-0050）
+#
+# 現地調査や施工状況の写真を、どこの（撮影場所）・どのような（種類）写真か
+# と一緒に残す。写真のファイルは /media/ から直接出さず、ログインした
+# 同じ会社の人だけが見られるビューを通す。
+# ===================================================================
+
+DETAIL_PHOTO_COUNT = 8
+PHOTOS_PER_PAGE = 48
+
+
+def _photo_kind_counts(site):
+    """種類ごとの枚数。0 枚の種類も並べる（絞り込みの候補として出すため）。"""
+    counts = dict(
+        # order_by() で既定の並び（撮影日）を外さないと、種類ごとにまとまらない
+        site.photos.order_by().values_list("kind").annotate(n=Count("pk"))
+    )
+    return [
+        {"value": value, "label": label, "count": counts.get(value, 0)}
+        for value, label in SitePhoto.Kind.choices
+    ]
+
+
+def _photo_location_choices(site):
+    """撮影場所の入力候補。この現場で使ったことのある場所を、よく使う順に出す。"""
+    rows = (
+        site.photos.order_by().values("location")
+        .annotate(n=Count("pk"))
+        .order_by("-n", "location")[:50]
+    )
+    return [row["location"] for row in rows]
+
+
+@login_required
+def site_photo_list(request, pk):
+    """現場写真の一覧。種類と、撮影場所・メモの文字で絞り込む。"""
+    site = get_object_or_404(Site, pk=pk)
+    kind = request.GET.get("kind", "")
+    if kind not in SitePhoto.Kind.values:
+        kind = ""
+    q = request.GET.get("q", "").strip()
+
+    photos = site.photos.select_related("created_by")
+    if kind:
+        photos = photos.filter(kind=kind)
+    if q:
+        photos = photos.filter(Q(location__icontains=q) | Q(note__icontains=q))
+
+    kind_counts = _photo_kind_counts(site)
+    return render(request, "sites/photo_list.html", {
+        "site": site,
+        "page": Paginator(photos, PHOTOS_PER_PAGE).get_page(request.GET.get("page")),
+        "kind": kind,
+        "q": q,
+        "kind_counts": kind_counts,
+        "photo_total": sum(row["count"] for row in kind_counts),
+        "location_choices": _photo_location_choices(site),
+    })
+
+
+@login_required
+@offline_resendable
+def site_photo_upload(request, pk):
+    """現場写真をまとめて登録する。
+
+    現場は電波が弱いことが多いので、圏外なら端末に保存し、電波が戻ったら送る（ADR-0048）。
+    """
+    site = get_object_or_404(Site, pk=pk)
+    location_choices = _photo_location_choices(site)
+
+    if request.method == "POST":
+        form = SitePhotoUploadForm(
+            request.POST, request.FILES, location_choices=location_choices,
+        )
+        if form.is_valid():
+            data = form.cleaned_data
+            # 何枚かのうち途中で失敗したら、どれも登録しない（送り直しで二重にしないため）
+            with transaction.atomic():
+                photos = save_site_photos(
+                    site=site,
+                    user=request.user,
+                    files=data["images"],
+                    kind=data["kind"],
+                    location=data["location"],
+                    taken_on=data["taken_on"],
+                    note=data["note"],
+                    today=timezone.localdate(),
+                )
+            messages.success(
+                request, f"現場「{site.name}」に写真を {len(photos)} 枚登録しました。"
+            )
+            return redirect("sites:photo_list", pk=site.pk)
+    else:
+        kind = request.GET.get("kind")
+        form = SitePhotoUploadForm(
+            location_choices=location_choices,
+            initial={
+                "kind": kind if kind in SitePhoto.Kind.values else SitePhoto.Kind.DURING,
+            },
+        )
+
+    return render(request, "sites/photo_upload.html", {"site": site, "form": form})
+
+
+@login_required
+def site_photo_edit(request, pk):
+    """登録した写真の種類・撮影場所・撮影日・メモを直す。"""
+    photo = get_object_or_404(SitePhoto.objects.select_related("site", "created_by"), pk=pk)
+    site = photo.site
+    location_choices = _photo_location_choices(site)
+
+    if request.method == "POST":
+        form = SitePhotoForm(
+            request.POST, instance=photo, location_choices=location_choices,
+        )
+        if form.is_valid():
+            form.save()
+            messages.success(request, "写真の情報を更新しました。")
+            return redirect("sites:photo_list", pk=site.pk)
+    else:
+        form = SitePhotoForm(instance=photo, location_choices=location_choices)
+
+    return render(request, "sites/photo_form.html", {
+        "site": site,
+        "photo": photo,
+        "form": form,
+    })
+
+
+@login_required
+def site_photo_delete(request, pk):
+    """写真を削除する。ファイルも消える（models.delete_site_photo_files）。"""
+    photo = get_object_or_404(SitePhoto.objects.select_related("site"), pk=pk)
+    site = photo.site
+    if request.method == "POST":
+        with transaction.atomic():
+            photo.delete()
+        messages.success(request, "写真を削除しました。")
+        return redirect("sites:photo_list", pk=site.pk)
+    return render(request, "sites/photo_confirm_delete.html", {
+        "site": site,
+        "photo": photo,
+    })
+
+
+@login_required
+def site_photo_file(request, pk, variant):
+    """写真のファイルを返す。ログインした同じ会社の人だけが見られる。
+
+    variant が "thumb" なら一覧用の縮小画像。縮小画像が無い写真は元の写真を返す。
+    """
+    photo = get_object_or_404(SitePhoto, pk=pk)
+    field = photo.thumbnail if variant == "thumb" and photo.thumbnail else photo.image
+    try:
+        handle = field.storage.open(field.name, "rb")
+    except FileNotFoundError as exc:
+        raise Http404("写真のファイルが見つかりません。") from exc
+    response = FileResponse(
+        handle,
+        content_type=mimetypes.guess_type(field.name)[0] or "application/octet-stream",
+    )
+    # 同じ写真を何度も取りに来ないよう端末に控えさせる。共有のキャッシュには置かせない
+    response["Cache-Control"] = "private, max-age=86400"
+    return response
+
+
+# ===================================================================
 # 内訳書・内訳明細書（ADR-0016）
 #
 # BoqLine は元々 estimation.EstimationProject 専用だったが、積算案件は
 # 発注機関が必須のため民間工事の現場では作れなかった。現場に直接
-# ぶら下げられるようにしたので、現場詳細から一通り操作できるようにする。
+# ぶら下げられるようにした。現場詳細の欄は ADR-0050 で外した（データと
+# 以下の画面は残している）。
 # ===================================================================
 
 
@@ -526,17 +705,6 @@ def _site_boq_lines(site):
         BoqLine.objects.filter(site=site)
         .select_related("parent")
         .order_by("sort_order", "pk")
-    )
-
-
-def _boq_total(lines):
-    """内訳書の合計。
-
-    最上位（親を持たない）行だけを足す。種目・科目を立てた内訳書で
-    全行を足すと、上位行と細目で二重に数えることになる。
-    """
-    return sum(
-        (line.amount or Decimal("0")) for line in lines if line.parent_id is None
     )
 
 

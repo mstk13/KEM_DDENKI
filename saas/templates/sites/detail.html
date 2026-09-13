@@ -9,6 +9,7 @@
     <a href="{% url 'ai:cost_optimization' site.pk %}" class="btn btn-primary btn-sm">AIコスト分析</a>
     <a href="{% url 'ai:schedule_suggestion' site.pk %}" class="btn btn-outline btn-sm">AI工程提案</a>
     <a href="{% url 'sites:estimate_import' site.pk %}" class="btn btn-outline btn-sm">見積ファイルを取り込む</a>
+    <a href="{% url 'sites:photo_upload' site.pk %}" class="btn btn-outline btn-sm">写真を登録</a>
     <a href="{% url 'sites:edit' site.pk %}" class="btn btn-outline btn-sm">編集</a>
     <a href="{% url 'sites:delete' site.pk %}" class="btn btn-outline btn-sm"
        style="color:var(--danger,#ef4444);">削除</a>
@@ -164,6 +165,50 @@
 </div>
 {% endif %}
 
+{# 材料の受発注。見積もり/実経費のすぐ下に置く（ADR-0050）。お金の流れを続けて読めるようにするため。 #}
+<div class="card" style="margin-top:20px;">
+  <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;">
+    <h2>材料の受発注</h2>
+    <div>
+      <a href="{% url 'materials:quotation_create' %}?site={{ site.pk }}" class="btn btn-outline btn-sm">+ 見積を登録</a>
+      <a href="{% url 'materials:create_po' %}?site={{ site.pk }}" class="btn btn-primary btn-sm">+ 発注を登録</a>
+    </div>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>区分</th><th>日付</th><th>仕入先</th><th>金額</th><th>状態</th><th></th></tr></thead>
+      <tbody>
+        {% for po in purchase_orders %}
+        <tr>
+          <td><span class="badge badge-blue">発注</span></td>
+          <td>{{ po.order_date }}</td>
+          <td>{{ po.supplier }}</td>
+          <td>{{ po.total_amount|floatformat:0 }} 円</td>
+          <td>{{ po.get_status_display }}</td>
+          <td><a href="{% url 'materials:po_detail' po.pk %}" class="btn btn-outline btn-sm">明細</a></td>
+        </tr>
+        {% endfor %}
+        {% for q in quotations %}
+        <tr>
+          <td><span class="badge badge-gray">見積</span></td>
+          <td>{{ q.quotation_date }}</td>
+          {# 自社発行の見積は supplier が空で相手先は顧客側に入る。 #}
+          <td>{{ q.counterparty_name }}</td>
+          <td>{{ q.total_amount|floatformat:0 }} 円</td>
+          <td>{{ q.get_status_display }}</td>
+          <td><a href="{% url 'materials:quotation_detail' q.pk %}" class="btn btn-outline btn-sm">明細</a></td>
+        </tr>
+        {% endfor %}
+        {% if not purchase_orders and not quotations %}
+        <tr><td colspan="6" style="text-align:center;color:var(--gray-400);padding:20px;">
+          この現場の見積・発注はまだ登録されていません
+        </td></tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
 {% if site.extracted_details or site.estimate_imports.exists %}
 <div class="card" style="margin-top:20px;">
   <div class="card-header"><h2>見積ファイルからの取り込み</h2></div>
@@ -212,190 +257,39 @@
   </div>
 </div>
 
-{# 内訳書・内訳明細書。上位3階層が内訳書、細目別が内訳明細書。
-   同じツリーの深さ違いなので1つの表で出し、細目別だけ見たいときは
-   「内訳明細書だけ表示」で絞る。 #}
-<div class="card" style="margin-top:20px;">
+{% comment %}
+現場写真（ADR-0050）。内訳書・内訳明細書と見積内訳の欄を外し、その場所に置いた。
+現地調査や施工状況の写真を、どこの（撮影場所）・どのような（種類）写真かと一緒に残す。
+1行コメントの書き方は複数行にすると画面に文字として出るので、ここは comment タグにする。
+{% endcomment %}
+<div class="card" id="site-photos" style="margin-top:20px;">
   <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
-    <h2>内訳書・内訳明細書</h2>
+    <h2>現場写真</h2>
     <div style="display:flex;gap:6px;flex-wrap:wrap;">
-      <a href="{% url 'sites:boq_import' site.pk %}" class="btn btn-outline btn-sm">ファイルから取り込む</a>
-      {% if boq_lines %}
-      <a href="{% url 'sites:boq_export' site.pk %}" class="btn btn-outline btn-sm">Excel出力</a>
+      {% if photo_total %}
+      <a href="{% url 'sites:photo_list' site.pk %}" class="btn btn-outline btn-sm">すべて見る（{{ photo_total }}枚）</a>
       {% endif %}
-      <a href="{% url 'sites:boq_edit' site.pk %}" class="btn btn-primary btn-sm">表形式で編集</a>
+      <a href="{% url 'sites:photo_upload' site.pk %}" class="btn btn-primary btn-sm">+ 写真を登録</a>
     </div>
-  </div>
-
-  {% if boq_lines %}
-  <div style="padding:10px 14px;display:flex;gap:16px;flex-wrap:wrap;align-items:center;border-bottom:1px solid var(--gray-200);">
-    <label style="display:flex;align-items:center;gap:6px;font-size:.85rem;cursor:pointer;">
-      <input type="checkbox" id="boq-meisai-only"> 内訳明細書だけ表示
-    </label>
-    <span style="font-size:.85rem;color:var(--text-muted);">
-      全 {{ boq_lines|length }} 行 / うち内訳明細書 {{ boq_meisai_count }} 行
-    </span>
-    <span style="margin-left:auto;font-weight:600;">合計 &yen;{{ boq_total|floatformat:0 }}</span>
-  </div>
-
-  <div class="table-wrap">
-    <table id="boq-table">
-      <thead>
-        <tr>
-          <th>階層</th><th>名称</th><th>仕様</th><th>単位</th>
-          <th style="text-align:right;">数量</th>
-          <th style="text-align:right;">単価</th>
-          <th style="text-align:right;">金額</th>
-          <th>備考</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for line in boq_lines %}
-        <tr data-meisai="{{ line.is_meisai|yesno:"1,0" }}"
-            {% if not line.is_meisai %}style="font-weight:600;background:var(--bg-secondary);"{% endif %}>
-          <td style="font-size:12px;white-space:nowrap;">{{ line.get_level_display }}</td>
-          <td style="padding-left:{% widthratio line.indent_depth 1 16 %}px;">{{ line.name }}</td>
-          <td>{{ line.spec|default:"-" }}</td>
-          <td>{{ line.unit|default:"-" }}</td>
-          {# 一式計上など数量・単価が無い行がある。0 と書くと読めた 0 に見える。 #}
-          <td style="text-align:right;">{% if line.quantity is not None %}{{ line.quantity|floatformat:"-3" }}{% else %}-{% endif %}</td>
-          <td style="text-align:right;">{% if line.unit_price is not None %}{{ line.unit_price|floatformat:0 }}{% else %}-{% endif %}</td>
-          <td style="text-align:right;">{% if line.amount is not None %}&yen;{{ line.amount|floatformat:0 }}{% else %}-{% endif %}</td>
-          <td>{{ line.remarks|default:"-" }}</td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-  {% else %}
-  <div class="empty" style="padding:20px;">
-    <p>
-      この現場の内訳書はまだありません。
-      Excel・PDF の内訳書を「ファイルから取り込む」で読み込むか、
-      「表形式で編集」から直接入力してください。
-    </p>
-  </div>
-  {% endif %}
-</div>
-
-{# 見積内訳。取り込んだ見積書の明細を、見積詳細へ移らずここで開けるようにする。 #}
-<div class="card" style="margin-top:20px;">
-  <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;">
-    <h2>見積内訳</h2>
-    <a href="{% url 'sites:estimate_import' site.pk %}" class="btn btn-outline btn-sm">見積ファイルを取り込む</a>
   </div>
   <div class="card-body">
-    {% for q in quotations %}
-    <details class="quotation-breakdown" style="border:1px solid var(--gray-200);border-radius:6px;margin-bottom:10px;" {% if forloop.first %}open{% endif %}>
-      <summary style="padding:10px 14px;cursor:pointer;display:flex;flex-wrap:wrap;gap:10px;align-items:center;">
-        {% if q.kind == 'issued' %}<span class="badge badge-blue">自社発行</span>
-        {% else %}<span class="badge badge-gray">受領</span>{% endif %}
-        <b>{{ q.quotation_number|default:"見積番号なし" }}</b>
-        <span style="color:var(--text-muted);">{{ q.counterparty_name }}</span>
-        <span style="color:var(--text-muted);">{{ q.quotation_date }}</span>
-        <span style="margin-left:auto;font-weight:600;">&yen;{{ q.total_amount|floatformat:0 }}</span>
-      </summary>
-      <div class="table-wrap" style="border-top:1px solid var(--gray-200);">
-        <table>
-          <thead>
-            <tr>
-              <th>名称</th><th>規格・仕様</th>
-              <th style="text-align:right;">数量</th><th>単位</th>
-              <th style="text-align:right;">単価</th><th style="text-align:right;">金額</th>
-              <th>備考</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for item in q.items.all %}
-            <tr>
-              <td>{{ item.material.name|default:item.material_name|default:"-" }}</td>
-              <td>{{ item.spec|default:"-" }}</td>
-              {# 一式計上など、数量・単価が読めない行がある。0 と書くと読めた 0 に見える。 #}
-              <td style="text-align:right;">{{ item.quantity|floatformat:"-2"|default:"-" }}</td>
-              <td>{{ item.unit|default:"-" }}</td>
-              <td style="text-align:right;">{{ item.unit_price|floatformat:"-2"|default:"-" }}</td>
-              <td style="text-align:right;">&yen;{{ item.amount|floatformat:0 }}</td>
-              <td>{{ item.remarks|default:"-" }}</td>
-            </tr>
-            {% empty %}
-            <tr><td colspan="7" style="text-align:center;color:var(--gray-400);padding:16px;">
-              この見積に明細がありません。
-            </td></tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-      <div style="padding:10px 14px;">
-        <a href="{% url 'materials:quotation_detail' q.pk %}" class="btn btn-outline btn-sm">明細を編集</a>
-        {% if q.source_filename %}
-        <span style="font-size:.8rem;color:var(--text-muted);margin-left:8px;">取込元: {{ q.source_filename }}</span>
-        {% endif %}
-      </div>
-    </details>
-    {% empty %}
+    {% if photo_total %}
+    <div class="photo-kind-filter" style="margin-bottom:14px;">
+      {% for k in photo_kind_counts %}
+      <a href="{% url 'sites:photo_list' site.pk %}?kind={{ k.value }}"
+         class="photo-kind-chip{% if not k.count %} is-empty{% endif %}">{{ k.label }} {{ k.count }}</a>
+      {% endfor %}
+    </div>
+    {% include "sites/_photo_tiles.html" with photos=recent_photos %}
+    {% else %}
     <div class="empty" style="padding:20px;">
-      <p>この現場に紐づく見積はまだありません。「見積ファイルを取り込む」から明細ごと登録できます。</p>
+      <p>
+        この現場の写真はまだありません。
+        「+ 写真を登録」から、現地調査や施工中の写真を撮影場所と一緒に登録できます。
+      </p>
     </div>
-    {% endfor %}
+    {% endif %}
   </div>
 </div>
-
-<div class="card" style="margin-top:20px;">
-  <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;">
-    <h2>材料の受発注</h2>
-    <div>
-      <a href="{% url 'materials:quotation_create' %}?site={{ site.pk }}" class="btn btn-outline btn-sm">+ 見積を登録</a>
-      <a href="{% url 'materials:create_po' %}?site={{ site.pk }}" class="btn btn-primary btn-sm">+ 発注を登録</a>
-    </div>
-  </div>
-  <div class="table-wrap">
-    <table>
-      <thead><tr><th>区分</th><th>日付</th><th>仕入先</th><th>金額</th><th>状態</th><th></th></tr></thead>
-      <tbody>
-        {% for po in purchase_orders %}
-        <tr>
-          <td><span class="badge badge-blue">発注</span></td>
-          <td>{{ po.order_date }}</td>
-          <td>{{ po.supplier }}</td>
-          <td>{{ po.total_amount|floatformat:0 }} 円</td>
-          <td>{{ po.get_status_display }}</td>
-          <td><a href="{% url 'materials:po_detail' po.pk %}" class="btn btn-outline btn-sm">明細</a></td>
-        </tr>
-        {% endfor %}
-        {% for q in quotations %}
-        <tr>
-          <td><span class="badge badge-gray">見積</span></td>
-          <td>{{ q.quotation_date }}</td>
-          {# 自社発行の見積は supplier が空で相手先は顧客側に入る。 #}
-          <td>{{ q.counterparty_name }}</td>
-          <td>{{ q.total_amount|floatformat:0 }} 円</td>
-          <td>{{ q.get_status_display }}</td>
-          <td><a href="{% url 'materials:quotation_detail' q.pk %}" class="btn btn-outline btn-sm">明細</a></td>
-        </tr>
-        {% endfor %}
-        {% if not purchase_orders and not quotations %}
-        <tr><td colspan="6" style="text-align:center;color:var(--gray-400);padding:20px;">
-          この現場の見積・発注はまだ登録されていません
-        </td></tr>
-        {% endif %}
-      </tbody>
-    </table>
-  </div>
-</div>
-
-<script>
-// 「内訳明細書だけ表示」。上位階層（種目・科目・中科目）の行を隠す。
-(function () {
-  var toggle = document.getElementById('boq-meisai-only');
-  if (!toggle) return;
-  toggle.addEventListener('change', function () {
-    var rows = document.querySelectorAll('#boq-table tbody tr');
-    for (var i = 0; i < rows.length; i++) {
-      var isMeisai = rows[i].dataset.meisai === '1';
-      rows[i].style.display = (toggle.checked && !isMeisai) ? 'none' : '';
-    }
-  });
-})();
-</script>
 
 {% endblock %}

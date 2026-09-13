@@ -748,15 +748,12 @@ class TestRebuildTree:
 
 @pytest.mark.django_db
 class TestSiteDetailBoqSection:
-    def test_section_is_rendered(self, client, user_a, company_a):
-        site = _site(company_a)
-        client.force_login(user_a)
-        response = client.get(reverse("sites:detail", args=[site.pk]))
+    """現場詳細の内訳書・内訳明細書の欄は外した（ADR-0050。その場所に現場写真を置く）。
 
-        assert response.status_code == 200
-        assert "内訳書・内訳明細書" in response.content.decode()
+    取り込んだ内訳書のデータと、表形式の編集画面は残している。
+    """
 
-    def test_lines_and_total_are_shown(self, client, user_a, company_a):
+    def test_section_is_not_rendered(self, client, user_a, company_a):
         site = _site(company_a)
         _line(
             company_a, site, "VVFケーブル", spec="1.6mm 2芯", unit="m",
@@ -767,26 +764,23 @@ class TestSiteDetailBoqSection:
         response = client.get(reverse("sites:detail", args=[site.pk]))
         body = response.content.decode()
 
-        assert "VVFケーブル" in body
-        assert "1.6mm 2芯" in body
-        assert response.context["boq_total"] == Decimal("180000")
-        assert response.context["boq_meisai_count"] == 1
+        assert response.status_code == 200
+        assert "内訳書・内訳明細書" not in body
+        assert "VVFケーブル" not in body
+        assert "boq_lines" not in response.context
 
-    def test_total_counts_top_level_only(self, client, user_a, company_a):
-        """種目を立てた内訳書で、上位行と細目を二重に数えない。"""
+    def test_lines_are_kept_and_edit_screen_still_opens(self, client, user_a, company_a):
         site = _site(company_a)
-        parent = _line(
-            company_a, site, "電気設備工事", BoqLine.Level.SHUMOKU,
-            order=1, amount=Decimal("180000"),
-        )
         _line(
-            company_a, site, "VVFケーブル", BoqLine.Level.SAIMOKU,
-            order=2, amount=Decimal("180000"), parent=parent,
+            company_a, site, "VVFケーブル", spec="1.6mm 2芯", unit="m",
+            quantity=Decimal("1200"), unit_price=Decimal("150"),
+            amount=Decimal("180000"),
         )
         client.force_login(user_a)
-        response = client.get(reverse("sites:detail", args=[site.pk]))
+        response = client.get(reverse("sites:boq_edit", args=[site.pk]))
 
-        assert response.context["boq_total"] == Decimal("180000")
+        assert response.status_code == 200
+        assert "VVFケーブル" in response.content.decode()
 
 
 @pytest.mark.django_db

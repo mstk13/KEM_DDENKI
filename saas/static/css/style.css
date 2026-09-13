@@ -268,6 +268,39 @@ a:hover { color: var(--brand-dark); }
   background: #ecfdf5; color: #065f46; font-size: .88rem;
 }
 
+/* 現場写真（ADR-0050）。縮小画像を 4:3 に切りそろえて並べる */
+.photo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 12px; }
+.photo-tile {
+  margin: 0; display: flex; flex-direction: column;
+  border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--surface);
+}
+.photo-tile-image { display: block; background: var(--border-light); }
+.photo-tile-image img { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; }
+.photo-tile-body { display: flex; flex-direction: column; gap: 3px; padding: 8px 10px 10px; font-size: .82rem; }
+.photo-tile-location { font-weight: 700; overflow-wrap: anywhere; }
+.photo-tile-meta { color: var(--text-muted); font-size: .8rem; }
+.photo-tile-note { color: var(--text-secondary); white-space: pre-wrap; overflow-wrap: anywhere; }
+.photo-tile-actions { margin-top: 4px; }
+.photo-kind-filter { display: flex; flex-wrap: wrap; gap: 6px; }
+.photo-kind-chip {
+  padding: 5px 12px; border: 1px solid var(--border); border-radius: 999px;
+  background: var(--surface); color: var(--text-secondary);
+  font-size: .85rem; text-decoration: none; white-space: nowrap;
+}
+.photo-kind-chip.is-active { background: var(--brand); border-color: var(--brand); color: var(--white); }
+.photo-kind-chip.is-empty { color: var(--text-muted); border-style: dashed; }
+.photo-search { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 12px; }
+.photo-search .form-control { flex: 1 1 220px; width: auto; }
+.photo-count { margin: 6px 0 10px; font-size: .88rem; color: var(--text-secondary); }
+.photo-pager { display: flex; gap: 8px; justify-content: center; margin-top: 16px; }
+.photo-edit-preview {
+  display: block; max-width: 100%; max-height: 320px;
+  border: 1px solid var(--border); border-radius: 8px; margin-bottom: 8px;
+}
+@media (max-width: 480px) {
+  .photo-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+}
+
 .hamburger {
   display: none;
   background: none;

@@ -43,6 +43,7 @@ OFFLINE_PAGES = (
     ("workers:health_create", {"worker_pk": 1}),
     ("workers:health_edit", {"pk": 1}),
     ("materials:delivery_create", {"po_pk": 1}),
+    ("sites:photo_upload", {"pk": 1}),
 )
 
 

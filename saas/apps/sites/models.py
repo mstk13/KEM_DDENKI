@@ -1,5 +1,10 @@
+import uuid
+from pathlib import Path
+
 from django.conf import settings
-from django.db import models
+from django.db import models, transaction
+from django.db.models.signals import post_delete
+from django.dispatch import receiver
 from simple_history.models import HistoricalRecords
 
 from apps.core.models import TenantModel
@@ -193,3 +198,101 @@ class Process(TenantModel):
 
     def __str__(self):
         return f"{self.site} - {self.name}"
+
+
+def site_photo_path(instance, filename):
+    """現場写真の保存先。
+
+    会社・現場ごとのフォルダに分け、ファイル名は推測できない乱数にする。スマホの
+    ファイル名（IMG_1234.jpg）は現場をまたいで重なるうえ、連番から他の写真を
+    当てられてしまうため。元の名前は original_filename に残す。
+    """
+    suffix = Path(filename).suffix.lower()[:10] or ".jpg"
+    return f"site_photos/{instance.company_id}/{instance.site_id}/{uuid.uuid4().hex}{suffix}"
+
+
+def site_photo_thumbnail_path(instance, filename):
+    """一覧用の縮小画像の保存先。縮小画像は常に JPEG で作る。"""
+    return f"site_photos/{instance.company_id}/{instance.site_id}/thumbs/{uuid.uuid4().hex}.jpg"
+
+
+class SitePhoto(TenantModel):
+    """現場写真。現地調査や施工状況を、どこの・どのような写真かと一緒に残す（ADR-0050）。
+
+    元の写真は加工せずに残す（公共工事の写真提出では加工が認められないことがあるため）。
+    一覧で何十枚も元の大きさで読み込むとスマホで重いので、縮小画像を別に持つ。
+    """
+
+    class Kind(models.TextChoices):
+        SURVEY = "survey", "現地調査"
+        BEFORE = "before", "施工前"
+        DURING = "during", "施工中"
+        AFTER = "after", "施工後"
+        OTHER = "other", "その他"
+
+    # 一覧の色分け。テンプレートに種類ごとの分岐を書かずに済むようモデル側に持つ
+    KIND_BADGES = {
+        Kind.SURVEY: "badge-blue",
+        Kind.BEFORE: "badge-gray",
+        Kind.DURING: "badge-orange",
+        Kind.AFTER: "badge-green",
+        Kind.OTHER: "badge-gray",
+    }
+
+    site = models.ForeignKey(
+        Site,
+        on_delete=models.CASCADE,
+        related_name="photos",
+        verbose_name="現場",
+    )
+    kind = models.CharField(
+        "種類", max_length=20, choices=Kind.choices, default=Kind.DURING,
+    )
+    location = models.CharField(
+        "撮影場所", max_length=200, help_text="例: 2F 東側 分電盤、外観 北面",
+    )
+    taken_on = models.DateField("撮影日")
+    note = models.TextField("メモ", blank=True)
+    image = models.ImageField("写真", upload_to=site_photo_path, max_length=255)
+    thumbnail = models.ImageField(
+        "一覧用の縮小画像",
+        upload_to=site_photo_thumbnail_path,
+        max_length=255,
+        blank=True,
+        help_text="読み込めない形式の写真では作れないので空のことがある。そのときは元の写真を出す。",
+    )
+    original_filename = models.CharField("元のファイル名", max_length=255, blank=True)
+
+    history = HistoricalRecords()
+
+    class Meta:
+        verbose_name = "現場写真"
+        verbose_name_plural = "現場写真"
+        ordering = ["-taken_on", "-pk"]
+        indexes = [
+            models.Index(fields=["site", "kind"], name="sites_photo_site_kind_idx"),
+        ]
+
+    def __str__(self):
+        return f"{self.site} - {self.get_kind_display()} {self.location}"
+
+    @property
+    def kind_badge(self) -> str:
+        return self.KIND_BADGES.get(self.kind, "badge-gray")
+
+
+@receiver(post_delete, sender=SitePhoto)
+def delete_site_photo_files(sender, instance, **kwargs):
+    """写真を消したら、ファイルも消す（現場ごと消したときも）。
+
+    写真に人や個人の情報が写り込んで消したい場合があるので、ファイルを残さない。
+    削除が取り消されたときにファイルだけ消えないよう、確定してから消す。
+    """
+    storage = instance.image.storage
+    names = [field.name for field in (instance.image, instance.thumbnail) if field]
+
+    def _remove_files():
+        for name in names:
+            storage.delete(name)
+
+    transaction.on_commit(_remove_files)

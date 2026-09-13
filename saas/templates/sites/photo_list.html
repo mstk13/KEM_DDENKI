@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}現場写真 — {{ site.name }} — {{ APP_NAME }}{% endblock %}
+{% block topbar_title %}現場写真{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>{{ site.name }} — 現場写真</h1>
+  <div>
+    <a href="{% url 'sites:photo_upload' site.pk %}{% if kind %}?kind={{ kind }}{% endif %}" class="btn btn-primary btn-sm">+ 写真を登録</a>
+    <a href="{% url 'sites:detail' site.pk %}#site-photos" class="btn btn-outline btn-sm">現場詳細に戻る</a>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-body">
+    <div class="photo-kind-filter">
+      <a href="?{% if q %}q={{ q|urlencode }}{% endif %}"
+         class="photo-kind-chip{% if not kind %} is-active{% endif %}">すべて {{ photo_total }}</a>
+      {% for k in kind_counts %}
+      <a href="?kind={{ k.value }}{% if q %}&amp;q={{ q|urlencode }}{% endif %}"
+         class="photo-kind-chip{% if kind == k.value %} is-active{% endif %}{% if not k.count %} is-empty{% endif %}">{{ k.label }} {{ k.count }}</a>
+      {% endfor %}
+    </div>
+    <form method="get" class="photo-search">
+      {% if kind %}<input type="hidden" name="kind" value="{{ kind }}">{% endif %}
+      <input type="search" name="q" value="{{ q }}" class="form-control"
+             placeholder="撮影場所・メモで探す（例: 分電盤）" list="photo-location-options">
+      <button type="submit" class="btn btn-outline btn-sm">探す</button>
+      {% if q %}<a href="?{% if kind %}kind={{ kind }}{% endif %}" class="btn btn-outline btn-sm">解除</a>{% endif %}
+    </form>
+    <datalist id="photo-location-options">
+      {% for location in location_choices %}<option value="{{ location }}">{% endfor %}
+    </datalist>
+  </div>
+</div>
+
+<div class="card" style="margin-top:16px;">
+  <div class="card-body">
+    {% if page.object_list %}
+    <p class="photo-count">
+      {{ page.paginator.count }} 枚{% if page.paginator.num_pages > 1 %}（{{ page.number }} / {{ page.paginator.num_pages }} ページ）{% endif %}
+    </p>
+    {% include "sites/_photo_tiles.html" with photos=page.object_list show_actions=True %}
+    {% if page.paginator.num_pages > 1 %}
+    <div class="photo-pager">
+      {% if page.has_previous %}
+      <a href="?{% if kind %}kind={{ kind }}&amp;{% endif %}{% if q %}q={{ q|urlencode }}&amp;{% endif %}page={{ page.previous_page_number }}" class="btn btn-outline btn-sm">前へ</a>
+      {% endif %}
+      {% if page.has_next %}
+      <a href="?{% if kind %}kind={{ kind }}&amp;{% endif %}{% if q %}q={{ q|urlencode }}&amp;{% endif %}page={{ page.next_page_number }}" class="btn btn-outline btn-sm">次へ</a>
+      {% endif %}
+    </div>
+    {% endif %}
+    {% else %}
+    <div class="empty" style="padding:20px;">
+      <p>{% if kind or q %}条件に合う写真はありません。{% else %}この現場の写真はまだありません。{% endif %}</p>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

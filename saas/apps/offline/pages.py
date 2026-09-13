@@ -17,4 +17,6 @@ OFFLINE_FORM_PATTERNS = (
     r"^/workers/health/\d+/edit/$",
     # 納品の記録（納品書の画像）
     r"^/materials/po/\d+/delivery/new/$",
+    # 現場写真（ADR-0050）
+    r"^/sites/\d+/photos/new/$",
 )
