@@ -14,6 +14,20 @@ urlpatterns = [
     path("<int:pk>/boq/edit/", views.site_boq_edit, name="boq_edit"),
     path("<int:pk>/boq/import/", views.site_boq_import, name="boq_import"),
     path("<int:pk>/boq/export/", views.site_boq_export, name="boq_export"),
+    # 現場写真（ADR-0050）
+    path("photos/new/", views.site_photo_quick_upload, name="photo_quick"),
+    path("<int:pk>/photos/", views.site_photo_list, name="photo_list"),
+    path("<int:pk>/photos/new/", views.site_photo_upload, name="photo_upload"),
+    path("photos/<int:pk>/edit/", views.site_photo_edit, name="photo_edit"),
+    path("photos/<int:pk>/delete/", views.site_photo_delete, name="photo_delete"),
+    path(
+        "photos/<int:pk>/image/", views.site_photo_file, {"variant": "image"},
+        name="photo_image",
+    ),
+    path(
+        "photos/<int:pk>/thumb/", views.site_photo_file, {"variant": "thumb"},
+        name="photo_thumb",
+    ),
     path("<int:pk>/edit/", views.site_edit, name="edit"),
     path("<int:pk>/delete/", views.site_delete, name="delete"),
     # 工程（手入力）

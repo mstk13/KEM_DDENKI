@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block title %}現場写真を撮る — {{ APP_NAME }}{% endblock %}
+{% block topbar_title %}現場写真を撮る{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>現場写真を撮る</h1>
+  <a href="{% url 'dashboard' %}" class="btn btn-outline btn-sm">ホームに戻る</a>
+</div>
+
+<div class="card">
+  <div class="card-body">
+    {% if not form.fields.site.queryset %}
+    <div class="empty" style="padding:20px;">
+      <p>写真を撮れる現場がありません（施工中・受注済・見積中・完工の現場が出ます）。</p>
+    </div>
+    {% else %}
+    {# 圏外なら端末に保存し、電波が戻ったら送る（ADR-0048）。名前は現場を選ぶと入れ替える #}
+    <form method="post" enctype="multipart/form-data" id="photo-quick-form"
+          data-offline-form data-offline-label="現場写真"
+          data-bound="{{ form.is_bound|yesno:'1,' }}">
+      {% csrf_token %}
+      {{ form.non_field_errors }}
+      {% for field in form %}
+      <div class="form-group">
+        <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+        {{ field }}
+        {% if field.name == "images" %}<p id="photo-selected" class="photo-count" hidden></p>{% endif %}
+        {% if field.help_text %}<small style="color:var(--text-secondary);">{{ field.help_text }}</small>{% endif %}
+        {{ field.errors }}
+      </div>
+      {% endfor %}
+      <datalist id="photo-location-options">
+        {% for location in form.location_choices %}<option value="{{ location }}">{% endfor %}
+      </datalist>
+      {{ location_map|json_script:"photo-location-map" }}
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">登録する</button>
+        <a href="{% url 'dashboard' %}" class="btn btn-outline">キャンセル</a>
+      </div>
+    </form>
+    {% endif %}
+  </div>
+</div>
+
+<script>
+(function () {
+  var form = document.getElementById('photo-quick-form');
+  if (!form) return;
+  var input = document.getElementById('{{ form.images.id_for_label }}');
+  var out = document.getElementById('photo-selected');
+  var siteSelect = document.getElementById('{{ form.site.id_for_label }}');
+  var datalist = document.getElementById('photo-location-options');
+  var mapEl = document.getElementById('photo-location-map');
+  var locations = mapEl ? JSON.parse(mapEl.textContent) : {};
+
+  // 選んだ枚数を出す。スマホのファイル選択では、何枚選べたかが画面に残らないため。
+  if (input && out) {
+    input.addEventListener('change', function () {
+      var count = input.files ? input.files.length : 0;
+      out.hidden = count === 0;
+      out.textContent = count + ' 枚選んでいます';
+    });
+  }
+
+  // 現場を選んだら、撮影場所の候補と、圏外保存の一覧に出す名前をその現場のものにする。
+  function siteChanged() {
+    var option = siteSelect.options[siteSelect.selectedIndex];
+    form.setAttribute(
+      'data-offline-label',
+      option && option.value ? '現場写真（' + option.text + '）' : '現場写真'
+    );
+    datalist.innerHTML = '';
+    (locations[siteSelect.value] || []).forEach(function (location) {
+      var el = document.createElement('option');
+      el.value = location;
+      datalist.appendChild(el);
+    });
+  }
+
+  if (siteSelect) {
+    // 圏外では端末に控えた画面が出るので、ホームの「写真を撮る」で指定した現場をここで選び直す。
+    // 入力に誤りがあって戻ってきた画面では、選び直した現場を保つ。
+    var requested = new URLSearchParams(window.location.search).get('site');
+    if (!form.dataset.bound && requested) {
+      for (var i = 0; i < siteSelect.options.length; i++) {
+        if (siteSelect.options[i].value === requested) { siteSelect.value = requested; break; }
+      }
+    }
+    siteSelect.addEventListener('change', siteChanged);
+    siteChanged();
+  }
+})();
+</script>
+{% endblock %}

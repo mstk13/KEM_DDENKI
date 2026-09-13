@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}写真を削除 — {{ APP_NAME }}{% endblock %}
+{% block topbar_title %}現場写真{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>{{ site.name }} — 写真を削除</h1>
+</div>
+
+<div class="card">
+  <div class="card-body">
+    <img src="{% if photo.thumbnail %}{% url 'sites:photo_thumb' photo.pk %}{% else %}{% url 'sites:photo_image' photo.pk %}{% endif %}"
+         alt="{{ photo.get_kind_display }} {{ photo.location }}" class="photo-edit-preview">
+    <p style="margin:8px 0;">
+      <span class="badge {{ photo.kind_badge }}">{{ photo.get_kind_display }}</span>
+      <b>{{ photo.location }}</b>（{{ photo.taken_on|date:"Y-m-d" }}）
+    </p>
+    <p style="margin-bottom:16px;">
+      この写真を削除します。<b>写真のファイルも消え、元に戻せません。</b>
+    </p>
+    <form method="post">
+      {% csrf_token %}
+      <div class="form-actions">
+        <button type="submit" class="btn btn-danger">削除する</button>
+        <a href="{% url 'sites:photo_edit' photo.pk %}" class="btn btn-outline">キャンセル</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

@@ -1,11 +1,17 @@
 from pathlib import Path
 
 from django import forms
+from django.db.models import Case, IntegerField, Value, When
 
 from apps.accounts.models import User
 from apps.masters.models import Customer, WorkType
-from apps.sites.models import Process, Site
+from apps.sites.models import Process, Site, SitePhoto
 from apps.sites.services import resolve_or_create_customer
+
+# 一度に登録できる枚数と1枚の大きさ。圏外で端末に保存してから送る（ADR-0048）ことも
+# あるので、1回の送信が大きくなりすぎないようにする
+MAX_PHOTOS_PER_UPLOAD = 20
+MAX_PHOTO_MB = 30
 
 
 class SiteForm(forms.ModelForm):
@@ -146,3 +152,152 @@ class ProcessForm(forms.ModelForm):
                     end_key, f"{label}終了日は{label}開始日以降にしてください。"
                 )
         return cleaned
+
+
+class MultipleImageInput(forms.FileInput):
+    allow_multiple_selected = True
+
+
+class MultipleImageField(forms.ImageField):
+    """写真を何枚かまとめて受け取る。1枚ずつ画像として確かめ、リストで返す。"""
+
+    def __init__(self, *args, **kwargs):
+        kwargs.setdefault(
+            "widget",
+            MultipleImageInput(
+                attrs={"accept": "image/*", "multiple": True, "class": "form-control"}
+            ),
+        )
+        super().__init__(*args, **kwargs)
+
+    def clean(self, data, initial=None):
+        single_clean = super().clean
+        if isinstance(data, (list, tuple)):
+            files = [f for f in data if f]
+        else:
+            files = [data] if data else []
+        if not files:
+            single_clean(None, initial)  # 必須ならここで「選んでください」になる
+            return []
+        return [single_clean(f, initial) for f in files]
+
+
+class _LocationChoicesMixin:
+    """撮影場所の入力候補（この現場で前に使った場所）。datalist なので候補に無い場所も書ける。"""
+
+    def _setup_location(self, location_choices):
+        self.location_choices = list(location_choices)
+        self.fields["location"].widget.attrs["list"] = "photo-location-options"
+        self.fields["location"].widget.attrs["autocomplete"] = "off"
+
+
+class SitePhotoUploadForm(_LocationChoicesMixin, forms.Form):
+    """現場写真をまとめて登録するフォーム。種類・撮影場所・メモは選んだ写真すべてに付く。"""
+
+    images = MultipleImageField(
+        label="写真",
+        help_text=(
+            f"まとめて {MAX_PHOTOS_PER_UPLOAD} 枚まで選べます。"
+            "スマホならその場で撮影もできます。"
+        ),
+    )
+    kind = forms.ChoiceField(
+        label="種類", choices=SitePhoto.Kind.choices, initial=SitePhoto.Kind.DURING,
+    )
+    location = forms.CharField(
+        label="撮影場所",
+        max_length=200,
+        help_text=(
+            "例: 2F 東側 分電盤、外観 北面。"
+            "選んだ写真すべてに付きます（あとで1枚ずつ直せます）。"
+        ),
+    )
+    taken_on = forms.DateField(
+        label="撮影日",
+        required=False,
+        widget=forms.DateInput(attrs={"type": "date"}),
+        help_text="空欄なら、写真に記録された撮影日（読めなければ今日）にします。",
+    )
+    note = forms.CharField(
+        label="メモ", required=False, widget=forms.Textarea(attrs={"rows": 2}),
+    )
+
+    def __init__(self, *args, location_choices=(), **kwargs):
+        super().__init__(*args, **kwargs)
+        for field in self.fields.values():
+            field.widget.attrs.setdefault("class", "form-control")
+        self._setup_location(location_choices)
+
+    def clean_images(self):
+        images = self.cleaned_data["images"]
+        if len(images) > MAX_PHOTOS_PER_UPLOAD:
+            raise forms.ValidationError(
+                f"一度に登録できるのは {MAX_PHOTOS_PER_UPLOAD} 枚までです"
+                f"（選ばれたのは {len(images)} 枚）。分けて登録してください。"
+            )
+        too_big = [f.name for f in images if f.size > MAX_PHOTO_MB * 1024 * 1024]
+        if too_big:
+            raise forms.ValidationError(
+                f"{MAX_PHOTO_MB}MB を超える写真は登録できません: {'、'.join(too_big)}"
+            )
+        return images
+
+
+# ホームから写真を撮るときの現場の候補と並び順。撮るのは主に施工中なので先頭にする。
+# 請求済・中止の現場は現場で撮ることがないので出さない（現場詳細からは今までどおり登録できる）。
+PHOTO_SITE_STATUSES = (
+    Site.Status.IN_PROGRESS,
+    Site.Status.ORDERED,
+    Site.Status.ESTIMATING,
+    Site.Status.COMPLETED,
+)
+
+
+def photo_site_choices(company):
+    """写真を撮る現場の候補。施工中 → 受注済 → 見積中 → 完工、同じ状態の中は新しい現場から。"""
+    if company is None:
+        return Site.objects.none()
+    rank = Case(
+        *[When(status=status, then=Value(i)) for i, status in enumerate(PHOTO_SITE_STATUSES)],
+        output_field=IntegerField(),
+    )
+    # unscoped: 会社を明示して絞る。フォームの候補はテナントの文脈に頼らず決めたいため
+    return (
+        Site.unscoped.filter(company=company, status__in=PHOTO_SITE_STATUSES)
+        .annotate(status_rank=rank)
+        .order_by("status_rank", "-created_at", "-pk")
+    )
+
+
+class SitePhotoQuickUploadForm(SitePhotoUploadForm):
+    """ホームから、現場を選んですぐ写真を登録するフォーム（ADR-0050）。"""
+
+    site = forms.ModelChoiceField(
+        label="現場",
+        queryset=Site.objects.none(),
+        empty_label="現場を選んでください",
+    )
+
+    field_order = ["site", "images", "kind", "location", "taken_on", "note"]
+
+    def __init__(self, *args, company=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["site"].queryset = photo_site_choices(company)
+
+
+class SitePhotoForm(_LocationChoicesMixin, forms.ModelForm):
+    """登録済みの現場写真の種類・撮影場所・撮影日・メモを直すフォーム。写真そのものは差し替えない。"""
+
+    class Meta:
+        model = SitePhoto
+        fields = ["kind", "location", "taken_on", "note"]
+        widgets = {
+            "taken_on": forms.DateInput(attrs={"type": "date"}),
+            "note": forms.Textarea(attrs={"rows": 3}),
+        }
+
+    def __init__(self, *args, location_choices=(), **kwargs):
+        super().__init__(*args, **kwargs)
+        for field in self.fields.values():
+            field.widget.attrs.setdefault("class", "form-control")
+        self._setup_location(location_choices)

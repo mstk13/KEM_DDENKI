@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}写真の情報を直す — {{ APP_NAME }}{% endblock %}
+{% block topbar_title %}現場写真{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>{{ site.name }} — 写真の情報を直す</h1>
+  <a href="{% url 'sites:photo_list' site.pk %}" class="btn btn-outline btn-sm">写真の一覧に戻る</a>
+</div>
+
+<div class="card">
+  <div class="card-body">
+    <a href="{% url 'sites:photo_image' photo.pk %}" target="_blank" rel="noopener">
+      <img src="{% if photo.thumbnail %}{% url 'sites:photo_thumb' photo.pk %}{% else %}{% url 'sites:photo_image' photo.pk %}{% endif %}"
+           alt="{{ photo.get_kind_display }} {{ photo.location }}" class="photo-edit-preview">
+    </a>
+    <p class="photo-tile-meta" style="margin-bottom:16px;">
+      元のファイル: {{ photo.original_filename|default:"-" }}
+      ／ 登録: {{ photo.created_at|date:"Y-m-d H:i" }}{% if photo.created_by %}（{{ photo.created_by }}）{% endif %}
+    </p>
+
+    <form method="post">
+      {% csrf_token %}
+      {% for field in form %}
+      <div class="form-group">
+        <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+        {{ field }}
+        {% if field.help_text %}<small style="color:var(--text-secondary);">{{ field.help_text }}</small>{% endif %}
+        {{ field.errors }}
+      </div>
+      {% endfor %}
+      <datalist id="photo-location-options">
+        {% for location in form.location_choices %}<option value="{{ location }}">{% endfor %}
+      </datalist>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">保存</button>
+        <a href="{% url 'sites:photo_list' site.pk %}" class="btn btn-outline">キャンセル</a>
+        <a href="{% url 'sites:photo_delete' photo.pk %}" class="btn btn-danger">削除</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

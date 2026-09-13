@@ -1,0 +1,34 @@
+{% comment %}
+現場写真の並び（ADR-0050）。撮影日ごとに見出しを付けて分ける。
+photo_days（views._group_photos_by_day）と site を渡す。show_actions があれば「編集」を出す。
+一覧では縮小画像を出し、押すと元の写真を別のタブで開く。縮小画像が無い写真は元の写真を出す。
+{% endcomment %}
+{% for day in photo_days %}
+<section class="photo-day">
+  <h3 class="photo-day-heading">
+    <a href="{% url 'sites:photo_list' site.pk %}?date={{ day.date|date:'Y-m-d' }}">{{ day.date|date:"Y年n月j日（D）" }}</a>
+    <span class="photo-day-count">{{ day.count }}枚</span>
+  </h3>
+  <div class="photo-grid">
+    {% for photo in day.photos %}
+    <figure class="photo-tile">
+      <a href="{% url 'sites:photo_image' photo.pk %}" target="_blank" rel="noopener" class="photo-tile-image">
+        <img src="{% if photo.thumbnail %}{% url 'sites:photo_thumb' photo.pk %}{% else %}{% url 'sites:photo_image' photo.pk %}{% endif %}"
+             alt="{{ photo.get_kind_display }} {{ photo.location }}" loading="lazy">
+      </a>
+      <figcaption class="photo-tile-body">
+        <span><span class="badge {{ photo.kind_badge }}">{{ photo.get_kind_display }}</span></span>
+        <span class="photo-tile-location">{{ photo.location }}</span>
+        {% if photo.created_by %}<span class="photo-tile-meta">{{ photo.created_by }}</span>{% endif %}
+        {% if photo.note %}<span class="photo-tile-note">{{ photo.note }}</span>{% endif %}
+        {% if show_actions %}
+        <span class="photo-tile-actions">
+          <a href="{% url 'sites:photo_edit' photo.pk %}" class="btn btn-outline btn-sm">編集</a>
+        </span>
+        {% endif %}
+      </figcaption>
+    </figure>
+    {% endfor %}
+  </div>
+</section>
+{% endfor %}
