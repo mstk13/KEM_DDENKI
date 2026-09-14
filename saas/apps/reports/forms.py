@@ -237,26 +237,39 @@ class DailyReportForm(forms.ModelForm):
             # 候補は在籍中の全員。画面では現場作業の区分（E・T）を左、
             # それ以外（事務など。現場に出ることもある）を右に分けて出す。
             # 並びは作業員一覧と同じ社員番号順（_build_worker_rows で並べる）。
+            # 編集中の日報の作業員は、退職していても候補に残す（行が消えて選び直せなくなるため）
+            from django.db.models import Q
+
+            worker_filter = Q(is_active=True)
+            if self.is_edit and self.instance.worker_id:
+                worker_filter |= Q(pk=self.instance.worker_id)
             self.fields["workers"].queryset = Worker.unscoped.filter(
-                company=company, is_active=True,
+                worker_filter, company=company,
             )
             self.fields["partner"].queryset = Supplier.unscoped.filter(
                 company=company, is_active=True,
             )
             self.fields["partner"].required = False
 
-        # 新規作成では、作業員ごとに時間を変えられる欄を人数分つくる。
-        # 編集は1人だけなので共通の欄で足りる。
+        # 作業員ごとに時間を変えられる欄を人数分つくる。
+        # 編集も日報を書く画面と同じ形にする（ADR-0056）:
+        # 上の行は、新規ならログインした人、編集ならこの日報の作業員。
+        # 「作業員の日報をまとめて書く」で他の人を足せる。
         self.worker_rows = []
         self.self_row = None
-        if not self.is_edit:
-            if (
-                not self.is_bound and self.self_worker
-                and "workers" not in self.initial
-                and self.fields["workers"].queryset.filter(pk=self.self_worker.pk).exists()
-            ):
-                self.initial["workers"] = [self.self_worker.pk]
-            self._build_worker_rows()
+        if self.is_edit:
+            self.self_worker = self.instance.worker if self.instance.worker_id else None
+            if not self.is_bound:
+                self.initial["workers"] = (
+                    [self.instance.worker_id] if self.instance.worker_id else []
+                )
+        elif (
+            not self.is_bound and self.self_worker
+            and "workers" not in self.initial
+            and self.fields["workers"].queryset.filter(pk=self.self_worker.pk).exists()
+        ):
+            self.initial["workers"] = [self.self_worker.pk]
+        self._build_worker_rows()
 
         # 編集で、まとめて作った他の人の日報にも反映するかどうか。
         # 同じ組の日報が無ければ欄を出さない。
@@ -376,13 +389,8 @@ class DailyReportForm(forms.ModelForm):
         return self.cleaned_data.get(f"work_hours_{worker.pk}") or None
 
     def clean_workers(self):
-        workers = self.cleaned_data.get("workers")
-        if self.is_edit and workers and len(workers) > 1:
-            raise forms.ValidationError(
-                "編集画面では作業員は1人だけ選べます。"
-                "他の作業員の日報は、それぞれの日報から編集してください。",
-            )
-        return workers
+        # 編集でも複数選べる。この日報の作業員以外には、同じ内容の日報を新しく作る（ADR-0056）
+        return self.cleaned_data.get("workers")
 
     def clean_weather(self):
         """選択肢の表示名で入力されたら、保存値に直す。
@@ -465,7 +473,7 @@ class DailyReportForm(forms.ModelForm):
 
         # 共通の時間が無くても、選ばれた全員に個別の時間か作業時間が入っていれば足りる
         chosen = cleaned.get("workers")
-        if chosen and not self.is_edit and all(
+        if chosen and all(
             self.worker_times(w) or self.worker_hours(w) for w in chosen
         ):
             return cleaned
@@ -550,6 +558,12 @@ class DailyReportForm(forms.ModelForm):
         proto.weather = self.cleaned_data.get("weather", "")
         if status is not None:
             proto.status = status
+        # 画面の共通の時間。編集で上の行に人ごとの時間があっても、足した人にはこちらを使う
+        common = {
+            "start_date": proto.start_date, "start_time": proto.start_time,
+            "end_date": proto.end_date, "end_time": proto.end_time,
+            "work_hours": proto.work_hours,
+        }
 
         self.propagated = []
         self.propagate_skipped = []
@@ -558,15 +572,38 @@ class DailyReportForm(forms.ModelForm):
         batch = uuid.uuid4() if (not self.is_edit and len(workers) > 1) else None
 
         saved, skipped = [], []
-        for worker in workers:
-            if self.is_edit:
-                proto.worker = worker
-                proto.save()
-                saved.append(proto)
-                if self.cleaned_data.get("apply_to_batch"):
-                    self._propagate_to_batch(proto, before_times)
-                continue
+        # 新しく作る日報の状態。承認済みは労務費の計上を伴うので、
+        # 編集から足した日報は承認済みにしない
+        new_status = proto.status
+        if self.is_edit and status is None and new_status == DailyReport.Status.APPROVED:
+            new_status = DailyReport.Status.DRAFT
 
+        if self.is_edit:
+            # この日報の作業員が選ばれていればその人、外されていれば
+            # 最初に選ばれた人をこの日報にし、
+            # 残りの人には同じ内容の日報を新しく作る（ADR-0056）
+            primary = next(
+                (w for w in workers if w.pk == self.instance.worker_id), workers[0],
+            )
+            workers = [w for w in workers if w.pk != primary.pk]
+            times = self.worker_times(primary)
+            own_hours = self.worker_hours(primary)
+            if times:
+                proto.start_time, proto.end_time = times
+            elif own_hours:
+                proto.start_date = proto.end_date = None
+                proto.start_time = proto.end_time = None
+                proto.work_hours = own_hours
+            proto.worker = primary
+            if workers and not proto.batch:
+                proto.batch = uuid.uuid4()
+            batch = proto.batch
+            proto.save()
+            saved.append(proto)
+            if self.cleaned_data.get("apply_to_batch"):
+                self._propagate_to_batch(proto, before_times)
+
+        for worker in workers:
             times = self.worker_times(worker)
             own_hours = self.worker_hours(worker)
             # 作業時間の優先順:
@@ -576,13 +613,13 @@ class DailyReportForm(forms.ModelForm):
             #   どちらも無ければ共通の値
             if times:
                 start_time, end_time = times
-                hours = proto.work_hours or 0
+                hours = common["work_hours"] or 0
             elif own_hours:
                 start_time, end_time = None, None
                 hours = own_hours
             else:
-                start_time, end_time = proto.start_time, proto.end_time
-                hours = proto.work_hours or 0
+                start_time, end_time = common["start_time"], common["end_time"]
+                hours = common["work_hours"] or 0
             report = DailyReport(
                 company=company,
                 created_by=user,
@@ -593,15 +630,15 @@ class DailyReportForm(forms.ModelForm):
                 report_date=proto.report_date,
                 weather=proto.weather,
                 work_description=proto.work_description,
-                start_date=proto.start_date if start_time else None,
+                start_date=common["start_date"] if start_time else None,
                 start_time=start_time,
-                end_date=proto.end_date if end_time else None,
+                end_date=common["end_date"] if end_time else None,
                 end_time=end_time,
                 work_hours=hours,
                 is_partner_worker=proto.is_partner_worker,
                 partner=proto.partner,
                 memo=proto.memo,
-                status=proto.status,
+                status=new_status,
                 batch=batch,
             )
             try:
