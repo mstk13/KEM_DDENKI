@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% block title %}日報の詳細 — {{ report.report_date }} {{ report.worker }} — {{ APP_NAME }}{% endblock %}
+{% block topbar_title %}日報の詳細{% endblock %}
+
+{% block content %}
+<style>
+  .report-detail dl { display: grid; grid-template-columns: 7.5em minmax(0, 1fr); gap: 0; margin: 0; }
+  .report-detail dt, .report-detail dd { padding: 10px 12px; border-bottom: 1px solid var(--border); margin: 0; }
+  .report-detail dt { color: var(--text-secondary); font-size: .85rem; background: var(--bg); }
+  .report-detail dd { white-space: pre-wrap; word-break: break-word; }
+  .report-detail .detail-cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0 20px; }
+  @media (max-width: 720px) { .report-detail .detail-cols { grid-template-columns: minmax(0, 1fr); } }
+  .report-detail h2 { font-size: 1rem; margin: 0 0 8px; }
+  .detail-note { color: var(--text-muted); font-size: .8rem; }
+</style>
+
+<div class="page-header">
+  <h1>{{ report.report_date|date:"Y年n月j日" }}（{{ report.report_date|date:"D" }}）の日報</h1>
+  <div>
+    {% if report.status == 'draft' %}<span class="badge badge-gray">下書き</span>
+    {% elif report.status == 'submitted' %}<span class="badge badge-orange">提出済</span>
+    {% elif report.status == 'approved' %}<span class="badge badge-green">承認済</span>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card report-detail" style="margin-bottom:16px;">
+  <div class="card-body">
+    <div class="detail-cols">
+      <dl>
+        <dt>作業員</dt><dd>{{ report.worker }}</dd>
+        <dt>現場</dt><dd>{{ report.site }}</dd>
+        <dt>発注先</dt><dd>{{ report.site.customer|default:"-" }}</dd>
+        <dt>工程</dt><dd>{% if report.process %}{{ report.process.name }}{% else %}-{% endif %}</dd>
+        <dt>工種</dt><dd>{{ report.work_type|default:"-" }}</dd>
+        <dt>天候</dt><dd>{{ report.get_weather_display|default:"-" }}</dd>
+      </dl>
+      <dl>
+        <dt>開始〜終了</dt>
+        <dd>{% if report.start_time or report.end_time %}{% if report.start_date and report.start_date != report.report_date %}{{ report.start_date|date:"n/j" }} {% endif %}{{ report.start_time|time:"H:i"|default:"?" }} 〜 {% if report.end_date and report.end_date != report.report_date %}{{ report.end_date|date:"n/j" }} {% endif %}{{ report.end_time|time:"H:i"|default:"?" }}{% else %}-{% endif %}</dd>
+        <dt>作業時間</dt><dd>{% if work_hours is not None %}{{ work_hours }} 時間{% else %}-{% endif %}</dd>
+        <dt>通常時間</dt><dd>{% if regular_hours is not None %}{{ regular_hours }} 時間{% else %}-{% endif %}</dd>
+        <dt>残業時間</dt><dd>{% if overtime_hours is not None %}{{ overtime_hours }} 時間{% else %}-{% endif %}</dd>
+        <dt>協力会社</dt><dd>{% if report.is_partner_worker %}{{ report.partner|default:"-" }}{% else %}-{% endif %}</dd>
+      </dl>
+    </div>
+    {% if hours_derived %}
+    <p class="detail-note" style="margin:8px 0 0;">開始・終了が未入力のため、通常時間・残業時間は作業時間から計算しています（8 時間を超えた分が残業）。</p>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card report-detail" style="margin-bottom:16px;">
+  <div class="card-body">
+    <h2>作業内容</h2>
+    <p style="white-space:pre-wrap;word-break:break-word;margin:0;">{{ report.work_description|default:"-" }}</p>
+  </div>
+</div>
+
+{% if materials %}
+<div class="card" style="margin-bottom:16px;">
+  <div class="card-body"><h2 style="font-size:1rem;margin:0;">使用材料</h2></div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>使用材料品名</th><th style="text-align:right;">数量</th><th>単位</th><th>メーカー</th><th>型式</th><th>備考</th></tr></thead>
+      <tbody>
+        {% for m in materials %}
+        <tr><td>{{ m.name }}</td><td style="text-align:right;">{{ m.quantity|default_if_none:"-" }}</td><td>{{ m.unit|default:"-" }}</td><td>{{ m.maker|default:"-" }}</td><td>{{ m.model_number|default:"-" }}</td><td>{{ m.note|default:"-" }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+<div class="card report-detail" style="margin-bottom:16px;">
+  <div class="card-body">
+    <h2>その他</h2>
+    <p style="white-space:pre-wrap;word-break:break-word;margin:0 0 12px;">{{ report.memo|default:"-" }}</p>
+    <dl>
+      <dt>作成者</dt><dd>{% if report.created_by %}{{ report.created_by.get_full_name|default:report.created_by.username }}{% else %}-{% endif %}（{{ report.created_at|date:"Y/m/d H:i" }}）</dd>
+      <dt>承認</dt><dd>{% if report.approved_by %}{{ report.approved_by.get_full_name|default:report.approved_by.username }}（{{ report.approved_at|date:"Y/m/d H:i" }}）{% else %}-{% endif %}</dd>
+    </dl>
+  </div>
+</div>
+
+<div class="form-actions">
+  {% if back_url %}
+  <a href="{{ back_url }}" class="btn btn-outline">一覧に戻る</a>
+  {% else %}
+  <a href="{% url 'reports:list' %}" class="btn btn-outline">一覧に戻る</a>
+  {% endif %}
+  <a href="{% url 'reports:edit' report.pk %}{% if back_url %}?next={{ back_url|urlencode }}{% endif %}" class="btn btn-primary">編集</a>
+  <a href="{% url 'reports:pdf' report.pk %}" class="btn btn-outline" target="_blank" rel="noopener">PDF</a>
+  {% if can_approve %}
+  <a href="{% url 'reports:approve' report.pk %}" class="btn btn-success">承認</a>
+  {% endif %}
+  {% if can_delete %}
+  <a href="{% url 'reports:delete' report.pk %}" class="btn btn-outline" style="margin-left:auto;color:var(--danger);">削除</a>
+  {% endif %}
+</div>
+{% endblock %}

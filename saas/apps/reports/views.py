@@ -189,19 +189,30 @@ def _report_prefetch(queryset):
     )
 
 
+def _safe_filename(text):
+    """ファイル名に使えない文字（スラッシュ・バックスラッシュ・コロン・* ? " < > |）を _ にする。
+    """
+    return text.translate(str.maketrans('\\/:*?"<>|', "_________"))
+
+
 @login_required
 def report_pdf(request, pk):
-    """日報 1 件を PDF で出す（ADR-0049）。"""
+    """日報の PDF。原本の様式は「1 現場 × 1 日」なので、この日報と同じ日・同じ現場の
+    日報を 1 枚にまとめて出す（ADR-0049、ADR-0053）。"""
     from apps.reports.pdf import generate_reports_pdf
 
-    report = get_object_or_404(_report_prefetch(DailyReport.objects.all()), pk=pk)
-    filename = f"日報_{report.report_date:%Y-%m-%d}_{report.worker}.pdf"
-    return _pdf_response(generate_reports_pdf([report]), filename)
+    report = get_object_or_404(DailyReport.objects.select_related("site"), pk=pk)
+    same_sheet = _report_prefetch(
+        DailyReport.objects.filter(site_id=report.site_id, report_date=report.report_date)
+    ).order_by("pk")
+    filename = _safe_filename(f"日報_{report.report_date:%Y-%m-%d}_{report.site.name}.pdf")
+    return _pdf_response(generate_reports_pdf(list(same_sheet)), filename)
 
 
 @login_required
 def report_list_pdf(request):
-    """一覧の絞り込み（状態・月・現場・作業員）のまま、日報を 1 件 1 ページで PDF にする。"""
+    """一覧の絞り込み（状態・月・現場・作業員）のまま、同じ日・同じ現場ごとに 1 枚の PDF にする。
+    """
     from apps.reports.pdf import generate_reports_pdf
 
     reports, filters = _filtered_reports(request)
@@ -220,13 +231,13 @@ def report_list_pdf(request):
         )
         return redirect(back)
 
-    # 印刷して綴じる用途なので、PDF の中は日付の古い順に並べる
-    reports = _report_prefetch(reports).order_by("report_date", "worker__employee_code", "pk")
+    # 印刷して綴じる用途なので、PDF の中は日付の古い順・現場名順に並べる
+    # （同じ日・同じ現場の日報は generate_reports_pdf が 1 枚にまとめる）
+    reports = _report_prefetch(reports).order_by("report_date", "site__name", "site_id", "pk")
     month = filters["month"]
     site_label, worker_label = _filter_labels(filters)
     parts = [f"{month[0]}-{month[1]:02d}" if month else "全期間", site_label, worker_label]
-    # ファイル名に使えない文字（/ \ など）は _ にする
-    label = "_".join(p for p in parts if p).translate(str.maketrans('\\/:*?"<>|', "_________"))
+    label = _safe_filename("_".join(p for p in parts if p))
     return _pdf_response(generate_reports_pdf(list(reports)), f"日報_{label}.pdf")
 
 
@@ -254,6 +265,50 @@ def _report_form_context(company):
             {s.name: (str(s.customer) if s.customer else "") for s in sites}
         ),
     }
+
+
+@login_required
+def report_detail(request, pk):
+    """日報の詳細（一覧の行をタップして開く。ADR-0054）。"""
+    report = get_object_or_404(
+        DailyReport.objects.select_related(
+            "worker", "site__customer", "work_type", "process", "partner",
+            "created_by", "approved_by",
+        ),
+        pk=pk,
+    )
+    def _hours(value):
+        # 「10.5」「8」のように余計な 0 を付けない（PDF と同じ書き方）
+        return None if value is None else f"{value.normalize():f}"
+
+    work, regular, overtime = report.hours_breakdown()
+    materials = [
+        {
+            "name": m.material.name if m.material_id else m.material_name,
+            "quantity": m.quantity_used.normalize() if m.quantity_used is not None else None,
+            "unit": m.unit,
+            "maker": m.maker,
+            "model_number": m.model_number,
+            "note": m.note,
+        }
+        for m in report.materials_used.select_related("material").order_by("pk")
+    ]
+    back_url = _back_url(request)
+    return render(request, "reports/detail.html", {
+        "report": report,
+        "work_hours": _hours(work),
+        "regular_hours": _hours(regular),
+        "overtime_hours": _hours(overtime),
+        # 開始・終了が無く作業時間だけの日報は、通常・残業を作業時間から出していることを添える
+        "hours_derived": not (report.start_time and report.end_time) and work is not None,
+        "materials": materials,
+        "back_url": back_url,
+        "can_approve": (
+            can_approve_report(request.user)
+            and report.status == DailyReport.Status.SUBMITTED
+        ),
+        "can_delete": can_delete_report(request.user, report),
+    })
 
 
 @login_required
@@ -319,10 +374,20 @@ def report_edit(request, pk):
                 if request.POST.get("action") == "submit"
                 else None
             )
-            form.save_reports(
+            saved, skipped = form.save_reports(
                 company=request.user.company, user=request.user, status=status,
             )
             messages.success(request, "日報を更新しました。")
+            # 編集で足した作業員の日報（saved の先頭はこの日報）
+            if saved[1:]:
+                names = "、".join(str(r.worker) for r in saved[1:])
+                messages.success(request, f"{names} の日報を同じ内容で作成しました。")
+            if skipped:
+                names = "、".join(str(w) for w in skipped)
+                messages.warning(
+                    request,
+                    f"{names} は同じ現場・日付・工種の日報が既にあるため作成しませんでした。",
+                )
             if form.propagated:
                 names = "、".join(str(r.worker) for r in form.propagated)
                 messages.success(request, f"一緒に作った {names} の日報にも反映しました。")

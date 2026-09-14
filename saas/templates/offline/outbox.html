@@ -12,6 +12,14 @@
     <p id="offline-saved-notice" class="offline-notice" style="display:none;">
       圏外のため、この端末に保存しました。電波が戻ったら自動で送ります。
     </p>
+    {# 圏外でアプリを開いて、控えていない画面の代わりにここへ移ってきたとき（ADR-0052） #}
+    <p id="offline-open-notice" class="offline-notice" style="display:none;">
+      圏外のため、開こうとした画面は開けませんでした。圏外でも、写真の登録と未送信の入力の確認はできます。
+    </p>
+    {# 圏外でも開ける入力（apps/offline/pages.py の OFFLINE_START_PAGES） #}
+    <div class="offline-start">
+      <a href="{% url 'sites:photo_quick' %}" class="btn btn-primary">📷 現場写真を撮る</a>
+    </div>
     <p id="offline-connection" class="offline-item-meta"></p>
 
     <ul id="offline-list" class="offline-list"></ul>
@@ -25,7 +33,8 @@
       圏外で保存した入力（写真・書類を含む）は、送り終えるまでこの端末の中にあります。
       送り終えたら端末から消します。ログアウトすると、未送信の入力も端末から消えます。<br>
       端末には必ず画面ロックを設定してください。<br>
-      圏外でも開けるのは、電波のあるときに一度開いた入力画面だけです。
+      電波のあるときにアプリを一度開いておけば、圏外でアプリを開いても、この画面と「📷 現場写真を撮る」が使えます。
+      そのほかの入力画面は、電波のあるときに一度開いたものだけ圏外でも開けます。
     </p>
   </div>
 </div>
@@ -41,8 +50,13 @@ document.addEventListener('DOMContentLoaded', function () {
     return;
   }
 
-  if (new URLSearchParams(location.search).has('saved')) {
+  var params = new URLSearchParams(location.search);
+  if (params.has('saved')) {
     document.getElementById('offline-saved-notice').style.display = '';
+  } else if (params.has('offline')) {
+    // ?offline=1 は、Service Worker が画面を開けなかったときにだけ付く。
+    // 電波の表示はあっても通信できない場所があるので、navigator.onLine では判断しない
+    document.getElementById('offline-open-notice').style.display = '';
   }
 
   var STATUS = {

@@ -173,9 +173,14 @@ class DailyReportForm(forms.ModelForm):
         widgets = {
             "report_date": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
             "start_date": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
-            "start_time": forms.TimeInput(attrs={"type": "time", "class": "form-control"}),
+            # 「時:分」で出す（秒まで出すと端末によって秒の欄が出る）
+            "start_time": forms.TimeInput(
+                format="%H:%M", attrs={"type": "time", "class": "form-control"},
+            ),
             "end_date": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
-            "end_time": forms.TimeInput(attrs={"type": "time", "class": "form-control"}),
+            "end_time": forms.TimeInput(
+                format="%H:%M", attrs={"type": "time", "class": "form-control"},
+            ),
             "work_hours": forms.NumberInput(attrs={"class": "form-control", "step": "0.25"}),
             "work_description": forms.Textarea(attrs={"class": "form-control", "rows": 3}),
             "memo": forms.Textarea(attrs={"class": "form-control", "rows": 2}),
@@ -204,6 +209,16 @@ class DailyReportForm(forms.ModelForm):
         for name in ("start_date", "start_time", "end_date", "end_time"):
             self.fields[name].required = False
 
+        # 新しく書くときは、開始・終了に所定の始業・終業（既定 8:30〜17:30）を最初から入れておく。
+        # 毎回スクロールして選ばずに、基準から微調整できるようにするため（ADR-0055）。
+        # 編集では保存済みの値（空なら空のまま）を出し、入力し直しの画面では送られた値を出す。
+        if not self.is_edit and not self.is_bound:
+            from apps.reports.standard_times import standard_work_times
+
+            start, end = standard_work_times(company)
+            self.initial.setdefault("start_time", start)
+            self.initial.setdefault("end_time", end)
+
         if company:
             names = process_choice_names(company)
             # 編集中の日報の工程が候補に無くても、選び直せるよう候補に残す
@@ -222,26 +237,39 @@ class DailyReportForm(forms.ModelForm):
             # 候補は在籍中の全員。画面では現場作業の区分（E・T）を左、
             # それ以外（事務など。現場に出ることもある）を右に分けて出す。
             # 並びは作業員一覧と同じ社員番号順（_build_worker_rows で並べる）。
+            # 編集中の日報の作業員は、退職していても候補に残す（行が消えて選び直せなくなるため）
+            from django.db.models import Q
+
+            worker_filter = Q(is_active=True)
+            if self.is_edit and self.instance.worker_id:
+                worker_filter |= Q(pk=self.instance.worker_id)
             self.fields["workers"].queryset = Worker.unscoped.filter(
-                company=company, is_active=True,
+                worker_filter, company=company,
             )
             self.fields["partner"].queryset = Supplier.unscoped.filter(
                 company=company, is_active=True,
             )
             self.fields["partner"].required = False
 
-        # 新規作成では、作業員ごとに時間を変えられる欄を人数分つくる。
-        # 編集は1人だけなので共通の欄で足りる。
+        # 作業員ごとに時間を変えられる欄を人数分つくる。
+        # 編集も日報を書く画面と同じ形にする（ADR-0056）:
+        # 上の行は、新規ならログインした人、編集ならこの日報の作業員。
+        # 「作業員の日報をまとめて書く」で他の人を足せる。
         self.worker_rows = []
         self.self_row = None
-        if not self.is_edit:
-            if (
-                not self.is_bound and self.self_worker
-                and "workers" not in self.initial
-                and self.fields["workers"].queryset.filter(pk=self.self_worker.pk).exists()
-            ):
-                self.initial["workers"] = [self.self_worker.pk]
-            self._build_worker_rows()
+        if self.is_edit:
+            self.self_worker = self.instance.worker if self.instance.worker_id else None
+            if not self.is_bound:
+                self.initial["workers"] = (
+                    [self.instance.worker_id] if self.instance.worker_id else []
+                )
+        elif (
+            not self.is_bound and self.self_worker
+            and "workers" not in self.initial
+            and self.fields["workers"].queryset.filter(pk=self.self_worker.pk).exists()
+        ):
+            self.initial["workers"] = [self.self_worker.pk]
+        self._build_worker_rows()
 
         # 編集で、まとめて作った他の人の日報にも反映するかどうか。
         # 同じ組の日報が無ければ欄を出さない。
@@ -258,6 +286,11 @@ class DailyReportForm(forms.ModelForm):
                     required=False,
                     initial=True,
                 )
+
+        # 使用材料の入力欄（ADR-0058）。毎日は書かないので、画面ではボタンで開く。
+        self.material_errors = []
+        self.cleaned_materials = []
+        self.material_rows = self._initial_material_rows()
 
         # 編集時は、名前で入力する欄に現在の値を表示する
         obj = self.instance
@@ -360,14 +393,116 @@ class DailyReportForm(forms.ModelForm):
         """その作業員だけの作業時間。空なら None。"""
         return self.cleaned_data.get(f"work_hours_{worker.pk}") or None
 
-    def clean_workers(self):
-        workers = self.cleaned_data.get("workers")
-        if self.is_edit and workers and len(workers) > 1:
-            raise forms.ValidationError(
-                "編集画面では作業員は1人だけ選べます。"
-                "他の作業員の日報は、それぞれの日報から編集してください。",
+    # 使用材料の入力欄の名前（1 行ぶんを同じ名前で並べ、getlist で受ける）
+    MATERIAL_INPUTS = (
+        ("name", "material_name"), ("quantity", "material_quantity"),
+        ("unit", "material_unit"), ("maker", "material_maker"),
+        ("model_number", "material_model"), ("note", "material_note"),
+        ("material_id", "material_id"),
+    )
+    MATERIAL_TEXT_KEYS = ("name", "quantity", "unit", "maker", "model_number", "note")
+
+    def _data_list(self, name):
+        if hasattr(self.data, "getlist"):
+            return self.data.getlist(name)
+        value = self.data.get(name)
+        if value is None:
+            return []
+        return list(value) if isinstance(value, (list, tuple)) else [value]
+
+    def _initial_material_rows(self):
+        """画面に出す使用材料の行。送られた値 > 編集中の日報の材料 > 空。"""
+        if self.is_bound:
+            columns = {key: self._data_list(name) for key, name in self.MATERIAL_INPUTS}
+            count = max((len(v) for v in columns.values()), default=0)
+            return [
+                {key: (values[i] if i < len(values) else "") for key, values in columns.items()}
+                for i in range(count)
+            ]
+        if self.is_edit:
+            return [
+                {
+                    "name": m.material.name if m.material_id and not m.material_name
+                    else m.material_name,
+                    "quantity": (
+                        "" if m.quantity_used is None else f"{m.quantity_used.normalize():f}"
+                    ),
+                    "unit": m.unit, "maker": m.maker, "model_number": m.model_number,
+                    "note": m.note, "material_id": m.material_id or "",
+                }
+                for m in self.instance.materials_used.select_related("material").order_by("pk")
+            ]
+        return []
+
+    @property
+    def show_materials(self):
+        """使用材料の入力欄を最初から開いて出すか。"""
+        if self.material_errors:
+            return True
+        if self.is_bound and str(self.data.get("materials_open") or "") == "1":
+            return True
+        return any(
+            str(row.get(key) or "").strip()
+            for row in self.material_rows for key in self.MATERIAL_TEXT_KEYS
+        )
+
+    def _clean_materials(self):
+        """使用材料の行を検証して、保存する行のリストにする。全部空の行は捨てる。"""
+        from decimal import Decimal, InvalidOperation
+
+        from apps.materials.models import Material
+
+        rows = []
+        for index, row in enumerate(self.material_rows, start=1):
+            text = {key: str(row.get(key) or "").strip() for key in self.MATERIAL_TEXT_KEYS}
+            if not any(text.values()):
+                continue
+            if not text["name"]:
+                self.material_errors.append(f"使用材料の {index} 行目: 品名を入力してください。")
+                continue
+            quantity = None
+            if text["quantity"]:
+                zenkaku = str.maketrans("０１２３４５６７８９．，", "0123456789.,")
+                normalized = text["quantity"].translate(zenkaku)
+                try:
+                    quantity = Decimal(normalized.replace(",", ""))
+                except InvalidOperation:
+                    self.material_errors.append(
+                        f"使用材料の {index} 行目: 数量は数字で入力してください。",
+                    )
+                    continue
+            material = None
+            material_id = str(row.get("material_id") or "").strip()
+            if material_id.isdigit() and self.company:
+                # 自社の材料マスタだけ引き継ぐ（他社の番号を送られても使わない）
+                material = Material.unscoped.filter(
+                    company=self.company, pk=int(material_id),
+                ).first()
+            rows.append({
+                "material": material, "material_name": text["name"], "quantity_used": quantity,
+                "unit": text["unit"][:20], "maker": text["maker"][:100],
+                "model_number": text["model_number"][:100], "note": text["note"][:200],
+            })
+        for message in self.material_errors:
+            self.add_error(None, message)
+        return rows
+
+    def _save_materials(self, report, user):
+        """使用材料を保存する。編集では画面の内容で入れ替える（入力欄が送られたときだけ）。"""
+        from apps.reports.models import DailyReportMaterial
+
+        if self.is_edit:
+            if str(self.data.get("materials_submitted") or "") != "1":
+                return
+            report.materials_used.all().delete()
+        for row in self.cleaned_materials:
+            DailyReportMaterial.unscoped.create(
+                company_id=report.company_id, daily_report=report, created_by=user, **row,
             )
-        return workers
+
+    def clean_workers(self):
+        # 編集でも複数選べる。この日報の作業員以外には、同じ内容の日報を新しく作る（ADR-0056）
+        return self.cleaned_data.get("workers")
 
     def clean_weather(self):
         """選択肢の表示名で入力されたら、保存値に直す。
@@ -410,6 +545,8 @@ class DailyReportForm(forms.ModelForm):
                 "会社が特定できないため保存できません。管理者に連絡してください。",
             )
 
+        self.cleaned_materials = self._clean_materials()
+
         # 工程で「その他」を選んだら、入力された名前を工程にする
         # （save でその現場の工程として登録される）
         if cleaned.get("process") == PROCESS_OTHER:
@@ -450,7 +587,7 @@ class DailyReportForm(forms.ModelForm):
 
         # 共通の時間が無くても、選ばれた全員に個別の時間か作業時間が入っていれば足りる
         chosen = cleaned.get("workers")
-        if chosen and not self.is_edit and all(
+        if chosen and all(
             self.worker_times(w) or self.worker_hours(w) for w in chosen
         ):
             return cleaned
@@ -535,6 +672,12 @@ class DailyReportForm(forms.ModelForm):
         proto.weather = self.cleaned_data.get("weather", "")
         if status is not None:
             proto.status = status
+        # 画面の共通の時間。編集で上の行に人ごとの時間があっても、足した人にはこちらを使う
+        common = {
+            "start_date": proto.start_date, "start_time": proto.start_time,
+            "end_date": proto.end_date, "end_time": proto.end_time,
+            "work_hours": proto.work_hours,
+        }
 
         self.propagated = []
         self.propagate_skipped = []
@@ -543,15 +686,38 @@ class DailyReportForm(forms.ModelForm):
         batch = uuid.uuid4() if (not self.is_edit and len(workers) > 1) else None
 
         saved, skipped = [], []
-        for worker in workers:
-            if self.is_edit:
-                proto.worker = worker
-                proto.save()
-                saved.append(proto)
-                if self.cleaned_data.get("apply_to_batch"):
-                    self._propagate_to_batch(proto, before_times)
-                continue
+        # 新しく作る日報の状態。承認済みは労務費の計上を伴うので、
+        # 編集から足した日報は承認済みにしない
+        new_status = proto.status
+        if self.is_edit and status is None and new_status == DailyReport.Status.APPROVED:
+            new_status = DailyReport.Status.DRAFT
 
+        if self.is_edit:
+            # この日報の作業員が選ばれていればその人、外されていれば
+            # 最初に選ばれた人をこの日報にし、
+            # 残りの人には同じ内容の日報を新しく作る（ADR-0056）
+            primary = next(
+                (w for w in workers if w.pk == self.instance.worker_id), workers[0],
+            )
+            workers = [w for w in workers if w.pk != primary.pk]
+            times = self.worker_times(primary)
+            own_hours = self.worker_hours(primary)
+            if times:
+                proto.start_time, proto.end_time = times
+            elif own_hours:
+                proto.start_date = proto.end_date = None
+                proto.start_time = proto.end_time = None
+                proto.work_hours = own_hours
+            proto.worker = primary
+            if workers and not proto.batch:
+                proto.batch = uuid.uuid4()
+            batch = proto.batch
+            proto.save()
+            saved.append(proto)
+            if self.cleaned_data.get("apply_to_batch"):
+                self._propagate_to_batch(proto, before_times)
+
+        for worker in workers:
             times = self.worker_times(worker)
             own_hours = self.worker_hours(worker)
             # 作業時間の優先順:
@@ -561,13 +727,13 @@ class DailyReportForm(forms.ModelForm):
             #   どちらも無ければ共通の値
             if times:
                 start_time, end_time = times
-                hours = proto.work_hours or 0
+                hours = common["work_hours"] or 0
             elif own_hours:
                 start_time, end_time = None, None
                 hours = own_hours
             else:
-                start_time, end_time = proto.start_time, proto.end_time
-                hours = proto.work_hours or 0
+                start_time, end_time = common["start_time"], common["end_time"]
+                hours = common["work_hours"] or 0
             report = DailyReport(
                 company=company,
                 created_by=user,
@@ -578,15 +744,15 @@ class DailyReportForm(forms.ModelForm):
                 report_date=proto.report_date,
                 weather=proto.weather,
                 work_description=proto.work_description,
-                start_date=proto.start_date if start_time else None,
+                start_date=common["start_date"] if start_time else None,
                 start_time=start_time,
-                end_date=proto.end_date if end_time else None,
+                end_date=common["end_date"] if end_time else None,
                 end_time=end_time,
                 work_hours=hours,
                 is_partner_worker=proto.is_partner_worker,
                 partner=proto.partner,
                 memo=proto.memo,
-                status=proto.status,
+                status=new_status,
                 batch=batch,
             )
             try:
@@ -599,6 +765,9 @@ class DailyReportForm(forms.ModelForm):
                 continue
             saved.append(report)
 
+        # 使用材料は現場・日単位の記録なので、人数分に重ねず最初の 1 件にだけ付ける（ADR-0058）
+        if saved:
+            self._save_materials(saved[0], user)
         return saved, skipped
 
     def _propagate_to_batch(self, report, before_times):

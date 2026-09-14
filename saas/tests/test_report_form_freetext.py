@@ -231,8 +231,8 @@ class TestMultipleWorkers:
         assert not form.is_valid()
         assert "workers" in form.errors
 
-    def test_edit_allows_only_one_worker(self, company_a, site, work_type):
-        """編集画面では作業員を複数選べない。"""
+    def test_edit_can_add_workers(self, company_a, site, work_type):
+        """編集画面でも作業員を足せる。足した人には同じ内容の日報を新しく作る（ADR-0056）。"""
         a = Worker.unscoped.create(
             company=company_a, employee_code="E001", name="田中", hourly_cost=3000,
         )
@@ -249,8 +249,14 @@ class TestMultipleWorkers:
             data=_post(site.name, a, work_type.name, workers=[a.pk, b.pk]),
             instance=report, company=company_a,
         )
-        assert not form.is_valid()
-        assert "workers" in form.errors
+        assert form.is_valid(), form.errors
+        saved, skipped = form.save_reports(company=company_a, user=None)
+
+        # 先頭は編集した日報（作業員 a のまま）、2 件目が足した b の新しい日報
+        assert saved[0].pk == report.pk and saved[0].worker_id == a.pk
+        assert [r.worker_id for r in saved[1:]] == [b.pk]
+        assert skipped == []
+        assert DailyReport.unscoped.filter(worker=b, site=site).count() == 1
 
 
 @pytest.mark.django_db

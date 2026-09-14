@@ -89,7 +89,7 @@
         </tr></thead>
         <tbody>
           {% for r in reports %}
-          <tr>
+          <tr class="report-row" data-href="{% url 'reports:detail' r.pk %}?next={{ request.get_full_path|urlencode }}" tabindex="0" title="タップで詳細を開く">
             {% if can_approve %}
             <td>
               {% if r.status == 'submitted' %}
@@ -97,7 +97,7 @@
               {% endif %}
             </td>
             {% endif %}
-            <td style="white-space:nowrap;">{{ r.report_date }}</td>
+            <td style="white-space:nowrap;"><a href="{% url 'reports:detail' r.pk %}?next={{ request.get_full_path|urlencode }}" class="report-row-link">{{ r.report_date }}</a></td>
             <td style="white-space:nowrap;">{{ r.worker }}</td>
             <td>{{ r.site }}</td>
             <td>{{ r.work_type }}</td>
@@ -135,4 +135,26 @@
     {% endif %}
   </div>
 </form>
+<style>
+  /* 行をタップすると詳細を開く。ボタン・チェックボックスの上は除く */
+  .report-row { cursor: pointer; }
+  .report-row:hover td { background: var(--bg, #f4f6fa); }
+  .report-row:focus-visible { outline: 2px solid var(--accent, #3b82f6); outline-offset: -2px; }
+  .report-row-link { color: inherit; text-decoration: none; }
+</style>
+<script>
+(function () {
+  function open(row, ev) {
+    // ボタン・リンク・チェックボックスを押したときは、それぞれの動きを優先する
+    if (ev && ev.target.closest('a, button, input, label, select')) return;
+    window.location.href = row.getAttribute('data-href');
+  }
+  document.querySelectorAll('.report-row').forEach(function (row) {
+    row.addEventListener('click', function (ev) { open(row, ev); });
+    row.addEventListener('keydown', function (ev) {
+      if (ev.key === 'Enter' && ev.target === row) open(row, null);
+    });
+  });
+})();
+</script>
 {% endblock %}

@@ -267,6 +267,8 @@ a:hover { color: var(--brand-dark); }
   padding: 10px 12px; border-radius: 6px;
   background: #ecfdf5; color: #065f46; font-size: .88rem;
 }
+/* 圏外でも開ける入力への入口（未送信の入力の画面。ADR-0052） */
+.offline-start { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 4px; }
 
 /* 現場写真（ADR-0051）。縮小画像を 4:3 に切りそろえて並べる */
 .photo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 12px; }

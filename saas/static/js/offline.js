@@ -11,13 +11,43 @@
 
   var SW_URL = script.dataset.swUrl;
   var OUTBOX_URL = script.dataset.outboxUrl;
+  var USER_ID = script.dataset.userId || "";
   var RETRY_MS = 60000;
+  var PAGE_CACHE = "kec-pages";
+  var REFRESH_KEY = "kec-offline-pages";
+  var REFRESH_MS = 10 * 60 * 1000;
   var flushing = false;
 
   // Service Worker は HTTPS のときだけ登録できる（IP を直接打つ http の URL では使えない）。
   // 登録できなくても、圏外での保存と自動の送り直しは動く。圏外で画面を開けないだけ。
   if ("serviceWorker" in navigator && window.isSecureContext && SW_URL) {
     navigator.serviceWorker.register(SW_URL, { scope: "/" }).catch(function () {});
+  }
+
+  // ---- 圏外でアプリを開いたときに使う画面の控え（ADR-0052） ----
+  // 電波のあるときに、Service Worker に控えの取り直しを頼む。新しい現場を選べるよう 10 分に 1 回まで。
+  // ログインしている人が前と違えば、前の人の控え（現場名など）を先に消してすぐ取り直す。
+  function readStamp() {
+    try { return JSON.parse(localStorage.getItem(REFRESH_KEY) || "{}") || {}; } catch (e) { return {}; }
+  }
+
+  function writeStamp(stamp) {
+    try { localStorage.setItem(REFRESH_KEY, JSON.stringify(stamp)); } catch (e) { /* 保存できない端末では毎回頼む */ }
+  }
+
+  function refreshOfflinePages() {
+    if (!navigator.onLine || !("serviceWorker" in navigator) || !window.isSecureContext) { return; }
+    var stamp = readStamp();
+    var sameUser = stamp.user === USER_ID;
+    if (sameUser && Date.now() - (stamp.at || 0) < REFRESH_MS) { return; }
+    var clearOld = (sameUser || !window.caches)
+      ? Promise.resolve()
+      : caches.delete(PAGE_CACHE).catch(function () {});
+    clearOld.then(function () { return navigator.serviceWorker.ready; }).then(function (registration) {
+      if (!registration.active) { return; }
+      registration.active.postMessage({ type: "kec-refresh-pages" });
+      writeStamp({ user: USER_ID, at: Date.now() });
+    }).catch(function () {});
   }
 
   function ensureHidden(form, name, value) {
@@ -107,6 +137,7 @@
   // ログアウトのとき、端末に残した入力と画面の控えを消す（端末を共有しても読まれないように）。
   function clearDevice() {
     var jobs = [DB.clear().catch(function () {})];
+    try { localStorage.removeItem(REFRESH_KEY); } catch (e) { /* 次にログインした人の画面で取り直す */ }
     if (window.caches) {
       jobs.push(caches.keys().then(function (keys) {
         return Promise.all(keys.filter(function (key) {
@@ -196,12 +227,14 @@
 
   // ---- きっかけ ----
   window.addEventListener("online", flush);
+  window.addEventListener("online", refreshOfflinePages);
   document.addEventListener("visibilitychange", function () {
     if (document.visibilityState === "visible") { flush(); }
   });
   setInterval(flush, RETRY_MS);
   refreshBadge();
   flush();
+  refreshOfflinePages();
 
   window.KecOffline = { flush: flush, refreshBadge: refreshBadge, db: DB };
 })();

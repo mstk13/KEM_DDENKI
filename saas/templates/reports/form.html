@@ -13,6 +13,13 @@
   .worker-cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; margin-top: 10px; }
   /* .worker-cols は display を持つので hidden 属性だけでは消えない */
   .worker-cols[hidden] { display: none; }
+  /* 使用材料の入力欄（ADR-0058） */
+  #materials-section[hidden] { display: none; }
+  .materials-table th { white-space: nowrap; font-size: .82rem; }
+  .materials-table td { padding: 4px; }
+  .materials-table input.form-control { min-width: 6em; padding: 6px 8px; }
+  .materials-table input.material-qty { min-width: 4.5em; width: 5.5em; text-align: right; }
+  .materials-table input.material-unit { min-width: 3.5em; width: 4.5em; }
   .worker-cols > div { min-width: 0; }
   @media (max-width: 720px) { .worker-cols { grid-template-columns: minmax(0, 1fr); } }
   .worker-col-title { font-size: .82rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 6px; }
@@ -139,8 +146,7 @@
         {% endif %}
         {% if field.name == "workers" %}
         <div class="form-hint">
-          社員番号が E・T で始まる方のみ表示しています（フリガナの50音順）。
-          {% if form.instance.pk %}編集では1人だけ選べます。{% else %}複数選べます。選んだ人数分の日報ができます。{% endif %}
+          複数選べます。選んだ人数分の日報ができます。
         </div>
         {% endif %}
         {% if field.name == "work_hours" %}
@@ -150,6 +156,29 @@
       </div>
       {% endif %}
       {% endfor %}
+      {# 使用材料（ADR-0058）。毎日は書かないので、ボタンで開いたときだけ入力欄を出す #}
+      <div class="form-group" id="materials-group">
+        <label>使用材料</label>
+        <input type="hidden" name="materials_submitted" value="1">
+        <input type="hidden" name="materials_open" id="materials-open" value="{% if form.show_materials %}1{% else %}0{% endif %}">
+        <div>
+          <button type="button" class="btn btn-outline" id="toggle-materials" aria-expanded="{% if form.show_materials %}true{% else %}false{% endif %}">{% if form.show_materials %}使用材料の入力欄を閉じる{% else %}使用材料を入力する{% endif %}</button>
+        </div>
+        <div id="materials-section" style="margin-top:10px;"{% if not form.show_materials %} hidden{% endif %}>
+          {% for message in form.material_errors %}<div class="errorlist" style="color:var(--danger);">{{ message }}</div>{% endfor %}
+          <div class="table-wrap">
+            <table class="materials-table">
+              <thead><tr><th>使用材料品名</th><th>数量</th><th>単位</th><th>メーカー</th><th>型式</th><th>備考</th><th></th></tr></thead>
+              <tbody id="materials-rows">
+                {% for m in form.material_rows %}{% include "reports/_material_row.html" %}{% endfor %}
+              </tbody>
+            </table>
+          </div>
+          <template id="material-row-template">{% include "reports/_material_row.html" with m=None %}</template>
+          <button type="button" class="btn btn-outline btn-sm" id="add-material-row" style="margin-top:6px;">＋ 行を追加</button>
+          <div class="form-hint">品名が空の行は保存しません。閉じても入力した内容は保存されます（消すときは行の「削除」）。PDF では 2 枚目に「使用材料」として出ます。</div>
+        </div>
+      </div>
       {% if form.batch_siblings %}
       <div class="form-group">
         <label class="worker-row-name">
@@ -239,6 +268,39 @@
     });
   });
 
+  // ---- 使用材料（ADR-0058）: ボタンで入力欄を開閉し、行を足す・消す ----
+  var toggleMat = document.getElementById('toggle-materials');
+  var matSection = document.getElementById('materials-section');
+  var matRows = document.getElementById('materials-rows');
+  var matTpl = document.getElementById('material-row-template');
+  var matOpen = document.getElementById('materials-open');
+  function addMaterialRow() {
+    if (!matRows || !matTpl) return;
+    var row = matTpl.content.querySelector('tr');
+    if (row) matRows.appendChild(row.cloneNode(true));
+  }
+  if (toggleMat && matSection) {
+    toggleMat.addEventListener('click', function () {
+      var opening = matSection.hidden;
+      matSection.hidden = !opening;
+      toggleMat.textContent = opening ? '使用材料の入力欄を閉じる' : '使用材料を入力する';
+      toggleMat.setAttribute('aria-expanded', opening ? 'true' : 'false');
+      if (matOpen) matOpen.value = opening ? '1' : '0';
+      // 初めて開いたときは空の行を 3 つ出す
+      if (opening && matRows && !matRows.querySelector('.material-row')) {
+        for (var i = 0; i < 3; i++) addMaterialRow();
+      }
+    });
+  }
+  var addMat = document.getElementById('add-material-row');
+  if (addMat) addMat.addEventListener('click', addMaterialRow);
+  if (matRows) {
+    matRows.addEventListener('click', function (ev) {
+      var btn = ev.target.closest('.remove-material-row');
+      if (btn) btn.closest('.material-row').remove();
+    });
+  }
+
   // ---- 工程で「その他」を選んだら入力欄を出す ----
   var process = document.getElementById('id_process');
   var otherWrap = document.getElementById('process-other-wrap');
@@ -313,6 +375,8 @@
   [start, end, startDate, endDate].forEach(function (el) {
     if (el) el.addEventListener('change', calcHours);
   });
+  // 開始・終了が最初から入っている（所定の時刻の初期値）ときは、作業時間も最初に計算しておく
+  if (start && end && hours && start.value && end.value && !hours.value) calcHours();
 
   // ---- 作業員ごとの開始・終了から、その人の作業時間を自動計算 ----
   // 日付は共通の開始日・終了日を使う。計算式は上と同じ。
