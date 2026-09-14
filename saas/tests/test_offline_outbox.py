@@ -30,7 +30,7 @@ from apps.core.tenant_context import set_current_company
 from apps.masters.models import Supplier
 from apps.materials.models import Delivery, PurchaseOrder
 from apps.offline.models import OfflineSubmission
-from apps.offline.pages import OFFLINE_FORM_PATTERNS
+from apps.offline.pages import OFFLINE_FORM_PATTERNS, OFFLINE_START_PAGES
 from apps.sites.models import Site
 from apps.workers.models import HealthCheckup, Worker, WorkerQualification
 
@@ -109,6 +109,43 @@ class TestServiceWorker:
         # JavaScript として配るので、HTML の文字の置き換えをしない
         assert "&quot;" not in body and "&#x27;" not in body
 
+    def test_圏外でアプリを開いても使う画面を控える(self, client):
+        """電波のあるときに控え、圏外でアプリを開いたら未送信の入力へ移す（ADR-0052）。"""
+        body = client.get("/sw.js").content.decode()
+
+        assert reverse("sites:photo_quick") in body
+        assert 'var PRECACHE_HEADER = "X-Offline-Precache";' in body
+        assert '"kec-refresh-pages"' in body
+        assert 'OUTBOX_URL + "?offline=1"' in body
+
+    def test_控える画面は圏外で送れる入力画面になっている(self):
+        for name in OFFLINE_START_PAGES:
+            path = reverse(name)
+            assert any(re.match(p, path) for p in OFFLINE_FORM_PATTERNS), path
+            assert getattr(resolve(path).func, "offline_resendable", False), path
+
+    def test_未送信の入力の画面から現場写真を撮れる(self, logged_in):
+        html = logged_in.get("/offline/").content.decode()
+
+        assert f'href="{reverse("sites:photo_quick")}"' in html
+        assert 'id="offline-open-notice"' in html
+
+    def test_画面の控えを取りに来たときは知らせを読まない(self, logged_in, company_a, media):
+        """控えが「登録しました」を読んでしまうと、本来の画面に出なくなる。"""
+        site = Site.unscoped.create(
+            company=company_a, code="S01", name="A社ビル新築", status=Site.Status.IN_PROGRESS,
+        )
+        logged_in.post(reverse("sites:photo_quick"), {
+            "site": site.pk, "images": [_png("a.png")], "kind": "during",
+            "location": "1F 廊下", "taken_on": "", "note": "",
+        })
+
+        precache = logged_in.get(reverse("sites:photo_quick"), HTTP_X_OFFLINE_PRECACHE="1")
+        after = logged_in.get(reverse("sites:photo_list", args=[site.pk]))
+
+        assert "枚登録しました" not in precache.content.decode()
+        assert "枚登録しました" in after.content.decode()
+
     def test_未送信の入力の画面はログインが要る(self, client, user_a):
         assert client.get("/offline/").status_code == 302
 
@@ -125,6 +162,7 @@ class TestServiceWorker:
         assert "資格の登録（田中太郎）" in html
         assert "js/offline-db" in html and "js/offline." in html
         assert 'data-sw-url="/sw.js"' in html
+        assert 'data-user-id="' in html
         assert 'id="offline-outbox-badge"' in html
         assert "data-offline-logout" in html
 

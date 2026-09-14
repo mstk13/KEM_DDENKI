@@ -21,3 +21,13 @@ OFFLINE_FORM_PATTERNS = (
     r"^/sites/photos/new/$",
     r"^/sites/\d+/photos/new/$",
 )
+
+# 開いていなくても端末に控える画面（URL 名）。
+# 圏外でアプリを開いたとき、ここから入力できるようにする（ADR-0052）。
+# 電波のあるときにアプリのどの画面を開いても、Service Worker が取りに行って控える。
+# 1画面でどの現場にも入力できる画面だけを載せる（現場ごとの画面は数が多く、全部は控えられない）。
+# OFFLINE_FORM_PATTERNS にも当たり、ビューに offline_resendable が付いていること
+# （テストで確かめる）。
+OFFLINE_START_PAGES = (
+    "sites:photo_quick",
+)
