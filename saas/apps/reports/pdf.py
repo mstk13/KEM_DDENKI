@@ -4,9 +4,9 @@
 その日に入った作業員全員を並べる。アプリの日報は 1 件＝作業員 1 人なので、
 同じ日・同じ現場の日報を 1 枚にまとめる。
 
-- 自社の作業員の表は 9 行。超えたら同じ見出しで次の用紙に続ける
+- 自社の作業員の表は 9 行（作業員名・作業時間・通常時間・残業時間・宿泊）。超えたら次の用紙に続ける
+- 作業内容は作業員の表の下に横幅いっぱいの欄を設け、その下に交通手段の行（1 つ）
 - 協力会社（is_partner_worker）の欄は 3 社ぶん（3 行・2 行・2 行）。超えたら次の用紙に続ける
-- 交通手段の欄は自社に 1 つ、協力会社にまとめて 1 つ（計 2 つ）
 - アプリに無い項目（宿泊・交通手段・交通費・現場代理人の氏名）は手書き用に空けておく
 - 承認印は、承認済みの日報に「釼持」の赤い判子を押す
 - 原本に無いアプリの項目のうち、天候は年月日の右、工種・工程はその下の行、その他は
@@ -55,12 +55,6 @@ SEAL_RED = colors.HexColor("#d7262e")
 _LINE = colors.black
 _W = A4[0] - 24 * mm  # 用紙の左右 12mm を除いた幅（186mm）
 
-TRANSPORT_OWN = (
-    "交通手段等　□ 車（　　　台）　□ 電車　　○交通費　　　　　　円　※高速代・電車賃など"
-)
-TRANSPORT_PARTNER = (
-    "交通手段　□ 車（　　台）　□ 乗合　　□ 電車　　○交通費：　　　　　円　高速代・電車賃等"
-)
 
 
 class Seal(Flowable):
@@ -141,27 +135,43 @@ def _num(value):
 
 
 def _time_range(report):
-    """作業時間「08:00 ～ 18:00」。終了が開始日の翌日以降なら「翌」を付ける。
+    """作業時間「8:30～17:30」（時の前の 0 は付けない）。終了が開始日の翌日以降なら「翌」を付ける。
 
     開始・終了が無く作業時間だけ入力された日報は「8 時間」のように時間数を出す（ADR-0054）。
     """
     if not report.start_time and not report.end_time:
         work, _, _ = report.hours_breakdown()
         return f"{_num(work)} 時間" if work else ""
-    start = f"{report.start_time:%H:%M}" if report.start_time else ""
-    end = f"{report.end_time:%H:%M}" if report.end_time else ""
+    start = _clock(report.start_time)
+    end = _clock(report.end_time)
     period = report.work_period() if report.start_time and report.end_time else None
     if period and period[1].date() > (report.start_date or report.report_date):
         end = f"翌{end}"
-    return f"{start}　～　{end}"
+    return f"{start}～{end}"
+
+
+def _clock(value):
+    """「8:30」「17:05」。時の前の 0 は付けない。"""
+    return f"{value.hour}:{value.minute:02d}" if value else ""
+
+
+def _hours_h(value):
+    """「8h」「1.5h」。値が無ければ「h」だけ（原本の空欄と同じ）。"""
+    if value is None:
+        return "h"
+    return f"{_num(value) or '0'}h"
+
+
+def _regular(report):
+    """通常時間。作業時間だけ入力された日報も作業時間から出す（ADR-0054）。"""
+    _, value, _ = report.hours_breakdown()
+    return _hours_h(value)
 
 
 def _overtime(report):
-    """残業。作業時間だけ入力された日報も 8 時間を超えた分を出す。無ければ「0 h」。"""
+    """残業時間。作業時間だけ入力された日報も 8 時間を超えた分を出す。無ければ「0h」。"""
     _, _, value = report.hours_breakdown()
-    if value is None:
-        return "h"
-    return f"{_num(value)} h" if value else "0 h"
+    return _hours_h(value)
 
 
 def _reiwa_date(day):
@@ -267,37 +277,81 @@ def _header_tables(site, day, page_no, pages, weather="", work_type="", process=
     ]
 
 
-def _own_table(rows, summary, total):
-    cols = [6 * mm, 30 * mm, 44 * mm, 16 * mm, 14 * mm, 76 * mm]
+CONTENT_HEIGHT = 45 * mm  # 作業内容の欄（横幅いっぱい）の記入部分の高さ
+
+
+def _own_table(rows, total):
+    """自社の作業員の表: 作業員名・作業時間・通常時間・残業時間・宿泊（2026-09-14 要望）。"""
+    cols = [6 * mm, 44 * mm, 50 * mm, 28 * mm, 28 * mm, 30 * mm]
     data = [[
         _p("作業員名", 9, TA_CENTER), "", _p("作業時間", 9, TA_CENTER),
-        _p("残業", 9, TA_CENTER), _p("宿泊", 9, TA_CENTER), _p("作業内容・使用材料", 9, TA_CENTER),
+        _p("通常時間", 9, TA_CENTER), _p("残業時間", 9, TA_CENTER), _p("宿泊", 9, TA_CENTER),
     ]]
-    content = _fit(summary, cols[5] - 6, OWN_ROWS * 7 * mm - 4, max_size=9, min_size=5.5)
     for i in range(OWN_ROWS):
         r = rows[i] if i < len(rows) else None
         data.append([
             "",
             _fit(str(r.worker), cols[1] - 6, 6.5 * mm, 9, 6) if r else "",
-            _p(_time_range(r), 9, TA_CENTER) if r else _p("：　　～　　：", 9, TA_CENTER),
-            _p(_overtime(r) if r else "h", 9, TA_RIGHT),
+            _p(_time_range(r), 9.5, TA_CENTER) if r else _p("：　　～　　：", 9, TA_CENTER),
+            _p(_regular(r) if r else "h", 9.5, TA_RIGHT),
+            _p(_overtime(r) if r else "h", 9.5, TA_RIGHT),
             "",
-            content if i == 0 else "",
         ])
     data.append([_p("合計", 9, TA_CENTER), "", _p(f"{total}　人", 10, TA_RIGHT), "", "", ""])
-    data.append([_p(TRANSPORT_OWN, 9), "", "", "", "", ""])
-    last = OWN_ROWS
+    last = OWN_ROWS + 1
     return Table(
         data, colWidths=cols,
-        rowHeights=[7 * mm] + [7 * mm] * OWN_ROWS + [7 * mm, 7 * mm],
+        rowHeights=[7 * mm] + [7 * mm] * OWN_ROWS + [7 * mm],
         style=_grid_style([
             ("SPAN", (0, 0), (1, 0)),
-            ("SPAN", (5, 1), (5, last)),
-            ("VALIGN", (5, 1), (5, last), "TOP"),
-            ("SPAN", (0, last + 1), (1, last + 1)),
-            ("SPAN", (2, last + 1), (3, last + 1)),
-            ("SPAN", (4, last + 1), (5, last + 1)),
-            ("SPAN", (0, last + 2), (5, last + 2)),
+            ("SPAN", (0, last), (1, last)),
+            ("SPAN", (3, last), (5, last)),
+        ]),
+    )
+
+
+def _content_table(summary):
+    """作業内容の欄。作業員の表の下に横幅いっぱいでとる（2026-09-14 要望）。"""
+    return Table(
+        [[_p("作業内容", 9, TA_CENTER)],
+         [_fit(summary, _W - 8, CONTENT_HEIGHT - 4, max_size=10, min_size=6)]],
+        colWidths=[_W], rowHeights=[6.5 * mm, CONTENT_HEIGHT],
+        style=_grid_style([
+            ("VALIGN", (0, 1), (0, 1), "TOP"),
+            ("TOPPADDING", (0, 1), (0, 1), 3),
+            ("LEFTPADDING", (0, 1), (0, 1), 4),
+        ]),
+    )
+
+
+def _transport_table():
+    """交通手段の行。台数と交通費はそれぞれ書き込める空欄をとる（2026-09-14 要望）。
+
+    見本: 交通手段等 □ 車（＿＿台） □ 乗合 □ 電車 ○交通費：＿＿＿＿円 ※高速代・電車賃など
+    """
+    cells = [
+        _p("交通手段等", 9, TA_CENTER), _p("□ 車（", 9, TA_RIGHT), "", _p("台）", 9),
+        _p("□ 乗合", 9, TA_CENTER), _p("□ 電車", 9, TA_CENTER),
+        _p("○交通費：", 9, TA_RIGHT), "", _p("円", 9), _p("※高速代・電車賃など", 8),
+    ]
+    widths = [
+        22 * mm, 16 * mm, 16 * mm, 9 * mm, 17 * mm, 17 * mm, 20 * mm, 30 * mm, 7 * mm, 32 * mm,
+    ]
+    # 1 行だけだと空欄の下線が枠の下辺と重なって見えないので、下に細い余白の行を足す
+    return Table(
+        [cells, [""] * len(cells)], colWidths=widths, rowHeights=[7 * mm, 2 * mm],
+        style=TableStyle([
+            ("BOX", (0, 0), (-1, -1), 0.6, _LINE),
+            ("SPAN", (0, 0), (0, 1)),
+            ("LINEAFTER", (0, 0), (0, 1), 0.6, _LINE),
+            ("VALIGN", (0, 0), (-1, -1), "BOTTOM"),
+            ("VALIGN", (0, 0), (0, 1), "MIDDLE"),
+            ("LEFTPADDING", (0, 0), (-1, -1), 1),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 1),
+            ("BOTTOMPADDING", (0, 0), (-1, 0), 1),
+            # 台数・交通費を書き込む空欄は下線で示す（枠の内側に引く）
+            ("LINEBELOW", (2, 0), (2, 0), 0.6, _LINE),
+            ("LINEBELOW", (7, 0), (7, 0), 0.6, _LINE),
         ]),
     )
 
@@ -305,7 +359,7 @@ def _own_table(rows, summary, total):
 def _partner_table(blocks, total, seals=()):
     """blocks は [(会社名, [日報...], 会社の人数) を最大 3 つ]。空の枠も原本どおり描く。
 
-    seals は承認印を押す枠の番号（0 始まり）。交通手段の欄は会社ごとではなく最後に 1 つ。
+    seals は承認印を押す枠の番号（0 始まり）。
     """
     cols = [30 * mm, 30 * mm, 18 * mm, 44 * mm, 44 * mm, 20 * mm]
     row_h = 6.5 * mm
@@ -332,10 +386,7 @@ def _partner_table(blocks, total, seals=()):
         spans += [("SPAN", (0, top), (0, bottom)), ("SPAN", (2, top), (2, bottom)),
                   ("SPAN", (5, top), (5, bottom)), ("VALIGN", (0, top), (0, bottom), "TOP"),
                   ("ALIGN", (5, top), (5, bottom), "CENTER")]
-    # 交通手段は協力会社でまとめて 1 つ（要望で 4 つ → 自社 1・協力会社 1 の計 2 つに。2026-09-14）
-    data.append([_p(TRANSPORT_PARTNER, 8.5), "", "", "", "", ""])
-    heights.append(row_h)
-    spans.append(("SPAN", (0, len(data) - 1), (5, len(data) - 1)))
+    # 交通手段の行は協力会社の欄には置かない（自社の欄の 1 行だけ。2026-09-14 要望）
     data.append([_p("合計", 9, TA_CENTER), "", _p(f"{total}　人", 10, TA_RIGHT), "", "", ""])
     heights.append(7 * mm)
     last = len(data) - 1
@@ -419,7 +470,9 @@ def _sheet_pages(reports):
         blocks = partner_pages[n] if n < len(partner_pages) else []
         pages.append([
             *_header_tables(site, day, n + 1, total_pages, weather, work_type, process),
-            _own_table(rows, summary if n == 0 else "（1 枚目に記載）", len(own)),
+            _own_table(rows, len(own)),
+            _content_table(summary if n == 0 else "（1 枚目に記載）"),
+            _transport_table(),
             _partner_table(blocks, len(partners), _seal_blocks(blocks, own, partners, n)),
             _signature_table(),
         ])
