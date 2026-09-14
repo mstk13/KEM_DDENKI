@@ -1,7 +1,7 @@
 """月次サマリ: 作業員一覧と同じ表記・並び順で、氏名の下にその月の承認済の日報一覧を出す。"""
 
 from decimal import Decimal
-from urllib.parse import urlencode
+from urllib.parse import quote, urlencode
 
 import pytest
 from django.urls import reverse
@@ -133,12 +133,31 @@ class TestMonthlySummaryPage:
         assert "<td>E1</td>" in html
         assert "電工太郎" in html
         assert f'data-worker-toggle="{w.pk}"' in html
-        assert reverse("reports:edit", args=[r1.pk]) in html
-        assert reverse("reports:edit", args=[r2.pk]) not in html
+        # 日報のリンクは編集ではなく詳細を開く
+        assert reverse("reports:detail", args=[r1.pk]) in html
+        assert reverse("reports:detail", args=[r2.pk]) not in html
+        assert reverse("reports:edit", args=[r1.pk]) not in html
         # 日報のリンクには「この月・この作業員を開いた状態」に戻る next が付く
         back = f"/reports/monthly/?year=2026&month=9#worker-{w.pk}"
-        link = reverse("reports:edit", args=[r1.pk]) + "?" + urlencode({"next": back})
+        link = reverse("reports:detail", args=[r1.pk]) + "?" + urlencode({"next": back})
         assert escape(link) in html
+
+    def test_月次サマリから開いた詳細は月次サマリに戻り_編集も戻り先を引き継ぐ(
+        self, client, user_a, company_a, site_a, work_type_a,
+    ):
+        w = _worker(company_a, "E1", "電工太郎")
+        r1 = _report(company_a, site_a, w, work_type_a, "2026-09-01", status=APPROVED)
+        client.force_login(user_a)
+        back = f"/reports/monthly/?year=2026&month=9#worker-{w.pk}"
+
+        res = client.get(reverse("reports:detail", args=[r1.pk]), {"next": back})
+
+        assert res.status_code == 200
+        html = res.content.decode()
+        assert f'href="{escape(back)}" class="btn btn-outline">月次サマリに戻る</a>' in html
+        # テンプレートの urlencode は「/」をそのまま残す（quote の既定と同じ）
+        edit = reverse("reports:edit", args=[r1.pk]) + "?next=" + quote(back)
+        assert escape(edit) in html
 
     def test_日報の保存と戻るで月次サマリの同じ作業員に戻る(
         self, client, user_a, company_a, site_a, work_type_a,
