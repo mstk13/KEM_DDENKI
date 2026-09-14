@@ -4,11 +4,13 @@
 その日に入った作業員全員を並べる。アプリの日報は 1 件＝作業員 1 人なので、
 同じ日・同じ現場の日報を 1 枚にまとめる。
 
-- 自社の作業員の表は 15 行。超えたら同じ見出しで次の用紙に続ける
+- 自社の作業員の表は 9 行。超えたら同じ見出しで次の用紙に続ける
 - 協力会社（is_partner_worker）の欄は 3 社ぶん（3 行・2 行・2 行）。超えたら次の用紙に続ける
-- アプリに無い項目（宿泊・交通手段・交通費・承認印・現場代理人）は手書き用に空けておく
-- 原本に無いアプリの項目のうち、天候・工種・工程は年月日の右に、その他・使用材料は
-  作業内容の枠に書き、情報を落とさない。状態・承認者は枠の外の下余白に出す
+- 交通手段の欄は自社に 1 つ、協力会社にまとめて 1 つ（計 2 つ）
+- アプリに無い項目（宿泊・交通手段・交通費・現場代理人の氏名）は手書き用に空けておく
+- 承認印は、承認済みの日報に「釼持」の赤い判子を押す
+- 原本に無いアプリの項目のうち、天候は年月日の右、工種・工程はその下の行、その他は
+  作業内容の枠に書く。使用材料は書かない。状態・承認者は枠の外の下余白に出す
 
 日本語は reportlab 内蔵の CID フォント（HeiseiKakuGo-W5）を使う。フォントファイルは要らない。
 """
@@ -25,16 +27,30 @@ from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.units import mm
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.cidfonts import UnicodeCIDFont
-from reportlab.platypus import PageBreak, Paragraph, SimpleDocTemplate, Table, TableStyle
+from reportlab.platypus import (
+    Flowable,
+    PageBreak,
+    Paragraph,
+    SimpleDocTemplate,
+    Table,
+    TableStyle,
+)
 
 pdfmetrics.registerFont(UnicodeCIDFont("HeiseiKakuGo-W5"))
 _FONT = "HeiseiKakuGo-W5"
+# 判子の字は明朝体（印鑑らしく見えるため）
+pdfmetrics.registerFont(UnicodeCIDFont("HeiseiMin-W3"))
+_SEAL_FONT = "HeiseiMin-W3"
 
 WEEKDAYS = ("月", "火", "水", "木", "金", "土", "日")
 
-# 原本の行数
-OWN_ROWS = 15
+# 行数（自社は原本の 15 行から 6 行減らした。ADR-0053）
+OWN_ROWS = 9
 PARTNER_BLOCK_ROWS = (3, 2, 2)
+
+# 承認印に押す名前（縦に 1 字ずつ）と朱色
+SEAL_NAME = "釼持"
+SEAL_RED = colors.HexColor("#d7262e")
 
 _LINE = colors.black
 _W = A4[0] - 24 * mm  # 用紙の左右 12mm を除いた幅（186mm）
@@ -45,6 +61,41 @@ TRANSPORT_OWN = (
 TRANSPORT_PARTNER = (
     "交通手段　□ 車（　　台）　□ 乗合　　□ 電車　　○交通費：　　　　　円　高速代・電車賃等"
 )
+
+
+class Seal(Flowable):
+    """承認印。朱色の丸枠に名前を縦に 1 字ずつ入れた認印の形。"""
+
+    def __init__(self, name=SEAL_NAME, diameter=11 * mm):
+        super().__init__()
+        self.name = name
+        self.diameter = diameter
+        self.width = self.height = diameter
+
+    def wrap(self, avail_width, avail_height):
+        return self.diameter, self.diameter
+
+    def draw(self):
+        c = self.canv
+        r = self.diameter / 2
+        c.saveState()
+        c.setStrokeColor(SEAL_RED)
+        c.setFillColor(SEAL_RED)
+        c.setLineWidth(1.1)
+        c.circle(r, r, r - 0.6, stroke=1, fill=0)
+        chars = list(self.name) or [" "]
+        size = min(self.diameter * 0.78 / len(chars), self.diameter * 0.46)
+        top = r + size * len(chars) / 2 - size * 0.86
+        # 明朝体は線が細く印刷で薄くなるので、塗りに細い縁取りを重ねて少し太らせる
+        c.setLineWidth(0.35)
+        for i, ch in enumerate(chars):
+            width = pdfmetrics.stringWidth(ch, _SEAL_FONT, size)
+            text = c.beginText(r - width / 2, top - i * size)
+            text.setFont(_SEAL_FONT, size)
+            text.setTextRenderMode(2)
+            text.textOut(ch)
+            c.drawText(text)
+        c.restoreState()
 
 
 def _style(size=9, align=None, leading=None, color=None):
@@ -127,8 +178,9 @@ def _reiwa_date(day):
 def _work_summary(reports):
     """作業内容・使用材料の枠に書く文。同じ内容は 1 回だけにする。
 
-    天候・工種・工程は年月日の右に出すので、ここには書かない。ただし同じ用紙に
+    天候・工種・工程は見出しの行に出すので、ここには書かない。ただし同じ用紙に
     工種・工程の違う日報が混ざるときは、どの作業内容がどれか分かるよう【工種／工程】を付ける。
+    使用材料は書かない（要望。2026-09-14）。
     """
     entries = []
     seen = set()
@@ -150,18 +202,6 @@ def _work_summary(reports):
             lines.append(f"【{head}】")
         if text:
             lines.append(text)
-
-    materials = OrderedDict()
-    for r in reports:
-        for item in r.materials_used.select_related("material").all():
-            name = item.material.name if item.material_id else item.material_name
-            unit_key = (name, item.unit)
-            materials[unit_key] = materials.get(unit_key, 0) + (item.quantity_used or 0)
-    if materials:
-        lines.append("")
-        lines.append("使用材料: " + "、".join(
-            f"{name} {_num(qty)}{unit}" for (name, unit), qty in materials.items()
-        ))
 
     memos = list(OrderedDict.fromkeys((r.memo or "").strip() for r in reports if r.memo))
     if memos:
@@ -209,14 +249,18 @@ def _header_tables(site, day, page_no, pages, weather="", work_type="", process=
             colWidths=[30 * mm, 98 * mm, 24 * mm, 34 * mm], rowHeights=[9 * mm],
             style=_grid_style(),
         ),
-        # 年月日の右に天候・工種・工程（原本に無いアプリの項目。ADR-0053）
+        # 年月日の右に天候、その下の行に工種・工程（原本に無いアプリの項目。ADR-0053）
         Table(
             [[_p("年月日", 10, TA_CENTER), _p(_reiwa_date(day), 10),
-              _p("天候", 9, TA_CENTER), _fit(weather, 14 * mm - 6, 8 * mm, 9, 6),
-              _p("工種", 9, TA_CENTER), _fit(work_type, 34 * mm - 6, 8 * mm, 9, 5.5),
-              _p("工程", 9, TA_CENTER), _fit(process, 24 * mm - 6, 8 * mm, 9, 5.5)]],
-            # 工種は「電気幹線・弱電設備」のように並ぶと長いので広めにとる
-            colWidths=[30 * mm, 48 * mm, 12 * mm, 14 * mm, 12 * mm, 34 * mm, 12 * mm, 24 * mm],
+              _p("天候", 10, TA_CENTER), _fit(weather, 32 * mm - 6, 8 * mm, 10, 6)]],
+            colWidths=[30 * mm, 100 * mm, 24 * mm, 32 * mm],
+            rowHeights=[9 * mm],
+            style=_grid_style(),
+        ),
+        Table(
+            [[_p("工種", 10, TA_CENTER), _fit(work_type, 63 * mm - 6, 8 * mm, 10, 6),
+              _p("工程", 10, TA_CENTER), _fit(process, 63 * mm - 6, 8 * mm, 10, 6)]],
+            colWidths=[30 * mm, 63 * mm, 30 * mm, 63 * mm],
             rowHeights=[9 * mm],
             style=_grid_style(),
         ),
@@ -258,8 +302,11 @@ def _own_table(rows, summary, total):
     )
 
 
-def _partner_table(blocks, total):
-    """blocks は [(会社名, [日報...], 会社の人数) を最大 3 つ]。空の枠も原本どおり描く。"""
+def _partner_table(blocks, total, seals=()):
+    """blocks は [(会社名, [日報...], 会社の人数) を最大 3 つ]。空の枠も原本どおり描く。
+
+    seals は承認印を押す枠の番号（0 始まり）。交通手段の欄は会社ごとではなく最後に 1 つ。
+    """
     cols = [30 * mm, 30 * mm, 18 * mm, 44 * mm, 44 * mm, 20 * mm]
     row_h = 6.5 * mm
     heads = ("会社名", "作業員名", "人数", "作業時間", "作業内容", "承認印")
@@ -278,15 +325,17 @@ def _partner_table(blocks, total):
                 _p(_time_range(r) if r else "～", 8.5, TA_CENTER),
                 _fit((r.work_description or "").replace("\n", " "), cols[4] - 6, row_h - 2, 8, 5.5)
                 if r else "",
-                "",
+                Seal() if (i == 0 and index in seals) else "",
             ])
             heights.append(row_h)
         bottom = len(data) - 1
         spans += [("SPAN", (0, top), (0, bottom)), ("SPAN", (2, top), (2, bottom)),
-                  ("SPAN", (5, top), (5, bottom)), ("VALIGN", (0, top), (0, bottom), "TOP")]
-        data.append([_p(TRANSPORT_PARTNER, 8.5), "", "", "", "", ""])
-        heights.append(row_h)
-        spans.append(("SPAN", (0, len(data) - 1), (5, len(data) - 1)))
+                  ("SPAN", (5, top), (5, bottom)), ("VALIGN", (0, top), (0, bottom), "TOP"),
+                  ("ALIGN", (5, top), (5, bottom), "CENTER")]
+    # 交通手段は協力会社でまとめて 1 つ（要望で 4 つ → 自社 1・協力会社 1 の計 2 つに。2026-09-14）
+    data.append([_p(TRANSPORT_PARTNER, 8.5), "", "", "", "", ""])
+    heights.append(row_h)
+    spans.append(("SPAN", (0, len(data) - 1), (5, len(data) - 1)))
     data.append([_p("合計", 9, TA_CENTER), "", _p(f"{total}　人", 10, TA_RIGHT), "", "", ""])
     heights.append(7 * mm)
     last = len(data) - 1
@@ -295,13 +344,15 @@ def _partner_table(blocks, total):
 
 
 def _signature_table():
+    """「現場代理人又は責任者」を左寄りに置き、右に氏名を書く線を引く（2026-09-14 要望）。"""
+    # 1 行だけだと下線が枠の下辺と重なって見えないので、下に余白の行を足して枠の内側に線を引く
     return Table(
-        [["", _p("現場代理人又は責任者", 10, TA_CENTER)], ["", ""]],
-        colWidths=[_W - 80 * mm, 80 * mm], rowHeights=[8 * mm, 7 * mm],
+        [["", _p("現場代理人又は責任者", 10), ""], ["", "", ""]],
+        colWidths=[_W - 140 * mm, 42 * mm, 98 * mm], rowHeights=[11 * mm, 4 * mm],
         style=TableStyle([
             ("BOX", (0, 0), (-1, -1), 0.6, _LINE),
-            # 原本は「現場代理人又は責任者」の文字の下に署名用の線がある
-            ("LINEBELOW", (1, 0), (1, 0), 0.6, _LINE),
+            # 文字から氏名の欄の右端（右の余白 10mm 手前）まで、署名用の線を 1 本
+            ("LINEBELOW", (1, 0), (2, 0), 0.6, _LINE),
             ("VALIGN", (0, 0), (-1, -1), "BOTTOM"),
         ]),
     )
@@ -369,10 +420,32 @@ def _sheet_pages(reports):
         pages.append([
             *_header_tables(site, day, n + 1, total_pages, weather, work_type, process),
             _own_table(rows, summary if n == 0 else "（1 枚目に記載）", len(own)),
-            _partner_table(blocks, len(partners)),
+            _partner_table(blocks, len(partners), _seal_blocks(blocks, own, partners, n)),
             _signature_table(),
         ])
     return pages, reports
+
+
+def _all_approved(reports):
+    return bool(reports) and all(r.status == r.Status.APPROVED for r in reports)
+
+
+def _seal_blocks(blocks, own, partners, page_index):
+    """承認印を押す協力会社の枠の番号。
+
+    - 協力会社の作業員がいる: その会社の日報（同じ用紙の全員）がすべて承認済みの枠に押す
+    - 協力会社の作業員がいない: 承認印の欄は協力会社の欄にしかないので、自社の日報が
+      すべて承認済みなら 1 枚目の最初の枠に押す（どこにも押されないのを避ける）
+    """
+    if not partners:
+        return (0,) if page_index == 0 and _all_approved(own) else ()
+    by_company = OrderedDict()
+    for r in partners:
+        by_company.setdefault(str(r.partner) if r.partner_id else "（会社名なし）", []).append(r)
+    return tuple(
+        index for index, (company, rows, _count) in enumerate(blocks)
+        if rows and _all_approved(by_company.get(company, []))
+    )
 
 
 def _status_line(reports):
