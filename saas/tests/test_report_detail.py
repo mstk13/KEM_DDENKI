@@ -164,11 +164,12 @@ class TestPdfHoursOnly:
         res = client.get(reverse("reports:pdf", args=[data["hours_only"].pk]))
         with pdfplumber.open(BytesIO(res.content)) as pdf:
             text = "".join((pdf.pages[0].extract_text() or "").split())
-        assert "電工太郎10時間2h" in text
+        # 作業時間・通常時間・残業時間
+        assert "電工太郎10時間8h2h" in text
 
     def test_8時間以下は残業0h(self, client, user_a, data):
         client.force_login(user_a)
         res = client.get(reverse("reports:pdf", args=[data["short"].pk]))
         with pdfplumber.open(BytesIO(res.content)) as pdf:
             text = "".join((pdf.pages[0].extract_text() or "").split())
-        assert "電工太郎6.5時間0h" in text
+        assert "電工太郎6.5時間6.5h0h" in text
