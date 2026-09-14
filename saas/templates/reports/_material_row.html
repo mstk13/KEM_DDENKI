@@ -1,0 +1,13 @@
+{# 使用材料の入力欄の 1 行（ADR-0057）。form.html の表と、行を足すときの見本（template）から使う #}
+<tr class="material-row">
+  <td>
+    <input type="text" name="material_name" class="form-control" maxlength="200" value="{{ m.name|default:'' }}" placeholder="品名">
+    <input type="hidden" name="material_id" value="{{ m.material_id|default:'' }}">
+  </td>
+  <td><input type="text" name="material_quantity" class="form-control material-qty" inputmode="decimal" value="{{ m.quantity|default:'' }}" placeholder="数量"></td>
+  <td><input type="text" name="material_unit" class="form-control material-unit" maxlength="20" value="{{ m.unit|default:'' }}" placeholder="m・個"></td>
+  <td><input type="text" name="material_maker" class="form-control" maxlength="100" value="{{ m.maker|default:'' }}" placeholder="メーカー"></td>
+  <td><input type="text" name="material_model" class="form-control" maxlength="100" value="{{ m.model_number|default:'' }}" placeholder="型式"></td>
+  <td><input type="text" name="material_note" class="form-control" maxlength="200" value="{{ m.note|default:'' }}" placeholder="備考"></td>
+  <td><button type="button" class="btn btn-outline btn-sm remove-material-row">削除</button></td>
+</tr>
