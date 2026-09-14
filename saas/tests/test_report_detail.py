@@ -164,9 +164,9 @@ class TestPdfHoursOnly:
         res = client.get(reverse("reports:pdf", args=[data["hours_only"].pk]))
         with pdfplumber.open(BytesIO(res.content)) as pdf:
             text = "".join((pdf.pages[0].extract_text() or "").split())
-        # 作業時間（所定始業の既定 08:00 から 10 時間＋休憩 1 時間）・通常時間・残業時間
+        # 作業時間（所定始業の既定 08:30 から 10 時間＋休憩 1 時間）・通常時間・残業時間
         # PDF から読むと「～」は波ダッシュ「〜」になるので揃える
-        assert "電工太郎08:00～19:008h2h" in text.replace("〜", "～")
+        assert "電工太郎08:30～19:308h2h" in text.replace("〜", "～")
 
     def test_8時間以下は残業0h(self, client, user_a, data):
         client.force_login(user_a)
@@ -174,7 +174,7 @@ class TestPdfHoursOnly:
         with pdfplumber.open(BytesIO(res.content)) as pdf:
             text = "".join((pdf.pages[0].extract_text() or "").split())
         # 7 時間以下は休憩を含めない（保存時の計算と同じ）
-        assert "電工太郎08:00～14:306.5h0h" in text.replace("〜", "～")
+        assert "電工太郎08:30～15:006.5h0h" in text.replace("〜", "～")
 
     def test_所定始業が0830なら8時間は0830から1730(self, client, user_a, data, company_a):
         from apps.attendance.models import AttendSettings

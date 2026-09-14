@@ -313,6 +313,8 @@
   [start, end, startDate, endDate].forEach(function (el) {
     if (el) el.addEventListener('change', calcHours);
   });
+  // 開始・終了が最初から入っている（所定の時刻の初期値）ときは、作業時間も最初に計算しておく
+  if (start && end && hours && start.value && end.value && !hours.value) calcHours();
 
   // ---- 作業員ごとの開始・終了から、その人の作業時間を自動計算 ----
   // 日付は共通の開始日・終了日を使う。計算式は上と同じ。
