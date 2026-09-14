@@ -164,12 +164,31 @@ class TestPdfHoursOnly:
         res = client.get(reverse("reports:pdf", args=[data["hours_only"].pk]))
         with pdfplumber.open(BytesIO(res.content)) as pdf:
             text = "".join((pdf.pages[0].extract_text() or "").split())
-        # 作業時間・通常時間・残業時間
-        assert "電工太郎10時間8h2h" in text
+        # 作業時間（所定始業の既定 08:00 から 10 時間＋休憩 1 時間）・通常時間・残業時間
+        # PDF から読むと「～」は波ダッシュ「〜」になるので揃える
+        assert "電工太郎08:00～19:008h2h" in text.replace("〜", "～")
 
     def test_8時間以下は残業0h(self, client, user_a, data):
         client.force_login(user_a)
         res = client.get(reverse("reports:pdf", args=[data["short"].pk]))
         with pdfplumber.open(BytesIO(res.content)) as pdf:
             text = "".join((pdf.pages[0].extract_text() or "").split())
-        assert "電工太郎6.5時間6.5h0h" in text
+        # 7 時間以下は休憩を含めない（保存時の計算と同じ）
+        assert "電工太郎08:00～14:306.5h0h" in text.replace("〜", "～")
+
+    def test_所定始業が0830なら8時間は0830から1730(self, client, user_a, data, company_a):
+        from apps.attendance.models import AttendSettings
+
+        AttendSettings.unscoped.create(company=company_a, key="standard_start", value="08:30")
+        report = data["short"]
+        for hours, expected in (("8.00", "08:30～17:30"), ("9.50", "08:30～19:00")):
+            report.work_hours = hours
+            report.save()
+            client.force_login(user_a)
+            res = client.get(reverse("reports:pdf", args=[report.pk]))
+            with pdfplumber.open(BytesIO(res.content)) as pdf:
+                text = "".join((pdf.pages[0].extract_text() or "").split()).replace("〜", "～")
+            assert expected in text, (hours, expected)
+            # 見出しの「作業時間・通常時間・残業時間」以外に「○時間」の表記が残っていない
+            rest = text.replace("作業時間", "").replace("通常時間", "").replace("残業時間", "")
+            assert "時間" not in rest
