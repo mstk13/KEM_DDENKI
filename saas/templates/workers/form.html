@@ -12,15 +12,37 @@
   <div class="card-body">
     <form method="post">
       {% csrf_token %}
-      {% for field in form %}
+      {% for field in base_fields %}
       {% if field.name == "hourly_cost" and not is_president %}{% else %}
       <div class="form-group">
         <label for="{{ field.id_for_label }}">{{ field.label }}</label>
         {{ field }}
+        {% if field.name == "experience_years" %}<small style="color:var(--text-secondary);">{{ field.help_text }}</small>{% endif %}
         {{ field.errors }}
       </div>
       {% endif %}
       {% endfor %}
+
+      {% if can_view_private %}
+      {# 管理者・事務員・本人だけに出す（ADR-0057）。ほかの人のフォームには欄ごと無い #}
+      <div style="margin-top:28px;padding-top:20px;border-top:1px solid var(--border-light);">
+        <p style="font-size:.82rem;color:var(--text-muted);margin-bottom:16px;">
+          ここから下は、管理者・事務員・本人だけが見られます。
+        </p>
+
+        <h3 style="font-size:.95rem;font-weight:600;color:var(--brand);margin-bottom:12px;">現住所</h3>
+        {% for field in address_fields %}{% include "workers/_form_field.html" %}{% endfor %}
+
+        <h3 style="font-size:.95rem;font-weight:600;color:var(--brand);margin:20px 0 12px;">緊急連絡先</h3>
+        {% for field in emergency_fields %}{% include "workers/_form_field.html" %}{% endfor %}
+
+        <h3 style="font-size:.95rem;font-weight:600;color:var(--brand);margin:20px 0 12px;">健康</h3>
+        {% for field in health_fields %}{% include "workers/_form_field.html" %}{% endfor %}
+        <p style="font-size:.82rem;color:var(--text-muted);">
+          視力・血圧は、{% if form.instance.pk %}下の{% else %}登録後に{% endif %}「健康診断」の記録ごとに入れます。
+        </p>
+      </div>
+      {% endif %}
 
       {% if is_admin and perm_form and form.instance.pk %}
       <div style="margin-top:28px;padding-top:20px;border-top:1px solid var(--border-light);">
@@ -103,6 +125,7 @@
           <tr>
             <th>受診日</th>
             <th>判定</th>
+            {% if can_view_private %}<th>視力</th><th>血圧</th>{% endif %}
             <th>受診機関</th>
             <th>メモ</th>
             <th>結果ファイル</th>
@@ -114,6 +137,7 @@
           <tr>
             <td>{{ h.checkup_date }}</td>
             <td><span class="badge {% if h.result == 'normal' %}badge-green{% elif h.result == 'observation' %}badge-orange{% else %}badge-red{% endif %}">{{ h.get_result_display }}</span></td>
+            {% if can_view_private %}<td>{{ h.vision_label|default:"-" }}</td><td>{{ h.blood_pressure_label|default:"-" }}</td>{% endif %}
             <td>{{ h.institution|default:"-" }}</td>
             <td>{{ h.memo|truncatewords:10|default:"-" }}</td>
             <td>{% if h.report_file %}<a href="{{ h.report_file.url }}" target="_blank" class="btn btn-outline btn-sm">表示</a>{% else %}-{% endif %}</td>

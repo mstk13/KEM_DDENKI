@@ -1,4 +1,5 @@
 import re
+from decimal import Decimal
 
 from django.conf import settings
 from django.db import models
@@ -93,11 +94,27 @@ def sort_workers_by_code(workers):
     )
 
 
+def full_years_since(start, today=None):
+    """start から today までの満年数。start が無ければ None。年齢・経験年数に使う。"""
+    if not start:
+        return None
+    today = today or timezone.localdate()
+    had_anniversary = (today.month, today.day) >= (start.month, start.day)
+    return today.year - start.year - (0 if had_anniversary else 1)
+
+
 class Worker(TenantModel):
     """作業員。日報・原価計算の主体。
 
     hourly_cost は労務費原価の算出単価。履歴が必要なため simple-history 付き。
+    住所・緊急連絡先・血液型は、管理者・事務員・本人だけが見て直せる（ADR-0057）。
     """
+
+    class BloodType(models.TextChoices):
+        A = "A", "A型"
+        B = "B", "B型"
+        AB = "AB", "AB型"
+        O = "O", "O型"  # noqa: E741 — 血液型の O。選択肢の名前を値とそろえる
 
     user = models.OneToOneField(
         settings.AUTH_USER_MODEL,
@@ -144,6 +161,25 @@ class Worker(TenantModel):
     phone = models.CharField("電話番号", max_length=20, blank=True)
     birth_date = models.DateField("生年月日", null=True, blank=True)
     hire_date = models.DateField("入社日", null=True, blank=True)
+    experience_started_on = models.DateField(
+        "経験の起算日",
+        null=True,
+        blank=True,
+        help_text="経験年数を入力した日から、その年数を引いた日。経験年数はここから毎年自動で数える（ADR-0057）。",
+    )
+    # ---- ここから管理者・事務員・本人だけが見て直せる項目（ADR-0057） ----
+    postal_code = models.CharField("郵便番号", max_length=8, blank=True, help_text="例: 123-4567")
+    address = models.CharField("現住所", max_length=255, blank=True)
+    emergency_contact_name = models.CharField("緊急連絡先の氏名", max_length=100, blank=True)
+    emergency_contact_relationship = models.CharField(
+        "緊急連絡先の続柄", max_length=30, blank=True, help_text="例: 妻、父、母",
+    )
+    emergency_contact_postal_code = models.CharField(
+        "緊急連絡先の郵便番号", max_length=8, blank=True, help_text="例: 123-4567",
+    )
+    emergency_contact_address = models.CharField("緊急連絡先の住所", max_length=255, blank=True)
+    emergency_contact_phone = models.CharField("緊急連絡先の電話番号", max_length=20, blank=True)
+    blood_type = models.CharField("血液型", max_length=2, choices=BloodType.choices, blank=True)
     is_active = models.BooleanField("有効", default=True)
     note = models.TextField("備考", blank=True)
     discord_user_id = models.CharField(
@@ -184,11 +220,12 @@ class Worker(TenantModel):
     @property
     def age(self):
         """今日時点の満年齢。生年月日が未登録なら None。"""
-        if not self.birth_date:
-            return None
-        today = timezone.localdate()
-        had_birthday = (today.month, today.day) >= (self.birth_date.month, self.birth_date.day)
-        return today.year - self.birth_date.year - (0 if had_birthday else 1)
+        return full_years_since(self.birth_date)
+
+    @property
+    def experience_years(self):
+        """今日時点の経験年数（満年数）。入力した日から1年ごとに1年ずつ増える。未入力なら None。"""
+        return full_years_since(self.experience_started_on)
 
     def __str__(self):
         return self.name
@@ -265,6 +302,27 @@ class HealthCheckup(TenantModel):
         upload_to="health_checkups/%Y/%m/",
         blank=True,
     )
+    # ---- 視力・血圧。管理者・事務員・本人だけが見て直せる（ADR-0057） ----
+    vision_right_naked = models.DecimalField(
+        "視力（右・裸眼）", max_digits=3, decimal_places=2, null=True, blank=True,
+    )
+    vision_left_naked = models.DecimalField(
+        "視力（左・裸眼）", max_digits=3, decimal_places=2, null=True, blank=True,
+    )
+    vision_right_corrected = models.DecimalField(
+        "視力（右・矯正）", max_digits=3, decimal_places=2, null=True, blank=True,
+        help_text="メガネ・コンタクトをつけたときの視力",
+    )
+    vision_left_corrected = models.DecimalField(
+        "視力（左・矯正）", max_digits=3, decimal_places=2, null=True, blank=True,
+        help_text="メガネ・コンタクトをつけたときの視力",
+    )
+    blood_pressure_high = models.PositiveSmallIntegerField(
+        "血圧（上）", null=True, blank=True, help_text="mmHg",
+    )
+    blood_pressure_low = models.PositiveSmallIntegerField(
+        "血圧（下）", null=True, blank=True, help_text="mmHg",
+    )
 
     history = HistoricalRecords()
 
@@ -275,6 +333,46 @@ class HealthCheckup(TenantModel):
 
     def __str__(self):
         return f"{self.worker.name} - {self.checkup_date}"
+
+    @staticmethod
+    def _vision_text(value):
+        # 1.20 は「1.2」、0.05 は「0.05」と書く（視力表の書き方に合わせる）
+        if value is None:
+            return "-"
+        tenth = value.quantize(Decimal("0.1"))
+        return str(tenth if tenth == value else value.normalize())
+
+    @property
+    def has_vision(self):
+        return any(v is not None for v in (
+            self.vision_right_naked, self.vision_left_naked,
+            self.vision_right_corrected, self.vision_left_corrected,
+        ))
+
+    @property
+    def has_blood_pressure(self):
+        return self.blood_pressure_high is not None or self.blood_pressure_low is not None
+
+    @property
+    def vision_label(self):
+        """例: 裸眼 右1.2・左1.0 ／ 矯正 右-・左-。記録が無ければ空文字。"""
+        if not self.has_vision:
+            return ""
+        return (
+            f"裸眼 右{self._vision_text(self.vision_right_naked)}"
+            f"・左{self._vision_text(self.vision_left_naked)}"
+            f" ／ 矯正 右{self._vision_text(self.vision_right_corrected)}"
+            f"・左{self._vision_text(self.vision_left_corrected)}"
+        )
+
+    @property
+    def blood_pressure_label(self):
+        """例: 128 / 82 mmHg。記録が無ければ空文字。"""
+        if not self.has_blood_pressure:
+            return ""
+        high = self.blood_pressure_high if self.blood_pressure_high is not None else "-"
+        low = self.blood_pressure_low if self.blood_pressure_low is not None else "-"
+        return f"{high} / {low} mmHg"
 
 
 class EvaluationTemplate(TenantModel):

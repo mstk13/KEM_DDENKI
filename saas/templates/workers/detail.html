@@ -20,9 +20,11 @@
       <dt>フリガナ</dt><dd>{{ worker.name_kana|default:"-" }}</dd>
       <dt>職種</dt><dd>{{ worker.job_title|default:"-" }}</dd>
       <dt>役職</dt><dd>{{ worker.position|default:"-" }}</dd>
+      <dt>電話番号</dt><dd>{{ worker.phone|default:"-" }}</dd>
       {% if is_president %}<dt>時間単価 / 月収</dt><dd>{{ worker.hourly_cost|floatformat:0 }} 円/h <span style="color:var(--gray-400);margin:0 4px;">/</span> {{ monthly_salary|floatformat:0 }} 円/月 <span style="color:var(--gray-400);font-size:.8rem;">(8h×21日)</span></dd>{% endif %}
       <dt>生年月日</dt><dd>{% if worker.birth_date %}{{ worker.birth_date }} <span style="color:var(--gray-400);font-size:.8rem;">({{ worker.age }}歳)</span>{% else %}-{% endif %}</dd>
       <dt>入社日</dt><dd>{{ worker.hire_date|default:"-" }}</dd>
+      <dt>経験年数</dt><dd>{% if worker.experience_years is not None %}{{ worker.experience_years }}年{% else %}-{% endif %}</dd>
       <dt>状態</dt><dd>{% if worker.is_active %}<span class="badge badge-green">有効</span>{% else %}<span class="badge badge-gray">無効</span>{% endif %}</dd>
     </dl>
   </div>
@@ -66,6 +68,32 @@
   </div>
 
 </div>
+
+{% if can_view_private %}
+{# ---- 現住所・緊急連絡先・健康。管理者・事務員・本人だけに出す（ADR-0057） ---- #}
+<div class="card" style="margin-top:24px;">
+  <div class="card-header">
+    <h2>現住所・緊急連絡先・健康</h2>
+    <span class="badge badge-gray">管理者・事務員・本人のみ</span>
+  </div>
+  <dl class="detail-grid">
+    <dt>現住所</dt>
+    <dd>{% if worker.postal_code or worker.address %}{% if worker.postal_code %}〒{{ worker.postal_code }} {% endif %}{{ worker.address }}{% else %}-{% endif %}</dd>
+    <dt>緊急連絡先</dt>
+    <dd>{% if worker.emergency_contact_name %}{{ worker.emergency_contact_name }}{% if worker.emergency_contact_relationship %}（{{ worker.emergency_contact_relationship }}）{% endif %}{% else %}-{% endif %}</dd>
+    <dt>緊急連絡先の住所</dt>
+    <dd>{% if worker.emergency_contact_postal_code or worker.emergency_contact_address %}{% if worker.emergency_contact_postal_code %}〒{{ worker.emergency_contact_postal_code }} {% endif %}{{ worker.emergency_contact_address }}{% else %}-{% endif %}</dd>
+    <dt>緊急連絡先の電話番号</dt>
+    <dd>{{ worker.emergency_contact_phone|default:"-" }}</dd>
+    <dt>血液型</dt>
+    <dd>{{ worker.get_blood_type_display|default:"-" }}</dd>
+    <dt>視力</dt>
+    <dd>{% if latest_vision %}{{ latest_vision.vision_label }} <span style="color:var(--gray-400);font-size:.8rem;">（{{ latest_vision.checkup_date }} の健康診断）</span>{% else %}-{% endif %}</dd>
+    <dt>血圧</dt>
+    <dd>{% if latest_blood_pressure %}{{ latest_blood_pressure.blood_pressure_label }} <span style="color:var(--gray-400);font-size:.8rem;">（{{ latest_blood_pressure.checkup_date }} の健康診断）</span>{% else %}-{% endif %}</dd>
+  </dl>
+</div>
+{% endif %}
 
 {# ---- 保有資格（証明書付き） ---- #}
 <div class="card" style="margin-top:24px;">
@@ -124,6 +152,7 @@
           <tr>
             <th>受診日</th>
             <th>判定</th>
+            {% if can_view_private %}<th>視力</th><th>血圧</th>{% endif %}
             <th>受診機関</th>
             <th>メモ</th>
             <th>結果ファイル</th>
@@ -135,6 +164,7 @@
           <tr>
             <td>{{ h.checkup_date }}</td>
             <td><span class="badge {% if h.result == 'normal' %}badge-green{% elif h.result == 'observation' %}badge-orange{% elif h.result == 'reexam' %}badge-red{% else %}badge-red{% endif %}">{{ h.get_result_display }}</span></td>
+            {% if can_view_private %}<td>{{ h.vision_label|default:"-" }}</td><td>{{ h.blood_pressure_label|default:"-" }}</td>{% endif %}
             <td>{{ h.institution|default:"-" }}</td>
             <td>{{ h.memo|truncatewords:10|default:"-" }}</td>
             <td>{% if h.report_file %}<a href="{{ h.report_file.url }}" target="_blank" class="btn btn-outline btn-sm">表示</a>{% else %}-{% endif %}</td>

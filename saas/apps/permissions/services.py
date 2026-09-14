@@ -161,6 +161,37 @@ def can_approve_report(user) -> bool:
     )
 
 
+# 作業員の個人情報を見て直せる役職（社長・管理者・事務員・本人のほかに）。ADR-0057。
+# IT 担当の Developer はシステムの管理者として含める（日報承認・人事評価と同じ扱い）。
+PRIVATE_PROFILE_POSITIONS = ("Developer",)
+
+
+def can_view_worker_private(user, worker=None) -> bool:
+    """作業員の個人情報（住所・緊急連絡先・血液型・視力・血圧）を見て直せるか（ADR-0057）。
+
+    見られるのは次の人だけ:
+      * 社長 … is_president（superuser・president ロール・役職「社長」）
+      * 管理者 … 社員番号 Y 始まり
+      * 事務員 … office_staff ロール
+      * IT 担当 … 役職「Developer」
+      * その作業員本人
+
+    worker が None（作業員の新規登録）のときは本人がいないので、役割だけで判定する。
+    """
+    if not user.is_authenticated:
+        return False
+    if is_president(user) or has_role(user, "office_staff"):
+        return True
+    profile = getattr(user, "worker_profile", None)
+    if profile is None:
+        return False
+    if profile.employee_code and profile.employee_code.startswith("Y"):
+        return True
+    if get_position_name(user) in PRIVATE_PROFILE_POSITIONS:
+        return True
+    return worker is not None and worker.pk is not None and profile.pk == worker.pk
+
+
 def can_delete_report(user, report) -> bool:
     """日報を削除できるかどうかを判定する。
 

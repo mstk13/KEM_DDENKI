@@ -1,0 +1,6 @@
+<div class="form-group">
+  <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+  {{ field }}
+  {% if field.help_text %}<small style="color:var(--text-secondary);">{{ field.help_text }}</small>{% endif %}
+  {{ field.errors }}
+</div>
