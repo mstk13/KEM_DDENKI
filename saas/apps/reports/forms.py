@@ -287,7 +287,7 @@ class DailyReportForm(forms.ModelForm):
                     initial=True,
                 )
 
-        # 使用材料の入力欄（ADR-0057）。毎日は書かないので、画面ではボタンで開く。
+        # 使用材料の入力欄（ADR-0058）。毎日は書かないので、画面ではボタンで開く。
         self.material_errors = []
         self.cleaned_materials = []
         self.material_rows = self._initial_material_rows()
@@ -765,7 +765,7 @@ class DailyReportForm(forms.ModelForm):
                 continue
             saved.append(report)
 
-        # 使用材料は現場・日単位の記録なので、人数分に重ねず最初の 1 件にだけ付ける（ADR-0057）
+        # 使用材料は現場・日単位の記録なので、人数分に重ねず最初の 1 件にだけ付ける（ADR-0058）
         if saved:
             self._save_materials(saved[0], user)
         return saved, skipped
