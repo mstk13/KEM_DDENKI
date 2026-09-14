@@ -251,7 +251,7 @@ class DailyReportMaterial(TenantModel):
         "使用数量",
         max_digits=10,
         decimal_places=2,
-        # 日報の入力欄では数量を空でも書けるようにする（ADR-0057）
+        # 日報の入力欄では数量を空でも書けるようにする（ADR-0058）
         null=True,
         blank=True,
     )

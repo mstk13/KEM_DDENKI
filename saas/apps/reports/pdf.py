@@ -447,7 +447,7 @@ MATERIAL_ROWS = 17  # 使用材料の用紙の行数（参考の原本と同じ�
 def _materials_table(items):
     """使用材料の表: 使用材料品名・数量・メーカー・型式・備考。
 
-    参考の原本と同じ並び（ADR-0057）。
+    参考の原本と同じ並び（ADR-0058）。
     """
     cols = [52 * mm, 24 * mm, 32 * mm, 36 * mm, 42 * mm]
     heads = ("使用材料品名", "数量", "メーカー", "型式", "備考")
@@ -558,7 +558,7 @@ def _sheet_pages(reports):
             _signature_table(),
         ])
 
-    # 使用材料があれば 2 枚目以降に使用材料の用紙を付ける（ADR-0057）。無ければ付けない
+    # 使用材料があれば 2 枚目以降に使用材料の用紙を付ける（ADR-0058）。無ければ付けない
     items = [
         m for r in reports
         for m in r.materials_used.select_related("material").order_by("pk")

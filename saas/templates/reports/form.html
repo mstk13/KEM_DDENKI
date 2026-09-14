@@ -13,7 +13,7 @@
   .worker-cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; margin-top: 10px; }
   /* .worker-cols は display を持つので hidden 属性だけでは消えない */
   .worker-cols[hidden] { display: none; }
-  /* 使用材料の入力欄（ADR-0057） */
+  /* 使用材料の入力欄（ADR-0058） */
   #materials-section[hidden] { display: none; }
   .materials-table th { white-space: nowrap; font-size: .82rem; }
   .materials-table td { padding: 4px; }
@@ -156,7 +156,7 @@
       </div>
       {% endif %}
       {% endfor %}
-      {# 使用材料（ADR-0057）。毎日は書かないので、ボタンで開いたときだけ入力欄を出す #}
+      {# 使用材料（ADR-0058）。毎日は書かないので、ボタンで開いたときだけ入力欄を出す #}
       <div class="form-group" id="materials-group">
         <label>使用材料</label>
         <input type="hidden" name="materials_submitted" value="1">
@@ -268,7 +268,7 @@
     });
   });
 
-  // ---- 使用材料（ADR-0057）: ボタンで入力欄を開閉し、行を足す・消す ----
+  // ---- 使用材料（ADR-0058）: ボタンで入力欄を開閉し、行を足す・消す ----
   var toggleMat = document.getElementById('toggle-materials');
   var matSection = document.getElementById('materials-section');
   var matRows = document.getElementById('materials-rows');
