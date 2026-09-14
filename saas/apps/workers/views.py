@@ -9,11 +9,15 @@ from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 
 from apps.offline.decorators import offline_resendable
+from apps.permissions.services import can_view_worker_private
 from apps.workers.forms import (
+    HEALTH_PRIVATE_FIELDS,
+    WORKER_PRIVATE_FIELDS,
     AppPermissionForm,
     HealthCheckupForm,
     WorkerForm,
     WorkerQualificationForm,
+    split_fields,
 )
 from apps.workers.models import (
     EvaluationTemplate,
@@ -185,6 +189,35 @@ def worker_delete(request, pk):
     })
 
 
+def _latest_health_values(checkups):
+    """視力と血圧を、それぞれ記録のある一番新しい健康診断から取る（ADR-0057）。
+
+    checkups は受診日の新しい順（HealthCheckup の既定の並び）。
+    """
+    latest_vision = next((c for c in checkups if c.has_vision), None)
+    latest_blood_pressure = next((c for c in checkups if c.has_blood_pressure), None)
+    return latest_vision, latest_blood_pressure
+
+
+def _worker_form_sections(form):
+    """作業員フォームの欄を、基本情報と「管理者・事務員・本人だけ」の欄に分ける（ADR-0057）。
+
+    見られない人のフォームには個人情報の欄が無いので、その区切りは空になる。
+    """
+    base_fields, private_fields = split_fields(form, WORKER_PRIVATE_FIELDS)
+    by_name = {field.name: field for field in private_fields}
+    return {
+        "base_fields": base_fields,
+        "address_fields": [by_name[n] for n in ("postal_code", "address") if n in by_name],
+        "emergency_fields": [
+            by_name[n]
+            for n in WORKER_PRIVATE_FIELDS
+            if n.startswith("emergency_") and n in by_name
+        ],
+        "health_fields": [by_name[n] for n in ("blood_type",) if n in by_name],
+    }
+
+
 @login_required
 def worker_detail(request, pk):
     worker = get_object_or_404(Worker, pk=pk)
@@ -198,7 +231,13 @@ def worker_detail(request, pk):
             "licenses": tags.get("licenses", []),
         }
     cert_qualifications = worker.qualifications.all()
-    health_checkups = worker.health_checkups.all()
+    health_checkups = list(worker.health_checkups.all())
+    # 住所・緊急連絡先・血液型・視力・血圧は、管理者・事務員・本人だけ（ADR-0057）。
+    # 見られない人にはコンテキストにも載せない
+    can_view_private = can_view_worker_private(request.user, worker)
+    latest_vision, latest_blood_pressure = (
+        _latest_health_values(health_checkups) if can_view_private else (None, None)
+    )
     return render(request, "workers/detail.html", {
         "worker": worker,
         "qualifications": qualifications,
@@ -206,6 +245,9 @@ def worker_detail(request, pk):
         "cert_qualifications": cert_qualifications,
         "health_checkups": health_checkups,
         "is_president": _is_president(request.user),
+        "can_view_private": can_view_private,
+        "latest_vision": latest_vision,
+        "latest_blood_pressure": latest_blood_pressure,
     })
 
 
@@ -293,8 +335,12 @@ def worker_excel(request):
 def worker_create(request):
     from apps.workers.services import is_developer_worker, setup_developer_worker
 
+    # 新規登録には本人がいないので、役割（社長・管理者・事務員・Developer）だけで判定する
+    can_view_private = can_view_worker_private(request.user)
     if request.method == "POST":
-        form = WorkerForm(request.POST, company=request.user.company)
+        form = WorkerForm(
+            request.POST, company=request.user.company, can_view_private=can_view_private,
+        )
         if form.is_valid():
             worker = form.save(commit=False)
             worker.company = request.user.company
@@ -314,17 +360,25 @@ def worker_create(request):
 
             return redirect("workers:detail", pk=worker.pk)
     else:
-        form = WorkerForm(company=request.user.company)
-    return render(request, "workers/form.html", {"form": form})
+        form = WorkerForm(company=request.user.company, can_view_private=can_view_private)
+    return render(request, "workers/form.html", {
+        "form": form,
+        "can_view_private": can_view_private,
+        **_worker_form_sections(form),
+    })
 
 
 @login_required
 def worker_edit(request, pk):
     worker = get_object_or_404(Worker, pk=pk)
     is_admin = _is_admin(request.user)
+    can_view_private = can_view_worker_private(request.user, worker)
 
     if request.method == "POST":
-        form = WorkerForm(request.POST, instance=worker, company=request.user.company)
+        form = WorkerForm(
+            request.POST, instance=worker, company=request.user.company,
+            can_view_private=can_view_private,
+        )
         perm_form = AppPermissionForm(request.POST) if is_admin else None
         if form.is_valid():
             worker = form.save()
@@ -334,7 +388,9 @@ def worker_edit(request, pk):
             messages.success(request, "作業員情報を更新しました。")
             return redirect("workers:detail", pk=worker.pk)
     else:
-        form = WorkerForm(instance=worker, company=request.user.company)
+        form = WorkerForm(
+            instance=worker, company=request.user.company, can_view_private=can_view_private,
+        )
         perm_form = None
         if is_admin:
             perm_form = AppPermissionForm(initial={"apps": worker.allowed_apps or []})
@@ -347,6 +403,8 @@ def worker_edit(request, pk):
         "is_president": _is_president(request.user),
         "is_admin": is_admin,
         "perm_form": perm_form,
+        "can_view_private": can_view_private,
+        **_worker_form_sections(form),
     })
 
 
@@ -994,8 +1052,11 @@ def qualification_delete(request, pk):
 @offline_resendable
 def health_checkup_create(request, worker_pk):
     worker = get_object_or_404(Worker, pk=worker_pk)
+    can_view_private = can_view_worker_private(request.user, worker)
     if request.method == "POST":
-        form = HealthCheckupForm(request.POST, request.FILES)
+        form = HealthCheckupForm(
+            request.POST, request.FILES, can_view_private=can_view_private,
+        )
         if form.is_valid():
             checkup = form.save(commit=False)
             checkup.worker = worker
@@ -1005,9 +1066,9 @@ def health_checkup_create(request, worker_pk):
             messages.success(request, "健康診断記録を登録しました。")
             return redirect("workers:detail", pk=worker.pk)
     else:
-        form = HealthCheckupForm()
+        form = HealthCheckupForm(can_view_private=can_view_private)
     return render(request, "workers/health_checkup_form.html", {
-        "form": form, "worker": worker,
+        "form": form, "worker": worker, **_health_form_sections(form),
     })
 
 
@@ -1015,17 +1076,26 @@ def health_checkup_create(request, worker_pk):
 @offline_resendable
 def health_checkup_edit(request, pk):
     checkup = get_object_or_404(HealthCheckup.objects.select_related("worker"), pk=pk)
+    can_view_private = can_view_worker_private(request.user, checkup.worker)
     if request.method == "POST":
-        form = HealthCheckupForm(request.POST, request.FILES, instance=checkup)
+        form = HealthCheckupForm(
+            request.POST, request.FILES, instance=checkup, can_view_private=can_view_private,
+        )
         if form.is_valid():
             form.save()
             messages.success(request, "健康診断記録を更新しました。")
             return redirect("workers:detail", pk=checkup.worker.pk)
     else:
-        form = HealthCheckupForm(instance=checkup)
+        form = HealthCheckupForm(instance=checkup, can_view_private=can_view_private)
     return render(request, "workers/health_checkup_form.html", {
-        "form": form, "worker": checkup.worker,
+        "form": form, "worker": checkup.worker, **_health_form_sections(form),
     })
+
+
+def _health_form_sections(form):
+    """健康診断フォームの欄を、ふつうの欄と視力・血圧の欄に分ける（ADR-0057）。"""
+    base_fields, private_fields = split_fields(form, HEALTH_PRIVATE_FIELDS)
+    return {"base_fields": base_fields, "private_fields": private_fields}
 
 
 @login_required

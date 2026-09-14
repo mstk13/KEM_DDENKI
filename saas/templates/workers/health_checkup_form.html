@@ -12,13 +12,33 @@
     <form method="post" enctype="multipart/form-data" data-offline-form
           data-offline-label="健康診断の{% if form.instance.pk %}編集{% else %}登録{% endif %}（{{ worker.name }}）">
       {% csrf_token %}
-      {% for field in form %}
+      {% for field in base_fields %}
       <div class="form-group">
         <label for="{{ field.id_for_label }}">{{ field.label }}</label>
         {{ field }}
         {% if field.errors %}<ul class="errorlist">{% for e in field.errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
       </div>
       {% endfor %}
+
+      {% if private_fields %}
+      {# 視力・血圧。管理者・事務員・本人だけに出す（ADR-0057） #}
+      <div style="margin-top:24px;padding-top:16px;border-top:1px solid var(--border-light);">
+        <h3 style="font-size:.95rem;font-weight:600;color:var(--brand);margin-bottom:4px;">視力・血圧</h3>
+        <p style="font-size:.82rem;color:var(--text-muted);margin-bottom:12px;">
+          管理者・事務員・本人だけが見られます。測っていない項目は空欄のままで保存できます。
+        </p>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:0 16px;">
+          {% for field in private_fields %}
+          <div class="form-group">
+            <label for="{{ field.id_for_label }}">{{ field.label }}{% if field.help_text == "mmHg" %}（mmHg）{% endif %}</label>
+            {{ field }}
+            {% if field.errors %}<ul class="errorlist">{% for e in field.errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+
       <div class="form-actions">
         <button type="submit" class="btn btn-primary">保存</button>
         <a href="{% url 'workers:detail' worker.pk %}" class="btn btn-outline">キャンセル</a>
