@@ -371,10 +371,20 @@ def report_edit(request, pk):
                 if request.POST.get("action") == "submit"
                 else None
             )
-            form.save_reports(
+            saved, skipped = form.save_reports(
                 company=request.user.company, user=request.user, status=status,
             )
             messages.success(request, "日報を更新しました。")
+            # 編集で足した作業員の日報（saved の先頭はこの日報）
+            if saved[1:]:
+                names = "、".join(str(r.worker) for r in saved[1:])
+                messages.success(request, f"{names} の日報を同じ内容で作成しました。")
+            if skipped:
+                names = "、".join(str(w) for w in skipped)
+                messages.warning(
+                    request,
+                    f"{names} は同じ現場・日付・工種の日報が既にあるため作成しませんでした。",
+                )
             if form.propagated:
                 names = "、".join(str(r.worker) for r in form.propagated)
                 messages.success(request, f"一緒に作った {names} の日報にも反映しました。")
