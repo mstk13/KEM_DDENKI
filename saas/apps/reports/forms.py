@@ -287,6 +287,11 @@ class DailyReportForm(forms.ModelForm):
                     initial=True,
                 )
 
+        # 使用材料の入力欄（ADR-0057）。毎日は書かないので、画面ではボタンで開く。
+        self.material_errors = []
+        self.cleaned_materials = []
+        self.material_rows = self._initial_material_rows()
+
         # 編集時は、名前で入力する欄に現在の値を表示する
         obj = self.instance
         if self.is_edit:
@@ -388,6 +393,113 @@ class DailyReportForm(forms.ModelForm):
         """その作業員だけの作業時間。空なら None。"""
         return self.cleaned_data.get(f"work_hours_{worker.pk}") or None
 
+    # 使用材料の入力欄の名前（1 行ぶんを同じ名前で並べ、getlist で受ける）
+    MATERIAL_INPUTS = (
+        ("name", "material_name"), ("quantity", "material_quantity"),
+        ("unit", "material_unit"), ("maker", "material_maker"),
+        ("model_number", "material_model"), ("note", "material_note"),
+        ("material_id", "material_id"),
+    )
+    MATERIAL_TEXT_KEYS = ("name", "quantity", "unit", "maker", "model_number", "note")
+
+    def _data_list(self, name):
+        if hasattr(self.data, "getlist"):
+            return self.data.getlist(name)
+        value = self.data.get(name)
+        if value is None:
+            return []
+        return list(value) if isinstance(value, (list, tuple)) else [value]
+
+    def _initial_material_rows(self):
+        """画面に出す使用材料の行。送られた値 > 編集中の日報の材料 > 空。"""
+        if self.is_bound:
+            columns = {key: self._data_list(name) for key, name in self.MATERIAL_INPUTS}
+            count = max((len(v) for v in columns.values()), default=0)
+            return [
+                {key: (values[i] if i < len(values) else "") for key, values in columns.items()}
+                for i in range(count)
+            ]
+        if self.is_edit:
+            return [
+                {
+                    "name": m.material.name if m.material_id and not m.material_name
+                    else m.material_name,
+                    "quantity": (
+                        "" if m.quantity_used is None else f"{m.quantity_used.normalize():f}"
+                    ),
+                    "unit": m.unit, "maker": m.maker, "model_number": m.model_number,
+                    "note": m.note, "material_id": m.material_id or "",
+                }
+                for m in self.instance.materials_used.select_related("material").order_by("pk")
+            ]
+        return []
+
+    @property
+    def show_materials(self):
+        """使用材料の入力欄を最初から開いて出すか。"""
+        if self.material_errors:
+            return True
+        if self.is_bound and str(self.data.get("materials_open") or "") == "1":
+            return True
+        return any(
+            str(row.get(key) or "").strip()
+            for row in self.material_rows for key in self.MATERIAL_TEXT_KEYS
+        )
+
+    def _clean_materials(self):
+        """使用材料の行を検証して、保存する行のリストにする。全部空の行は捨てる。"""
+        from decimal import Decimal, InvalidOperation
+
+        from apps.materials.models import Material
+
+        rows = []
+        for index, row in enumerate(self.material_rows, start=1):
+            text = {key: str(row.get(key) or "").strip() for key in self.MATERIAL_TEXT_KEYS}
+            if not any(text.values()):
+                continue
+            if not text["name"]:
+                self.material_errors.append(f"使用材料の {index} 行目: 品名を入力してください。")
+                continue
+            quantity = None
+            if text["quantity"]:
+                zenkaku = str.maketrans("０１２３４５６７８９．，", "0123456789.,")
+                normalized = text["quantity"].translate(zenkaku)
+                try:
+                    quantity = Decimal(normalized.replace(",", ""))
+                except InvalidOperation:
+                    self.material_errors.append(
+                        f"使用材料の {index} 行目: 数量は数字で入力してください。",
+                    )
+                    continue
+            material = None
+            material_id = str(row.get("material_id") or "").strip()
+            if material_id.isdigit() and self.company:
+                # 自社の材料マスタだけ引き継ぐ（他社の番号を送られても使わない）
+                material = Material.unscoped.filter(
+                    company=self.company, pk=int(material_id),
+                ).first()
+            rows.append({
+                "material": material, "material_name": text["name"], "quantity_used": quantity,
+                "unit": text["unit"][:20], "maker": text["maker"][:100],
+                "model_number": text["model_number"][:100], "note": text["note"][:200],
+            })
+        for message in self.material_errors:
+            self.add_error(None, message)
+        return rows
+
+    def _save_materials(self, report, user):
+        """使用材料を保存する。編集では画面の内容で入れ替える（入力欄が送られたときだけ）。"""
+        from apps.reports.models import DailyReportMaterial
+
+        if self.is_edit:
+            if str(self.data.get("materials_submitted") or "") != "1":
+                return
+            report.materials_used.all().delete()
+        for row in self.cleaned_materials:
+            DailyReportMaterial.unscoped.create(
+                company_id=report.company_id, daily_report=report, created_by=user, **row,
+            )
+
     def clean_workers(self):
         # 編集でも複数選べる。この日報の作業員以外には、同じ内容の日報を新しく作る（ADR-0056）
         return self.cleaned_data.get("workers")
@@ -432,6 +544,8 @@ class DailyReportForm(forms.ModelForm):
             raise forms.ValidationError(
                 "会社が特定できないため保存できません。管理者に連絡してください。",
             )
+
+        self.cleaned_materials = self._clean_materials()
 
         # 工程で「その他」を選んだら、入力された名前を工程にする
         # （save でその現場の工程として登録される）
@@ -651,6 +765,9 @@ class DailyReportForm(forms.ModelForm):
                 continue
             saved.append(report)
 
+        # 使用材料は現場・日単位の記録なので、人数分に重ねず最初の 1 件にだけ付ける（ADR-0057）
+        if saved:
+            self._save_materials(saved[0], user)
         return saved, skipped
 
     def _propagate_to_batch(self, report, before_times):

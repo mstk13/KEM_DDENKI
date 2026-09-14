@@ -251,8 +251,14 @@ class DailyReportMaterial(TenantModel):
         "使用数量",
         max_digits=10,
         decimal_places=2,
+        # 日報の入力欄では数量を空でも書けるようにする（ADR-0057）
+        null=True,
+        blank=True,
     )
     unit = models.CharField("単位", max_length=20, blank=True)
+    maker = models.CharField("メーカー", max_length=100, blank=True)
+    model_number = models.CharField("型式", max_length=100, blank=True)
+    note = models.CharField("備考", max_length=200, blank=True)
 
     history = HistoricalRecords()
 

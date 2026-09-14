@@ -289,8 +289,12 @@ def _header_values(reports):
     )
 
 
-def _header_tables(site, day, page_no, pages, weather="", work_type="", process=""):
-    title = "作　　業　　日　　報" + (f"　（{page_no}/{pages}）" if pages > 1 else "")
+def _header_tables(site, day, page_no, pages, weather="", work_type="", process="", subtitle=""):
+    title = "作　　業　　日　　報"
+    if subtitle:
+        title += f"　（{subtitle}）"
+    if pages > 1:
+        title += f"　（{page_no}/{pages}）"
     orderer = str(site.customer) if site.customer_id else ""
     return [
         Table([[_p(title, 16, TA_CENTER)]], colWidths=[_W], rowHeights=[12 * mm],
@@ -437,6 +441,37 @@ def _partner_table(blocks, total, seals=(), standard_start=None):
     return Table(data, colWidths=cols, rowHeights=heights, style=_grid_style(spans))
 
 
+MATERIAL_ROWS = 17  # 使用材料の用紙の行数（参考の原本と同じ）
+
+
+def _materials_table(items):
+    """使用材料の表: 使用材料品名・数量・メーカー・型式・備考。
+
+    参考の原本と同じ並び（ADR-0057）。
+    """
+    cols = [52 * mm, 24 * mm, 32 * mm, 36 * mm, 42 * mm]
+    heads = ("使用材料品名", "数量", "メーカー", "型式", "備考")
+    data = [[_p(t, 9.5, TA_CENTER) for t in heads]]
+    for i in range(MATERIAL_ROWS):
+        m = items[i] if i < len(items) else None
+        if m is None:
+            data.append(["", "", "", "", ""])
+            continue
+        name = m.material_name or (m.material.name if m.material_id else "")
+        quantity = f"{_num(m.quantity_used)}{m.unit}" if m.quantity_used is not None else m.unit
+        data.append([
+            _fit(name, cols[0] - 6, 11 * mm, 10, 6),
+            _fit(quantity, cols[1] - 6, 11 * mm, 10, 6),
+            _fit(m.maker, cols[2] - 6, 11 * mm, 10, 6),
+            _fit(m.model_number, cols[3] - 6, 11 * mm, 10, 6),
+            _fit(m.note, cols[4] - 6, 11 * mm, 10, 6),
+        ])
+    return Table(
+        data, colWidths=cols, rowHeights=[8 * mm] + [12 * mm] * MATERIAL_ROWS,
+        style=_grid_style([("ALIGN", (1, 1), (1, -1), "RIGHT")]),
+    )
+
+
 def _signature_table():
     """「現場代理人又は責任者」を左寄りに置き、右に氏名を書く線を引く（2026-09-14 要望）。"""
     # 1 行だけだと下線が枠の下辺と重なって見えないので、下に余白の行を足して枠の内側に線を引く
@@ -521,6 +556,20 @@ def _sheet_pages(reports):
                 blocks, len(partners), _seal_blocks(blocks, own, partners, n), standard_start,
             ),
             _signature_table(),
+        ])
+
+    # 使用材料があれば 2 枚目以降に使用材料の用紙を付ける（ADR-0057）。無ければ付けない
+    items = [
+        m for r in reports
+        for m in r.materials_used.select_related("material").order_by("pk")
+    ]
+    chunks = [items[i:i + MATERIAL_ROWS] for i in range(0, len(items), MATERIAL_ROWS)]
+    for k, chunk in enumerate(chunks):
+        pages.append([
+            *_header_tables(
+                site, day, k + 1, len(chunks), weather, work_type, process, subtitle="使用材料",
+            ),
+            _materials_table(chunk),
         ])
     return pages, reports
 

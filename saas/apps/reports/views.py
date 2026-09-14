@@ -287,8 +287,11 @@ def report_detail(request, pk):
             "name": m.material.name if m.material_id else m.material_name,
             "quantity": m.quantity_used.normalize() if m.quantity_used is not None else None,
             "unit": m.unit,
+            "maker": m.maker,
+            "model_number": m.model_number,
+            "note": m.note,
         }
-        for m in report.materials_used.select_related("material").all()
+        for m in report.materials_used.select_related("material").order_by("pk")
     ]
     back_url = _back_url(request)
     return render(request, "reports/detail.html", {

@@ -62,10 +62,10 @@
   <div class="card-body"><h2 style="font-size:1rem;margin:0;">使用材料</h2></div>
   <div class="table-wrap">
     <table>
-      <thead><tr><th>材料</th><th style="text-align:right;">数量</th><th>単位</th></tr></thead>
+      <thead><tr><th>使用材料品名</th><th style="text-align:right;">数量</th><th>単位</th><th>メーカー</th><th>型式</th><th>備考</th></tr></thead>
       <tbody>
         {% for m in materials %}
-        <tr><td>{{ m.name }}</td><td style="text-align:right;">{{ m.quantity|default_if_none:"-" }}</td><td>{{ m.unit|default:"-" }}</td></tr>
+        <tr><td>{{ m.name }}</td><td style="text-align:right;">{{ m.quantity|default_if_none:"-" }}</td><td>{{ m.unit|default:"-" }}</td><td>{{ m.maker|default:"-" }}</td><td>{{ m.model_number|default:"-" }}</td><td>{{ m.note|default:"-" }}</td></tr>
         {% endfor %}
       </tbody>
     </table>
