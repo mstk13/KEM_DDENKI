@@ -135,7 +135,7 @@ def _num(value):
 
 
 def _time_range(report):
-    """作業時間「8:30～17:30」（時の前の 0 は付けない）。終了が開始日の翌日以降なら「翌」を付ける。
+    """作業時間「08:30～17:30」（時・分とも 2 桁）。終了が開始日の翌日以降なら「翌」を付ける。
 
     開始・終了が無く作業時間だけ入力された日報は「8 時間」のように時間数を出す（ADR-0054）。
     """
@@ -151,8 +151,8 @@ def _time_range(report):
 
 
 def _clock(value):
-    """「8:30」「17:05」。時の前の 0 は付けない。"""
-    return f"{value.hour}:{value.minute:02d}" if value else ""
+    """「08:30」「17:05」。時・分とも 2 桁（2026-09-14 要望で ○○:○○～○○:○○ の形に）。"""
+    return f"{value:%H:%M}" if value else ""
 
 
 def _hours_h(value):
