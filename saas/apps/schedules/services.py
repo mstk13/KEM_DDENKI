@@ -421,6 +421,27 @@ def _attach_site_members(company, entries, day):
     return sorted(unmatched, key=_worker_sort_key)
 
 
+def site_members_on_day(company, sites, day):
+    """現場ごとの、その日の参加者（ホームの現場カードと同じ判定。ADR-0036）。
+
+    安全書類（ADR-0061）の朝の知らせの宛先と、KY 用紙の「まだの人」に使う。
+    予定で「その日は現場にいない」とされた人（is_away: 配置されていても有休・休みなど）は含めない。
+    行き先の突き合わせは渡した sites の中で行うので、対象の現場を並べて渡すこと。
+
+    Returns: {site_id: [Worker, ...]}（社員番号順）
+    """
+    entries = [{"site_id": site.pk, "name": site.name} for site in sites]
+    if not entries:
+        return {}
+    _attach_site_members(company, entries, day)
+    return {
+        entry["site_id"]: [
+            member["worker"] for member in entry["members"] if not member["is_away"]
+        ]
+        for entry in entries
+    }
+
+
 def get_active_sites_with_week_schedule(
     company, ref_date=None, limit=None, include_amounts=False, members_date=None,
 ):

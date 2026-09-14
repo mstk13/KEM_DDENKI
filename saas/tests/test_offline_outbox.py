@@ -45,6 +45,10 @@ OFFLINE_PAGES = (
     ("materials:delivery_create", {"po_pk": 1}),
     ("sites:photo_quick", {}),
     ("sites:photo_upload", {"pk": 1}),
+    ("safety:ky_sheet", {"site_pk": 1, "day": "2026-09-15"}),
+    ("safety:ky_sign", {"site_pk": 1, "day": "2026-09-15"}),
+    ("safety:entry_create", {"site_pk": 1}),
+    ("safety:entry_edit", {"pk": 1}),
 )
 
 

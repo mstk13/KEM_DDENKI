@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}{{ spec.label }}のサイン — {{ site.name }} — {{ APP_NAME }}{% endblock %}
+{% block topbar_title %}KY用紙のサイン{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>{{ site.name }} — {{ sheet.work_date|date:"n月j日" }}の KY 用紙「{{ spec.label }}」</h1>
+  <a href="{% url 'safety:ky_sheet' site.pk sheet.work_date %}" class="btn btn-outline btn-sm">KY 用紙に戻る</a>
+</div>
+
+<div class="card" style="max-width:640px;">
+  <div class="card-body">
+    <p style="margin-bottom:12px;">{{ spec.signer }}がサインします。</p>
+    <form method="post">
+      {% csrf_token %}
+      {{ form.non_field_errors }}
+      {% if form.text %}{% with field=form.text %}{% include "workers/_form_field.html" %}{% endwith %}{% endif %}
+      {% with field=form.signature %}{% include "safety/_signature_pad.html" %}{% endwith %}
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">サインする</button>
+        <a href="{% url 'safety:ky_sheet' site.pk sheet.work_date %}" class="btn btn-outline">キャンセル</a>
+      </div>
+    </form>
+  </div>
+</div>
+<script src="{% static 'js/signature-pad.js' %}"></script>
+{% endblock %}

@@ -94,6 +94,7 @@ log "=== 定時実行サービス起動 ==="
 log "  現在時刻 $(date '+%F %T %Z')"
 log "  scrape_bids          2日に1回 07:00 以降"
 log "  send_document_alerts 毎日     08:00 以降"
+log "  send_safety_reminders 毎日    08:00〜12:00"
 log "  verify_item_matching 日曜     03:00 以降"
 log "  判定間隔 ${INTERVAL}秒 / 記録 ${STATE_DIR}"
 
@@ -114,6 +115,15 @@ while true; do
     if [ "$minutes" -ge 480 ] &&
        [ "$(read_state send_document_alerts)" != "$today" ]; then
         run_job send_document_alerts "send_document_alerts" send_document_alerts
+    fi
+
+    # send_safety_reminders: 毎日 08:00〜12:00 に1回（ADR-0061）
+    # その日に現場へ出る人に、KY用紙・安全作業確認書の記入を知らせる。
+    # 昼を過ぎてから（再起動などで）走ると朝の知らせにならないので、12:00 までに限る。
+    # 同じ日・同じ現場・同じ人には1回だけなので、2回走っても重ならない。
+    if [ "$minutes" -ge 480 ] && [ "$minutes" -lt 720 ] &&
+       [ "$(read_state send_safety_reminders)" != "$today" ]; then
+        run_job send_safety_reminders "send_safety_reminders" send_safety_reminders
     fi
 
     # verify_item_matching: 日曜の 03:00 以降に1回（ADR-0010 層Bの回帰検証）

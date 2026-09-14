@@ -258,6 +258,29 @@
 </div>
 
 {% comment %}
+安全書類（ADR-0061）。今日の KY 用紙の記入状況。記入は安全書類の画面で。
+{% endcomment %}
+<div class="card" id="site-safety" style="margin-top:20px;">
+  <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+    <h2>安全書類（KY用紙・安全作業確認書）</h2>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;">
+      <a href="{% url 'safety:site' site.pk %}" class="btn btn-outline btn-sm">安全書類を開く</a>
+      <a href="{% url 'safety:ky_sign' site.pk safety_today %}" class="btn btn-primary btn-sm">今日の KY 用紙に記入</a>
+    </div>
+  </div>
+  <div class="card-body">
+    <p>
+      今日（{{ safety_today|date:"n月j日（D）" }}）の KY 用紙：
+      {% if today_ky %}記入 {{ safety_participant_count }} 人{% else %}まだ誰も記入していません{% endif %}
+      {% if safety_member_count %}（今日この現場に出る人 {{ safety_member_count }} 人のうち {{ safety_signed_count }} 人が記入済み）{% endif %}
+    </p>
+    {% if entry_missing_count %}
+    <p style="margin-top:6px;">安全作業確認書がまだの人：{{ entry_missing_count }} 人</p>
+    {% endif %}
+  </div>
+</div>
+
+{% comment %}
 現場写真（ADR-0051）。内訳書・内訳明細書と見積内訳の欄を外し、その場所に置いた。
 現地調査や施工状況の写真を、どこの（撮影場所）・どのような（種類）写真かと一緒に残す。
 1行コメントの書き方は複数行にすると画面に文字として出るので、ここは comment タグにする。
