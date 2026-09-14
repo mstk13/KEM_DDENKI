@@ -90,9 +90,13 @@ def _num(value):
 
 
 def _time_range(report):
-    """作業時間「08:00 ～ 18:00」。終了が開始日の翌日以降なら「翌」を付ける。"""
+    """作業時間「08:00 ～ 18:00」。終了が開始日の翌日以降なら「翌」を付ける。
+
+    開始・終了が無く作業時間だけ入力された日報は「8 時間」のように時間数を出す（ADR-0054）。
+    """
     if not report.start_time and not report.end_time:
-        return ""
+        work, _, _ = report.hours_breakdown()
+        return f"{_num(work)} 時間" if work else ""
     start = f"{report.start_time:%H:%M}" if report.start_time else ""
     end = f"{report.end_time:%H:%M}" if report.end_time else ""
     period = report.work_period() if report.start_time and report.end_time else None
@@ -102,8 +106,11 @@ def _time_range(report):
 
 
 def _overtime(report):
-    value = report.overtime_hours
-    return f"{_num(value)} h" if value else "h"
+    """残業。作業時間だけ入力された日報も 8 時間を超えた分を出す。無ければ「0 h」。"""
+    _, _, value = report.hours_breakdown()
+    if value is None:
+        return "h"
+    return f"{_num(value)} h" if value else "0 h"
 
 
 def _reiwa_date(day):

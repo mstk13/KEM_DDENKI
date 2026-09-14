@@ -173,6 +173,25 @@ class DailyReport(TenantModel):
                 end_dt += timedelta(days=1)
         return start_dt, end_dt
 
+    REGULAR_LIMIT = Decimal("8.00")
+
+    def hours_breakdown(self):
+        """表示用の (作業時間, 通常時間, 残業時間)。
+
+        開始・終了があれば保存時に calculate_hours が計算した値を使う。
+        開始・終了が無く作業時間だけ入力された日報は保存時に通常・残業が計算されないので、
+        同じ基準（8 時間を超えた分が残業）で作業時間から出す。保存値は変えない（ADR-0054）。
+        """
+        work = self.work_hours
+        if self.start_time and self.end_time:
+            return work, self.regular_hours, self.overtime_hours or Decimal("0.00")
+        if work is None:
+            return None, None, None
+        work = Decimal(work)
+        if work > self.REGULAR_LIMIT:
+            return work, self.REGULAR_LIMIT, work - self.REGULAR_LIMIT
+        return work, work, Decimal("0.00")
+
     def calculate_hours(self):
         """開始・終了時間から通常時間と残業時間を自動計算する。
 
