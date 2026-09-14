@@ -173,9 +173,14 @@ class DailyReportForm(forms.ModelForm):
         widgets = {
             "report_date": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
             "start_date": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
-            "start_time": forms.TimeInput(attrs={"type": "time", "class": "form-control"}),
+            # 「時:分」で出す（秒まで出すと端末によって秒の欄が出る）
+            "start_time": forms.TimeInput(
+                format="%H:%M", attrs={"type": "time", "class": "form-control"},
+            ),
             "end_date": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
-            "end_time": forms.TimeInput(attrs={"type": "time", "class": "form-control"}),
+            "end_time": forms.TimeInput(
+                format="%H:%M", attrs={"type": "time", "class": "form-control"},
+            ),
             "work_hours": forms.NumberInput(attrs={"class": "form-control", "step": "0.25"}),
             "work_description": forms.Textarea(attrs={"class": "form-control", "rows": 3}),
             "memo": forms.Textarea(attrs={"class": "form-control", "rows": 2}),
@@ -203,6 +208,16 @@ class DailyReportForm(forms.ModelForm):
         self.fields["work_hours"].required = False
         for name in ("start_date", "start_time", "end_date", "end_time"):
             self.fields[name].required = False
+
+        # 新しく書くときは、開始・終了に所定の始業・終業（既定 8:30〜17:30）を最初から入れておく。
+        # 毎回スクロールして選ばずに、基準から微調整できるようにするため（ADR-0055）。
+        # 編集では保存済みの値（空なら空のまま）を出し、入力し直しの画面では送られた値を出す。
+        if not self.is_edit and not self.is_bound:
+            from apps.reports.standard_times import standard_work_times
+
+            start, end = standard_work_times(company)
+            self.initial.setdefault("start_time", start)
+            self.initial.setdefault("end_time", end)
 
         if company:
             names = process_choice_names(company)

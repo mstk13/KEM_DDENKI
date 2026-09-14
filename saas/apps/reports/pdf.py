@@ -184,19 +184,12 @@ def _derived_range(day, standard_start, work_hours):
 
 
 def _standard_start(company_id):
-    """会社の所定始業（勤怠設定 standard_start）。読めなければ None。"""
-    import datetime as _dt
-
-    from apps.attendance.models import AttendSettings
+    """所定始業。日報を書く画面の初期値と同じ（勤怠設定に保存があればその時刻、無ければ 8:30）。"""
+    from apps.reports.standard_times import standard_work_times
 
     if not company_id:
         return None
-    value = AttendSettings.get_settings_dict(company_id).get("standard_start", "")
-    try:
-        hour, minute = (int(x) for x in str(value).strip().split(":")[:2])
-        return _dt.time(hour, minute)
-    except (ValueError, TypeError):
-        return None
+    return standard_work_times(company_id)[0]
 
 
 def _clock(value):
