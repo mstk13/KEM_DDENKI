@@ -289,10 +289,8 @@ def _header_values(reports):
     )
 
 
-def _header_tables(site, day, page_no, pages, weather="", work_type="", process="", subtitle=""):
+def _header_tables(site, day, page_no, pages, weather="", work_type="", process=""):
     title = "作　　業　　日　　報"
-    if subtitle:
-        title += f"　（{subtitle}）"
     if pages > 1:
         title += f"　（{page_no}/{pages}）"
     orderer = str(site.customer) if site.customer_id else ""
@@ -558,19 +556,15 @@ def _sheet_pages(reports):
             _signature_table(),
         ])
 
-    # 使用材料があれば 2 枚目以降に使用材料の用紙を付ける（ADR-0058）。無ければ付けない
+    # 使用材料があれば 2 枚目以降に使用材料の用紙を付ける（ADR-0058）。無ければ付けない。
+    # 用紙は使用材料の表だけ（見出しの現場名・年月日・天候・工種・工程は付けない。2026-09-14 要望）
     items = [
         m for r in reports
         for m in r.materials_used.select_related("material").order_by("pk")
     ]
     chunks = [items[i:i + MATERIAL_ROWS] for i in range(0, len(items), MATERIAL_ROWS)]
-    for k, chunk in enumerate(chunks):
-        pages.append([
-            *_header_tables(
-                site, day, k + 1, len(chunks), weather, work_type, process, subtitle="使用材料",
-            ),
-            _materials_table(chunk),
-        ])
+    for chunk in chunks:
+        pages.append([_materials_table(chunk)])
     return pages, reports
 
 

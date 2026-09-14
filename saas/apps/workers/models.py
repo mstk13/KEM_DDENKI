@@ -107,7 +107,7 @@ class Worker(TenantModel):
     """作業員。日報・原価計算の主体。
 
     hourly_cost は労務費原価の算出単価。履歴が必要なため simple-history 付き。
-    住所・緊急連絡先・血液型は、管理者・事務員・本人だけが見て直せる（ADR-0057）。
+    住所・緊急連絡先・社会保険・血液型は、管理者・事務員・本人だけが見て直せる（ADR-0057・ADR-0059）。
     """
 
     class BloodType(models.TextChoices):
@@ -115,6 +115,25 @@ class Worker(TenantModel):
         B = "B", "B型"
         AB = "AB", "AB型"
         O = "O", "O型"  # noqa: E741 — 血液型の O。選択肢の名前を値とそろえる
+
+    # 社会保険の選択肢は、建設業の作業員名簿（全建統一様式 第5号）の書き方に合わせる（ADR-0059）
+    class HealthInsurance(models.TextChoices):
+        UNION = "union", "健康保険組合"
+        KYOKAI = "kyokai", "協会けんぽ"
+        CONSTRUCTION_NHI = "construction_nhi", "建設国保"
+        NATIONAL = "national", "国民健康保険"
+        EXEMPT = "exempt", "適用除外"
+
+    class PensionInsurance(models.TextChoices):
+        EMPLOYEES = "employees", "厚生年金"
+        NATIONAL = "national", "国民年金"
+        RECIPIENT = "recipient", "受給者"
+        EXEMPT = "exempt", "適用除外"
+
+    class EmploymentInsurance(models.TextChoices):
+        ENROLLED = "enrolled", "加入"
+        DAY_LABORER = "day_laborer", "日雇保険"
+        EXEMPT = "exempt", "適用除外"
 
     user = models.OneToOneField(
         settings.AUTH_USER_MODEL,
@@ -179,6 +198,22 @@ class Worker(TenantModel):
     )
     emergency_contact_address = models.CharField("緊急連絡先の住所", max_length=255, blank=True)
     emergency_contact_phone = models.CharField("緊急連絡先の電話番号", max_length=20, blank=True)
+    # 社会保険（ADR-0059）。空欄は「まだ確かめていない」で、「適用除外」とは区別する
+    health_insurance = models.CharField(
+        "健康保険", max_length=20, choices=HealthInsurance.choices, blank=True,
+    )
+    pension_insurance = models.CharField(
+        "年金保険", max_length=20, choices=PensionInsurance.choices, blank=True,
+    )
+    employment_insurance = models.CharField(
+        "雇用保険", max_length=20, choices=EmploymentInsurance.choices, blank=True,
+    )
+    employment_insurance_number_last4 = models.CharField(
+        "雇用保険の被保険者番号（下4桁）",
+        max_length=4,
+        blank=True,
+        help_text="雇用保険被保険者証の番号の下4桁。雇用保険が「加入」のときだけ入れる。",
+    )
     blood_type = models.CharField("血液型", max_length=2, choices=BloodType.choices, blank=True)
     is_active = models.BooleanField("有効", default=True)
     note = models.TextField("備考", blank=True)
@@ -226,6 +261,17 @@ class Worker(TenantModel):
     def experience_years(self):
         """今日時点の経験年数（満年数）。入力した日から1年ごとに1年ずつ増える。未入力なら None。"""
         return full_years_since(self.experience_started_on)
+
+    @property
+    def employment_insurance_label(self):
+        """例: 加入（番号 下4桁: 1234）／日雇保険／適用除外。未入力なら空文字（ADR-0059）。"""
+        if not self.employment_insurance:
+            return ""
+        label = self.get_employment_insurance_display()
+        enrolled = self.employment_insurance == self.EmploymentInsurance.ENROLLED
+        if enrolled and self.employment_insurance_number_last4:
+            return f"{label}（番号 下4桁: {self.employment_insurance_number_last4}）"
+        return label
 
     def __str__(self):
         return self.name

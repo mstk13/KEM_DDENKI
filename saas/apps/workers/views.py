@@ -12,6 +12,7 @@ from apps.offline.decorators import offline_resendable
 from apps.permissions.services import can_view_worker_private
 from apps.workers.forms import (
     HEALTH_PRIVATE_FIELDS,
+    WORKER_INSURANCE_FIELDS,
     WORKER_PRIVATE_FIELDS,
     AppPermissionForm,
     HealthCheckupForm,
@@ -214,6 +215,8 @@ def _worker_form_sections(form):
             for n in WORKER_PRIVATE_FIELDS
             if n.startswith("emergency_") and n in by_name
         ],
+        # 社会保険（ADR-0059）
+        "insurance_fields": [by_name[n] for n in WORKER_INSURANCE_FIELDS if n in by_name],
         "health_fields": [by_name[n] for n in ("blood_type",) if n in by_name],
     }
 

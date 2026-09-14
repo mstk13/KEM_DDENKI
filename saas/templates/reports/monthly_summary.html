@@ -93,14 +93,14 @@
                 <tbody>
                   {% for r in row.reports %}
                   {# 行のどこをタップしても日報の画面へ。リンクは JS が無くても使えるよう日付と右端に置く #}
-                  {# edit_url は next 付き（この月・この作業員を開いた状態の月次サマリ）。保存・戻るでここに戻る #}
-                  <tr class="ms-report" data-report-url="{{ r.edit_url }}">
-                    <td style="white-space:nowrap;"><a href="{{ r.edit_url }}">{{ r.report_date }}</a></td>
+                  {# detail_url は日報の詳細。next 付き（この月・この作業員を開いた状態の月次サマリ）で、詳細から戻る・編集してもここに戻る #}
+                  <tr class="ms-report" data-report-url="{{ r.detail_url }}">
+                    <td style="white-space:nowrap;"><a href="{{ r.detail_url }}">{{ r.report_date }}</a></td>
                     <td>{{ r.site }}</td>
                     <td>{{ r.work_type|default:"-" }}</td>
                     <td style="white-space:nowrap;">{{ r.work_hours }}h</td>
                     <td style="white-space:nowrap;text-align:right;">
-                      <a href="{{ r.edit_url }}" class="btn btn-outline btn-sm">開く</a>
+                      <a href="{{ r.detail_url }}" class="btn btn-outline btn-sm">開く</a>
                     </td>
                   </tr>
                   {% endfor %}
