@@ -268,6 +268,47 @@ def _report_form_context(company):
 
 
 @login_required
+def report_detail(request, pk):
+    """日報の詳細（一覧の行をタップして開く。ADR-0054）。"""
+    report = get_object_or_404(
+        DailyReport.objects.select_related(
+            "worker", "site__customer", "work_type", "process", "partner",
+            "created_by", "approved_by",
+        ),
+        pk=pk,
+    )
+    def _hours(value):
+        # 「10.5」「8」のように余計な 0 を付けない（PDF と同じ書き方）
+        return None if value is None else f"{value.normalize():f}"
+
+    work, regular, overtime = report.hours_breakdown()
+    materials = [
+        {
+            "name": m.material.name if m.material_id else m.material_name,
+            "quantity": m.quantity_used.normalize() if m.quantity_used is not None else None,
+            "unit": m.unit,
+        }
+        for m in report.materials_used.select_related("material").all()
+    ]
+    back_url = _back_url(request)
+    return render(request, "reports/detail.html", {
+        "report": report,
+        "work_hours": _hours(work),
+        "regular_hours": _hours(regular),
+        "overtime_hours": _hours(overtime),
+        # 開始・終了が無く作業時間だけの日報は、通常・残業を作業時間から出していることを添える
+        "hours_derived": not (report.start_time and report.end_time) and work is not None,
+        "materials": materials,
+        "back_url": back_url,
+        "can_approve": (
+            can_approve_report(request.user)
+            and report.status == DailyReport.Status.SUBMITTED
+        ),
+        "can_delete": can_delete_report(request.user, report),
+    })
+
+
+@login_required
 def report_create(request):
     """日報を書く。役職・社員番号に関係なく全員が同じ形式（ADR-0043）。"""
     # ログインした人の作業員。基本は自分の日報を書く画面にし、
