@@ -31,6 +31,22 @@ def _parse_list_month(value):
     return year, month
 
 
+def _parse_list_date(value):
+    """日報一覧の日付指定 "YYYY-MM-DD" を date にする。空や読めない値は None（絞らない）。"""
+    from datetime import date
+
+    try:
+        return date.fromisoformat((value or "").strip())
+    except ValueError:
+        return None
+
+
+def _date_label(day):
+    """「2026年9月14日（月）」。"""
+    weekdays = "月火水木金土日"
+    return f"{day.year}年{day.month}月{day.day}日（{weekdays[day.weekday()]}）"
+
+
 def _parse_pk(value):
     """URL の現場・作業員の指定を整数にする。空や読めない値は None（絞らない）。"""
     try:
@@ -41,9 +57,10 @@ def _parse_pk(value):
 
 
 def _filtered_reports(request):
-    """一覧の絞り込み（状態・月・現場・作業員）を当てた日報と、選ばれた条件を返す。
+    """一覧の絞り込み（状態・月または日付・現場・作業員）を当てた日報と、選ばれた条件を返す。
 
     一覧の画面と一覧の PDF で同じ条件を使うため共通にしている。
+    日付と月の両方が指定されたら日付を優先し、月は外す（ADR-0060）。
     DailyReport.objects は自社の日報だけなので、他社の現場・作業員の番号を
     指定されても何も出ない。
     """
@@ -55,11 +72,17 @@ def _filtered_reports(request):
         "status": request.GET.get("status", ""),
         # 月（指定なし・読めない値は全期間）
         "month": _parse_list_month(request.GET.get("month", "").strip()),
+        # 日付（1 日だけ。指定があれば月より優先）
+        "date": _parse_list_date(request.GET.get("date")),
         "site": _parse_pk(request.GET.get("site")),
         "worker": _parse_pk(request.GET.get("worker")),
     }
+    if filters["date"]:
+        filters["month"] = None
     if filters["status"]:
         reports = reports.filter(status=filters["status"])
+    if filters["date"]:
+        reports = reports.filter(report_date=filters["date"])
     if filters["month"]:
         year, month = filters["month"]
         reports = reports.filter(report_date__year=year, report_date__month=month)
@@ -76,6 +99,7 @@ def _filter_query(filters, **overrides):
 
     values = {
         "month": f"{filters['month'][0]}-{filters['month'][1]:02d}" if filters["month"] else "",
+        "date": filters["date"].isoformat() if filters.get("date") else "",
         "status": filters["status"],
         "site": filters["site"] or "",
         "worker": filters["worker"] or "",
@@ -123,6 +147,15 @@ def report_list(request):
         selected_month = f"{year}-{month:02d}"
         prev_query = _filter_query(filters, month=shift_month(year, month, -1))
         next_query = _filter_query(filters, month=shift_month(year, month, 1))
+    # 日付を選んだときは前日・翌日で 1 日ずつ動かす（月をまたいでもよい。ADR-0060）
+    from datetime import timedelta
+
+    selected_date = filters["date"].isoformat() if filters["date"] else ""
+    prev_day_query = next_day_query = ""
+    if filters["date"]:
+        one_day = timedelta(days=1)
+        prev_day_query = _filter_query(filters, date=(filters["date"] - one_day).isoformat())
+        next_day_query = _filter_query(filters, date=(filters["date"] + one_day).isoformat())
     today = timezone.localdate()
     this_month = f"{today.year}-{today.month:02d}"
 
@@ -130,8 +163,9 @@ def report_list(request):
     month_label = (
         f"{int(selected_month[:4])}年{int(selected_month[5:])}月" if selected_month else ""
     )
+    date_label = _date_label(filters["date"]) if filters["date"] else ""
     # 件数の見出し。「2026年9月・A社ビル・電工太郎の日報」のように選んだ条件を並べる
-    scope_parts = (month_label or "すべての月", site_label, worker_label)
+    scope_parts = (date_label or month_label or "すべての月", site_label, worker_label)
     scope_label = "・".join(x for x in scope_parts if x)
 
     # 削除ボタンを出すかどうかを行ごとに決める（承認済には出さない）。
@@ -145,6 +179,8 @@ def report_list(request):
         "status_choices": DailyReport.Status.choices,
         "selected_status": filters["status"],
         "selected_month": selected_month,
+        "selected_date": selected_date,
+        "today": today.isoformat(),
         "selected_site": filters["site"],
         "selected_worker": filters["worker"],
         "site_choices": sites,
@@ -156,8 +192,15 @@ def report_list(request):
         # （& はテンプレートで &amp; にエスケープされる）
         "prev_query": prev_query,
         "next_query": next_query,
-        "this_month_query": _filter_query(filters, month=this_month),
-        "all_months_query": _filter_query(filters, month=""),
+        "prev_day_query": prev_day_query,
+        "next_day_query": next_day_query,
+        # 月に切り替えるリンクは日付を外し、日付に切り替えるリンクは月を外す
+        "this_month_query": _filter_query(filters, month=this_month, date=""),
+        "today_query": _filter_query(filters, date=today.isoformat(), month=""),
+        "all_months_query": _filter_query(filters, month="", date=""),
+        "clear_date_query": _filter_query(filters, date=""),
+        # 現場・作業員を外すときは期間（月・日付）だけ残す
+        "clear_site_worker_query": _filter_query(filters, site="", worker="", status=""),
         "list_pdf_query": _filter_query(filters),
         "can_approve": can_approve_report(request.user),
         "submitted_count": DailyReport.objects.filter(
@@ -236,7 +279,11 @@ def report_list_pdf(request):
     reports = _report_prefetch(reports).order_by("report_date", "site__name", "site_id", "pk")
     month = filters["month"]
     site_label, worker_label = _filter_labels(filters)
-    parts = [f"{month[0]}-{month[1]:02d}" if month else "全期間", site_label, worker_label]
+    if filters["date"]:
+        period = filters["date"].isoformat()
+    else:
+        period = f"{month[0]}-{month[1]:02d}" if month else "全期間"
+    parts = [period, site_label, worker_label]
     label = _safe_filename("_".join(p for p in parts if p))
     return _pdf_response(generate_reports_pdf(list(reports)), f"日報_{label}.pdf")
 
