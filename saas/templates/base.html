@@ -78,7 +78,8 @@
       </div>
     </header>
 
-    {% if messages %}
+    {# 圏外用に画面を控えに来たとき（ADR-0052）は知らせを出さない。出すと本来の画面に出なくなる #}
+    {% if messages and not request.headers.x_offline_precache %}
     <div class="messages">
       {% for message in messages %}
       <div class="message message-{{ message.tags }}">{{ message }}</div>
@@ -103,7 +104,7 @@
 {% if user.is_authenticated %}
 <script src="{% static 'js/offline-db.js' %}"></script>
 <script src="{% static 'js/offline.js' %}" data-sw-url="{% url 'service_worker' %}"
-        data-outbox-url="{% url 'offline:outbox' %}"></script>
+        data-outbox-url="{% url 'offline:outbox' %}" data-user-id="{{ user.pk }}"></script>
 {% endif %}
 </body>
 </html>
