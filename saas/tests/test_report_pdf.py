@@ -1,9 +1,12 @@
 """日報の PDF 出力（ADR-0049、様式は原本に合わせる ADR-0053）。
 
 - 1 枚＝同じ日・同じ現場。現場名・発注先・令和の年月日・曜日・作業員ごとの作業時間と残業
-- 年月日の右に天候・工種・工程。作業内容・使用材料の枠に作業内容・材料・その他をまとめて書く
+- 年月日の右に天候、その下の行に工種・工程
+- 作業内容の枠に作業内容・その他を書く（使用材料は書かない）
+- 自社の作業員は 9 行。交通手段の欄は自社 1・協力会社 1 の 2 つ。現場代理人は左、氏名は右
+- 承認済みの日報には「釼持」の承認印を押す
 - 協力会社の作業員は協力会社の欄に会社名・人数つきで出る
-- 自社 16 人以上は次の用紙に続く。長い作業内容は枠に収める（入らなければ以下略）
+- 自社 10 人以上は次の用紙に続く。長い作業内容は枠に収める（入らなければ以下略）
 - 1 件の PDF ボタンは同じ日・同じ現場の日報をまとめた 1 枚。他社は 404
 - 一覧の PDF: 絞り込みどおり、同じ日・同じ現場ごとに 1 枚、古い順
 - 0 件・上限超えは PDF を作らず一覧に戻す。一覧と編集画面に PDF ボタンが出る
@@ -95,6 +98,11 @@ class TestSheetContents:
                          "08:00～19:30", "08:00～18:00", "2.5h", "1h",
                          "合計2人", "交通手段等", "会社名", "承認印", "現場代理人又は責任者"):
             assert expected in text, expected
+        # 交通手段の欄は自社 1・協力会社 1 の 2 つ
+        assert text.count("交通手段") == 2
+        assert text.count("乗合") == 1
+        # 自社の作業員の行は 9 行（空の行の「：～：」は 2 人ぶんを除いた 7 つ）
+        assert text.count("：～：") == 7
 
     def test_同じ日同じ現場の作業員は社員番号順に1枚に並ぶ(self, client, user_a, data):
         client.force_login(user_a)
@@ -102,7 +110,7 @@ class TestSheetContents:
         # E001 次郎 → E002 太郎
         assert text.index("電工次郎") < text.index("電工太郎")
 
-    def test_年月日の右に天候工種工程(self, client, user_a, data, company_a):
+    def test_天候と工種工程の位置_材料は書かない(self, client, user_a, data, company_a):
         report = data["sep10"]
         process = Process.unscoped.create(
             company=company_a, site=report.site, work_type=report.work_type, name="施工",
@@ -118,12 +126,12 @@ class TestSheetContents:
             )
         client.force_login(user_a)
         text = _flat(_pages(client.get(reverse("reports:pdf", args=[report.pk])))[0])
-        for expected in ("日木曜日天候晴工種電気幹線工程施工",
-                         "幹線ケーブル敷設", "分電盤結線",
-                         # 材料の行は枠で折り返し、読むと隣の行と混ざるので分けて見る
-                         "使用材料:CVケーブル60sq45m、圧着端子", "12.5個",
-                         "その他:雨のため午後は屋内"):
+        for expected in ("日木曜日天候晴", "工種電気幹線工程施工",
+                         "幹線ケーブル敷設", "分電盤結線", "その他:雨のため午後は屋内"):
             assert expected in text, expected
+        # 使用材料は書かない
+        assert "使用材料:" not in text
+        assert "CVケーブル" not in text and "圧着端子" not in text
         # 同じ作業内容の次郎の分は重ねて書かない
         assert text.count("幹線ケーブル敷設") == 1
         # 天候・工種・工程は見出しに出すので、枠に【】見出しや「天候:」は書かない
@@ -152,10 +160,10 @@ class TestSheetContents:
         assert "合計2人" in text
         assert "1人" in text
 
-    def test_自社16人以上は次の用紙に続く(self, client, user_a, data, company_a):
+    def test_自社10人以上は次の用紙に続く(self, client, user_a, data, company_a):
         day = datetime.date(2026, 9, 20)
         first = None
-        for i in range(16):
+        for i in range(10):
             worker = Worker.unscoped.create(
                 company=company_a, employee_code=f"E{100 + i}", name=f"作業員{i:02d}",
                 hourly_cost=3000,
@@ -166,8 +174,8 @@ class TestSheetContents:
         pages = _pages(client.get(reverse("reports:pdf", args=[first.pk])))
         assert len(pages) == 2
         assert "(1/2)" in _flat(pages[0]).replace("（", "(").replace("）", ")")
-        assert "作業員15" in pages[1]
-        assert "合計16人" in _flat(pages[0]) and "合計16人" in _flat(pages[1])
+        assert "作業員09" in pages[1]
+        assert "合計10人" in _flat(pages[0]) and "合計10人" in _flat(pages[1])
 
     def test_長い作業内容も枠に収まり入らなければ以下略(self, client, user_a, data):
         report = data["sep10"]
@@ -178,6 +186,60 @@ class TestSheetContents:
         pages = _pages(client.get(reverse("reports:pdf", args=[report.pk])))
         assert len(pages) == 1
         assert "以下略" in _flat(pages[0])
+
+    def test_承認済みなら釼持の承認印_協力会社なし(self, client, user_a, data):
+        client.force_login(user_a)
+        url = reverse("reports:pdf", args=[data["sep10"].pk])
+        # 1 人でも承認されていなければ押さない
+        DailyReport.unscoped.filter(pk=data["sep10"].pk).update(
+            status=DailyReport.Status.APPROVED,
+        )
+        assert "釼" not in _flat(_pages(client.get(url))[0])
+        # 同じ用紙の全員が承認済みなら押す（1 つだけ）
+        DailyReport.unscoped.filter(pk=data["sep10_jiro"].pk).update(
+            status=DailyReport.Status.APPROVED,
+        )
+        text = _flat(_pages(client.get(url))[0])
+        assert text.count("釼") == 1 and text.count("持") == 1
+
+    def test_協力会社は会社ごとに承認済みなら押す(self, client, user_a, data, company_a):
+        supplier = Supplier.unscoped.create(company=company_a, code="P001", name="山田電設")
+        other = Supplier.unscoped.create(company=company_a, code="P002", name="港電気")
+        make = data["make"]
+        day = datetime.date(2026, 9, 10)
+        for code, name, sup, status in (
+            ("W001", "応援一郎", supplier, DailyReport.Status.APPROVED),
+            ("W002", "応援二郎", supplier, DailyReport.Status.APPROVED),
+            ("W003", "港三郎", other, DailyReport.Status.SUBMITTED),
+        ):
+            helper = Worker.unscoped.create(
+                company=company_a, employee_code=code, name=name, hourly_cost=0,
+            )
+            make(day, worker=helper, is_partner_worker=True, partner=sup, status=status)
+        client.force_login(user_a)
+        text = _flat(_pages(client.get(reverse("reports:pdf", args=[data["sep10"].pk])))[0])
+        # 山田電設（2 人とも承認済み）だけに押す。港電気（提出済）と自社（下書き）には押さない
+        assert text.count("釼") == 1
+
+    def test_現場代理人又は責任者は左に寄せ右に氏名の欄(self, client, user_a, data):
+        client.force_login(user_a)
+        res = client.get(reverse("reports:pdf", args=[data["sep10"].pk]))
+        with pdfplumber.open(BytesIO(res.content)) as pdf:
+            page = pdf.pages[0]
+            words = [w for w in page.extract_words() if "現場代理人" in w["text"]]
+            assert words, "label not found"
+            label = words[0]
+            # 文字の左端あたりから始まり、右へ長く続く署名用の線がある
+            # （枠の下辺は用紙の左端から始まるので、x0 が文字の近くかどうかで区別する）
+            lines = [
+                ln for ln in page.lines
+                if abs(ln["top"] - ln["bottom"]) < 0.5
+                and label["x0"] - 12 <= ln["x0"] <= label["x0"] + 1
+                and ln["x1"] > label["x1"] + 60 and 0 < ln["top"] - label["bottom"] < 12
+            ]
+            assert lines, "signature line not found"
+            # 文字は用紙の中央より左側から始まる
+            assert label["x0"] < page.width / 2
 
     def test_日本語のファイル名でブラウザ内に開く(self, client, user_a, data):
         client.force_login(user_a)
