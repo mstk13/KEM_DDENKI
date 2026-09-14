@@ -23,6 +23,19 @@
           {% endif %}
         </div>
       </div>
+      {# 日付（1 日だけ）。月と日付は片方だけ使う（ADR-0060） #}
+      <div class="form-group" style="margin-bottom:0;">
+        <label for="filter-date">日付</label>
+        <div style="display:flex;gap:6px;align-items:center;">
+          {% if selected_date %}
+          <a href="?{{ prev_day_query }}" class="btn btn-outline btn-sm" title="前の日">&lsaquo; 前日</a>
+          {% endif %}
+          <input type="date" id="filter-date" name="date" class="form-control" value="{{ selected_date }}" style="width:auto;">
+          {% if selected_date %}
+          <a href="?{{ next_day_query }}" class="btn btn-outline btn-sm" title="次の日">翌日 &rsaquo;</a>
+          {% endif %}
+        </div>
+      </div>
       <div class="form-group" style="margin-bottom:0;">
         <label for="filter-site">現場</label>
         <select id="filter-site" name="site" class="form-control" style="max-width:260px;">
@@ -52,14 +65,20 @@
       </div>
       <div class="form-group" style="margin-bottom:0;">
         <button type="submit" class="btn btn-outline">絞り込む</button>
-        {% if selected_month != this_month %}
+        {% if selected_month != this_month or selected_date %}
         <a href="?{{ this_month_query }}" class="btn btn-outline">今月</a>
+        {% endif %}
+        {% if selected_date != today %}
+        <a href="?{{ today_query }}" class="btn btn-outline">今日</a>
         {% endif %}
         {% if selected_month %}
         <a href="?{{ all_months_query }}" class="btn btn-outline">すべての月</a>
         {% endif %}
+        {% if selected_date %}
+        <a href="?{{ clear_date_query }}" class="btn btn-outline">日付を外す</a>
+        {% endif %}
         {% if selected_site or selected_worker %}
-        <a href="?{% if selected_month %}month={{ selected_month }}{% endif %}" class="btn btn-outline">現場・作業員を外す</a>
+        <a href="?{{ clear_site_worker_query }}" class="btn btn-outline">現場・作業員を外す</a>
         {% endif %}
         {% if reports %}
         <a href="{% url 'reports:list_pdf' %}{% if list_pdf_query %}?{{ list_pdf_query }}{% endif %}" class="btn btn-outline" target="_blank" rel="noopener">この一覧をPDF</a>
@@ -77,6 +96,17 @@
 <p style="margin:0 0 10px;color:var(--text-secondary);font-size:.88rem;">
   {{ scope_label }}の日報: {{ reports|length }}件
 </p>
+<script>
+(function () {
+  // 月と日付は片方だけ使う。片方を選んだらもう片方を空にする（ADR-0060）
+  var month = document.getElementById('filter-month');
+  var day = document.getElementById('filter-date');
+  if (month && day) {
+    month.addEventListener('change', function () { if (month.value) day.value = ''; });
+    day.addEventListener('change', function () { if (day.value) month.value = ''; });
+  }
+})();
+</script>
 
 <form method="post" action="{% url 'reports:approve_bulk' %}">
   {% csrf_token %}
