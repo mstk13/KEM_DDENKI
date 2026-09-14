@@ -7,8 +7,8 @@
 - 自社の作業員の表は 15 行。超えたら同じ見出しで次の用紙に続ける
 - 協力会社（is_partner_worker）の欄は 3 社ぶん（3 行・2 行・2 行）。超えたら次の用紙に続ける
 - アプリに無い項目（宿泊・交通手段・交通費・承認印・現場代理人）は手書き用に空けておく
-- 原本に無いアプリの項目（工種・工程・天候・その他・使用材料）は作業内容の枠に書き込み、
-  情報を落とさない。状態・承認者は枠の外の下余白に出す
+- 原本に無いアプリの項目のうち、天候・工種・工程は年月日の右に、その他・使用材料は
+  作業内容の枠に書き、情報を落とさない。状態・承認者は枠の外の下余白に出す
 
 日本語は reportlab 内蔵の CID フォント（HeiseiKakuGo-W5）を使う。フォントファイルは要らない。
 """
@@ -107,16 +107,23 @@ def _overtime(report):
 
 
 def _reiwa_date(day):
-    """「令和 8 年 9 月 10 日　木 曜日」。令和より前の日付は西暦で出す。"""
+    """「令和8年9月10日 木曜日」。令和より前の日付は西暦で出す。
+
+    年月日の右に天候・工種・工程を並べるため字間を詰める（12月31日でも 48mm に収まる）。
+    """
     wd = WEEKDAYS[day.weekday()]
     if day.year >= 2019:
-        return f"令和 {day.year - 2018} 年　{day.month} 月　{day.day} 日　　{wd} 曜日"
-    return f"{day.year} 年　{day.month} 月　{day.day} 日　　{wd} 曜日"
+        return f"令和{day.year - 2018}年{day.month}月{day.day}日 {wd}曜日"
+    return f"{day.year}年{day.month}月{day.day}日 {wd}曜日"
 
 
 def _work_summary(reports):
-    """作業内容・使用材料の枠に書く文。同じ内容は 1 回だけにする。"""
-    lines = []
+    """作業内容・使用材料の枠に書く文。同じ内容は 1 回だけにする。
+
+    天候・工種・工程は年月日の右に出すので、ここには書かない。ただし同じ用紙に
+    工種・工程の違う日報が混ざるときは、どの作業内容がどれか分かるよう【工種／工程】を付ける。
+    """
+    entries = []
     seen = set()
     for r in reports:
         head = "／".join(x for x in (
@@ -127,10 +134,15 @@ def _work_summary(reports):
         if key in seen:
             continue
         seen.add(key)
-        if head:
+        entries.append(key)
+
+    show_heads = len({head for head, _ in entries}) > 1
+    lines = []
+    for head, text in entries:
+        if show_heads and head:
             lines.append(f"【{head}】")
-        if key[1]:
-            lines.append(key[1])
+        if text:
+            lines.append(text)
 
     materials = OrderedDict()
     for r in reports:
@@ -144,11 +156,6 @@ def _work_summary(reports):
             f"{name} {_num(qty)}{unit}" for (name, unit), qty in materials.items()
         ))
 
-    weathers = list(OrderedDict.fromkeys(
-        r.get_weather_display() for r in reports if r.weather
-    ))
-    if weathers:
-        lines.append("天候: " + "・".join(weathers))
     memos = list(OrderedDict.fromkeys((r.memo or "").strip() for r in reports if r.memo))
     if memos:
         lines.append("その他: " + " ／ ".join(memos))
@@ -168,7 +175,22 @@ def _grid_style(extra=()):
     ])
 
 
-def _header_tables(site, day, page_no, pages):
+def _distinct(values):
+    """空でない値を出た順に重ねずに「・」でつなぐ。"""
+    return "・".join(OrderedDict.fromkeys(v for v in values if v))
+
+
+def _header_values(reports):
+    """年月日の右に出す天候・工種・工程（同じ用紙の日報で違えば「・」でつなぐ）。"""
+    return (
+        _distinct(r.get_weather_display() for r in reports if r.weather),
+        _distinct(str(r.work_type) for r in reports if r.work_type_id),
+        # 工程の文字列表現は「現場 - 工程」なので名前だけ
+        _distinct(r.process.name for r in reports if r.process_id),
+    )
+
+
+def _header_tables(site, day, page_no, pages, weather="", work_type="", process=""):
     title = "作　　業　　日　　報" + (f"　（{page_no}/{pages}）" if pages > 1 else "")
     orderer = str(site.customer) if site.customer_id else ""
     return [
@@ -176,10 +198,20 @@ def _header_tables(site, day, page_no, pages):
               style=_grid_style()),
         Table(
             [[_p("現場名", 10, TA_CENTER), _fit(site.name, 92 * mm, 8 * mm, 11, 7),
-              _p("発注先", 10, TA_CENTER), _fit(orderer, 52 * mm, 8 * mm, 10, 6)],
-             [_p("年月日", 10, TA_CENTER), _p(_reiwa_date(day), 11), "", ""]],
-            colWidths=[30 * mm, 98 * mm, 24 * mm, 34 * mm], rowHeights=[9 * mm, 9 * mm],
-            style=_grid_style([("SPAN", (1, 1), (3, 1))]),
+              _p("発注先", 10, TA_CENTER), _fit(orderer, 52 * mm, 8 * mm, 10, 6)]],
+            colWidths=[30 * mm, 98 * mm, 24 * mm, 34 * mm], rowHeights=[9 * mm],
+            style=_grid_style(),
+        ),
+        # 年月日の右に天候・工種・工程（原本に無いアプリの項目。ADR-0053）
+        Table(
+            [[_p("年月日", 10, TA_CENTER), _p(_reiwa_date(day), 10),
+              _p("天候", 9, TA_CENTER), _fit(weather, 14 * mm - 6, 8 * mm, 9, 6),
+              _p("工種", 9, TA_CENTER), _fit(work_type, 34 * mm - 6, 8 * mm, 9, 5.5),
+              _p("工程", 9, TA_CENTER), _fit(process, 24 * mm - 6, 8 * mm, 9, 5.5)]],
+            # 工種は「電気幹線・弱電設備」のように並ぶと長いので広めにとる
+            colWidths=[30 * mm, 48 * mm, 12 * mm, 14 * mm, 12 * mm, 34 * mm, 12 * mm, 24 * mm],
+            rowHeights=[9 * mm],
+            style=_grid_style(),
         ),
     ]
 
@@ -322,12 +354,13 @@ def _sheet_pages(reports):
     summary = _work_summary(own)
 
     site, day = reports[0].site, reports[0].report_date
+    weather, work_type, process = _header_values(reports)
     pages = []
     for n in range(total_pages):
         rows = own_pages[n] if n < len(own_pages) else []
         blocks = partner_pages[n] if n < len(partner_pages) else []
         pages.append([
-            *_header_tables(site, day, n + 1, total_pages),
+            *_header_tables(site, day, n + 1, total_pages, weather, work_type, process),
             _own_table(rows, summary if n == 0 else "（1 枚目に記載）", len(own)),
             _partner_table(blocks, len(partners)),
             _signature_table(),

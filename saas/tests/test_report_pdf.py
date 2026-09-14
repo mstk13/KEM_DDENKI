@@ -1,7 +1,7 @@
 """日報の PDF 出力（ADR-0049、様式は原本に合わせる ADR-0053）。
 
 - 1 枚＝同じ日・同じ現場。現場名・発注先・令和の年月日・曜日・作業員ごとの作業時間と残業
-- 作業内容・使用材料の枠に、工種・工程・作業内容・材料・天候・その他をまとめて書く
+- 年月日の右に天候・工種・工程。作業内容・使用材料の枠に作業内容・材料・その他をまとめて書く
 - 協力会社の作業員は協力会社の欄に会社名・人数つきで出る
 - 自社 16 人以上は次の用紙に続く。長い作業内容は枠に収める（入らなければ以下略）
 - 1 件の PDF ボタンは同じ日・同じ現場の日報をまとめた 1 枚。他社は 404
@@ -102,7 +102,7 @@ class TestSheetContents:
         # E001 次郎 → E002 太郎
         assert text.index("電工次郎") < text.index("電工太郎")
 
-    def test_作業内容の枠に工種工程材料天候その他を書く(self, client, user_a, data, company_a):
+    def test_年月日の右に天候工種工程(self, client, user_a, data, company_a):
         report = data["sep10"]
         process = Process.unscoped.create(
             company=company_a, site=report.site, work_type=report.work_type, name="施工",
@@ -118,17 +118,24 @@ class TestSheetContents:
             )
         client.force_login(user_a)
         text = _flat(_pages(client.get(reverse("reports:pdf", args=[report.pk])))[0])
-        for expected in ("【電気幹線／施工】", "幹線ケーブル敷設", "分電盤結線",
-                         "使用材料:CVケーブル60sq45m、圧着端子12.5個",
-                         "天候:晴", "その他:雨のため午後は屋内"):
+        for expected in ("日木曜日天候晴工種電気幹線工程施工",
+                         "幹線ケーブル敷設", "分電盤結線",
+                         # 材料の行は枠で折り返し、読むと隣の行と混ざるので分けて見る
+                         "使用材料:CVケーブル60sq45m、圧着端子", "12.5個",
+                         "その他:雨のため午後は屋内"):
             assert expected in text, expected
         # 同じ作業内容の次郎の分は重ねて書かない
         assert text.count("幹線ケーブル敷設") == 1
+        # 天候・工種・工程は見出しに出すので、枠に【】見出しや「天候:」は書かない
+        assert "【" not in text
+        assert "天候:" not in text
 
     def test_記号を含む作業内容もそのまま載る(self, client, user_a, data):
         client.force_login(user_a)
         text = _flat(_pages(client.get(reverse("reports:pdf", args=[data["sep02b"].pk])))[0])
         assert "<b>弱電</b>&盤" in text
+        # 工種の違う日報が同じ用紙に混ざるときは、見出しは両方を並べ、枠には【】を付けて分ける
+        assert "工種電気幹線・弱電" in text
         assert "【弱電】" in text and "【電気幹線】" in text
 
     def test_協力会社の作業員は協力会社の欄に出る(self, client, user_a, data, company_a):
@@ -214,7 +221,7 @@ class TestListPdf:
         text = _flat(pages[0])
         assert "提出済1件" in text
         # 絞り込みで外れた同じ日の弱電の日報は入らない
-        assert "【弱電】" not in text
+        assert "弱電" not in text
 
     def test_指定なしは全期間(self, client, user_a, data):
         client.force_login(user_a)
