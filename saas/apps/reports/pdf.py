@@ -134,20 +134,69 @@ def _num(value):
     return f"{value.normalize():f}" if hasattr(value, "normalize") else f"{value:g}"
 
 
-def _time_range(report):
+def _time_range(report, standard_start=None):
     """作業時間「08:30～17:30」（時・分とも 2 桁）。終了が開始日の翌日以降なら「翌」を付ける。
 
-    開始・終了が無く作業時間だけ入力された日報は「8 時間」のように時間数を出す（ADR-0054）。
+    開始・終了が無く作業時間だけ入力された日報は、会社の所定始業（勤怠設定）から
+    作業時間ぶん
+    （7 時間を超えるときは休憩 1 時間を含めて）の範囲を出す。
+    例: 所定 08:30・8 時間 → 08:30～17:30。
+    所定始業が分からないときだけ「8 時間」のように時間数を出す（ADR-0054）。
     """
     if not report.start_time and not report.end_time:
         work, _, _ = report.hours_breakdown()
-        return f"{_num(work)} 時間" if work else ""
+        if not work:
+            return ""
+        if standard_start is None:
+            return f"{_num(work)} 時間"
+        return _derived_range(report.report_date, standard_start, work)
     start = _clock(report.start_time)
     end = _clock(report.end_time)
     period = report.work_period() if report.start_time and report.end_time else None
     if period and period[1].date() > (report.start_date or report.report_date):
         end = f"翌{end}"
     return f"{start}～{end}"
+
+
+# 作業時間だけの日報から範囲を出すときの休憩。アプリの残業計算（calculate_hours）は
+# 開始～終了が 8 時間を超えると 1 時間引くので、その逆算に合わせる。
+BREAK_MINUTES = 60
+BREAK_THRESHOLD_MINUTES = 7 * 60
+
+
+def _derived_range(day, standard_start, work_hours):
+    """所定始業と作業時間から「08:30～17:30」を出す（開始・終了を入れず作業時間だけの日報用）。
+
+    作業時間が 7 時間を超えるときは休憩 1 時間を含めて終了を出す。こうすると保存時の計算
+    （8 時間を超えた範囲から休憩 1 時間を引く）で同じ作業時間に戻る。
+    """
+    import datetime as _dt
+
+    minutes = int(round(float(work_hours) * 60))
+    if minutes > BREAK_THRESHOLD_MINUTES:
+        minutes += BREAK_MINUTES
+    start = _dt.datetime.combine(day, standard_start)
+    end = start + _dt.timedelta(minutes=minutes)
+    end_label = _clock(end.time())
+    if end.date() > day:
+        end_label = f"翌{end_label}"
+    return f"{_clock(standard_start)}～{end_label}"
+
+
+def _standard_start(company_id):
+    """会社の所定始業（勤怠設定 standard_start）。読めなければ None。"""
+    import datetime as _dt
+
+    from apps.attendance.models import AttendSettings
+
+    if not company_id:
+        return None
+    value = AttendSettings.get_settings_dict(company_id).get("standard_start", "")
+    try:
+        hour, minute = (int(x) for x in str(value).strip().split(":")[:2])
+        return _dt.time(hour, minute)
+    except (ValueError, TypeError):
+        return None
 
 
 def _clock(value):
@@ -280,7 +329,7 @@ def _header_tables(site, day, page_no, pages, weather="", work_type="", process=
 CONTENT_HEIGHT = 45 * mm  # 作業内容の欄（横幅いっぱい）の記入部分の高さ
 
 
-def _own_table(rows, total):
+def _own_table(rows, total, standard_start=None):
     """自社の作業員の表: 作業員名・作業時間・通常時間・残業時間・宿泊（2026-09-14 要望）。"""
     cols = [6 * mm, 44 * mm, 50 * mm, 28 * mm, 28 * mm, 30 * mm]
     data = [[
@@ -292,7 +341,8 @@ def _own_table(rows, total):
         data.append([
             "",
             _fit(str(r.worker), cols[1] - 6, 6.5 * mm, 9, 6) if r else "",
-            _p(_time_range(r), 9.5, TA_CENTER) if r else _p("：　　～　　：", 9, TA_CENTER),
+            _p(_time_range(r, standard_start), 9.5, TA_CENTER)
+            if r else _p("：　　～　　：", 9, TA_CENTER),
             _p(_regular(r) if r else "h", 9.5, TA_RIGHT),
             _p(_overtime(r) if r else "h", 9.5, TA_RIGHT),
             "",
@@ -356,7 +406,7 @@ def _transport_table():
     )
 
 
-def _partner_table(blocks, total, seals=()):
+def _partner_table(blocks, total, seals=(), standard_start=None):
     """blocks は [(会社名, [日報...], 会社の人数) を最大 3 つ]。空の枠も原本どおり描く。
 
     seals は承認印を押す枠の番号（0 始まり）。
@@ -376,7 +426,7 @@ def _partner_table(blocks, total, seals=()):
                 _fit(company, cols[0] - 6, cap * row_h - 4, 9, 6) if i == 0 else "",
                 _fit(str(r.worker), cols[1] - 6, row_h - 2, 9, 6) if r else "",
                 _p(f"{count}　人" if count else "人", 9, TA_RIGHT) if i == 0 else "",
-                _p(_time_range(r) if r else "～", 8.5, TA_CENTER),
+                _p(_time_range(r, standard_start) if r else "～", 8.5, TA_CENTER),
                 _fit((r.work_description or "").replace("\n", " "), cols[4] - 6, row_h - 2, 8, 5.5)
                 if r else "",
                 Seal() if (i == 0 and index in seals) else "",
@@ -464,16 +514,19 @@ def _sheet_pages(reports):
 
     site, day = reports[0].site, reports[0].report_date
     weather, work_type, process = _header_values(reports)
+    standard_start = _standard_start(reports[0].company_id)
     pages = []
     for n in range(total_pages):
         rows = own_pages[n] if n < len(own_pages) else []
         blocks = partner_pages[n] if n < len(partner_pages) else []
         pages.append([
             *_header_tables(site, day, n + 1, total_pages, weather, work_type, process),
-            _own_table(rows, len(own)),
+            _own_table(rows, len(own), standard_start),
             _content_table(summary if n == 0 else "（1 枚目に記載）"),
             _transport_table(),
-            _partner_table(blocks, len(partners), _seal_blocks(blocks, own, partners, n)),
+            _partner_table(
+                blocks, len(partners), _seal_blocks(blocks, own, partners, n), standard_start,
+            ),
             _signature_table(),
         ])
     return pages, reports
