@@ -303,6 +303,11 @@ def report_detail(request, pk):
         "hours_derived": not (report.start_time and report.end_time) and work is not None,
         "materials": materials,
         "back_url": back_url,
+        # 月次サマリから開いたときは戻るボタンの行き先に合わせた名前にする
+        "back_label": (
+            "月次サマリに戻る"
+            if back_url.startswith(reverse("reports:monthly_summary")) else "一覧に戻る"
+        ),
         "can_approve": (
             can_approve_report(request.user)
             and report.status == DailyReport.Status.SUBMITTED
@@ -555,8 +560,9 @@ def monthly_summary(request):
     for row in summary:
         back = f"{base}#worker-{row['worker'].pk}"
         for report in row["reports"]:
-            report.edit_url = (
-                reverse("reports:edit", args=[report.pk]) + "?" + urlencode({"next": back})
+            # 月次サマリからは編集ではなく日報の詳細を開く（詳細から編集・戻るで同じ場所に戻る）
+            report.detail_url = (
+                reverse("reports:detail", args=[report.pk]) + "?" + urlencode({"next": back})
             )
 
     return render(request, "reports/monthly_summary.html", {
