@@ -1,3 +1,5 @@
+import re
+import unicodedata
 from decimal import Decimal
 
 from django import forms
@@ -13,7 +15,14 @@ from apps.workers.models import (
     WorkerQualification,
 )
 
-# 管理者・事務員・本人だけが見て直せる項目（ADR-0057）。
+# 社会保険（ADR-0059）。見て直せる人は現住所などと同じ
+WORKER_INSURANCE_FIELDS = (
+    "health_insurance",
+    "pension_insurance",
+    "employment_insurance",
+    "employment_insurance_number_last4",
+)
+# 管理者・事務員・本人だけが見て直せる項目（ADR-0057・ADR-0059）。
 # 見られない人のフォームからは欄ごと外すので、送られてきても保存しない。
 WORKER_PRIVATE_FIELDS = (
     "postal_code",
@@ -23,6 +32,7 @@ WORKER_PRIVATE_FIELDS = (
     "emergency_contact_postal_code",
     "emergency_contact_address",
     "emergency_contact_phone",
+    *WORKER_INSURANCE_FIELDS,
     "blood_type",
 )
 HEALTH_VISION_FIELDS = (
@@ -119,6 +129,9 @@ class WorkerForm(forms.ModelForm):
             ),
             "emergency_contact_postal_code": forms.TextInput(attrs={"inputmode": "numeric"}),
             "emergency_contact_phone": forms.TextInput(attrs={"type": "tel"}),
+            "employment_insurance_number_last4": forms.TextInput(
+                attrs={"inputmode": "numeric", "autocomplete": "off", "placeholder": "例: 1234"},
+            ),
         }
 
     def __init__(self, *args, company=None, can_view_private=False, **kwargs):
@@ -142,6 +155,28 @@ class WorkerForm(forms.ModelForm):
                 self.fields.pop(name, None)
         self._initial_experience_years = self.instance.experience_years
         self.fields["experience_years"].initial = self._initial_experience_years
+
+    def clean(self):
+        cleaned = super().clean()
+        if "employment_insurance" not in self.fields:
+            return cleaned  # 見られない人のフォーム（社会保険の欄が無い）
+        # 雇用保険に加入していれば、被保険者番号の下4桁が要る（ADR-0059）。全角の数字も受け付ける
+        raw = self.data.get(self.add_prefix("employment_insurance_number_last4"), "")
+        number = unicodedata.normalize("NFKC", raw).strip()
+        if cleaned.get("employment_insurance") == Worker.EmploymentInsurance.ENROLLED:
+            if re.fullmatch(r"[0-9]{4}", number):
+                cleaned["employment_insurance_number_last4"] = number
+                self.errors.pop("employment_insurance_number_last4", None)
+            else:
+                self.add_error(
+                    "employment_insurance_number_last4",
+                    "雇用保険に加入しているときは、被保険者番号の下4桁を数字4つで入れてください。",
+                )
+        else:
+            # 加入していない人の番号は残さない
+            self.errors.pop("employment_insurance_number_last4", None)
+            cleaned["employment_insurance_number_last4"] = ""
+        return cleaned
 
     def save(self, commit=True):
         worker = super().save(commit=False)
