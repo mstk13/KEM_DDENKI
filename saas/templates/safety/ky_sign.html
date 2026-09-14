@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}KY用紙に記入 — {{ site.name }} — {{ APP_NAME }}{% endblock %}
+{% block topbar_title %}KY用紙に記入{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>{{ site.name }} — {{ day|date:"n月j日（D）" }}の KY 用紙</h1>
+  <a href="{% url 'safety:ky_sheet' site.pk day %}" class="btn btn-outline btn-sm">KY 用紙に戻る</a>
+</div>
+
+<div class="card" style="max-width:640px;">
+  <div class="card-body">
+    {# 圏外なら端末に保存し、電波が戻ったら送る（ADR-0048） #}
+    <form method="post" data-offline-form
+          data-offline-label="KY用紙の記入（{{ site.name }} {{ day|date:'n/j' }}）">
+      {% csrf_token %}
+      {{ form.non_field_errors }}
+      {% with field=form.worker %}{% include "workers/_form_field.html" %}{% endwith %}
+      <div class="form-group">
+        <label>{{ form.health.label }}</label>
+        {{ form.health }}
+        {{ form.health.errors }}
+      </div>
+      {% with field=form.health_note %}{% include "workers/_form_field.html" %}{% endwith %}
+      <div class="form-group">
+        <label>{{ form.tester.label }}</label>
+        {{ form.tester }}
+        {{ form.tester.errors }}
+      </div>
+      {% with field=form.signature %}{% include "safety/_signature_pad.html" %}{% endwith %}
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">記入する</button>
+        <a href="{% url 'safety:ky_sheet' site.pk day %}" class="btn btn-outline">キャンセル</a>
+      </div>
+    </form>
+    <p style="font-size:.82rem;color:var(--text-muted);margin-top:12px;">
+      健康状態が良好なら○、不調なら△（不調のときは症状も書く）。
+      検電器は、携帯していれば○、持っていなければ×、検電器が不要な作業なら－。
+      1台のスマホを回して書くときは、作業員を選び直してから書いてください。
+    </p>
+  </div>
+</div>
+<script src="{% static 'js/signature-pad.js' %}"></script>
+{% endblock %}

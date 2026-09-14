@@ -27,6 +27,8 @@ from apps.materials.services import (
 )
 from apps.offline.decorators import offline_resendable
 from apps.permissions.services import has_module_permission
+from apps.safety.models import KySheet
+from apps.safety.services import members_on_day, workers_without_entry
 from apps.sites.forms import (
     EstimateUploadForm,
     ProcessForm,
@@ -98,6 +100,14 @@ def site_detail(request, pk):
     recent_photos = list(site.photos.select_related("created_by")[:DETAIL_PHOTO_COUNT])
     recent_days = {photo.taken_on for photo in recent_photos}
 
+    # 安全書類（ADR-0061）。今日の KY 用紙の記入状況だけ出し、書くのは安全書類の画面で
+    safety_today = timezone.localdate()
+    safety_members = members_on_day(site, safety_today)
+    today_ky = KySheet.objects.filter(site=site, work_date=safety_today).first()
+    signed_ids = (
+        set(today_ky.participants.values_list("worker_id", flat=True)) if today_ky else set()
+    )
+
     return render(request, "sites/detail.html", {
         "site": site,
         "processes": processes,
@@ -121,6 +131,12 @@ def site_detail(request, pk):
         ),
         "photo_kind_counts": photo_kind_counts,
         "photo_total": sum(row["count"] for row in photo_kind_counts),
+        "safety_today": safety_today,
+        "today_ky": today_ky,
+        "safety_participant_count": len(signed_ids),
+        "safety_member_count": len(safety_members),
+        "safety_signed_count": sum(1 for worker in safety_members if worker.pk in signed_ids),
+        "entry_missing_count": len(workers_without_entry(site, safety_members)),
         **summary,
     })
 

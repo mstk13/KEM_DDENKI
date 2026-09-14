@@ -20,6 +20,11 @@ OFFLINE_FORM_PATTERNS = (
     # 現場写真（ADR-0051）。ホームから現場を選んで撮る画面と、現場ごとの登録画面
     r"^/sites/photos/new/$",
     r"^/sites/\d+/photos/new/$",
+    # 安全書類（ADR-0061）。KY用紙・自分の行・安全作業確認書
+    r"^/safety/sites/\d+/ky/\d+-\d+-\d+/$",
+    r"^/safety/sites/\d+/ky/\d+-\d+-\d+/sign/$",
+    r"^/safety/sites/\d+/entry/new/$",
+    r"^/safety/entry/\d+/edit/$",
 )
 
 # 開いていなくても端末に控える画面（URL 名）。
