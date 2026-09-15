@@ -52,7 +52,7 @@ class SitePhotoAdmin(SimpleHistoryAdmin):
     raw_id_fields = ("site",)
 
 
-# 提出書類（ADR-0065）。最初のリストの名前・並び順・入れる／外すは、ここで変える
+# 提出書類（ADR-0067）。最初のリストの名前・並び順・入れる／外すは、ここで変える
 @admin.register(DocumentTemplate)
 class DocumentTemplateAdmin(SimpleHistoryAdmin):
     list_display = ("name", "phase", "display_order", "is_active", "company")
