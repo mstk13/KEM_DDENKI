@@ -124,7 +124,7 @@ def get_monthly_summary(company, year: int, month: int):
     作業員ごとに次を返す（作業員一覧と同じ社員番号順）。
     - worker … Worker。画面では社員番号と氏名を作業員一覧と同じ表記で出す
     - work_days / total_regular / total_overtime / total_hours … 承認済の日報を集計
-    - reports … その月の承認済の日報。日付順。
+    - reports … その月の承認済の日報。日付の新しい順（同じ日は後から作った日報が先）。
       氏名をタップしたときに一覧で見せ、各行から日報の画面へ飛ぶ
     - report_count … reports の件数
 
@@ -143,7 +143,8 @@ def get_monthly_summary(company, year: int, month: int):
             status=DailyReport.Status.APPROVED,
         )
         .select_related("worker", "site", "work_type")
-        .order_by("report_date", "created_at", "pk")
+        # 画面では新しい日報から見たいので、日付の新しい順に並べる（2026-09-15 要望）
+        .order_by("-report_date", "-created_at", "-pk")
     )
 
     by_worker: dict[int, list[DailyReport]] = defaultdict(list)
