@@ -34,6 +34,10 @@ urlpatterns = [
         "qualifications/unified/<int:pk>/delete/",
         views.unified_qualification_delete, name="unified_qualification_delete",
     ),
+    # 自社の建設業許可（ADR-0064）。一覧は入札参加資格の画面の上の欄
+    path("licenses/new/", views.license_create, name="license_create"),
+    path("licenses/<int:pk>/edit/", views.license_edit, name="license_edit"),
+    path("licenses/<int:pk>/delete/", views.license_delete, name="license_delete"),
     path("unit-prices/", views.unit_price_list, name="unit_price_list"),
     path("unit-prices/new/", views.unit_price_create, name="unit_price_create"),
     path("unit-prices/<int:pk>/edit/", views.unit_price_edit, name="unit_price_edit"),

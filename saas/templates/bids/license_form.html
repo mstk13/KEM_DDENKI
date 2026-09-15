@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block title %}{% if form.instance.pk %}建設業許可を編集{% else %}建設業許可を登録{% endif %} — {{ APP_NAME }}{% endblock %}
+{% block topbar_title %}{% if form.instance.pk %}建設業許可を編集{% else %}建設業許可を登録{% endif %}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>{% if form.instance.pk %}建設業許可「{{ form.instance }}」を編集{% else %}自社の建設業許可を登録{% endif %}</h1>
+</div>
+
+<div class="card">
+  <div class="card-body">
+    <p style="font-size:.85rem;color:var(--text-muted);margin:0 0 16px;">
+      「建設業の許可について（通知）」の内容を、業種ごとに1件ずつ登録します。
+      更新書類の提出期限の180日前から、社長・管理者・事務員に通知が届きます。
+    </p>
+    <form method="post">
+      {% csrf_token %}
+      {{ form.non_field_errors }}
+      <div class="form-row">
+        <div class="form-group">
+          <label for="id_trade">{{ form.trade.label }}</label>
+          {{ form.trade }}
+          <div class="form-hint">{{ form.trade.help_text }}</div>
+          {{ form.trade.errors }}
+        </div>
+        <div class="form-group">
+          <label for="id_license_class">{{ form.license_class.label }}</label>
+          {{ form.license_class }}
+          {{ form.license_class.errors }}
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="id_grantor_type">{{ form.grantor_type.label }}</label>
+          {{ form.grantor_type }}
+          <div class="form-hint">{{ form.grantor_type.help_text }}</div>
+          {{ form.grantor_type.errors }}
+        </div>
+        <div class="form-group">
+          <label for="id_authority">{{ form.authority.label }}</label>
+          {{ form.authority }}
+          <div class="form-hint">{{ form.authority.help_text }}</div>
+          {{ form.authority.errors }}
+        </div>
+      </div>
+      <div class="form-group">
+        <label for="id_license_number">{{ form.license_number.label }}</label>
+        {{ form.license_number }}
+        <div class="form-hint">{{ form.license_number.help_text }}</div>
+        {{ form.license_number.errors }}
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="id_valid_from">{{ form.valid_from.label }}</label>
+          {{ form.valid_from }}
+          {{ form.valid_from.errors }}
+        </div>
+        <div class="form-group">
+          <label for="id_valid_until">{{ form.valid_until.label }}</label>
+          {{ form.valid_until }}
+          {{ form.valid_until.errors }}
+        </div>
+      </div>
+      <div class="form-group">
+        <label for="id_renewal_deadline">{{ form.renewal_deadline.label }}</label>
+        {{ form.renewal_deadline }}
+        <div class="form-hint">{{ form.renewal_deadline.help_text }}</div>
+        {{ form.renewal_deadline.errors }}
+      </div>
+      <div class="form-group">
+        <label>{{ form.renewed }} {{ form.renewed.label }}</label>
+        <div class="form-hint">{{ form.renewed.help_text }}</div>
+      </div>
+      <div class="form-group">
+        <label for="id_memo">{{ form.memo.label }}</label>
+        {{ form.memo }}
+        {{ form.memo.errors }}
+      </div>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">保存</button>
+        <a href="{% url 'bids:qualification_list' %}#licenses" class="btn btn-outline">キャンセル</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

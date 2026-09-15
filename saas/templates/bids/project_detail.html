@@ -70,7 +70,14 @@
         {% else %}
           <span class="badge badge-gray">要確認</span>
         {% endif %}
+        {% if qual_check.reason_lines|length > 1 %}
+        {# 資格不足の理由が複数あれば1行ずつ並べる（ADR-0066） #}
+        <ul class="shortfall-reasons" style="margin:6px 0 0;padding-left:18px;">
+          {% for line in qual_check.reason_lines %}<li>{{ line }}</li>{% endfor %}
+        </ul>
+        {% else %}
         {{ qual_check.reason }}
+        {% endif %}
       </dd>
       <dt>該当する自社資格</dt>
       <dd>
@@ -105,6 +112,8 @@
           <ul style="margin:0;padding-left:18px;">
             {% for item in qual_check.checked %}<li>{{ item }}</li>{% endfor %}
           </ul>
+        {% elif qual_check.shortfalls %}
+          満たした要件はありません。判定結果の不足を確認してください。
         {% else %}
           公告から等級・点数の要件を読み取れていません。参加要件欄を確認してください。
         {% endif %}
@@ -119,6 +128,17 @@
       <dd>{% if project.required_score %}{{ project.required_score }} 点以上{% else %}-{% endif %}</dd>
       <dt>公告側の必要業種区分</dt><dd>{{ project.required_category|default:"-" }}</dd>
       <dt>資格種別</dt><dd>{{ project.required_issuer_type|default:"-" }}</dd>
+      {% with req=qual_check.license_requirement %}
+      <dt>公告側の建設業許可</dt>
+      <dd>
+        {% if req.license_class == "special" %}特定建設業の許可{% elif req.license_class == "general" %}建設業の許可{% else %}-{% endif %}
+        {% if req.license_class %}（{% if req.trades %}{{ req.trades|join:"・" }}{% else %}当該工事に対応する業種{% endif %}）{% endif %}
+      </dd>
+      <dt>公告側の営業所の所在地</dt>
+      <dd>
+        {% if req.prefectures %}{% if req.area_name %}{{ req.area_name }}の管轄区域: {% endif %}{{ req.prefectures|join:"、" }}{% else %}-{% endif %}
+      </dd>
+      {% endwith %}
     </dl>
   </div>
 </div>

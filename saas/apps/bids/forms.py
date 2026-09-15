@@ -4,6 +4,7 @@ from apps.bids.models import (
     BidCompetitor,
     BidCost,
     BidProject,
+    ConstructionLicense,
     Qualification,
     ScrapeTarget,
     UnifiedQualification,
@@ -90,6 +91,49 @@ class QualificationForm(forms.ModelForm):
             plain_widgets = (forms.Textarea, forms.DateInput, forms.CheckboxInput)
             if not isinstance(field.widget, plain_widgets):
                 field.widget.attrs.setdefault("class", "form-control")
+
+
+class ConstructionLicenseForm(forms.ModelForm):
+    """自社の建設業許可（ADR-0064）。"""
+
+    class Meta:
+        model = ConstructionLicense
+        fields = [
+            "trade", "license_class", "grantor_type", "authority", "license_number",
+            "valid_from", "valid_until", "renewal_deadline", "renewed", "memo",
+        ]
+        widgets = {
+            "valid_from": forms.DateInput(
+                attrs={"type": "date", "class": "form-control"}, format="%Y-%m-%d",
+            ),
+            "valid_until": forms.DateInput(
+                attrs={"type": "date", "class": "form-control"}, format="%Y-%m-%d",
+            ),
+            "renewal_deadline": forms.DateInput(
+                attrs={"type": "date", "class": "form-control"}, format="%Y-%m-%d",
+            ),
+            "memo": forms.Textarea(attrs={"class": "form-control", "rows": 3}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for _name, field in self.fields.items():
+            plain_widgets = (forms.Textarea, forms.DateInput, forms.CheckboxInput)
+            if not isinstance(field.widget, plain_widgets):
+                field.widget.attrs.setdefault("class", "form-control")
+
+    def clean(self):
+        cleaned = super().clean()
+        valid_from = cleaned.get("valid_from")
+        valid_until = cleaned.get("valid_until")
+        deadline = cleaned.get("renewal_deadline")
+        if valid_from and valid_until and valid_until < valid_from:
+            self.add_error("valid_until", "有効期間の終わりが始まりより前になっています。")
+        if deadline and valid_until and deadline > valid_until:
+            self.add_error(
+                "renewal_deadline", "更新書類の提出期限が有効期間の終わりより後になっています。",
+            )
+        return cleaned
 
 
 class UnifiedQualificationForm(forms.ModelForm):

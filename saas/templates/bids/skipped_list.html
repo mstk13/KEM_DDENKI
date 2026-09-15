@@ -99,7 +99,7 @@ tr.skipped-reason td { background: var(--bg-secondary, #f7f8fa); padding-top: 12
           <td colspan="7">
             <dl class="reason-box">
               <dt>判定の理由</dt>
-              <dd>{{ s.reason|default:"-" }}</dd>
+              <dd>{{ s.reason|default:"-"|linebreaksbr }}</dd>
               <dt>公告が求める資格と弊社の登録資格</dt>
               <dd>
                 <div class="compare">

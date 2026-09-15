@@ -609,11 +609,13 @@ def run_scrape(target, company):
         # 判定できない（公告が読めない・要件が書かれていない）案件は見送る。
         if target.only_eligible:
             if qualifications is None:
-                from apps.bids.models import Qualification
+                from apps.bids.models import ConstructionLicense, Qualification
 
                 # unscoped: company を明示指定
                 qualifications = list(Qualification.unscoped.filter(company=company))
-            verdict = _judge_before_register(rec, company, target, qualifications)
+                # 公告が建設業許可を求めるときに照らす自社の許可（ADR-0065）
+                licenses = list(ConstructionLicense.unscoped.filter(company=company))
+            verdict = _judge_before_register(rec, company, target, qualifications, licenses)
             if verdict is not True:
                 if verdict is False:
                     ineligible += 1
@@ -696,7 +698,7 @@ def run_scrape(target, company):
     }
 
 
-def _judge_before_register(rec, company, target, qualifications):
+def _judge_before_register(rec, company, target, qualifications, licenses=None):
     """取り込み前に公告を読み、自社の資格で参加できるかを判定する。
 
     Returns:
@@ -744,8 +746,10 @@ def _judge_before_register(rec, company, target, qualifications):
         required_grade=rec.get("required_grade", ""),
         required_grades=rec.get("required_grades", ""),
         required_score=rec.get("required_score"),
+        # 建設業許可・営業所の所在地の要件は参加要件の本文から読む（ADR-0065）
+        requirements=rec.get("requirements", ""),
     )
-    verdict = check_project(probe, qualifications)
+    verdict = check_project(probe, qualifications, licenses=licenses)
     logger.info(
         "資格判定 %s: %s → %s", "参加可" if verdict["eligible"] else "見送り",
         rec.get("title", "")[:30], verdict["reason"][:60],
