@@ -105,6 +105,11 @@
 <script src="{% static 'js/offline-db.js' %}"></script>
 <script src="{% static 'js/offline.js' %}" data-sw-url="{% url 'service_worker' %}"
         data-outbox-url="{% url 'offline:outbox' %}" data-user-id="{{ user.pk }}"></script>
+{# スマホへのプッシュ通知（ADR-0062）。公開鍵が空なら「まだ使えません」と出す #}
+<script src="{% static 'js/push.js' %}" data-public-key="{{ WEBPUSH_PUBLIC_KEY }}"
+        data-user-id="{{ user.pk }}" data-sw-url="{% url 'service_worker' %}"
+        data-subscribe-url="{% url 'push_subscribe' %}" data-unsubscribe-url="{% url 'push_unsubscribe' %}"
+        data-test-url="{% url 'push_test' %}"></script>
 {% endif %}
 </body>
 </html>

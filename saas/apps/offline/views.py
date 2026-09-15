@@ -2,6 +2,7 @@
 
 import hashlib
 
+from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.http import HttpResponse
 from django.shortcuts import render
@@ -13,7 +14,13 @@ from apps.core.json_utils import json_for_script
 from apps.offline.pages import OFFLINE_FORM_PATTERNS, OFFLINE_START_PAGES
 
 # 端末に控える静的ファイル。名前に中身のハッシュが付くので、変われば Service Worker の版も変わる。
-PRECACHE_STATIC = ("css/style.css", "js/app.js", "js/offline-db.js", "js/offline.js")
+PRECACHE_STATIC = (
+    "css/style.css",
+    "js/app.js",
+    "js/offline-db.js",
+    "js/offline.js",
+    "js/push.js",
+)
 
 # Service Worker が画面を控えに取りに来たときに付けるヘッダ（ADR-0052）。
 # base.html はこのとき「登録しました」などの知らせを出さない（出すと本来の画面で消えてしまう）。
@@ -37,6 +44,10 @@ def service_worker(request):
         "page_patterns_json": json_for_script(list(OFFLINE_FORM_PATTERNS)),
         "precache_pages_json": json_for_script([reverse(name) for name in OFFLINE_START_PAGES]),
         "precache_header": PRECACHE_HEADER,
+        # スマホへのプッシュ通知（ADR-0062）で使う名前・アイコン・通知の一覧
+        "app_name_json": json_for_script(settings.APP_NAME),
+        "icon_url": static("img/icon-192.png"),
+        "notifications_url": reverse("notification_list"),
     })
     response = HttpResponse(body, content_type="application/javascript; charset=utf-8")
     response["Service-Worker-Allowed"] = "/"

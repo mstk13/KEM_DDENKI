@@ -5,6 +5,11 @@ from apps.notifications import views
 urlpatterns = [
     path("", views.notification_list, name="notification_list"),
     path("<int:pk>/read/", views.notification_read, name="notification_read"),
+    path("<int:pk>/open/", views.notification_open, name="notification_open"),
+    # スマホへのプッシュ通知（ADR-0062）
+    path("push/subscribe/", views.push_subscribe, name="push_subscribe"),
+    path("push/unsubscribe/", views.push_unsubscribe, name="push_unsubscribe"),
+    path("push/test/", views.push_test, name="push_test"),
     path("read-all/", views.notification_read_all, name="notification_read_all"),
     path("badge/", views.notification_badge, name="notification_badge"),
     path("rules/", views.alert_rule_list, name="alert_rule_list"),

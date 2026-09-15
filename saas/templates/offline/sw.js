@@ -17,6 +17,9 @@ var STATIC_URLS = {{ static_urls_json }};
 var PRECACHE_PAGES = [OUTBOX_URL].concat({{ precache_pages_json }});
 var PRECACHE_HEADER = "{{ precache_header }}";
 var REFRESH_MESSAGE = "kec-refresh-pages";
+var APP_NAME = {{ app_name_json }};
+var ICON_URL = "{{ icon_url }}";
+var NOTIFICATIONS_URL = "{{ notifications_url }}";
 var FORM_PATTERNS = {{ page_patterns_json }}.map(function (pattern) {
   return new RegExp(pattern);
 });
@@ -72,6 +75,41 @@ self.addEventListener("message", function (event) {
   if (event.data && event.data.type === REFRESH_MESSAGE) {
     event.waitUntil(precachePages().catch(function () {}));
   }
+});
+
+// ---- スマホへのプッシュ通知（ADR-0062） ----
+// 中身はサーバーが端末の鍵で暗号化して送り、ブラウザが解いて event.data に入れる。
+// iPhone などは届いたら必ず通知を出さないと以後届かなくなるので、中身が読めなくても出す。
+self.addEventListener("push", function (event) {
+  var data = {};
+  try { data = event.data ? event.data.json() : {}; } catch (e) { data = {}; }
+  var options = {
+    body: data.body || "",
+    icon: ICON_URL,
+    badge: ICON_URL,
+    lang: "ja",
+    data: { url: data.url || NOTIFICATIONS_URL },
+  };
+  if (data.tag) { options.tag = data.tag; }
+  event.waitUntil(self.registration.showNotification(data.title || APP_NAME, options));
+});
+
+// 通知を押したら、開いているアプリの画面をその知らせの画面へ移す。開いていなければ開く。
+// 移り先はこのサイトの中だけ。
+self.addEventListener("notificationclick", function (event) {
+  event.notification.close();
+  var raw = (event.notification.data && event.notification.data.url) || NOTIFICATIONS_URL;
+  var target = new URL(raw, self.location.origin);
+  if (target.origin !== self.location.origin) { target = new URL(NOTIFICATIONS_URL, self.location.origin); }
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(function (list) {
+      var client = list.find(function (c) { return "navigate" in c && "focus" in c; });
+      if (!client) { return self.clients.openWindow(target.href); }
+      return client.focus()
+        .then(function (focused) { return (focused || client).navigate(target.href); })
+        .catch(function () { return self.clients.openWindow(target.href); });
+    })
+  );
 });
 
 self.addEventListener("fetch", function (event) {

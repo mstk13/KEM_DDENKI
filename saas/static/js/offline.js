@@ -135,8 +135,10 @@
   }
 
   // ログアウトのとき、端末に残した入力と画面の控えを消す（端末を共有しても読まれないように）。
+  // スマホへの通知の送り先も消す（前の人あての通知がこの端末に届かないように。ADR-0062）。
   function clearDevice() {
     var jobs = [DB.clear().catch(function () {})];
+    if (window.KecPush) { jobs.push(window.KecPush.forgetDevice()); }
     try { localStorage.removeItem(REFRESH_KEY); } catch (e) { /* 次にログインした人の画面で取り直す */ }
     if (window.caches) {
       jobs.push(caches.keys().then(function (keys) {

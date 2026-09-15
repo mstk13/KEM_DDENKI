@@ -1,6 +1,7 @@
 from django.contrib import admin
+from simple_history.admin import SimpleHistoryAdmin
 
-from apps.notifications.models import AlertLog, AlertRule, Notification
+from apps.notifications.models import AlertLog, AlertRule, Notification, PushSubscription
 
 
 @admin.register(Notification)
@@ -8,7 +9,22 @@ class NotificationAdmin(admin.ModelAdmin):
     list_display = ["title", "recipient", "level", "module", "is_read", "sent_at"]
     list_filter = ["level", "module", "is_read", "channel"]
     search_fields = ["title", "body"]
-    readonly_fields = ["sent_at", "read_at"]
+    readonly_fields = ["sent_at", "read_at", "pushed_at"]
+
+
+@admin.register(PushSubscription)
+class PushSubscriptionAdmin(SimpleHistoryAdmin):
+    list_display = [
+        "user",
+        "company",
+        "user_agent",
+        "created_at",
+        "last_success_at",
+        "failure_count",
+    ]
+    list_filter = ["company"]
+    search_fields = ["user__username", "user_agent"]
+    readonly_fields = ["endpoint", "p256dh", "auth", "last_success_at", "failure_count"]
 
 
 @admin.register(AlertRule)

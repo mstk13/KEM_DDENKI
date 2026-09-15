@@ -13,6 +13,8 @@
   {% endif %}
 </div>
 
+{% include "notifications/_push_panel.html" %}
+
 <!-- フィルタ -->
 <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;">
   <a href="{% url 'notification_list' %}" class="btn btn-sm {% if not current_module and not current_level %}btn-primary{% else %}btn-outline{% endif %}">すべて</a>

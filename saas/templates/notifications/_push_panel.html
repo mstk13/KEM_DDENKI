@@ -1,0 +1,25 @@
+{# スマホへのプッシュ通知（ADR-0062）。どれを出すかは push.js が端末ごとに調べて決める #}
+<section class="card push-panel" id="push-panel" data-push-panel data-push-state="loading">
+  <div class="card-header"><h2>📱 スマホへの通知</h2></div>
+  <div class="card-body">
+    <p data-push-when="loading">この端末の状態を確かめています…</p>
+    <p data-push-when="no-key" hidden>スマホへの通知はまだ使えません。管理者がサーバーに通知用の鍵を設定すると使えるようになります。</p>
+    <p data-push-when="unsupported" hidden>この端末・ブラウザでは、スマホへの通知を受け取れません。</p>
+    <p data-push-when="ios-home" hidden>iPhone・iPad は、Safari の共有ボタンから「ホーム画面に追加」をして、ホーム画面のアプリから開くと受け取れます（iOS 16.4 以降）。</p>
+    <p data-push-when="denied" hidden>この端末で通知がブロックされています。端末の設定でこのアプリの通知を許可してから、画面を開き直してください。</p>
+    <div data-push-when="off" hidden>
+      <p>オンにすると、アプリを開いていなくても、ベルに届く通知（朝の KY の知らせなど）がこの端末にも届きます。</p>
+      <div class="push-actions">
+        <button type="button" class="btn btn-primary" data-push-action="subscribe">この端末で通知を受け取る</button>
+      </div>
+    </div>
+    <div data-push-when="on" hidden>
+      <p>✅ この端末で通知を受け取っています。</p>
+      <div class="push-actions">
+        <button type="button" class="btn btn-outline" data-push-action="test">テスト通知を送る</button>
+        <button type="button" class="btn btn-outline" data-push-action="unsubscribe">この端末では受け取らない</button>
+      </div>
+    </div>
+    <p class="push-message" data-push-message role="status" hidden></p>
+  </div>
+</section>

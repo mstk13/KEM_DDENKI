@@ -7,6 +7,7 @@
 
 from django.conf import settings
 from django.db import models
+from simple_history.models import HistoricalRecords
 
 from apps.core.models import TenantModel
 
@@ -74,6 +75,9 @@ class Notification(TenantModel):
     is_read = models.BooleanField("既読", default=False)
     read_at = models.DateTimeField("既読日時", null=True, blank=True)
     sent_at = models.DateTimeField("送信日時", auto_now_add=True)
+    # スマホへのプッシュ通知（ADR-0062）の送り出しを済ませた日時。
+    # 送る端末が無かった・既読だった知らせにも付ける（次の回に拾い直さないため）。
+    pushed_at = models.DateTimeField("プッシュ送信日時", null=True, blank=True)
 
     class Meta:
         verbose_name = "通知"
@@ -86,6 +90,38 @@ class Notification(TenantModel):
 
     def __str__(self):
         return f"[{self.get_level_display()}] {self.title}"
+
+
+class PushSubscription(TenantModel):
+    """スマホへのプッシュ通知の送り先（端末1台・ブラウザ1つにつき1件）。ADR-0062。
+
+    endpoint はブラウザがプッシュサービス（Google・Apple など）から受け取る送り先の URL。
+    p256dh と auth は、その端末だけが読めるように中身を暗号化するための鍵（RFC 8291）。
+    """
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="push_subscriptions",
+        verbose_name="通知先",
+    )
+    # 端末の送り先は会社をまたいで一意。別の人がこの端末でオンにしたら付け替える
+    endpoint = models.CharField("送り先", max_length=1000, unique=True)
+    p256dh = models.CharField("端末の公開鍵", max_length=200)
+    auth = models.CharField("端末の認証用の値", max_length=100)
+    user_agent = models.CharField("ブラウザ", max_length=300, blank=True)
+    last_success_at = models.DateTimeField("最後に届けた日時", null=True, blank=True)
+    failure_count = models.PositiveSmallIntegerField("続けて失敗した回数", default=0)
+
+    history = HistoricalRecords()
+
+    class Meta:
+        verbose_name = "プッシュ通知の送り先"
+        verbose_name_plural = "プッシュ通知の送り先"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.user} ({self.user_agent[:40] or '端末'})"
 
 
 class AlertRule(TenantModel):
