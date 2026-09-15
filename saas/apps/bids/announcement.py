@@ -287,6 +287,94 @@ def extract_mod_works_categories(text: str) -> list[str]:
     return found
 
 
+# ---- 建設業許可・営業所の所在地の要件（ADR-0065） ----
+
+PREFECTURES = (
+    "北海道", "青森県", "岩手県", "宮城県", "秋田県", "山形県", "福島県",
+    "茨城県", "栃木県", "群馬県", "埼玉県", "千葉県", "東京都", "神奈川県",
+    "新潟県", "富山県", "石川県", "福井県", "山梨県", "長野県", "岐阜県",
+    "静岡県", "愛知県", "三重県", "滋賀県", "京都府", "大阪府", "兵庫県",
+    "奈良県", "和歌山県", "鳥取県", "島根県", "岡山県", "広島県", "山口県",
+    "徳島県", "香川県", "愛媛県", "高知県", "福岡県", "佐賀県", "長崎県",
+    "熊本県", "大分県", "宮崎県", "鹿児島県", "沖縄県",
+)
+_PREFECTURE = re.compile("|".join(PREFECTURES))
+# 項目の区切り。「。」と、「（11）」のような項目番号の前で切る
+_REQUIREMENT_ITEM = re.compile(r"。|(?=[（(][0-9０-９]{1,2}[）)])")
+# 許可を持っていることを求める言い回し。「許可の取消し」「営業停止処分」の話は拾わない
+_LICENSE_HELD = re.compile(r"許可(?:[（(][^）)]{0,30}[）)])?(?:を受け|を有|に基づ|を得)")
+_SPECIAL_LICENSE = re.compile(r"特定建設業の?許可")
+# 下請に出す相手の許可の話は、自社の要件ではない
+_NOT_OWN_LICENSE = ("下請",)
+# 「電気工事業」「「電気工事」」。「当該工事に対応する建設業種」は業種を書いていない
+_TRADE_GYO = re.compile(r"([一-龥]{1,8}工事)業")
+_TRADE_QUOTED = re.compile(r"[「｢]([一-龥]{1,8}工事)[」｣]")
+_NOT_TRADE = ("当該工事", "建設工事", "本工事", "同種工事", "類似工事", "対象工事", "公共工事")
+_OFFICE = re.compile(r"本店|支店|営業所")
+_OFFICE_PLACED = ("所在", "有する", "有し", "設置", "置く", "置い", "構え")
+_AREA_NAME = re.compile(r"([^\s、，,。（）()0-9０-９]{2,15}?)の管轄(?:区域|地域)")
+
+
+def _trades_in(sentence: str) -> list[str]:
+    found = []
+    for pattern in (_TRADE_GYO, _TRADE_QUOTED):
+        for m in pattern.finditer(sentence):
+            name = m.group(1)
+            if any(name.endswith(w) for w in _NOT_TRADE):
+                continue
+            trade = name + "業"
+            if trade not in found:
+                found.append(trade)
+    return found
+
+
+def extract_license_requirement(text: str) -> dict:
+    """参加要件から、建設業許可と営業所の所在地の要件を読み取る（ADR-0065）。
+
+    公告に書かれていなければ空のまま返す（照らし合わせない）。
+
+    Returns:
+        {
+            "license_class": "special"（特定建設業の許可）/ "general"（建設業の許可）/ "",
+            "trades": ["電気工事業", ...]  … 業種が書かれていなければ空（当該工事に対応する業種）,
+            "prefectures": ["東京都", ...] … 許可に基づく営業所などを置く地域。無ければ空,
+            "area_name": "北関東防衛局"   … 「○○の管轄区域」と書かれていればその名前,
+            "license_text": 根拠の文, "office_text": 根拠の文,
+        }
+    """
+    result = {
+        "license_class": "", "trades": [], "prefectures": [], "area_name": "",
+        "license_text": "", "office_text": "",
+    }
+    for sentence in _REQUIREMENT_ITEM.split(_flatten(text)):
+        if not sentence or any(w in sentence for w in _NOT_OWN_LICENSE):
+            continue
+        trades = _trades_in(sentence)
+        special = bool(_SPECIAL_LICENSE.search(sentence))
+        held = bool(_LICENSE_HELD.search(sentence)) and ("建設業" in sentence or bool(trades))
+        if special or held:
+            if special:
+                result["license_class"] = "special"
+            elif not result["license_class"]:
+                result["license_class"] = "general"
+            for trade in trades:
+                if trade not in result["trades"]:
+                    result["trades"].append(trade)
+            if special or not result["license_text"]:
+                result["license_text"] = sentence
+        if _OFFICE.search(sentence) and any(w in sentence for w in _OFFICE_PLACED):
+            prefectures = _PREFECTURE.findall(sentence)
+            if prefectures:
+                for name in prefectures:
+                    if name not in result["prefectures"]:
+                        result["prefectures"].append(name)
+                if not result["office_text"]:
+                    result["office_text"] = sentence
+                    area = _AREA_NAME.search(sentence)
+                    result["area_name"] = area.group(1) if area else ""
+    return result
+
+
 def extract_sections(text: str) -> dict:
     """公告テキストから工事概要・参加要件・必要等級を取り出す。
 

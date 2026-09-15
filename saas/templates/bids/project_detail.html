@@ -119,6 +119,17 @@
       <dd>{% if project.required_score %}{{ project.required_score }} 点以上{% else %}-{% endif %}</dd>
       <dt>公告側の必要業種区分</dt><dd>{{ project.required_category|default:"-" }}</dd>
       <dt>資格種別</dt><dd>{{ project.required_issuer_type|default:"-" }}</dd>
+      {% with req=qual_check.license_requirement %}
+      <dt>公告側の建設業許可</dt>
+      <dd>
+        {% if req.license_class == "special" %}特定建設業の許可{% elif req.license_class == "general" %}建設業の許可{% else %}-{% endif %}
+        {% if req.license_class %}（{% if req.trades %}{{ req.trades|join:"・" }}{% else %}当該工事に対応する業種{% endif %}）{% endif %}
+      </dd>
+      <dt>公告側の営業所の所在地</dt>
+      <dd>
+        {% if req.prefectures %}{% if req.area_name %}{{ req.area_name }}の管轄区域: {% endif %}{{ req.prefectures|join:"、" }}{% else %}-{% endif %}
+      </dd>
+      {% endwith %}
     </dl>
   </div>
 </div>
