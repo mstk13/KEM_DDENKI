@@ -70,7 +70,14 @@
         {% else %}
           <span class="badge badge-gray">要確認</span>
         {% endif %}
+        {% if qual_check.reason_lines|length > 1 %}
+        {# 資格不足の理由が複数あれば1行ずつ並べる（ADR-0066） #}
+        <ul class="shortfall-reasons" style="margin:6px 0 0;padding-left:18px;">
+          {% for line in qual_check.reason_lines %}<li>{{ line }}</li>{% endfor %}
+        </ul>
+        {% else %}
         {{ qual_check.reason }}
+        {% endif %}
       </dd>
       <dt>該当する自社資格</dt>
       <dd>
@@ -105,6 +112,8 @@
           <ul style="margin:0;padding-left:18px;">
             {% for item in qual_check.checked %}<li>{{ item }}</li>{% endfor %}
           </ul>
+        {% elif qual_check.shortfalls %}
+          満たした要件はありません。判定結果の不足を確認してください。
         {% else %}
           公告から等級・点数の要件を読み取れていません。参加要件欄を確認してください。
         {% endif %}

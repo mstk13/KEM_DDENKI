@@ -140,7 +140,7 @@ class TestLicenseRequirementCheck:
 
         assert verdict["eligible"] is False
         assert verdict["failed_on"] == "license"
-        assert verdict["reason"] == (
+        assert verdict["shortfalls"][0]["reason"] == (
             "電気通信工事業の特定建設業の許可が必要ですが、自社の電気通信工事業は"
             "一般建設業の許可です（神奈川県知事 許可（般-7）第5170号）。"
         )
@@ -180,7 +180,7 @@ class TestLicenseRequirementCheck:
         verdict = check_project(project, [], today=TODAY, licenses=_licenses(company_a))
 
         assert verdict["eligible"] is False
-        assert verdict["reason"] == (
+        assert verdict["shortfalls"][0]["reason"] == (
             "管工事業の建設業の許可が必要ですが、"
             "自社の建設業許可は 電気工事業・電気通信工事業 だけです。"
         )

@@ -161,19 +161,21 @@ def requirements_with_shortfall(text, qual_check):
     Usage: {% requirements_with_shortfall project.requirements qual_check %}
 
     - 判定が資格不足でなければ structured_text と同じ表示
-    - 落ちた条件（等級・点数・資格の有無）の話をしている項目の右に理由を出す。
-      該当する項目が見つからなければ、資格の話をしている最初の項目に付け、
-      それも無ければ表の上に1行で出す
+    - 満たさない要件が複数あれば、それぞれの理由を、その話をしている項目の右に出す（ADR-0066）。
+      該当する項目が見つからない理由は、資格の話をしている最初の項目に付け、
+      それも無ければ表の上にまとめて出す
     """
     ineligible = bool(qual_check) and qual_check.get("eligible") is False
     if not ineligible:
         return structured_text(text)
-    reason = qual_check.get("reason", "")
-    failed_on = qual_check.get("failed_on", "")
+    shortfalls = qual_check.get("shortfalls") or [
+        {"failed_on": qual_check.get("failed_on", ""), "reason": qual_check.get("reason", "")},
+    ]
+    all_reasons = [s["reason"] for s in shortfalls]
 
     if not text:
         return mark_safe(
-            f'<div style="margin-bottom:8px;">{_shortfall_note_html(reason)}</div>'
+            f'<div style="margin-bottom:8px;">{_shortfall_notes_html(all_reasons)}</div>'
             '<div style="color:var(--gray-400);text-align:center;padding:20px;">'
             '未入力です。公告の入札参加資格・実績要件・配置技術者の条件を転記してください。'
             '</div>'
@@ -182,20 +184,32 @@ def requirements_with_shortfall(text, qual_check):
     items = _split_items(text)
     if not items or (len(items) == 1 and not items[0][0]):
         return mark_safe(
-            f'<div style="margin-bottom:8px;">{_shortfall_note_html(reason)}</div>'
+            f'<div style="margin-bottom:8px;">{_shortfall_notes_html(all_reasons)}</div>'
             f'<div style="white-space:pre-wrap;">{escape(text)}</div>'
         )
 
-    # 理由を添える項目を決める
-    targets = [i for i, (_, body) in enumerate(items) if _item_matches_failure(body, failed_on)]
-    if not targets:
+    # 理由ごとに、添える項目を決める
+    qual_items = [
+        i for i, (_, body) in enumerate(items)
+        if any(w in re.sub(r"\s+", "", body) for w in _QUAL_WORDS)
+    ]
+    notes_by_item = {}
+    banner_reasons = []
+    for shortfall in shortfalls:
         targets = [
             i for i, (_, body) in enumerate(items)
-            if any(w in re.sub(r"\s+", "", body) for w in _QUAL_WORDS)
-        ][:1]
+            if _item_matches_failure(body, shortfall["failed_on"])
+        ] or qual_items[:1]
+        if not targets:
+            banner_reasons.append(shortfall["reason"])
+            continue
+        for i in targets:
+            notes = notes_by_item.setdefault(i, [])
+            if shortfall["reason"] not in notes:
+                notes.append(shortfall["reason"])
     banner = ""
-    if not targets:
-        banner = f'<div style="margin-bottom:8px;">{_shortfall_note_html(reason)}</div>'
+    if banner_reasons:
+        banner = f'<div style="margin-bottom:8px;">{_shortfall_notes_html(banner_reasons)}</div>'
 
     # 左（ラベル＋本文）と右（理由）をちょうど半分ずつにする。
     # table-layout:fixed と colgroup で列幅を固定し、文章の長さで幅が動かないようにする。
@@ -214,8 +228,8 @@ def requirements_with_shortfall(text, qual_check):
         note = (
             f'<td class="shortfall-note" style="padding:8px 12px;vertical-align:top;'
             f'color:var(--danger);font-size:.85rem;border-left:1px solid var(--border-light);">'
-            f'{_shortfall_note_html(reason)}</td>'
-            if i in targets else
+            f'{_shortfall_notes_html(notes_by_item[i])}</td>'
+            if i in notes_by_item else
             '<td style="padding:8px 12px;border-left:1px solid var(--border-light);"></td>'
         )
         if label:
@@ -245,3 +259,14 @@ def requirements_with_shortfall(text, qual_check):
         '</table></div>'
     )
     return mark_safe(html)
+
+
+def _shortfall_notes_html(reasons) -> str:
+    """理由を1つずつ「資格不足」の印付きで並べる。"""
+    parts = []
+    for n, reason in enumerate(reasons):
+        style = "" if n == 0 else ' style="margin-top:6px;"'
+        parts.append(
+            f'<div class="shortfall-item"{style}>{_shortfall_note_html(reason)}</div>'
+        )
+    return "".join(parts)
