@@ -28,7 +28,7 @@ urlpatterns = [
         "photos/<int:pk>/thumb/", views.site_photo_file, {"variant": "thumb"},
         name="photo_thumb",
     ),
-    # 提出書類（ADR-0065）
+    # 提出書類（ADR-0067）
     path("<int:pk>/documents/", document_views.site_document_list, name="document_list"),
     path("<int:pk>/documents/add/", document_views.site_document_add, name="document_add"),
     path("documents/<int:pk>/", document_views.site_document_detail, name="document_detail"),

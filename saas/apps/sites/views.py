@@ -109,7 +109,7 @@ def site_detail(request, pk):
         set(today_ky.participants.values_list("worker_id", flat=True)) if today_ky else set()
     )
 
-    # 提出書類（ADR-0065）。進み具合と、まだ提出していない書類の名前を少しだけ出す
+    # 提出書類（ADR-0067）。進み具合と、まだ提出していない書類の名前を少しだけ出す
     ensure_site_documents(site)
 
     return render(request, "sites/detail.html", {
