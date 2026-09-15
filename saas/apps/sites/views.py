@@ -29,6 +29,7 @@ from apps.offline.decorators import offline_resendable
 from apps.permissions.services import has_module_permission
 from apps.safety.models import KySheet
 from apps.safety.services import members_on_day, workers_without_entry
+from apps.sites.documents import document_progress, ensure_site_documents, pending_documents
 from apps.sites.forms import (
     EstimateUploadForm,
     ProcessForm,
@@ -108,6 +109,9 @@ def site_detail(request, pk):
         set(today_ky.participants.values_list("worker_id", flat=True)) if today_ky else set()
     )
 
+    # 提出書類（ADR-0065）。進み具合と、まだ提出していない書類の名前を少しだけ出す
+    ensure_site_documents(site)
+
     return render(request, "sites/detail.html", {
         "site": site,
         "processes": processes,
@@ -137,6 +141,8 @@ def site_detail(request, pk):
         "safety_member_count": len(safety_members),
         "safety_signed_count": sum(1 for worker in safety_members if worker.pk in signed_ids),
         "entry_missing_count": len(workers_without_entry(site, safety_members)),
+        "document_progress": document_progress(site),
+        "pending_documents": pending_documents(site),
         **summary,
     })
 
