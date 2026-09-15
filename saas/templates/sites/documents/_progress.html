@@ -1,0 +1,5 @@
+{# 提出書類の進み具合（ADR-0065）。「不要」にした書類は数に入れない #}
+<p>
+  <b>提出済み {{ progress.submitted }} / {{ progress.total }}</b>
+  <span style="color:var(--text-secondary);">（作成済み {{ progress.prepared }}・未作成 {{ progress.not_started }}{% if progress.not_required %}・不要 {{ progress.not_required }}{% endif %}）</span>
+</p>
