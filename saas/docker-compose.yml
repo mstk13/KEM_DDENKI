@@ -92,6 +92,11 @@ services:
       EMAIL_HOST_USER: ${EMAIL_HOST_USER:-}
       EMAIL_HOST_PASSWORD: ${EMAIL_HOST_PASSWORD:-}
       DEFAULT_FROM_EMAIL: ${DEFAULT_FROM_EMAIL:-noreply@kem-ddenki.com}
+      # スマホへのプッシュ通知（ADR-0062）。python manage.py generate_vapid_keys で作った鍵を .env に置く。
+      # 未設定ならプッシュ通知は出さない（ベルの通知はそのまま）。web と cron の両方に渡す
+      # （web は端末に公開鍵を渡しテスト通知を送る、cron は1分ごとに送る）。
+      WEBPUSH_VAPID_PRIVATE_KEY: ${WEBPUSH_VAPID_PRIVATE_KEY:-}
+      WEBPUSH_VAPID_SUBJECT: ${WEBPUSH_VAPID_SUBJECT:-}
     ports:
       - "${WEB_PORT:-8000}:8000"
     volumes:
@@ -142,6 +147,9 @@ services:
       EMAIL_HOST_USER: ${EMAIL_HOST_USER:-}
       EMAIL_HOST_PASSWORD: ${EMAIL_HOST_PASSWORD:-}
       DEFAULT_FROM_EMAIL: ${DEFAULT_FROM_EMAIL:-noreply@kem-ddenki.com}
+      # スマホへのプッシュ通知（ADR-0062）。web と同じ鍵を渡す
+      WEBPUSH_VAPID_PRIVATE_KEY: ${WEBPUSH_VAPID_PRIVATE_KEY:-}
+      WEBPUSH_VAPID_SUBJECT: ${WEBPUSH_VAPID_SUBJECT:-}
     volumes:
       - .:/app
       - media_data:/app/media

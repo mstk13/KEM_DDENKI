@@ -90,6 +90,7 @@ TEMPLATES = [
                 "django.contrib.messages.context_processors.messages",
                 "apps.core.context_processors.branding",
                 "apps.core.context_processors.navigation",
+                "apps.notifications.context_processors.web_push",
             ],
         },
     },
@@ -237,3 +238,12 @@ EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "")
 EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")
 DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "noreply@kem-ddenki.com")
 EMAIL_SUBJECT_PREFIX = "[KEC通知] "
+
+# ---- スマホへのプッシュ通知（Web Push, ADR-0062） ----
+# 秘密鍵は python manage.py generate_vapid_keys で作り、サーバーの .env にだけ置く。
+# 公開鍵はアプリが秘密鍵から計算する。未設定ならプッシュ通知は出さない（ベルの通知はそのまま）。
+WEBPUSH_VAPID_PRIVATE_KEY = os.environ.get("WEBPUSH_VAPID_PRIVATE_KEY", "")
+# 送り手の連絡先。Apple のプッシュサービスは mailto: か https: の形でないと受け付けない
+WEBPUSH_VAPID_SUBJECT = (
+    os.environ.get("WEBPUSH_VAPID_SUBJECT", "") or f"mailto:{DEFAULT_FROM_EMAIL}"
+)

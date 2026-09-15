@@ -95,6 +95,7 @@ log "  現在時刻 $(date '+%F %T %Z')"
 log "  scrape_bids          2日に1回 07:00 以降"
 log "  send_document_alerts 毎日     08:00 以降"
 log "  send_safety_reminders 毎日    08:00〜12:00"
+log "  send_push_notifications 1分ごと（通知用の鍵があるとき）"
 log "  verify_item_matching 日曜     03:00 以降"
 log "  判定間隔 ${INTERVAL}秒 / 記録 ${STATE_DIR}"
 
@@ -124,6 +125,21 @@ while true; do
     if [ "$minutes" -ge 480 ] && [ "$minutes" -lt 720 ] &&
        [ "$(read_state send_safety_reminders)" != "$today" ]; then
         run_job send_safety_reminders "send_safety_reminders" send_safety_reminders
+    fi
+
+    # send_push_notifications: 1分に1回（ADR-0062）
+    # ベルに届いた通知を、受け取りをオンにしている端末へプッシュ通知で送る。
+    # 朝の知らせ（上）を出したら、同じ周のうちに送れるようにその後ろに置く。
+    # 通知用の鍵が無ければ python を起動しない。毎分なので、送ったときと失敗したときだけログに出す。
+    now_minute=$(date '+%F %H:%M')
+    if [ -n "${WEBPUSH_VAPID_PRIVATE_KEY:-}" ] &&
+       [ "$(read_state send_push_notifications)" != "$now_minute" ]; then
+        write_state send_push_notifications "$now_minute"
+        if [ "$DRY_RUN" = "1" ]; then
+            log "send_push_notifications を実行します（dry-run のため実際には動かしません）"
+        elif ! python manage.py send_push_notifications; then
+            log "send_push_notifications が失敗しました"
+        fi
     fi
 
     # verify_item_matching: 日曜の 03:00 以降に1回（ADR-0010 層Bの回帰検証）
