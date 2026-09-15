@@ -1,5 +1,6 @@
 """
-書類未添付・健診期限アラートを全テナントに送信する管理コマンド。
+書類未添付・健診期限アラートと、建設業許可の期限の知らせ（ADR-0064）を
+全テナントに送信する管理コマンド。
 
 cron 例（毎朝8時）:
     docker compose exec web python manage.py send_document_alerts
@@ -11,6 +12,7 @@ Usage:
 
 from django.core.management.base import BaseCommand
 
+from apps.bids.license_alerts import check_construction_license_alerts
 from apps.notifications.services import (
     check_certificate_missing_alerts,
     check_health_checkup_due_alerts,
@@ -20,7 +22,7 @@ from apps.tenants.models import Company
 
 
 class Command(BaseCommand):
-    help = "証明書・健診書類の未添付アラートと健診期限アラートを送信"
+    help = "証明書・健診書類の未添付アラート、健診期限アラート、建設業許可の期限の知らせを送信"
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -40,4 +42,5 @@ class Command(BaseCommand):
             check_certificate_missing_alerts(company)
             check_health_report_missing_alerts(company)
             check_health_checkup_due_alerts(company)
+            check_construction_license_alerts(company)
             self.stdout.write(self.style.SUCCESS(f"[{company.name}] 完了"))

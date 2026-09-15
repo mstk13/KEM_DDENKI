@@ -6,6 +6,7 @@ from apps.bids.models import (
     BidCost,
     BidProject,
     BidScheduleRule,
+    ConstructionLicense,
     Qualification,
     ScrapeTarget,
     SkippedBid,
@@ -90,6 +91,17 @@ class UnifiedQualificationAdmin(SimpleHistoryAdmin):
     )
     list_filter = ("company",)
     search_fields = ("agency",)
+
+
+@admin.register(ConstructionLicense)
+class ConstructionLicenseAdmin(SimpleHistoryAdmin):
+    list_display = (
+        "trade", "license_class", "authority", "license_number",
+        "valid_until", "renewal_deadline", "renewed", "company",
+    )
+    list_filter = ("license_class", "renewed", "company")
+    search_fields = ("trade", "license_number")
+    readonly_fields = ("reminder_step",)
 
 
 @admin.register(SkippedBid)

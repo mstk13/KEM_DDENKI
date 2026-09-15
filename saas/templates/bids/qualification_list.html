@@ -20,9 +20,59 @@ tr.qual-red:hover { background: #ffebeb; }
 </style>
 <div class="page-header">
   <h1>入札参加資格一覧</h1>
+</div>
+
+{# ---- 自社の建設業許可（ADR-0064） ---- #}
+<div class="page-header" id="licenses">
+  <div>
+    <h1 style="font-size:1.1rem;">自社の建設業許可</h1>
+    <p style="font-size:.8rem;color:var(--text-muted);margin:4px 0 0;">
+      業種ごとに特定・一般が分かれます。更新書類の提出期限の180日前から、社長・管理者・事務員に通知が届きます。
+    </p>
+  </div>
+  <a href="{% url 'bids:license_create' %}" class="btn btn-primary btn-sm">+ 許可を登録</a>
+</div>
+
+<div class="card">
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>建設業の種類</th><th>区分</th><th>許可番号</th><th>有効期間</th><th>更新書類の提出期限</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for lic in licenses %}
+        <tr class="{% if lic.renewed %}qual-green{% else %}{{ lic.alert_class }}{% endif %}">
+          <td>{{ lic.trade }}</td>
+          <td><span class="badge {% if lic.license_class == 'special' %}badge-blue{% else %}badge-gray{% endif %}">{{ lic.get_license_class_display }}</span></td>
+          <td>{{ lic.full_number }}</td>
+          <td>{{ lic.valid_from|date:"Y/n/j" }}〜<wbr>{{ lic.valid_until|date:"Y/n/j" }}</td>
+          <td style="white-space:nowrap;">
+            {{ lic.renewal_deadline|date:"Y/n/j"|default:"-" }}
+            {% if lic.renewed %}<span class="badge badge-green">更新済</span>
+            {% elif lic.status_label %}<div style="font-size:12px;color:var(--text-muted);">{{ lic.status_label }}</div>{% endif %}
+          </td>
+          <td style="white-space:nowrap;width:1%;text-align:right;">
+            <a href="{% url 'bids:license_edit' lic.pk %}" class="btn btn-outline btn-sm">編集</a>
+            <form method="post" action="{% url 'bids:license_delete' lic.pk %}" style="display:inline;">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-outline btn-sm" style="color:var(--danger);" onclick="return confirm('建設業許可「{{ lic }}」を削除しますか？')">削除</button>
+            </form>
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="6"><div class="empty"><p>建設業許可が登録されていません</p></div></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{# ---- 発注機関ごとの入札参加資格 ---- #}
+<div class="page-header" style="margin-top:32px;">
+  <h1 style="font-size:1.1rem;">発注機関ごとの入札参加資格</h1>
   <div style="display:flex;gap:8px;">
     <a href="{% url 'bids:qualification_import' %}" class="btn btn-success btn-sm">Excel/PDFインポート</a>
-    <a href="{% url 'bids:qualification_create' %}" class="btn btn-primary">+ 資格を登録</a>
+    <a href="{% url 'bids:qualification_create' %}" class="btn btn-primary btn-sm">+ 資格を登録</a>
   </div>
 </div>
 
