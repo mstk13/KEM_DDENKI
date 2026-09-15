@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}提出書類 — {{ site.name }} — {{ APP_NAME }}{% endblock %}
+{% block topbar_title %}提出書類{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>{{ site.name }} — 提出書類</h1>
+  <a href="{% url 'sites:detail' site.pk %}" class="btn btn-outline btn-sm">現場詳細に戻る</a>
+</div>
+
+<div class="card">
+  <div class="card-body">
+    {% include "sites/documents/_progress.html" %}
+    <p style="margin-top:6px;">
+      書類名を押すと、ファイル（PDF・Excel）の登録と、提出の状況の記録ができます。
+      この現場で要らない書類は、状況を「不要」にしてください（数に入りません）。
+    </p>
+  </div>
+</div>
+
+{% for group in groups %}{% if group.documents %}
+<div class="card" style="margin-top:16px;" id="documents-{{ group.value }}">
+  <div class="card-header"><h2>{{ group.label }}</h2></div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>書類名</th>
+          <th style="width:100px;">状況</th>
+          <th style="width:110px;">提出日</th>
+          <th>ファイル</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for document in group.documents %}
+        <tr>
+          <td>
+            <a href="{% url 'sites:document_detail' document.pk %}"><b>{{ document.name }}</b></a>
+            {% if document.is_custom %}<span class="badge badge-gray">この現場で追加</span>{% endif %}
+            {% if document.note %}<br><small style="color:var(--text-secondary);">{{ document.note|truncatechars:60 }}</small>{% endif %}
+          </td>
+          <td><span class="badge {{ document.status_badge }}">{{ document.get_status_display }}</span></td>
+          <td>{{ document.submitted_on|date:"Y-m-d"|default:"—" }}</td>
+          <td>
+            {% with latest=document.file_list.0 %}
+            {% if latest %}
+            <a href="{% url 'sites:document_file' latest.pk %}"{% if latest.kind == "pdf" %} target="_blank" rel="noopener"{% endif %}>{{ latest.get_kind_display }}: {{ latest.original_filename|truncatechars:32 }}</a>
+            {% if document.file_list|length > 1 %}<small style="color:var(--text-secondary);">ほか {{ document.file_list|length|add:"-1" }} 件</small>{% endif %}
+            {% else %}
+            <span style="color:var(--text-secondary);">なし</span>
+            {% endif %}
+            {% endwith %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}{% endfor %}
+
+<div class="card" style="margin-top:16px;" id="document-add">
+  <div class="card-header"><h2>+ リストに無い書類を足す</h2></div>
+  <div class="card-body">
+    <form method="post" action="{% url 'sites:document_add' site.pk %}">
+      {% csrf_token %}
+      {{ add_form.non_field_errors }}
+      {% include "sites/documents/_fields.html" with form=add_form %}
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">足す</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

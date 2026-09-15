@@ -1,6 +1,6 @@
 from django.urls import path
 
-from apps.sites import views
+from apps.sites import document_views, views
 
 app_name = "sites"
 
@@ -27,6 +27,19 @@ urlpatterns = [
     path(
         "photos/<int:pk>/thumb/", views.site_photo_file, {"variant": "thumb"},
         name="photo_thumb",
+    ),
+    # 提出書類（ADR-0065）
+    path("<int:pk>/documents/", document_views.site_document_list, name="document_list"),
+    path("<int:pk>/documents/add/", document_views.site_document_add, name="document_add"),
+    path("documents/<int:pk>/", document_views.site_document_detail, name="document_detail"),
+    path(
+        "documents/<int:pk>/delete/", document_views.site_document_delete,
+        name="document_delete",
+    ),
+    path("documents/files/<int:pk>/", document_views.site_document_file, name="document_file"),
+    path(
+        "documents/files/<int:pk>/delete/", document_views.site_document_file_delete,
+        name="document_file_delete",
     ),
     path("<int:pk>/edit/", views.site_edit, name="edit"),
     path("<int:pk>/delete/", views.site_delete, name="delete"),

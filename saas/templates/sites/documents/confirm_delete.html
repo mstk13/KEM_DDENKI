@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}書類を削除 — {{ APP_NAME }}{% endblock %}
+{% block topbar_title %}提出書類{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>{{ site.name }} — 書類を削除</h1>
+</div>
+
+<div class="card">
+  <div class="card-body">
+    <p style="margin-bottom:16px;">
+      書類「<b>{{ document.name }}</b>」をこの現場のリストから削除します。
+      {% if file_count %}<b>置いてあるファイル {{ file_count }} 件も消え、元に戻せません。</b>{% endif %}
+    </p>
+    <form method="post">
+      {% csrf_token %}
+      <div class="form-actions">
+        <button type="submit" class="btn btn-danger">削除する</button>
+        <a href="{% url 'sites:document_detail' document.pk %}" class="btn btn-outline">キャンセル</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

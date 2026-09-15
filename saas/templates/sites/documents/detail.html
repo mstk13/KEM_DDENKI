@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block title %}{{ document_name }} — {{ site.name }} — {{ APP_NAME }}{% endblock %}
+{% block topbar_title %}提出書類{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>{{ site.name }} — {{ document_name }}</h1>
+  <a href="{% url 'sites:document_list' site.pk %}" class="btn btn-outline btn-sm">書類のリストに戻る</a>
+</div>
+
+<div class="card">
+  <div class="card-header"><h2>ファイル（PDF・Excel）</h2></div>
+  <div class="card-body">
+    {% if files %}
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>ファイル</th>
+            <th>メモ</th>
+            <th style="width:140px;">登録</th>
+            <th style="width:70px;"></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in files %}
+          <tr>
+            <td>
+              <span class="badge {% if item.kind == 'pdf' %}badge-red{% else %}badge-green{% endif %}">{{ item.get_kind_display }}</span>
+              <a href="{% url 'sites:document_file' item.pk %}"{% if item.kind == "pdf" %} target="_blank" rel="noopener"{% endif %}>{{ item.original_filename }}</a>
+              <small style="color:var(--text-secondary);">（{{ item.size|filesizeformat }}）</small>
+              {% if forloop.first %}<span class="badge badge-blue">最新</span>{% endif %}
+            </td>
+            <td>{{ item.note }}</td>
+            <td style="white-space:nowrap;">
+              {{ item.created_at|date:"Y-m-d H:i" }}
+              {% if item.created_by %}<br><small style="color:var(--text-secondary);">{{ item.created_by.get_full_name|default:item.created_by.username }}</small>{% endif %}
+            </td>
+            <td><a href="{% url 'sites:document_file_delete' item.pk %}" class="btn btn-outline btn-xs">削除</a></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p>まだファイルがありません。</p>
+    {% endif %}
+
+    <form method="post" enctype="multipart/form-data" style="margin-top:16px;">
+      {% csrf_token %}
+      {{ upload_form.non_field_errors }}
+      {% include "sites/documents/_fields.html" with form=upload_form %}
+      <div class="form-actions">
+        <button type="submit" name="upload" value="1" class="btn btn-primary">ファイルを登録</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card" style="margin-top:16px;">
+  <div class="card-header"><h2>提出の状況</h2></div>
+  <div class="card-body">
+    <form method="post">
+      {% csrf_token %}
+      {{ status_form.non_field_errors }}
+      {% include "sites/documents/_fields.html" with form=status_form %}
+      <div class="form-actions">
+        <button type="submit" name="save_status" value="1" class="btn btn-primary">保存する</button>
+        {% if document.is_custom %}
+        <a href="{% url 'sites:document_delete' document.pk %}" class="btn btn-danger-link">この書類を削除</a>
+        {% endif %}
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
