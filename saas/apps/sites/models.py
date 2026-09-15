@@ -308,7 +308,7 @@ def delete_site_photo_files(sender, instance, **kwargs):
 
 
 # ===================================================================
-# 提出書類（ADR-0065）
+# 提出書類（ADR-0067）
 #
 # 会社ごとの「最初の書類リスト」（DocumentTemplate）を、現場の書類の一覧を初めて開いたときに
 # 現場へ写す（SiteDocument）。
