@@ -1158,3 +1158,20 @@ svg.gantt .bar-wrapper .bar-label.big {
   .btn-sm { padding: 4px 8px; font-size: .75rem; }
 }
 @media (max-width: 480px) { .stats { grid-template-columns: 1fr; } }
+
+/* スマホへのプッシュ通知（ADR-0062） */
+.push-panel { margin-bottom: 16px; }
+.push-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.push-message { margin: 10px 0 0; font-size: .88rem; color: var(--text-secondary); }
+.push-message.is-error { color: #b42318; }
+.push-banner {
+  display: flex; gap: 12px; align-items: flex-start; justify-content: space-between;
+  margin-bottom: 16px; padding: 12px 14px;
+  border: 1px solid #c7d7f2; border-radius: 10px; background: #eef4fd;
+}
+.push-banner[hidden] { display: none; }
+.push-banner p { margin: 4px 0 8px; font-size: .88rem; color: var(--text-secondary); }
+.push-banner-close {
+  flex: none; border: 0; background: none; cursor: pointer;
+  font-size: 1.25rem; line-height: 1; color: var(--text-secondary);
+}
