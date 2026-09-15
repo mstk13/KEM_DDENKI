@@ -8,11 +8,13 @@ from django.contrib.auth.decorators import login_required
 from django.db.models import Q
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.views.decorators.http import require_POST
 
 from apps.bids.forms import (
     BidCostForm,
     BidProjectForm,
+    ConstructionLicenseForm,
     QualificationForm,
     UnifiedQualificationForm,
     UnitPriceForm,
@@ -21,6 +23,7 @@ from apps.bids.gantt import KINDS, KNOWN_STAGES, build_bid_gantt
 from apps.bids.models import (
     BidProject,
     BidScheduleRule,
+    ConstructionLicense,
     Qualification,
     SkippedBid,
     UnifiedQualification,
@@ -366,7 +369,11 @@ def qualification_list(request):
     alert_2month = today + datetime.timedelta(days=60)
     alert_1month = today + datetime.timedelta(days=30)
     alert_2week = today + datetime.timedelta(days=14)
+    licenses = list(ConstructionLicense.objects.all())
+    for lic in licenses:
+        _annotate_license(lic, today, alert_2week, alert_1month, alert_2month)
     return render(request, "bids/qualification_list.html", {
+        "licenses": licenses,
         "qualifications": qs,
         "unified_qualifications": UnifiedQualification.objects.all(),
         "today": today,
@@ -485,6 +492,73 @@ def qualification_delete(request, pk):
         obj.delete()
         messages.success(request, f"資格「{name}」を削除しました。")
     return redirect("bids:qualification_list")
+
+
+def _annotate_license(lic, today, alert_2week, alert_1month, alert_2month):
+    """一覧の行の色と「提出期限まで残り○日」を付ける。色の区切りは入札参加資格と同じ。"""
+    lic.status_label = ""
+    lic.alert_class = ""
+    if lic.renewed:
+        return
+    if lic.valid_until < today:
+        lic.status_label = "有効期限が切れています"
+        lic.alert_class = "qual-red"
+        return
+    target = lic.renewal_deadline or lic.valid_until
+    what = "提出期限" if lic.renewal_deadline else "有効期限"
+    days = (target - today).days
+    lic.status_label = f"{what}を過ぎています" if days < 0 else f"{what}まで残り{days}日"
+    if target <= alert_2week:
+        lic.alert_class = "qual-red"
+    elif target <= alert_1month:
+        lic.alert_class = "qual-yellow"
+    elif target <= alert_2month:
+        lic.alert_class = "qual-orange"
+
+
+def _licenses_url():
+    return reverse("bids:qualification_list") + "#licenses"
+
+
+@login_required
+def license_create(request):
+    """自社の建設業許可を登録する（ADR-0064）。"""
+    if request.method == "POST":
+        form = ConstructionLicenseForm(request.POST)
+        if form.is_valid():
+            obj = form.save(commit=False)
+            obj.company = request.user.company
+            obj.created_by = request.user
+            obj.save()
+            messages.success(request, f"建設業許可「{obj}」を登録しました。")
+            return redirect(_licenses_url())
+    else:
+        form = ConstructionLicenseForm()
+    return render(request, "bids/license_form.html", {"form": form})
+
+
+@login_required
+def license_edit(request, pk):
+    obj = get_object_or_404(ConstructionLicense, pk=pk)
+    if request.method == "POST":
+        form = ConstructionLicenseForm(request.POST, instance=obj)
+        if form.is_valid():
+            form.save()
+            messages.success(request, f"建設業許可「{obj}」を保存しました。")
+            return redirect(_licenses_url())
+    else:
+        form = ConstructionLicenseForm(instance=obj)
+    return render(request, "bids/license_form.html", {"form": form})
+
+
+@login_required
+def license_delete(request, pk):
+    obj = get_object_or_404(ConstructionLicense, pk=pk)
+    if request.method == "POST":
+        name = str(obj)
+        obj.delete()
+        messages.success(request, f"建設業許可「{name}」を削除しました。")
+    return redirect(_licenses_url())
 
 
 @login_required

@@ -586,6 +586,82 @@ class UnifiedQualification(TenantModel):
         return self.agency
 
 
+class ConstructionLicense(TenantModel):
+    """自社の建設業許可（建設業法第3条）。業種ごとに1行（ADR-0064）。
+
+    同じ許可番号でも、業種ごとに特定か一般かが分かれる（例: 電気工事業は特定、
+    電気通信工事業は一般）。有効期間は5年で、更新の書類は期限の30日前までに出す。
+    提出期限が近づいたら apps.bids.license_alerts が知らせる。
+    """
+
+    class LicenseClass(models.TextChoices):
+        SPECIAL = "special", "特定"
+        GENERAL = "general", "一般"
+
+    class GrantorType(models.TextChoices):
+        GOVERNOR = "governor", "都道府県知事許可"
+        MINISTER = "minister", "国土交通大臣許可"
+
+    trade = models.CharField(
+        "建設業の種類", max_length=50, help_text="例: 電気工事業、電気通信工事業",
+    )
+    license_class = models.CharField("区分", max_length=10, choices=LicenseClass.choices)
+    grantor_type = models.CharField(
+        "許可の種類", max_length=10, choices=GrantorType.choices,
+        default=GrantorType.GOVERNOR,
+        help_text="知事許可は1つの都道府県の中だけに営業所がある場合の許可",
+    )
+    authority = models.CharField(
+        "許可行政庁", max_length=50, help_text="例: 神奈川県知事、国土交通大臣",
+    )
+    license_number = models.CharField(
+        "許可番号", max_length=100, help_text="例: 許可（特-7）第5170号",
+    )
+    valid_from = models.DateField("有効期間の始まり")
+    valid_until = models.DateField("有効期間の終わり")
+    renewal_deadline = models.DateField(
+        "更新書類の提出期限", null=True, blank=True,
+        help_text="通知書の「許可の更新申請を行う場合の書類提出期限」",
+    )
+    renewed = models.BooleanField(
+        "更新済", default=False, help_text="更新の手続きが済んだら付ける。期限の知らせが止まる",
+    )
+    memo = models.TextField("メモ", blank=True)
+    # 期限の知らせをどの段階まで出したか（license_alerts の段階の番号）。
+    # 有効期間の終わり・提出期限を直したら空に戻し、新しい期限で数え直す。
+    reminder_step = models.PositiveSmallIntegerField(
+        "知らせた段階", null=True, blank=True, editable=False,
+    )
+
+    history = HistoricalRecords()
+
+    class Meta:
+        verbose_name = "建設業許可"
+        verbose_name_plural = "建設業許可"
+        ordering = ["valid_until", "trade"]
+
+    def __str__(self):
+        return f"{self.trade}（{self.get_license_class_display()}）"
+
+    @property
+    def full_number(self):
+        """「神奈川県知事 許可（特-7）第5170号」。"""
+        return f"{self.authority} {self.license_number}".strip()
+
+    def save(self, *args, **kwargs):
+        if self.pk:
+            # unscoped: 自分自身の保存前の値を読むだけ（テナントは pk で決まっている）
+            old = type(self).unscoped.filter(pk=self.pk).values(
+                "valid_until", "renewal_deadline",
+            ).first()
+            if old and (
+                old["valid_until"] != self.valid_until
+                or old["renewal_deadline"] != self.renewal_deadline
+            ):
+                self.reminder_step = None
+        super().save(*args, **kwargs)
+
+
 class SkippedBid(TenantModel):
     """資格判定で見送った案件。
 
