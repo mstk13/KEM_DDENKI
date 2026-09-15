@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% block title %}安全書類 — {{ site.name }} — {{ APP_NAME }}{% endblock %}
+{% block topbar_title %}安全書類{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>{{ site.name }} — 安全書類</h1>
+  <a href="{% url 'sites:detail' site.pk %}#site-safety" class="btn btn-outline btn-sm">現場詳細に戻る</a>
+</div>
+
+{# 今日の KY 用紙 #}
+<div class="card">
+  <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+    <h2>今日の KY 用紙（{{ today|date:"n月j日（D）" }}）</h2>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;">
+      <a href="{% url 'safety:ky_sign' site.pk today %}" class="btn btn-primary btn-sm">自分の行を書く</a>
+      <a href="{% url 'safety:ky_sheet' site.pk today %}" class="btn btn-outline btn-sm">KY 用紙を開く</a>
+      {% if today_sheet %}<a href="{% url 'safety:ky_pdf' today_sheet.pk %}" class="btn btn-outline btn-sm" target="_blank" rel="noopener">PDF</a>{% endif %}
+    </div>
+  </div>
+  <div class="card-body">
+    {% if members %}
+    <p style="margin-bottom:8px;">今日この現場に出る人（出社予定の行き先・配置から）</p>
+    <div style="display:flex;flex-wrap:wrap;gap:6px;">
+      {% for m in members %}
+      <span class="badge {% if m.signed %}badge-green{% else %}badge-orange{% endif %}">
+        {{ m.worker.name }} {% if m.signed %}記入済み{% else %}まだ{% endif %}
+      </span>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p style="color:var(--text-muted);">今日この現場に出る予定の人はいません（出社予定の行き先と配置から探しています）。</p>
+    {% endif %}
+    <form method="get" style="display:flex;gap:8px;align-items:center;margin-top:14px;flex-wrap:wrap;">
+      <label for="ky-day" style="font-size:.88rem;">ほかの日の KY 用紙を開く</label>
+      <input type="date" id="ky-day" name="day" class="form-control" style="width:auto;" required>
+      <button type="submit" class="btn btn-outline btn-sm">開く</button>
+    </form>
+  </div>
+</div>
+
+{# 安全作業確認書（新規入場者用） #}
+<div class="card" style="margin-top:16px;">
+  <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+    <h2>安全作業確認書（新規入場者用）</h2>
+    {% if own_worker %}
+      {% if own_confirmation %}
+      <a href="{% url 'safety:entry_detail' own_confirmation.pk %}" class="btn btn-outline btn-sm">自分の確認書を見る</a>
+      {% else %}
+      <a href="{% url 'safety:entry_create' site.pk %}" class="btn btn-primary btn-sm">自分の確認書を書く</a>
+      {% endif %}
+    {% endif %}
+  </div>
+  <div class="card-body">
+    <p style="font-size:.85rem;color:var(--text-muted);margin-bottom:10px;">
+      この現場に初めて入るときに1人1回書きます。住所・緊急連絡先・健康の値を含むので、見て書けるのは管理者・事務員・本人だけです。
+    </p>
+    {% if members_without_entry %}
+    <p style="margin-bottom:6px;">今日この現場に出る人で、まだ書いていない人</p>
+    <ul style="margin:0 0 12px 18px;">
+      {% for row in members_without_entry %}
+      <li>{{ row.worker.name }}
+        {% if row.can_write %}— <a href="{% url 'safety:entry_create' site.pk %}?worker={{ row.worker.pk }}">書く</a>{% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+    {% if confirmations %}
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>作業員</th><th>記入日</th><th></th></tr></thead>
+        <tbody>
+          {% for row in confirmations %}
+          <tr>
+            <td>{{ row.confirmation.worker.name }}</td>
+            <td>{{ row.confirmation.entry_date|date:"Y-m-d" }}</td>
+            <td>
+              {% if row.can_view %}
+              <a href="{% url 'safety:entry_detail' row.confirmation.pk %}" class="btn btn-outline btn-sm">見る</a>
+              <a href="{% url 'safety:entry_pdf' row.confirmation.pk %}" class="btn btn-outline btn-sm" target="_blank" rel="noopener">PDF</a>
+              {% else %}
+              <small style="color:var(--text-muted);">管理者・事務員・本人のみ</small>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p style="color:var(--text-muted);">まだ誰も書いていません。</p>
+    {% endif %}
+  </div>
+</div>
+
+{# これまでの KY 用紙 #}
+<div class="card" style="margin-top:16px;">
+  <div class="card-header"><h2>これまでの KY 用紙</h2></div>
+  <div class="card-body">
+    {% if sheets %}
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>作業日</th><th>作業班名</th><th>作業責任者</th><th>参加者</th><th></th></tr></thead>
+        <tbody>
+          {% for sheet in sheets %}
+          <tr>
+            <td>{{ sheet.work_date|date:"Y-m-d（D）" }}</td>
+            <td>{{ sheet.crew_name|default:"-" }}</td>
+            <td>{{ sheet.leader_name|default:"-" }}</td>
+            <td>{{ sheet.participants.all|length }} 人</td>
+            <td>
+              <a href="{% url 'safety:ky_sheet' site.pk sheet.work_date %}" class="btn btn-outline btn-sm">開く</a>
+              <a href="{% url 'safety:ky_pdf' sheet.pk %}" class="btn btn-outline btn-sm" target="_blank" rel="noopener">PDF</a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p style="color:var(--text-muted);">まだ KY 用紙はありません。</p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

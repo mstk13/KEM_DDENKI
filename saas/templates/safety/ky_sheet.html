@@ -1,0 +1,167 @@
+{% extends "base.html" %}
+{% block title %}KY用紙 {{ day|date:"n/j" }} — {{ site.name }} — {{ APP_NAME }}{% endblock %}
+{% block topbar_title %}KY用紙（安全作業指示書）{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>{{ site.name }} — KY用紙 {{ day|date:"Y年n月j日（D）" }}</h1>
+  <div style="display:flex;gap:6px;flex-wrap:wrap;">
+    {% if sheet %}<a href="{% url 'safety:ky_pdf' sheet.pk %}" class="btn btn-outline btn-sm" target="_blank" rel="noopener">PDF</a>{% endif %}
+    <a href="{% url 'safety:site' site.pk %}" class="btn btn-outline btn-sm">安全書類に戻る</a>
+  </div>
+</div>
+
+{# 参加者の行 #}
+<div class="card">
+  <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+    <h2>参加者（氏名の自筆サイン・健康状態・検電器）</h2>
+    <a href="{% url 'safety:ky_sign' site.pk day %}" class="btn btn-primary btn-sm">自分の行を書く</a>
+  </div>
+  <div class="card-body">
+    {% if participants %}
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>氏名</th><th>サイン</th><th>健康状態</th><th>検電器</th><th>記入</th><th></th></tr></thead>
+        <tbody>
+          {% for p in participants %}
+          <tr>
+            <td>{{ p.worker.name }}</td>
+            <td><img src="{{ p.signature }}" alt="{{ p.worker.name }}のサイン" style="height:36px;max-width:140px;background:#fff;"></td>
+            <td>{{ p.health_mark }}{% if p.health_note %} {{ p.health_note }}{% endif %}</td>
+            <td>{{ p.tester_mark }}</td>
+            <td>{{ p.signed_at|date:"H:i" }}</td>
+            <td style="white-space:nowrap;">
+              <a href="{% url 'safety:ky_sign' site.pk day %}?worker={{ p.worker_id }}" class="btn btn-outline btn-sm">書き直す</a>
+              <form method="post" action="{% url 'safety:ky_participant_delete' p.pk %}" style="display:inline"
+                    onsubmit="return confirm('{{ p.worker.name|escapejs }} さんの行を消しますか？');">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-outline btn-sm">消す</button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p style="color:var(--text-muted);">まだ誰も書いていません。</p>
+    {% endif %}
+    {% if unsigned_members %}
+    <p style="margin-top:12px;">この日この現場に出る人で、まだの人:
+      {% for w in unsigned_members %}
+      <a href="{% url 'safety:ky_sign' site.pk day %}?worker={{ w.pk }}" class="badge badge-orange" style="margin:2px;">{{ w.name }}</a>
+      {% endfor %}
+    </p>
+    {% endif %}
+  </div>
+</div>
+
+{# 上半分（作業責任者が書く） #}
+<form method="post" data-offline-form data-offline-label="KY用紙（{{ site.name }} {{ day|date:'n/j' }}）">
+  {% csrf_token %}
+  {{ form.non_field_errors }}
+  <div class="card" style="margin-top:16px;">
+    <div class="card-header"><h2>安全作業指示（作業責任者が書く）</h2></div>
+    <div class="card-body">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:0 16px;">
+        {% with field=form.crew_name %}{% include "workers/_form_field.html" %}{% endwith %}
+        {% with field=form.leader_name %}{% include "workers/_form_field.html" %}{% endwith %}
+        {% with field=form.planned_headcount %}{% include "workers/_form_field.html" %}{% endwith %}
+        {% with field=form.work_start %}{% include "workers/_form_field.html" %}{% endwith %}
+        {% with field=form.work_end %}{% include "workers/_form_field.html" %}{% endwith %}
+      </div>
+      {% with field=form.work_content %}{% include "workers/_form_field.html" %}{% endwith %}
+      {% with field=form.safety_instructions %}{% include "workers/_form_field.html" %}{% endwith %}
+      <div style="margin-top:8px;padding:10px 12px;background:var(--bg);border-radius:8px;">
+        <div style="font-weight:600;margin-bottom:6px;">作成時の注意ポイント</div>
+        <ul style="margin:0 0 8px 18px;font-size:.88rem;">
+          {% for point in check_points %}<li>{{ point }}</li>{% endfor %}
+        </ul>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:0 16px;">
+          {% with field=form.extra_check_7 %}{% include "workers/_form_field.html" %}{% endwith %}
+          {% with field=form.extra_check_8 %}{% include "workers/_form_field.html" %}{% endwith %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:16px;">
+    <div class="card-header"><h2>ＴＢＭ－ＲＫＹ（予想される危険と低減措置）</h2></div>
+    <div class="card-body">
+      <p style="font-size:.82rem;color:var(--text-muted);margin-bottom:8px;">
+        危険度 大：極めて重大（死亡災害）／中：重大（休業4日以上）／小：軽微（休業3日以内・不休）
+      </p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>予想される危険（リスク）</th><th>危険度</th><th>低減措置【私達はこうする】</th><th>作業中確認</th></tr></thead>
+          <tbody>
+            {% for row in form.risk_rows %}
+            <tr>
+              <td>{{ row.hazard }}</td>
+              <td style="width:90px;">{{ row.level }}</td>
+              <td>{{ row.measure }}</td>
+              <td style="text-align:center;">{{ row.checked }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:16px;">
+    <div class="card-header"><h2>ＳＣ－５確認項目（朝礼時確認）</h2></div>
+    <div class="card-body">
+      {% for row in form.sc5_rows %}
+      <div style="display:flex;gap:8px;align-items:flex-start;margin-bottom:10px;">
+        <span style="padding-top:4px;">{{ row.check }}</span>
+        <div style="flex:1;">
+          <span style="font-weight:600;">{{ row.number }}.</span>
+          {% if row.extra %}{{ row.extra }}{% else %}{{ row.text }}{% endif %}
+        </div>
+      </div>
+      {% endfor %}
+      {% with field=form.remarks %}{% include "workers/_form_field.html" %}{% endwith %}
+    </div>
+  </div>
+
+  <div class="form-actions" style="margin-top:12px;">
+    <button type="submit" class="btn btn-primary">KY 用紙を保存</button>
+  </div>
+</form>
+
+{# サイン #}
+<div class="card" style="margin-top:16px;">
+  <div class="card-header"><h2>サイン（指導事項・確認・作業完了報告・現場巡視指導記録）</h2></div>
+  <div class="card-body">
+    {% if not sheet %}
+    <p style="color:var(--text-muted);">KY 用紙を保存すると、サインを書けます。</p>
+    {% else %}
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;">
+      {% for s in signoffs %}
+      <div style="border:1px solid var(--border);border-radius:8px;padding:10px;">
+        <div style="font-weight:700;">{{ s.label }}</div>
+        <small style="color:var(--text-secondary);">{{ s.signer }}</small>
+        {% if s.text_value %}<p style="white-space:pre-wrap;font-size:.85rem;margin:6px 0;">{{ s.text_value }}</p>{% endif %}
+        {% if s.signed %}
+        <img src="{{ s.signature_value }}" alt="{{ s.label }}のサイン" style="height:40px;max-width:100%;background:#fff;display:block;margin:6px 0;">
+        {% else %}
+        <p style="color:var(--text-muted);font-size:.85rem;margin:6px 0;">まだサインがありません</p>
+        {% endif %}
+        <a href="{% url 'safety:ky_signoff' sheet.pk s.kind %}" class="btn btn-outline btn-sm">{% if s.signed %}書き直す{% else %}サインする{% endif %}</a>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card" style="margin-top:16px;">
+  <div class="card-body">
+    <div style="font-weight:600;margin-bottom:6px;">記入時の注意事項</div>
+    <ol style="margin:0 0 0 18px;font-size:.85rem;">
+      {% for note in notes %}<li>{{ note }}</li>{% endfor %}
+    </ol>
+  </div>
+</div>
+{% endblock %}

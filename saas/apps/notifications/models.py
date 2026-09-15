@@ -33,6 +33,7 @@ class Notification(TenantModel):
         WORKERS = "workers", "人材管理"
         DEVKANRI = "devkanri", "開発管理"
         MASTERS = "masters", "取引先管理"
+        SAFETY = "safety", "安全書類"
         SYSTEM = "system", "システム"
 
     recipient = models.ForeignKey(

@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}安全作業確認書 — {{ worker.name }} — {{ APP_NAME }}{% endblock %}
+{% block topbar_title %}安全作業確認書（新規入場者用）{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>{{ site.name }} — {{ worker.name }} さんの安全作業確認書</h1>
+  <div style="display:flex;gap:6px;flex-wrap:wrap;">
+    <a href="{% url 'safety:entry_pdf' confirmation.pk %}" class="btn btn-primary btn-sm" target="_blank" rel="noopener">PDF</a>
+    <a href="{% url 'safety:entry_edit' confirmation.pk %}" class="btn btn-outline btn-sm">直す</a>
+    <a href="{% url 'safety:site' site.pk %}" class="btn btn-outline btn-sm">安全書類に戻る</a>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <h2>記入日 {{ confirmation.entry_date|date:"Y年n月j日" }}</h2>
+    <span class="badge badge-gray">管理者・事務員・本人のみ</span>
+  </div>
+  <dl class="detail-grid">
+    <dt>ふりがな</dt><dd>{{ confirmation.name_kana|default:"-" }}</dd>
+    <dt>生年月日</dt><dd>{{ confirmation.birth_date|default:"-" }}</dd>
+    <dt>直属（自社）の職長名</dt><dd>{{ confirmation.foreman_name|default:"-" }}</dd>
+    <dt>使用交通機関</dt><dd>{{ confirmation.transport|default:"-" }}</dd>
+    <dt>協力会社</dt>
+    <dd>
+      {% if confirmation.partner_company_1 %}1次 {{ confirmation.partner_company_1 }}{% endif %}
+      {% if confirmation.partner_company_2 %} ／ 2次 {{ confirmation.partner_company_2 }}{% endif %}
+      {% if confirmation.partner_company_n %} ／ {{ confirmation.partner_company_n_tier }}次 {{ confirmation.partner_company_n }}{% endif %}
+      {% if not confirmation.partner_company_1 and not confirmation.partner_company_2 and not confirmation.partner_company_n %}-{% endif %}
+    </dd>
+    <dt>現住所</dt><dd>{{ confirmation.address|default:"-" }}{% if confirmation.phone %}（TEL {{ confirmation.phone }}）{% endif %}</dd>
+    <dt>緊急連絡者</dt><dd>{{ confirmation.emergency_contact_name|default:"-" }}</dd>
+    <dt>同上者住所</dt><dd>{{ confirmation.emergency_contact_address|default:"-" }}{% if confirmation.emergency_contact_phone %}（TEL {{ confirmation.emergency_contact_phone }}）{% endif %}</dd>
+    <dt>経験年数</dt><dd>{% if confirmation.experience_years is not None %}{{ confirmation.experience_years }}年{{ confirmation.experience_months|default:0 }}月{% else %}-{% endif %}</dd>
+    <dt>血液型</dt><dd>{% if confirmation.blood_type %}{{ confirmation.blood_type }}型{% else %}-{% endif %}</dd>
+    <dt>血圧</dt><dd>{% if confirmation.blood_pressure_high or confirmation.blood_pressure_low %}{{ confirmation.blood_pressure_high|default:"-" }} ～ {{ confirmation.blood_pressure_low|default:"-" }}{% else %}-{% endif %}</dd>
+    <dt>視力</dt><dd>右 {{ confirmation.vision_right|default:"-" }} ／ 左 {{ confirmation.vision_left|default:"-" }}</dd>
+    <dt>感電防止の教育・指導</dt><dd>{{ confirmation.shock_education|yesno:"受けた,受けていない,未回答" }}</dd>
+    <dt>具合の悪い所</dt><dd>{{ confirmation.has_illness|yesno:"ある,ない,未回答" }}{% if confirmation.illness_detail %}（{{ confirmation.illness_detail }}）{% endif %}</dd>
+    <dt>①</dt><dd>{{ confirmation.get_business_type_display|default:"未回答" }}</dd>
+    <dt>②雇用に関する文書</dt><dd>{{ confirmation.received_employment_document|yesno:"受けた,受けてない,未回答" }}</dd>
+    <dt>③安全衛生教育</dt><dd>{{ confirmation.received_safety_education|yesno:"受けた,受けてない,未回答" }}</dd>
+    <dt>④給料をもらっている会社</dt><dd>{{ confirmation.paying_company|default:"-" }}</dd>
+    <dt>⑤労災保険特別加入</dt><dd>{{ confirmation.special_accident_insurance|yesno:"はい,いいえ,未回答" }}</dd>
+    <dt>⑥退職金制度</dt><dd>{{ confirmation.has_retirement_system|yesno:"はい,いいえ,未回答" }}</dd>
+    <dt>⑦建退共手帳</dt><dd>{{ confirmation.has_kentaikyo_book|yesno:"はい,いいえ,未回答" }}</dd>
+    <dt>自筆サイン</dt>
+    <dd>{% if confirmation.signature %}<img src="{{ confirmation.signature }}" alt="{{ worker.name }}のサイン" style="height:48px;max-width:240px;background:#fff;">{% else %}-{% endif %}</dd>
+  </dl>
+</div>
+{% endblock %}

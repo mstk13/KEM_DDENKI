@@ -1,0 +1,15 @@
+{% comment %}
+サインを書く欄（ADR-0061）。field に SignatureField の欄を渡す。
+枠の中に指で書くと、隠しの入力に PNG が入る（static/js/signature-pad.js を読み込むこと）。
+{% endcomment %}
+<div class="form-group" data-signature-pad>
+  <label>{{ field.label }}</label>
+  <canvas aria-label="{{ field.label }}を書く枠"
+          style="display:block;width:100%;max-width:520px;height:150px;border:1px dashed var(--border);border-radius:8px;background:#fff;touch-action:none;"></canvas>
+  <div style="display:flex;gap:8px;align-items:center;margin-top:6px;flex-wrap:wrap;">
+    <button type="button" class="btn btn-outline btn-sm" data-signature-clear>書き直す</button>
+    <small style="color:var(--text-secondary);">枠の中に指で書いてください</small>
+  </div>
+  {{ field }}
+  {{ field.errors }}
+</div>

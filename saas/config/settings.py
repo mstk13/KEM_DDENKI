@@ -57,6 +57,7 @@ INSTALLED_APPS = [
     "apps.ai",
     "apps.estimation",
     "apps.offline",
+    "apps.safety",
 ]
 
 MIDDLEWARE = [

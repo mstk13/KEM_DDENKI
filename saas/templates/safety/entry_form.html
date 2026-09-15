@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}安全作業確認書 — {{ worker.name }} — {{ APP_NAME }}{% endblock %}
+{% block topbar_title %}安全作業確認書（新規入場者用）{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>{{ site.name }} — {{ worker.name }} さんの安全作業確認書</h1>
+  <a href="{% url 'safety:site' site.pk %}" class="btn btn-outline btn-sm">安全書類に戻る</a>
+</div>
+
+{# 圏外なら端末に保存し、電波が戻ったら送る（ADR-0048） #}
+<form method="post" data-offline-form
+      data-offline-label="安全作業確認書（{{ site.name }} {{ worker.name }}）">
+  {% csrf_token %}
+  {{ form.non_field_errors }}
+
+  <div class="card">
+    <div class="card-header"><h2>本人・所属</h2></div>
+    <div class="card-body">
+      <p style="font-size:.82rem;color:var(--text-muted);margin-bottom:10px;">
+        作業員の登録内容から入れてあります。違っていたらここで直してください（登録は変わりません）。
+      </p>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:0 16px;">
+        {% with field=form.entry_date %}{% include "workers/_form_field.html" %}{% endwith %}
+        {% with field=form.name_kana %}{% include "workers/_form_field.html" %}{% endwith %}
+        {% with field=form.birth_date %}{% include "workers/_form_field.html" %}{% endwith %}
+        {% with field=form.foreman_name %}{% include "workers/_form_field.html" %}{% endwith %}
+        {% with field=form.transport %}{% include "workers/_form_field.html" %}{% endwith %}
+        {% with field=form.partner_company_1 %}{% include "workers/_form_field.html" %}{% endwith %}
+        {% with field=form.partner_company_2 %}{% include "workers/_form_field.html" %}{% endwith %}
+        {% with field=form.partner_company_n_tier %}{% include "workers/_form_field.html" %}{% endwith %}
+        {% with field=form.partner_company_n %}{% include "workers/_form_field.html" %}{% endwith %}
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:16px;">
+    <div class="card-header"><h2>住所・緊急連絡先・健康</h2></div>
+    <div class="card-body">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:0 16px;">
+        {% with field=form.address %}{% include "workers/_form_field.html" %}{% endwith %}
+        {% with field=form.phone %}{% include "workers/_form_field.html" %}{% endwith %}
+        {% with field=form.emergency_contact_name %}{% include "workers/_form_field.html" %}{% endwith %}
+        {% with field=form.emergency_contact_address %}{% include "workers/_form_field.html" %}{% endwith %}
+        {% with field=form.emergency_contact_phone %}{% include "workers/_form_field.html" %}{% endwith %}
+        {% with field=form.experience_years %}{% include "workers/_form_field.html" %}{% endwith %}
+        {% with field=form.experience_months %}{% include "workers/_form_field.html" %}{% endwith %}
+        {% with field=form.blood_type %}{% include "workers/_form_field.html" %}{% endwith %}
+        {% with field=form.blood_pressure_high %}{% include "workers/_form_field.html" %}{% endwith %}
+        {% with field=form.blood_pressure_low %}{% include "workers/_form_field.html" %}{% endwith %}
+        {% with field=form.vision_right %}{% include "workers/_form_field.html" %}{% endwith %}
+        {% with field=form.vision_left %}{% include "workers/_form_field.html" %}{% endwith %}
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:16px;">
+    <div class="card-header"><h2>安全作業心得</h2></div>
+    <div class="card-body">
+      <div style="border:2px solid var(--danger);border-radius:8px;padding:10px 12px;color:#b91c1c;margin-bottom:12px;">
+        <div class="form-group" style="margin-bottom:8px;">
+          <label>{{ form.shock_education.label }}</label>
+          {{ form.shock_education }}
+          {{ form.shock_education.errors }}
+        </div>
+        <div style="font-weight:600;">感電災害事故防止のために次の事項を遵守して作業する事</div>
+        <ul style="margin:4px 0 0 18px;">{% for rule in shock_rules %}<li>{{ rule }}</li>{% endfor %}</ul>
+      </div>
+      <details>
+        <summary style="cursor:pointer;font-weight:600;">安全作業心得（1〜20）を読む</summary>
+        <ol style="margin:8px 0 0 22px;font-size:.88rem;">{% for rule in safety_rules %}<li>{{ rule }}</li>{% endfor %}</ol>
+      </details>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:16px;">
+    <div class="card-header"><h2>質問</h2></div>
+    <div class="card-body">
+      <div class="form-group">
+        <label>{{ form.has_illness.label }}</label>
+        {{ form.has_illness }}
+        {{ form.has_illness.errors }}
+      </div>
+      {% with field=form.illness_detail %}{% include "workers/_form_field.html" %}{% endwith %}
+      {% for field in form %}
+      {% if field.name == "business_type" or field.name == "received_employment_document" or field.name == "received_safety_education" or field.name == "special_accident_insurance" or field.name == "has_retirement_system" or field.name == "has_kentaikyo_book" %}
+      <div class="form-group">
+        <label>{{ field.label }}</label>
+        {{ field }}
+        {{ field.errors }}
+      </div>
+      {% elif field.name == "paying_company" %}
+      {% include "workers/_form_field.html" %}
+      {% endif %}
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:16px;">
+    <div class="card-body">
+      <p style="margin-bottom:8px;">下記事項及び現場規則を守り安全作業を行います。『私は事故を絶対に起こしません。』</p>
+      {% with field=form.signature %}{% include "safety/_signature_pad.html" %}{% endwith %}
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">{% if confirmation %}更新する{% else %}登録する{% endif %}</button>
+        <a href="{% url 'safety:site' site.pk %}" class="btn btn-outline">キャンセル</a>
+      </div>
+      <p style="font-size:.78rem;color:var(--text-muted);margin-top:10px;">
+        当該書類に記載された個人情報は、安全衛生管理と災害発生時の連絡に使用し、他の目的には使用しません。
+      </p>
+    </div>
+  </div>
+</form>
+<script src="{% static 'js/signature-pad.js' %}"></script>
+{% endblock %}

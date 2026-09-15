@@ -53,6 +53,8 @@ urlpatterns = [
     path("", dashboard, name="dashboard"),
     # Apps
     path("sites/", include("apps.sites.urls")),
+    # 現場の安全書類（KY用紙・安全作業確認書。ADR-0061）
+    path("safety/", include("apps.safety.urls")),
     path("reports/", include("apps.reports.urls")),
     path("costs/", include("apps.costs.urls")),
     path("materials/", include("apps.materials.urls")),

@@ -91,7 +91,25 @@ class TestGetMonthlySummary:
         assert row["total_regular"] == Decimal("16.00")
         assert row["total_overtime"] == Decimal("2.00")
         assert row["report_count"] == 2
-        assert row["reports"] == [approved1, approved2]
+        # 日付の新しい順（9/3 → 9/2）
+        assert row["reports"] == [approved2, approved1]
+
+    def test_日報は日付の新しい順_同じ日は後から作った日報が先(
+        self, company_a, site_a, work_type_a,
+    ):
+        from apps.masters.models import WorkType as _WorkType
+
+        w = _worker(company_a, "E1", "電工太郎")
+        other_wt = _WorkType.unscoped.create(company=company_a, code="E99", name="弱電")
+        sep05 = _report(company_a, site_a, w, work_type_a, "2026-09-05", status=APPROVED)
+        sep20 = _report(company_a, site_a, w, work_type_a, "2026-09-20", status=APPROVED)
+        sep12 = _report(company_a, site_a, w, work_type_a, "2026-09-12", status=APPROVED)
+        # 同じ 9/12 に後から作った日報
+        sep12_later = _report(company_a, site_a, w, other_wt, "2026-09-12", status=APPROVED)
+
+        (row,) = get_monthly_summary(company_a, 2026, 9)
+
+        assert row["reports"] == [sep20, sep12_later, sep12, sep05]
 
     def test_承認前の日報しかない作業員は行に出ない(self, company_a, site_a, work_type_a):
         w = _worker(company_a, "E1", "電工太郎")
@@ -141,6 +159,21 @@ class TestMonthlySummaryPage:
         back = f"/reports/monthly/?year=2026&month=9#worker-{w.pk}"
         link = reverse("reports:detail", args=[r1.pk]) + "?" + urlencode({"next": back})
         assert escape(link) in html
+
+    def test_画面でも日報が日付の新しい順に並ぶ(
+        self, client, user_a, company_a, site_a, work_type_a,
+    ):
+        w = _worker(company_a, "E1", "電工太郎")
+        older = _report(company_a, site_a, w, work_type_a, "2026-09-02", status=APPROVED)
+        newer = _report(company_a, site_a, w, work_type_a, "2026-09-03", status=APPROVED)
+        client.force_login(user_a)
+
+        res = client.get(reverse("reports:monthly_summary"), {"year": 2026, "month": 9})
+
+        html = res.content.decode()
+        newer_at = html.index(reverse("reports:detail", args=[newer.pk]))
+        older_at = html.index(reverse("reports:detail", args=[older.pk]))
+        assert newer_at < older_at
 
     def test_月次サマリから開いた詳細は月次サマリに戻り_編集も戻り先を引き継ぐ(
         self, client, user_a, company_a, site_a, work_type_a,
