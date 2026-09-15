@@ -137,6 +137,13 @@ def _item_matches_failure(body: str, failed_on: str) -> bool:
         return "点以上" in text and any(w in text for w in _SCORE_WORDS)
     if failed_on in ("issuer", "category", "expired", "unified_kind"):
         return any(w in text for w in _QUAL_WORDS)
+    # 建設業許可・営業所の所在地（ADR-0065）
+    if failed_on == "license":
+        return "建設業" in text and "許可" in text
+    if failed_on == "location":
+        return any(w in text for w in ("本店", "支店", "営業所")) and any(
+            w in text for w in ("所在", "有する", "有し", "設置", "置く", "置い", "構え")
+        )
     return False
 
 

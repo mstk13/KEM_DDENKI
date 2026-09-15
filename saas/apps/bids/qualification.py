@@ -17,7 +17,8 @@ i-ppi は案件の等級要件を持たない（公告PDFにしか書かれて�
 import datetime
 import re
 
-from apps.bids.models import Qualification
+from apps.bids.announcement import extract_license_requirement
+from apps.bids.models import ConstructionLicense, Qualification
 
 # 案件の工事種別 → 資格マスタの業種区分の候補。
 # 案件側の文字列に左のいずれかが含まれたら、右の語を持つ資格を探す。
@@ -40,6 +41,23 @@ CATEGORY_ALIASES = [
 UNIFIED_QUALIFICATION_ISSUER = "全省庁統一資格"
 
 GRADE_ORDER = {"A": 4, "B": 3, "C": 2, "D": 1}
+
+# 案件の工事種別 → 建設業許可の業種（ADR-0065）。
+# 公告が「当該工事に対応する建設業種」としか書かないときに、どの許可と照らすかを決める。
+# 上から順に見る（「電気通信」を「電気」より先に見ないと電気工事業の許可に当たる）。
+TRADE_ALIASES = [
+    (("電気通信", "通信"), "電気通信工事業"),
+    (("受変電", "電気"), "電気工事業"),
+    (("管工事", "機械設備", "空調", "衛生設備", "暖冷房"), "管工事業"),
+    (("建築",), "建築工事業"),
+    (("土木",), "土木工事業"),
+    (("塗装",), "塗装工事業"),
+    (("造園",), "造園工事業"),
+    (("消防",), "消防施設工事業"),
+]
+
+# 知事許可の許可行政庁から都道府県を取る。知事許可は1つの都道府県の中だけに営業所がある
+_GOVERNOR_PREFECTURE = re.compile(r"(北海道|東京都|京都府|大阪府|[^\s]{2,3}県)知事")
 
 
 def normalize_issuer(name: str) -> str:
@@ -108,13 +126,15 @@ def _issuer_match_score(bid_issuer: str, qual_issuer: str) -> int:
     return 0
 
 
-def check_project(project, qualifications, today=None):
+def check_project(project, qualifications, today=None, licenses=None):
     """1案件の入札参加資格を判定する。
 
     Args:
         project: BidProject
         qualifications: Qualification のリスト（自社分）
         today: 有効期限の判定日。省略時は本日
+        licenses: ConstructionLicense のリスト（自社分）。公告が建設業許可や
+            営業所の所在地を求めているときだけ照らす（ADR-0065）
 
     Returns:
         dict: eligible / reason / matched / expired / issuer_known
@@ -133,7 +153,14 @@ def check_project(project, qualifications, today=None):
         # どの条件で落ちたか。参加要件の該当項目に理由を添えるために使う。
         # issuer / category / expired / grades / grade / score / unified_kind
         "failed_on": "",
+        # 公告から読み取った建設業許可・営業所の所在地の要件（画面に出す）
+        "license_requirement": {},
     }
+
+    # 公告が建設業許可・営業所の所在地を求めていれば、ほかの要件より先に照らす。
+    # 書かれていなければ何もしない。
+    if not _check_license_requirement(project, licenses, today, result):
+        return result
 
     # 公告が全省庁統一資格（物品・役務）を求めている案件は、発注機関ではなく
     # 統一資格の種類と等級で判定する。
@@ -292,6 +319,146 @@ def check_project(project, qualifications, today=None):
     return result
 
 
+def normalize_trade(name: str) -> str:
+    """建設業の業種を突き合わせ用に揃える。「電気工事業」「電気工事」「電気」→「電気」。"""
+    text = (name or "").strip()
+    if text.endswith("業"):
+        text = text[:-1]
+    if len(text) > 2 and text.endswith("工事"):
+        text = text[:-2]
+    return text
+
+
+def trades_for_category(category: str) -> list[str]:
+    """案件の工事種別から建設業許可の業種を決める。「建築一式工事／管工事」は両方。"""
+    trades = []
+    for part in (category or "").split("／"):
+        for needles, trade in TRADE_ALIASES:
+            if any(n in part for n in needles):
+                if trade not in trades:
+                    trades.append(trade)
+                break
+    return trades
+
+
+def _fail(result, failed_on, reason):
+    result["eligible"] = False
+    result["failed_on"] = failed_on
+    result["reason"] = reason
+    return False
+
+
+def _check_license_requirement(project, licenses, today, result) -> bool:
+    """公告の建設業許可・営業所の所在地の要件を、自社の建設業許可と照らす（ADR-0065）。
+
+    Returns:
+        True  … 要件が無い、または満たす（result["checked"] に根拠を足す）。続けてほかを見る
+        False … 満たさない・判定できない（result に理由を書いた）。判定はここで終わり
+    """
+    req = extract_license_requirement(project.requirements or "")
+    result["license_requirement"] = req
+    if not req["license_class"] and not req["prefectures"]:
+        return True
+
+    licenses = list(licenses or [])
+    if not licenses:
+        result["eligible"] = None
+        result["reason"] = (
+            "公告は建設業許可（または許可に基づく営業所の所在地）を求めていますが、"
+            "自社の建設業許可が未登録のため判定できません。入札参加資格の画面で登録してください。"
+        )
+        return False
+    current = [lic for lic in licenses if lic.valid_from <= today <= lic.valid_until]
+
+    if req["license_class"]:
+        special = req["license_class"] == "special"
+        need = "特定建設業の許可" if special else "建設業の許可"
+        trades = req["trades"] or trades_for_category(
+            project.required_category or project.category or ""
+        )
+        if trades:
+            label = "・".join(trades)
+            wanted = {normalize_trade(t) for t in trades}
+            same = [lic for lic in licenses if normalize_trade(lic.trade) in wanted]
+            if not same:
+                ours = "・".join(sorted({lic.trade for lic in licenses}))
+                return _fail(
+                    result, "license",
+                    f"{label}の{need}が必要ですが、自社の建設業許可は {ours} だけです。",
+                )
+            same_current = [lic for lic in same if lic in current]
+            if not same_current:
+                newest = max(same, key=lambda lic: lic.valid_until)
+                return _fail(
+                    result, "license",
+                    f"{label}の{need}が必要ですが、自社の{newest.trade}の許可は "
+                    f"{newest.valid_until} に有効期間が切れています（{newest.full_number}）。",
+                )
+            if special:
+                specials = [
+                    lic for lic in same_current
+                    if lic.license_class == ConstructionLicense.LicenseClass.SPECIAL
+                ]
+                if not specials:
+                    ours = same_current[0]
+                    return _fail(
+                        result, "license",
+                        f"{label}の特定建設業の許可が必要ですが、自社の{ours.trade}は"
+                        f"一般建設業の許可です（{ours.full_number}）。",
+                    )
+                same_current = specials
+            best = same_current[0]
+            result["checked"].append(
+                f"{need}（{label}） → 自社 {best.trade} "
+                f"{best.get_license_class_display()} {best.full_number}"
+            )
+        else:
+            pool = [
+                lic for lic in current
+                if not special or lic.license_class == ConstructionLicense.LicenseClass.SPECIAL
+            ]
+            if not pool:
+                return _fail(
+                    result, "license",
+                    f"{need}が必要ですが、有効期間内の{need}がありません。",
+                )
+            names = "・".join(
+                f"{lic.trade}（{lic.get_license_class_display()}）" for lic in pool
+            )
+            result["checked"].append(f"{need} → 自社 {names}（業種は公告で確認）")
+
+    if req["prefectures"]:
+        area = "、".join(req["prefectures"])
+        area_label = (
+            f"{req['area_name']}の管轄区域（{area}）" if req["area_name"] else f"{area}"
+        )
+        pool = current or licenses
+        if any(lic.grantor_type == ConstructionLicense.GrantorType.MINISTER for lic in pool):
+            result["checked"].append(
+                f"営業所の所在地 {area_label} → 国土交通大臣許可のため公告で確認"
+            )
+            return True
+        ours, authorities = [], []
+        for lic in pool:
+            m = _GOVERNOR_PREFECTURE.search(lic.authority or "")
+            if m and m.group(1) not in ours:
+                ours.append(m.group(1))
+                authorities.append(lic.authority)
+        if not ours:
+            result["checked"].append(
+                f"営業所の所在地 {area_label} → 許可行政庁から都道府県が分からないため公告で確認"
+            )
+        elif not set(ours) & set(req["prefectures"]):
+            return _fail(
+                result, "location",
+                f"{area_label}に建設業許可に基づく本店・支店・営業所が必要ですが、"
+                f"自社は{'・'.join(authorities)}の許可のため、営業所は{'・'.join(ours)}だけです。",
+            )
+        else:
+            result["checked"].append(f"営業所の所在地 {area_label} → 自社 {'・'.join(ours)}")
+    return True
+
+
 def _check_unified(project, qualifications, today, result) -> dict:
     """全省庁統一資格（物品の販売・役務の提供等・物品の買受け）で判定する。
 
@@ -398,7 +565,12 @@ def check_qualifications_for_projects(projects, company, today=None):
     """
     # unscoped: company を明示指定（N+1 を避けて一括で読む）
     qualifications = list(Qualification.unscoped.filter(company=company))
-    return {p.pk: check_project(p, qualifications, today=today) for p in projects}
+    # 公告が建設業許可を求めるときに照らす自社の許可（ADR-0065）
+    licenses = list(ConstructionLicense.unscoped.filter(company=company))
+    return {
+        p.pk: check_project(p, qualifications, today=today, licenses=licenses)
+        for p in projects
+    }
 
 
 def related_qualifications(required_issuer_type, required_category, qualifications):
