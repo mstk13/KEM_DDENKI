@@ -54,7 +54,8 @@ QUALIFICATIONS = [
         "valid_until": "2028-03-31",
         "application_type": "全省庁統一資格",
         "application_method": "",
-        "memo": "",
+        # 通知書の「物品の買受け」の営業品目は「その他」
+        "memo": "営業品目: その他",
     },
 ]
 
