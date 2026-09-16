@@ -1,7 +1,8 @@
-"""資格保有状況一覧（2026/9/15）の資格を作業員ごとに登録する（ADR-0068）。
+"""資格保有一覧.xls の資格を作業員ごとに登録する（ADR-0068）。
 
-データ移送（workers/0018）でも一度登録している。作業員が見つからなかった人を確かめたり、
-作業員の氏名を直したあとに登録し直したりするときに使う。
+データ移送（workers/0018・0019）でも登録・入れ替えをしている。作業員が見つからなかった人を
+確かめたり、作業員の氏名を直したあとに登録し直したりするときに使う。
+一覧に無い資格のうち、この一覧から登録したものは消す（手で登録した資格は残す）。
 
 使い方:
     python manage.py register_listed_qualifications            # 確認だけ（何も変えない）
@@ -21,7 +22,7 @@ from apps.workers.models import Worker, WorkerQualification
 
 
 class Command(BaseCommand):
-    help = "資格保有状況一覧の資格を作業員ごとに登録する"
+    help = "資格保有一覧.xls の資格を作業員ごとに登録する"
 
     def add_arguments(self, parser):
         parser.add_argument("--apply", action="store_true", help="登録する（省略時は確認だけ）")
@@ -49,11 +50,17 @@ class Command(BaseCommand):
         counts = {}
         for worker_name, _name in report["created"]:
             counts[worker_name] = counts.get(worker_name, 0) + 1
-        verb = "登録" if apply else "登録予定"
-        write(f"■ {verb} {len(report['created'])} 件")
+        write(f"■ {'登録' if apply else '登録予定'} {len(report['created'])} 件")
         for worker_name, count in counts.items():
             write(f"- {worker_name}: {count} 件")
         write(f"■ 既に登録済みで飛ばした資格 {len(report['existing'])} 件")
+        if report["removed"]:
+            write(
+                f"■ 一覧に無い資格 {len(report['removed'])} 件"
+                f"（{'消しました' if apply else '消す予定'}）"
+            )
+            for worker_name, name in report["removed"]:
+                write(f"- {worker_name}: {name}")
         if report["missing"]:
             write(
                 f"■ 作業員が見つからない氏名 {len(report['missing'])} 人"
