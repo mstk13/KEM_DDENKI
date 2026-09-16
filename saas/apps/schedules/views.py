@@ -9,6 +9,7 @@ from apps.schedules.forms import AssignmentForm, MilestoneForm, PhaseForm
 from apps.schedules.models import Assignment, Milestone, Phase, PhaseTemplate
 from apps.schedules.services import (
     apply_template,
+    clip_gantt_tasks_to_today,
     get_calendar_data,
     get_comparison_gantt_data,
     get_site_gantt_data,
@@ -25,7 +26,8 @@ def schedule_detail(request, pk):
     templates = PhaseTemplate.objects.all()
 
     # 工程別ガントチャート
-    gantt_data = get_site_gantt_data(site)
+    # ガントは当日から先だけを出す（ADR-0072）
+    gantt_data = clip_gantt_tasks_to_today(get_site_gantt_data(site))
     gantt_json = json_for_script(gantt_data)
 
     return render(request, "schedules/detail.html", {
@@ -54,6 +56,8 @@ def schedule_compare(request):
     selected_ids = [v for v in request.GET.getlist("site") if v.isdigit()]
 
     data = get_comparison_gantt_data(request.user.company, selected_ids, mode)
+    # ガントは当日から先だけを出す（比較表の工期はもとの日付のまま。ADR-0072）
+    gantt_tasks = clip_gantt_tasks_to_today(data["tasks"])
 
     # 選択UI用。工期の設定有無にかかわらず全現場を出す。
     all_sites = Site.objects.order_by("-start_date", "name")
@@ -64,8 +68,8 @@ def schedule_compare(request):
         "selected_ids": selected_set,
         "mode": mode,
         "legend": data["legend"],
-        "gantt_json": json_for_script(data["tasks"]),
-        "gantt_tasks_exist": len(data["tasks"]) > 0,
+        "gantt_json": json_for_script(gantt_tasks),
+        "gantt_tasks_exist": len(gantt_tasks) > 0,
     })
 
 

@@ -92,6 +92,29 @@ def get_gantt_data(company):
     return tasks
 
 
+def clip_gantt_tasks_to_today(tasks, today=None):
+    """ガントに出すタスクを当日から先だけにする（ADR-0072）。
+
+    - 終わった予定（終了日が昨日以前）は出さない
+    - 始まっている予定は当日から描く。実際の開始日は real_start に残し、ポップアップで出す
+
+    画面に渡す直前に使う。比較表の工期・日数はもとの日付のままにしておきたいので、
+    サービスが作るデータそのものは変えない。
+    """
+    today = today or timezone.localdate()
+    today_iso = today.isoformat()
+    clipped = []
+    for task in tasks:
+        if task["end"] < today_iso:
+            continue
+        item = dict(task)
+        if item["start"] < today_iso:
+            item["real_start"] = item["start"]
+            item["start"] = today_iso
+        clipped.append(item)
+    return clipped
+
+
 def get_comparison_gantt_data(company, site_ids=None, mode="site"):
     """複数現場を並べて比較するガントチャートデータを生成する。
 

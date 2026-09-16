@@ -182,10 +182,12 @@ document.addEventListener('DOMContentLoaded', function() {
     // language は指定しない。frappe-gantt 0.6.1 は 'ja' の月名テーブルを持たず、
     // 月ラベル生成時に例外を投げて描画が途中で止まる（バーが出ない）。
     custom_popup_html: function(task) {
+      // 当日より前から始まっている予定は当日から描いている（real_start が実際の開始日）
+      var realStart = task.real_start ? new Date(task.real_start) : task.start;
       return '<div class="details-container" style="padding:12px;min-width:200px;">'
         + '<h5 style="margin:0 0 6px;font-size:.95rem;">' + task.name + '</h5>'
         + '<p style="margin:0;font-size:.82rem;color:#666;">'
-        + task.start.toLocaleDateString('ja-JP') + ' ～ ' + task.end.toLocaleDateString('ja-JP')
+        + realStart.toLocaleDateString('ja-JP') + ' ～ ' + task.end.toLocaleDateString('ja-JP')
         + '</p>'
         + '<p style="margin:4px 0 0;font-size:.82rem;">進捗: ' + task.progress + '%</p>'
         + '</div>';
