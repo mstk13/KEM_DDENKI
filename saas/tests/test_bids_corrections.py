@@ -1,24 +1,23 @@
-"""公告 PDF から読んだ内容を、あとから直せるようにする（ADR-0073）。
+"""公告 PDF から読んだ内容を直したとき、その直しを守る（ADR-0075）。
 
-ここで固定すること:
-1. 詳細画面の欄ごとに直せる（工事概要・参加要件・参加資格の項目・日付・重要日程）
-2. 直した項目には「人が直した」印が付く
-3. 印の付いた項目は、公告の取り込み（fill_missing_fields・fill_announcement）と
+画面で直す仕組みは ADR-0073・0074（タップしてその場で直す）。ここではその上に足した分を固定する:
+1. その場で直した項目・編集画面で直した項目に「人が直した」印が付く（値が変わったときだけ）
+2. 印の付いた項目は、公告の取り込み（fill_missing_fields・fill_announcement）と
    取り直し（fetch_announcements --force）で書き換えない
-4. 入札期限は時刻まで持つ。画面で直しても公告から読んだ時刻が消えない
-5. 重要日程は行ごとに項目名・日時・補足を直せる。項目名を空にした行は消える
-6. 「AI で読み直す」は、読み取り結果を画面に出すだけ。選んだ項目だけが入り、印が付く
-7. 他社の案件は直せない
+3. 入札期限は時刻まで持つ。編集画面で保存しても公告から読んだ時刻が消えない
+4. 「AI で読み直す」は読み取り結果を画面に出すだけ。選んだ項目だけが入り、印が付く
+5. 詳細画面に「AI で読み直す」と「手直しあり」が出る
 """
 
 import datetime
+import json
 
 import pytest
+from django.core.management import call_command
 from django.urls import reverse
 from django.utils import timezone
 
-from apps.bids import views as bid_views
-from apps.bids.forms import BidDatesForm, BidOutlineForm, BidProjectForm, BidScheduleForm
+from apps.bids.forms import BidProjectForm
 from apps.bids.models import BidProject
 from apps.bids.services import fill_announcement, fill_missing_fields
 
@@ -36,10 +35,7 @@ def project(company_a):
         company_a,
         work_outline="公告から読んだ工事概要",
         requirements="公告から読んだ参加要件",
-        bid_schedule=[
-            {"label": "入札書の受領期限", "datetime": "2026-10-27T17:00"},
-            {"label": "開札", "datetime": "2026-11-11T15:00", "detail": "８階入札室"},
-        ],
+        source_url="https://example.go.jp/koukoku.pdf",
         deadline=timezone.make_aware(datetime.datetime(2026, 10, 27, 17, 0)),
     )
 
@@ -50,60 +46,76 @@ def logged_in(client, user_a):
     return client
 
 
+def _edit_page_data(project, **overrides):
+    """まとめての編集画面に送る値。今の値をそのまま入れ、原価の欄も付ける（必須のため）。"""
+    form = BidProjectForm(instance=project)
+    data = {name: form[name].value() or "" for name in form.fields}
+    data.update({"cost-estimate_amount": "0", "cost-actual_cost": "0", "cost-memo": ""})
+    data.update(overrides)
+    return data
+
+
+def _inline_edit(client, project, field, value):
+    return client.post(
+        reverse("bids:inline_edit"),
+        data=json.dumps({
+            "model": "bids.BidProject", "field": field, "pk": project.pk, "value": value,
+        }),
+        content_type="application/json",
+    )
+
+
 # ---------------------------------------------------------------------------
-# 手直しの印
+# 人が直した印
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.django_db
 class TestCorrectionMark:
-    def test_直すと印が付く(self, logged_in, project):
-        url = reverse("bids:project_correct", args=[project.pk, "outline"])
-
-        res = logged_in.post(url, {"work_outline": "読み違いを直した工事概要"})
+    def test_その場で直すと印が付く(self, logged_in, project):
+        res = _inline_edit(logged_in, project, "work_outline", "読み違いを直した工事概要")
 
         project.refresh_from_db()
-        assert res.status_code == 302
+        assert res.json()["ok"] is True
         assert project.work_outline == "読み違いを直した工事概要"
         assert project.corrected_fields == ["work_outline"]
-        assert project.is_corrected("work_outline")
 
-    def test_直していない項目には印が付かない(self, project):
-        form = BidOutlineForm({"work_outline": project.work_outline}, instance=project)
+    def test_同じ値のままなら印は付かない(self, logged_in, project):
+        _inline_edit(logged_in, project, "work_outline", project.work_outline)
 
-        assert form.is_valid()
-        form.save()
         project.refresh_from_db()
         assert project.corrected_fields == []
 
-    def test_知らない欄は直せない(self, logged_in, project):
-        res = logged_in.post(
-            reverse("bids:project_correct", args=[project.pk, "budget"]), {},
+    def test_編集画面で直した項目にも印が付く(self, logged_in, project):
+        data = _edit_page_data(
+            project, requirements="編集画面で直した参加要件", deadline="2026-10-27T17:00",
         )
 
-        assert res.status_code == 404
+        res = logged_in.post(reverse("bids:project_edit", args=[project.pk]), data)
+
+        project.refresh_from_db()
+        assert res.status_code == 302
+        assert "requirements" in project.corrected_fields
+        assert "work_outline" not in project.corrected_fields
 
     def test_他社の案件は直せない(self, client, user_b, project):
         client.force_login(user_b)
 
-        res = client.post(
-            reverse("bids:project_correct", args=[project.pk, "outline"]),
-            {"work_outline": "他社からの書き換え"},
-        )
+        res = _inline_edit(client, project, "work_outline", "他社からの書き換え")
 
         project.refresh_from_db()
         assert res.status_code == 404
-        assert project.work_outline == "公告から読んだ工事概要"
+        assert project.corrected_fields == []
 
 
 # ---------------------------------------------------------------------------
-# 取り込み・取り直しとの関係
+# 取り込み・取り直しは、印の付いた項目を書き換えない
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.django_db
 class TestImportKeepsCorrections:
-    def test_取り込みは印の付いた項目を埋めない(self, company_a):
+    def test_取り込みは印の付いた空の項目を埋めない(self, company_a):
         project = _project(company_a, location="")
         project.mark_corrected(["location"])
         project.save(update_fields=["corrected_fields"])
@@ -125,7 +137,8 @@ class TestImportKeepsCorrections:
 
     def test_公告の取り込みは印の付いた項目を書き換えない(self, company_a, monkeypatch):
         project = _project(
-            company_a, work_outline="", requirements="", source_url="https://example/a.pdf",
+            company_a, work_outline="", requirements="",
+            source_url="https://example.go.jp/koukoku.pdf",
         )
         project.mark_corrected(["work_outline"])
         project.save(update_fields=["corrected_fields"])
@@ -142,33 +155,35 @@ class TestImportKeepsCorrections:
         fill_announcement(project)
 
         project.refresh_from_db()
-        assert project.work_outline == ""  # 手直しの印が付いているので埋めない
+        assert project.work_outline == ""  # 人が空にした（直した）ので埋めない
         assert project.requirements == "公告の参加要件"
 
-    def test_取り直しでも手直しは消えない(self, company_a):
-        from apps.bids.management.commands.fetch_announcements import Command
-
-        project = _project(
-            company_a, work_outline="手で直した概要", requirements="公告の参加要件",
-            bid_schedule=[{"label": "開札", "datetime": "2026-11-11T15:00"}],
-        )
+    def test_取り直しでも手直しは消えない(self, project, monkeypatch):
+        project.work_outline = "手で直した工事概要"
+        project.bid_schedule = [{"label": "開札", "datetime": "2026-11-11T15:00"}]
         project.mark_corrected(["work_outline", "bid_schedule"])
-        project.save(update_fields=["corrected_fields"])
+        project.save()
+        seen = {}
 
-        # --force は取り直しのために中身を空にする。印の付いた項目は残す
-        projects = [project]
-        for target in projects:
-            if not target.is_corrected("work_outline"):
-                target.work_outline = ""
-            if not target.is_corrected("requirements"):
-                target.requirements = ""
-            if not target.is_corrected("bid_schedule"):
-                target.bid_schedule = []
+        def fake_fill(projects, limit=None):
+            # 取り直しの直前に、どの項目が空にされたかを見る
+            target = projects[0]
+            seen.update(
+                work_outline=target.work_outline,
+                requirements=target.requirements,
+                bid_schedule=target.bid_schedule,
+            )
+            return 0
 
-        assert Command is not None
-        assert project.work_outline == "手で直した概要"
-        assert project.bid_schedule
-        assert project.requirements == ""
+        monkeypatch.setattr(
+            "apps.bids.management.commands.fetch_announcements.fill_announcements", fake_fill,
+        )
+
+        call_command("fetch_announcements", "--force")
+
+        assert seen["work_outline"] == "手で直した工事概要"
+        assert seen["bid_schedule"] == [{"label": "開札", "datetime": "2026-11-11T15:00"}]
+        assert seen["requirements"] == ""  # 直していない項目は今までどおり取り直す
 
 
 # ---------------------------------------------------------------------------
@@ -178,7 +193,7 @@ class TestImportKeepsCorrections:
 
 @pytest.mark.django_db
 class TestDeadlineTime:
-    def test_編集画面で時刻が消えない(self, project):
+    def test_編集画面は時刻まで出す(self, project):
         form = BidProjectForm(instance=project)
 
         # Django は type を attrs から input_type に移すので、そちらを見る
@@ -187,98 +202,15 @@ class TestDeadlineTime:
         assert 'type="datetime-local"' in html
         assert "2026-10-27T17:00" in html
 
-    def test_日時を直すと時刻まで入る(self, logged_in, project):
-        res = logged_in.post(
-            reverse("bids:project_correct", args=[project.pk, "dates"]),
-            {"announced_on": "", "deadline": "2026-10-28T12:00", "opening_on": ""},
-        )
+    def test_編集画面で保存しても時刻が消えない(self, logged_in, project):
+        data = _edit_page_data(project, deadline="2026-10-27T17:00")
 
-        project.refresh_from_db()
+        res = logged_in.post(reverse("bids:project_edit", args=[project.pk]), data)
+
         assert res.status_code == 302
+        project.refresh_from_db()
         local = timezone.localtime(project.deadline)
-        assert (local.hour, local.minute) == (12, 0)
-        assert local.date() == datetime.date(2026, 10, 28)
-        assert project.is_corrected("deadline")
-
-    def test_日付だけでも受け取る(self, project):
-        form = BidDatesForm({"deadline": "2026-10-28"}, instance=project)
-
-        assert form.is_valid(), form.errors
-        assert form.cleaned_data["deadline"].date() == datetime.date(2026, 10, 28)
-
-
-# ---------------------------------------------------------------------------
-# 重要日程
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.django_db
-class TestScheduleCorrection:
-    def _post_data(self, project, **overrides):
-        form = BidScheduleForm(project=project)
-        data = {}
-        for index in range(form.row_count):
-            items = project.bid_schedule or []
-            item = items[index] if index < len(items) else {}
-            data[f"label_{index}"] = item.get("label", "")
-            data[f"datetime_{index}"] = item.get("datetime", "")
-            data[f"detail_{index}"] = item.get("detail", "")
-        data.update(overrides)
-        return data
-
-    def test_日時と項目名を直せる(self, logged_in, project):
-        data = self._post_data(project, datetime_0="2026-10-28T12:00", label_0="入札書の提出期限")
-
-        res = logged_in.post(
-            reverse("bids:project_correct", args=[project.pk, "schedule"]), data,
-        )
-
-        project.refresh_from_db()
-        assert res.status_code == 302
-        assert project.bid_schedule[0] == {
-            "label": "入札書の提出期限", "datetime": "2026-10-28T12:00",
-        }
-        assert project.is_corrected("bid_schedule")
-
-    def test_項目名を空にすると行が消える(self, logged_in, project):
-        data = self._post_data(project, label_1="", datetime_1="")
-
-        logged_in.post(reverse("bids:project_correct", args=[project.pk, "schedule"]), data)
-
-        project.refresh_from_db()
-        assert [item["label"] for item in project.bid_schedule] == ["入札書の受領期限"]
-
-    def test_空の行に入れると足せる(self, logged_in, project):
-        data = self._post_data(
-            project, label_2="質問の受付期限", datetime_2="2026-09-30T17:00",
-        )
-
-        logged_in.post(reverse("bids:project_correct", args=[project.pk, "schedule"]), data)
-
-        project.refresh_from_db()
-        assert project.bid_schedule[-1] == {
-            "label": "質問の受付期限", "datetime": "2026-09-30T17:00",
-        }
-
-    def test_日時だけで項目名が無ければ直せない(self, logged_in, project):
-        data = self._post_data(project, label_2="", datetime_2="2026-09-30T17:00")
-
-        res = logged_in.post(
-            reverse("bids:project_correct", args=[project.pk, "schedule"]), data,
-        )
-
-        project.refresh_from_db()
-        assert res.status_code == 200
-        assert "項目名を入れてください" in res.content.decode()
-        assert len(project.bid_schedule) == 2
-
-    def test_直した日程がガントに出る(self, logged_in, project):
-        data = self._post_data(project, datetime_0="2026-10-28T12:00")
-
-        logged_in.post(reverse("bids:project_correct", args=[project.pk, "schedule"]), data)
-
-        html = logged_in.get(reverse("bids:project_detail", args=[project.pk])).content.decode()
-        assert "2026-10-28" in html
+        assert (local.date(), local.hour, local.minute) == (datetime.date(2026, 10, 27), 17, 0)
 
 
 # ---------------------------------------------------------------------------
@@ -291,15 +223,11 @@ class TestReread:
     def test_使えないときは知らせる(self, logged_in, project, monkeypatch):
         monkeypatch.setattr("apps.bids.announcement_llm.is_available", lambda: False)
 
-        res = logged_in.post(
-            reverse("bids:project_reread", args=[project.pk]), follow=True,
-        )
+        res = logged_in.post(reverse("bids:project_reread", args=[project.pk]), follow=True)
 
         assert "AI での読み直しは今は使えません" in res.content.decode()
 
     def test_読み取り結果を出すだけで保存しない(self, logged_in, project, monkeypatch):
-        project.source_url = "https://example/a.pdf"
-        project.save(update_fields=["source_url"])
         monkeypatch.setattr("apps.bids.announcement_llm.is_available", lambda: True)
         monkeypatch.setattr("apps.bids.announcement.fetch_document", lambda url: b"%PDF-1.7")
         monkeypatch.setattr(
@@ -318,12 +246,11 @@ class TestReread:
         html = res.content.decode()
         assert res.status_code == 200
         assert "AI が読んだ工事概要" in html
+        assert "公告から読んだ工事概要" in html  # 今の内容と並べて出す
         assert "これで直す" in html
         assert project.work_outline == "公告から読んだ工事概要"  # まだ入れない
 
     def test_選んだ項目だけ入り印が付く(self, logged_in, project):
-        import json
-
         proposal = {
             "work_outline": "AI が読んだ工事概要",
             "requirements": "AI が読んだ参加要件",
@@ -343,14 +270,15 @@ class TestReread:
         assert project.requirements == "公告から読んだ参加要件"  # 選ばなかった項目はそのまま
         assert sorted(project.corrected_fields) == ["required_score", "work_outline"]
 
-    def test_選ばれていなければ何も入れない(self, logged_in, project):
+    def test_読み直しの項目以外は入れない(self, logged_in, project):
         res = logged_in.post(reverse("bids:project_reread_apply", args=[project.pk]), {
-            "proposal": '{"work_outline": "AI"}',
+            "proposal": json.dumps({"title": "書き換え", "work_outline": ""}),
+            "apply": ["title", "work_outline"],
         })
 
         project.refresh_from_db()
         assert res.status_code == 302
-        assert project.work_outline == "公告から読んだ工事概要"
+        assert project.title == "○○庁舎 電気設備改修工事"
         assert project.corrected_fields == []
 
 
@@ -361,33 +289,18 @@ class TestReread:
 
 @pytest.mark.django_db
 class TestScreens:
-    def test_詳細に直す入口が出る(self, logged_in, project):
+    def test_詳細にAIで読み直すが出る(self, logged_in, project):
         html = logged_in.get(reverse("bids:project_detail", args=[project.pk])).content.decode()
 
         assert "AI で読み直す" in html
-        assert "?edit=outline" in html
-        assert "?edit=requirements" in html
-        assert "?edit=schedule" in html
-        assert "?edit=dates" in html
-        assert "?edit=qualification" in html
+        assert reverse("bids:project_reread", args=[project.pk]) in html
 
-    def test_欄を開くとフォームが出る(self, logged_in, project):
-        html = logged_in.get(
-            reverse("bids:project_detail", args=[project.pk]) + "?edit=outline",
-        ).content.decode()
+    def test_直した欄には手直しありが出る(self, logged_in, project):
+        before = logged_in.get(reverse("bids:project_detail", args=[project.pk])).content.decode()
+        assert "手直しあり" not in before
 
-        assert 'name="work_outline"' in html
-        assert "公告を取り直しても書き換えません" in html
-
-    def test_直した欄には印が出る(self, logged_in, project):
         project.mark_corrected(["work_outline"])
         project.save(update_fields=["corrected_fields"])
 
-        html = logged_in.get(reverse("bids:project_detail", args=[project.pk])).content.decode()
-
-        assert "手直しあり" in html
-
-    def test_直す欄の名前は決まったものだけ(self):
-        assert set(bid_views.CORRECTION_FORMS) == {
-            "outline", "requirements", "qualification", "dates", "schedule",
-        }
+        after = logged_in.get(reverse("bids:project_detail", args=[project.pk])).content.decode()
+        assert "手直しあり" in after

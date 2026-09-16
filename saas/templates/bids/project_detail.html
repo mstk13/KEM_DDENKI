@@ -326,8 +326,15 @@
 
 <div class="card" style="margin-top:20px;">
   <div class="card-header">
-    <h2>工事概要</h2>
-    {% inline_edit project "work_outline" text="この欄を直す" block=True reload=True %}
+    <h2>工事概要{% if "work_outline" in corrected_fields %} <span class="badge badge-blue">手直しあり</span>{% endif %}</h2>
+    <span style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+      {# 公告PDFを AI に読み直させ、並べて見てから入れる（ADR-0075） #}
+      <form method="post" action="{% url 'bids:project_reread' project.pk %}" style="display:inline;">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-outline btn-xs">AI で読み直す</button>
+      </form>
+      {% inline_edit project "work_outline" text="この欄を直す" block=True reload=True %}
+    </span>
   </div>
   <div class="card-body">
     {% if project.work_outline %}
@@ -342,7 +349,7 @@
 
 <div class="card" style="margin-top:20px;">
   <div class="card-header">
-    <h2>参加要件</h2>
+    <h2>参加要件{% if "requirements" in corrected_fields %} <span class="badge badge-blue">手直しあり</span>{% endif %}</h2>
     {% inline_edit project "requirements" text="この欄を直す" block=True reload=True %}
   </div>
   <div class="card-body">

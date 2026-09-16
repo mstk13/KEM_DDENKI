@@ -288,7 +288,7 @@ def fill_missing_fields(project, rec, default_region=""):
     """既存案件の空いている項目だけを取り込み結果で埋める。
 
     画面で手直しした値を上書きしないよう、既に値がある項目と、
-    人が直した印の付いた項目（ADR-0073）には触らない。
+    人が直した印の付いた項目（ADR-0075）には触らない。
     変更があれば True を返す。
     """
     changed = []
@@ -311,7 +311,7 @@ def fill_missing_fields(project, rec, default_region=""):
         if getattr(project, name) not in (None, "", 0):
             continue
         if project.is_corrected(name):
-            # 人が直した項目は、空に見えても取り込みで埋め直さない（ADR-0073）
+            # 人が直した項目は、空に見えても取り込みで埋め直さない（ADR-0075）
             continue
         if max_length and isinstance(value, str):
             value = value[:max_length]
@@ -418,7 +418,7 @@ def fill_announcement(project) -> bool:
         return False
 
     def fillable(name, current):
-        """まだ空で、人が直した印も付いていない項目か（ADR-0073）。"""
+        """まだ空で、人が直した印も付いていない項目か（ADR-0075）。"""
         return current in (None, "") and not project.is_corrected(name)
 
     changed = []
