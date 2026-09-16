@@ -132,20 +132,37 @@ class AttendPlan(TenantModel):
     }
 
     # 区分ごとに何を登録させるか。画面の入力欄の出し分けはこの定義に従う。
-    #   time  … 開始・終了時刻を訊く
-    #   place … 場所の入力欄のラベル。空なら訊かない
-    #   span  … 複数日にまたがる登録（何日から何日まで）を許す
+    #   time    … 開始・終了時刻を訊く
+    #   place   … note の入力欄のラベル。空なら訊かない
+    #   span    … 複数日にまたがる登録（何日から何日まで）を許す
+    #   suggest … 入力欄に出す候補。"sites"＝登録済みの現場名（ADR-0037）、
+    #             "notes"＝これまでに入れた作業内容（ADR-0070）
+    #
+    # 現場へ出ない区分（出社・在宅・半休）では、note に「その日に何を行うか」を入れる
+    # （事務作業・資材の整理など）。行先を訊く区分と列は分けない（ADR-0070）。
     # 出張だけ span を持つ。行先へ行って戻るまでが1件の予定で、
     # 曜日をまたぐのが普通のため。保存時は日ごとの行に展開する。
     KIND_FIELDS = {
-        "office": {"time": True, "place": "", "span": False},
-        "site": {"time": True, "place": "現場名", "span": False},
-        "direct": {"time": True, "place": "現場名", "span": False},
-        "remote": {"time": True, "place": "", "span": False},
-        "trip": {"time": False, "place": "行先", "span": True},
-        "paid": {"time": False, "place": "", "span": False},
-        "half": {"time": True, "place": "", "span": False},
-        "off": {"time": False, "place": "", "span": False},
+        "office": {
+            "time": True, "place": "作業内容", "span": False, "suggest": "notes",
+        },
+        "site": {
+            "time": True, "place": "現場名", "span": False, "suggest": "sites",
+        },
+        "direct": {
+            "time": True, "place": "現場名", "span": False, "suggest": "sites",
+        },
+        "remote": {
+            "time": True, "place": "作業内容", "span": False, "suggest": "notes",
+        },
+        "trip": {
+            "time": False, "place": "行先", "span": True, "suggest": "sites",
+        },
+        "paid": {"time": False, "place": "", "span": False, "suggest": ""},
+        "half": {
+            "time": True, "place": "作業内容", "span": False, "suggest": "notes",
+        },
+        "off": {"time": False, "place": "", "span": False, "suggest": ""},
     }
 
     # 時刻を持たない区分（出張・有休・休み）。終日の予定なので、

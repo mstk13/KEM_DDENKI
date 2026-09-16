@@ -64,6 +64,7 @@
     </div>
 
     {% include "attendance/partials/site_name_datalist.html" %}
+    {% include "attendance/partials/work_note_datalist.html" %}
     <p class="form-hint" style="margin:0;padding:0 24px 12px;">
       「現場名・行先」は登録済みの現場から選べます。候補にない場合はそのまま入力してください。<br>
       「＋ 予定を追加」で1日を時間で分けて複数の予定を入れられます（例: 8:00〜12:00 A現場、13:00〜17:00 B現場）。
@@ -113,8 +114,8 @@
             <td>
               <input type="text" name="note_{{ row.worker.pk }}"
                      class="form-control plan-day-note" value="{{ plan.note }}" maxlength="200"
-                     list="attend-site-names" autocomplete="off"
-                     aria-label="{{ row.worker.name }} の現場名・行先">
+                     autocomplete="off"
+                     aria-label="{{ row.worker.name }} の現場名・行先・作業内容">
             </td>
             <td>
               <input type="time" name="start_{{ row.worker.pk }}"
@@ -203,6 +204,13 @@ document.addEventListener('DOMContentLoaded', function() {
     var enabled = !!kind;
     lock(field(row, 'note'), !enabled, false);
     field(row, 'note').placeholder = spec.place ? spec.place : '（任意）';
+    // 候補は区分で変わる（現場名／これまでの作業内容）。ADR-0070
+    var listId = {sites: 'attend-site-names', notes: 'attend-work-notes'}[spec.suggest];
+    if (listId) {
+      field(row, 'note').setAttribute('list', listId);
+    } else {
+      field(row, 'note').removeAttribute('list');
+    }
     lock(field(row, 'start'), !(enabled && spec.time), true);
     lock(field(row, 'end'), !(enabled && spec.time), true);
     // 出張の最終日は、その人の予定が出張1件のときだけ
