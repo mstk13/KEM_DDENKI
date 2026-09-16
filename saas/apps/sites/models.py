@@ -14,7 +14,9 @@ class Site(TenantModel):
     """現場。全業務データの起点。案件=現場を1:1とする。"""
 
     class Status(models.TextChoices):
-        ESTIMATING = "estimating", "見積中"
+        # 表示は「積算中」。入札案件・積算案件と同じ言葉で揃える（ADR-0076）。
+        # 値は "estimating" のままで、既存データの書き換えは不要。
+        ESTIMATING = "estimating", "積算中"
         ORDERED = "ordered", "受注済"
         IN_PROGRESS = "in_progress", "施工中"
         COMPLETED = "completed", "完工"

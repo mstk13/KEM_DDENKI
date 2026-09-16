@@ -437,7 +437,9 @@ class TestProjectDetailShortfall:
         project = self._project(company_a, user_a, required_grades="A")
         client.force_login(user_a)
         html = client.get(f"/bids/{project.pk}/").content.decode()
-        rows = html.split("<tr>")
+        # 「参加要件」の表だけを見る（見出しの「この欄を直す」は原文を属性に持つため）
+        requirements_table = html.split("参加要件</h2>")[1].split("<tbody>")[1]
+        rows = requirements_table.split("<tr>")
         grade_row = next(r for r in rows if "Ａ等級に認定" in r)
         other_row = next(r for r in rows if "第70条及び第71条" in r)
         assert "資格不足" in grade_row
@@ -454,7 +456,9 @@ class TestProjectDetailShortfall:
         project = self._project(company_a, user_a)
         client.force_login(user_a)
         html = client.get(f"/bids/{project.pk}/").content.decode()
-        rows = html.split("<tr>")
+        # 「参加要件」の表だけを見る（見出しの「この欄を直す」は原文を属性に持つため）
+        requirements_table = html.split("参加要件</h2>")[1].split("<tbody>")[1]
+        rows = requirements_table.split("<tr>")
         qual_row = next(r for r in rows if "一般競争参加資格の認定" in r)
         assert "資格不足" in qual_row
         assert "対応する業種区分" in qual_row

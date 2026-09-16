@@ -254,7 +254,9 @@ class TestProjectDetail:
         html = client.get(f"/bids/{project.pk}/").content.decode()
 
         assert "資格不足" in html
-        rows = html.split("<tr>")
+        # 「参加要件」の表だけを見る（見出しの「この欄を直す」は原文を属性に持つため）
+        requirements_table = html.split("参加要件</h2>")[1].split("<tbody>")[1]
+        rows = requirements_table.split("<tr>")
         office_row = next(r for r in rows if "営業所が所在すること" in r)
         grade_row = next(r for r in rows if "Ａ等級であること" in r)
         assert "shortfall-note" in office_row

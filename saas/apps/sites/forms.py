@@ -254,7 +254,7 @@ PHOTO_SITE_STATUSES = (
 
 
 def photo_site_choices(company):
-    """写真を撮る現場の候補。施工中 → 受注済 → 見積中 → 完工、同じ状態の中は新しい現場から。"""
+    """写真を撮る現場の候補。施工中 → 受注済 → 積算中 → 完工、同じ状態の中は新しい現場から。"""
     if company is None:
         return Site.objects.none()
     rank = Case(

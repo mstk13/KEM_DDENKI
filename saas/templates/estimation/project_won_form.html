@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}受注の確定 — {{ APP_NAME }}{% endblock %}
+{% block topbar_title %}積算{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>受注の確定</h1>
+</div>
+
+<div class="card">
+  <div class="card-body">
+    <p><strong>積算案件:</strong> {{ project.name }}</p>
+    <p class="text-muted" style="font-size:.9rem;">
+      確定すると
+      {% if project.site %}
+        現場「{{ project.site.name }}」を受注済にして、
+      {% else %}
+        この案件から現場を作って、
+      {% endif %}
+      現場管理へ引き渡します。
+    </p>
+
+    <form method="post">
+      {% csrf_token %}
+      {{ form.non_field_errors }}
+      <div class="form-group">
+        <label for="{{ form.award_amount.id_for_label }}">落札額（円）</label>
+        {{ form.award_amount }}
+        <small class="text-muted">{{ form.award_amount.help_text }}</small>
+        {{ form.award_amount.errors }}
+      </div>
+      <div class="form-group">
+        <label for="{{ form.decided_on.id_for_label }}">結果確定日</label>
+        {{ form.decided_on }}
+        <small class="text-muted">{{ form.decided_on.help_text }}</small>
+        {{ form.decided_on.errors }}
+      </div>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">受注として確定する</button>
+        <a href="{% url 'estimation:project_detail' project.pk %}" class="btn btn-outline">キャンセル</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

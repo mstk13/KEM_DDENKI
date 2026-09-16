@@ -173,7 +173,7 @@ class TestBackfillBidSites:
     def test_prefers_bid_site_and_leaves_est_site_alone(self, company_a):
         bid = _bid(company_a)
         est = _site(
-            company_a, f"EST-{bid.pk}", name="見積中の現場", contract_amount=Decimal("100"),
+            company_a, f"EST-{bid.pk}", name="積算中の現場", contract_amount=Decimal("100"),
         )
         won = _site(company_a, f"BID-{bid.pk}", status=Site.Status.ORDERED)
 
@@ -181,7 +181,7 @@ class TestBackfillBidSites:
         bid.refresh_from_db()
         assert bid.site_id == won.pk
         est.refresh_from_db()
-        assert est.name == "見積中の現場"
+        assert est.name == "積算中の現場"
         assert est.status == Site.Status.ESTIMATING
         assert est.contract_amount == Decimal("100")
 
