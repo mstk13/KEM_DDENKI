@@ -631,7 +631,8 @@ svg.gantt .bar-wrapper .bar-label.big {
 .gantt-card { margin-bottom: 16px; }
 .gantt-controls { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
 .gantt-controls .btn { min-height: 44px; }
-.gantt-chart { overflow-x: auto; }
+/* 左端の目盛りは当日（ADR-0072）。ラベルが枠にくっつかないよう少し空ける */
+.gantt-chart { overflow-x: auto; padding-left: 4px; }
 .gantt-popup { padding: 12px; min-width: 200px; }
 .gantt-popup h5 { margin: 0 0 6px; font-size: .95rem; }
 .gantt-popup p { margin: 4px 0 0; font-size: .82rem; }
