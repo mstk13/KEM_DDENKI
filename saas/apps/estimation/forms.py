@@ -4,7 +4,9 @@ from django import forms
 
 from apps.estimation.models import (
     BoqLine,
+    EstimationCompetitor,
     EstimationItem,
+    EstimationPhase,
     EstimationProject,
     EstimationStandard,
     ItemAlias,
@@ -442,3 +444,88 @@ class BoqImportForm(forms.Form):
         initial=True,
         help_text="外すと今ある明細の後ろに追加します。同じファイルを2回読むと行が重複します。",
     )
+
+
+class EstimationWonForm(forms.Form):
+    """受注の確定。落札額と結果確定日を入れて現場管理へ渡す（ADR-0070）。"""
+
+    award_amount = forms.DecimalField(
+        label="落札額（円）", max_digits=14, decimal_places=0, required=False,
+        widget=forms.NumberInput(attrs={"class": "form-control"}),
+        help_text="空のままなら積算案件の落札額と現場の受注金額は変えません",
+    )
+    decided_on = forms.DateField(
+        label="結果確定日", required=False,
+        widget=forms.DateInput(attrs={"class": "form-control", "type": "date"}),
+        help_text="空のままなら今日の日付が入ります",
+    )
+
+
+class EstimationLostForm(forms.ModelForm):
+    """失注の確定。原因の区分とメモを入れる（ADR-0070）。
+
+    競合の社名と金額は EstimationCompetitorForm で別に足す。
+    1社とは限らず、後から分かることもあるため同じ画面で完結させない。
+    """
+
+    class Meta:
+        model = EstimationProject
+        fields = ["lost_reason", "lost_note", "decided_on"]
+        widgets = {
+            "lost_reason": forms.Select(attrs={"class": "form-control"}),
+            "lost_note": forms.Textarea(attrs={"class": "form-control", "rows": 3}),
+            "decided_on": forms.DateInput(
+                attrs={"class": "form-control", "type": "date"},
+            ),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["lost_reason"].required = True
+        self.fields["decided_on"].help_text = "空のままなら今日の日付が入ります"
+
+
+class EstimationCompetitorForm(forms.ModelForm):
+    """競合1社分。差額は自社応札額から計算して表示するので入力欄は持たない。"""
+
+    class Meta:
+        model = EstimationCompetitor
+        fields = ["name", "amount", "is_winner", "memo"]
+        widgets = {
+            "name": forms.TextInput(attrs={"class": "form-control"}),
+            "amount": forms.NumberInput(attrs={"class": "form-control"}),
+            "memo": forms.Textarea(attrs={"class": "form-control", "rows": 2}),
+        }
+
+
+class EstimationPhaseForm(forms.ModelForm):
+    """積算工程。現場管理の工程フェーズと同じ項目立てにする（ADR-0070）。"""
+
+    class Meta:
+        model = EstimationPhase
+        fields = [
+            "name", "start_date", "end_date", "progress",
+            "sort_order", "color", "memo",
+        ]
+        widgets = {
+            "name": forms.TextInput(attrs={"class": "form-control"}),
+            "start_date": forms.DateInput(
+                attrs={"class": "form-control", "type": "date"},
+            ),
+            "end_date": forms.DateInput(
+                attrs={"class": "form-control", "type": "date"},
+            ),
+            "progress": forms.NumberInput(
+                attrs={"class": "form-control", "min": 0, "max": 100},
+            ),
+            "sort_order": forms.NumberInput(attrs={"class": "form-control"}),
+            "color": forms.TextInput(attrs={"class": "form-control", "type": "color"}),
+            "memo": forms.Textarea(attrs={"class": "form-control", "rows": 2}),
+        }
+
+    def clean(self):
+        cleaned = super().clean()
+        start, end = cleaned.get("start_date"), cleaned.get("end_date")
+        if start and end and start > end:
+            raise forms.ValidationError("終了日は開始日より後にしてください。")
+        return cleaned

@@ -122,13 +122,22 @@ def _notify_won(bid_project, site, created):
 
 
 def start_estimation(bid_project, created_by=None):
-    """案件を検討中にし、見積中の現場を用意する。
+    """案件を見積中にし、積算案件へ引っ越す（ADR-0070）。
 
-    現場が既にあればそれを使い、作り直さない（ADR-0031）。何度呼んでも現場は1つ。
+    用意するものは3つ。いずれも既にあれば作り直さない（ADR-0031）ので、
+    何度呼んでも現場と積算案件はそれぞれ1つ。
+
+    1. 見積中の現場（Site）
+    2. 積算案件（estimation.EstimationProject）
+    3. 公告の手続き期限から起こした積算工程（EstimationPhase）
+
+    入札案件は「見積中」になり、入札案件一覧の既定の絞り込みから外れる。
+    消すのではなく状態で外すのは、公告・競合・書類の経緯を入札側に残すため。
 
     Returns:
         (Site, created)。created は現場を新しく作ったとき True
     """
+    from apps.estimation.services.from_bid import create_estimation_project_from_bid
     from apps.sites.models import Site
 
     with transaction.atomic():
@@ -149,9 +158,11 @@ def start_estimation(bid_project, created_by=None):
         else:
             site = bid_project.site
 
-        bid_project.status = BidProject.Status.CONSIDERING
+        bid_project.status = BidProject.Status.ESTIMATING
         bid_project.site = site
         bid_project.save(update_fields=["status", "site", "updated_at"])
+
+        create_estimation_project_from_bid(bid_project, site, created_by=created_by)
 
     return site, created
 

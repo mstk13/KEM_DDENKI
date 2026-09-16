@@ -1,0 +1,78 @@
+{% comment %}
+競合の一覧と追加フォーム。失注画面と積算案件詳細の両方から使う（ADR-0070）。
+差額は EstimationCompetitor のプロパティで、自社応札額との引き算をその都度行う。
+{% endcomment %}
+<table class="table">
+  <thead>
+    <tr>
+      <th>競合名</th>
+      <th class="text-right">金額</th>
+      <th class="text-right">自社との差額</th>
+      <th class="text-right">差率</th>
+      <th>落札</th>
+      <th>メモ</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for c in competitors %}
+      <tr>
+        <td>{{ c.name }}</td>
+        <td class="text-right mono">
+          {% if c.amount %}{{ c.amount|floatformat:0 }} 円{% else %}—{% endif %}
+        </td>
+        <td class="text-right mono">
+          {% if c.difference is None %}
+            <span class="text-muted">—</span>
+          {% elif c.difference > 0 %}
+            <span style="color:#dc2626;">+{{ c.difference|floatformat:0 }} 円</span>
+          {% else %}
+            <span style="color:#059669;">{{ c.difference|floatformat:0 }} 円</span>
+          {% endif %}
+        </td>
+        <td class="text-right mono">
+          {% if c.difference_rate is None %}
+            <span class="text-muted">—</span>
+          {% else %}
+            {{ c.difference_rate }} %
+          {% endif %}
+        </td>
+        <td>{% if c.is_winner %}◎{% endif %}</td>
+        <td>{{ c.memo|default:"" }}</td>
+        <td>
+          <form method="post" action="{% url 'estimation:competitor_delete' c.pk %}"
+                onsubmit="return confirm('この競合を削除しますか？');">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-outline btn-sm">削除</button>
+          </form>
+        </td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="7" class="text-muted">競合はまだ記録されていません。</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<form method="post" action="{% url 'estimation:competitor_create' project.pk %}">
+  {% csrf_token %}
+  <div class="form-row">
+    <div class="form-group">
+      <label for="{{ competitor_form.name.id_for_label }}">競合名</label>
+      {{ competitor_form.name }}
+    </div>
+    <div class="form-group">
+      <label for="{{ competitor_form.amount.id_for_label }}">金額（円）</label>
+      {{ competitor_form.amount }}
+    </div>
+    <div class="form-group">
+      <label for="{{ competitor_form.is_winner.id_for_label }}">
+        {{ competitor_form.is_winner }} 落札者
+      </label>
+    </div>
+  </div>
+  <div class="form-group">
+    <label for="{{ competitor_form.memo.id_for_label }}">メモ</label>
+    {{ competitor_form.memo }}
+  </div>
+  <button type="submit" class="btn btn-primary btn-sm">+ 競合を追加</button>
+</form>

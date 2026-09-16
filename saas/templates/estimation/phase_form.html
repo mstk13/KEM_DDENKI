@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}{% if is_new %}積算工程を追加{% else %}積算工程を編集{% endif %} — {{ APP_NAME }}{% endblock %}
+{% block topbar_title %}積算{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>{% if is_new %}積算工程を追加{% else %}{{ phase.name }} を編集{% endif %}</h1>
+</div>
+
+<div class="card">
+  <div class="card-body">
+    <p><strong>積算案件:</strong> {{ project.name }}</p>
+    {% if phase and phase.source_label %}
+      <p class="text-muted" style="font-size:.85rem;">
+        入札公告の「{{ phase.source_label }}」から取り込んだ工程です。
+        ここで直した内容は、公告を取り込み直しても上書きされません。
+      </p>
+    {% endif %}
+    <form method="post">
+      {% csrf_token %}
+      {{ form.non_field_errors }}
+      <div class="form-group">
+        <label for="{{ form.name.id_for_label }}">工程名</label>
+        {{ form.name }}
+        {{ form.name.errors }}
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="{{ form.start_date.id_for_label }}">開始日</label>
+          {{ form.start_date }}
+          {{ form.start_date.errors }}
+        </div>
+        <div class="form-group">
+          <label for="{{ form.end_date.id_for_label }}">終了日</label>
+          {{ form.end_date }}
+          {{ form.end_date.errors }}
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="{{ form.progress.id_for_label }}">進捗(%)</label>
+          {{ form.progress }}
+          {{ form.progress.errors }}
+        </div>
+        <div class="form-group">
+          <label for="{{ form.sort_order.id_for_label }}">表示順</label>
+          {{ form.sort_order }}
+          {{ form.sort_order.errors }}
+        </div>
+        <div class="form-group">
+          <label for="{{ form.color.id_for_label }}">色</label>
+          {{ form.color }}
+        </div>
+      </div>
+      <div class="form-group">
+        <label for="{{ form.memo.id_for_label }}">メモ</label>
+        {{ form.memo }}
+      </div>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">保存</button>
+        <a href="{% url 'estimation:project_detail' project.pk %}" class="btn btn-outline">キャンセル</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

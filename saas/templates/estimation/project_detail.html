@@ -12,8 +12,23 @@
       {% csrf_token %}
       <button type="submit" class="btn btn-primary">差分分析を実行</button>
     </form>
+    {% if not is_settled %}
+      {# 結果の確定（ADR-0070）。受注は現場管理へ引き渡し、失注は原因を残す #}
+      <a href="{% url 'estimation:project_mark_won' project.pk %}" class="btn btn-primary">受注した</a>
+      <a href="{% url 'estimation:project_mark_lost' project.pk %}" class="btn btn-outline">失注した</a>
+    {% endif %}
   </div>
 </div>
+
+{% if project.bid_project %}
+  <div class="card" style="margin-bottom:20px;">
+    <div class="card-body" style="font-size:.9rem;">
+      入札案件
+      <a href="{% url 'bids:project_detail' project.bid_project.pk %}">{{ project.bid_project.title }}</a>
+      から引き継いだ案件です。公告・参加要件・提出書類は入札案件の画面に残っています。
+    </div>
+  </div>
+{% endif %}
 
 {# --- 基本情報 --- #}
 <div class="card" style="margin-bottom:20px;">
@@ -112,7 +127,152 @@
 </div>
 {% endif %}
 
+{# --- 日程（ADR-0070）。現場管理と同じ frappe-gantt ＋ 下の一覧から手修正 --- #}
+<div class="page-header">
+  <h2>日程</h2>
+  <div style="display:flex;gap:8px;">
+    {% if project.bid_project %}
+      <form method="post" action="{% url 'estimation:phase_import_from_bid' project.pk %}" style="display:inline;">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-outline btn-sm">公告から取り込む</button>
+      </form>
+    {% endif %}
+    <a href="{% url 'estimation:phase_create' project.pk %}" class="btn btn-outline btn-sm">+ 工程追加</a>
+  </div>
+</div>
+<div class="card" style="margin-bottom:20px;">
+  <div class="card-body">
+    {% if gantt_tasks_exist %}
+      <div class="gantt-controls" style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
+        <button class="btn btn-outline btn-sm gantt-mode active" data-mode="Week">週</button>
+        <button class="btn btn-outline btn-sm gantt-mode" data-mode="Month">月</button>
+        <button class="btn btn-outline btn-sm gantt-mode" data-mode="Quarter Day">日</button>
+      </div>
+      <div id="est-gantt-chart" style="overflow-x:auto;"></div>
+    {% else %}
+      <p class="text-muted">
+        開始日と終了日の両方が入った工程がまだありません。
+        {% if project.bid_project %}「公告から取り込む」か{% endif %}「+ 工程追加」から入れてください。
+      </p>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card" style="margin-bottom:20px;">
+  <div class="table-wrap">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>工程名</th>
+          <th>開始日</th>
+          <th>終了日</th>
+          <th style="text-align:right;">進捗</th>
+          <th>出所</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in phases %}
+          <tr>
+            <td>
+              <span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:{{ p.color }};"></span>
+              {{ p.name }}
+            </td>
+            <td class="mono">{{ p.start_date|default:"—" }}</td>
+            <td class="mono">{{ p.end_date|default:"—" }}</td>
+            <td style="text-align:right;">{{ p.progress }}%</td>
+            <td style="font-size:13px;">
+              {% if p.source_label %}
+                <span class="badge badge-gray">公告</span> {{ p.source_label }}
+              {% else %}
+                <span class="text-muted">手入力</span>
+              {% endif %}
+            </td>
+            <td style="display:flex;gap:6px;">
+              <a href="{% url 'estimation:phase_edit' p.pk %}" class="btn btn-outline btn-sm">編集</a>
+              <form method="post" action="{% url 'estimation:phase_delete' p.pk %}"
+                    onsubmit="return confirm('この工程を削除しますか？');">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-outline btn-sm">削除</button>
+              </form>
+            </td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="6" class="text-muted">工程はまだありません。</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{# --- 結果（ADR-0070） --- #}
+{% if project.status == 'lost' %}
+  <div class="page-header"><h2>失注の記録</h2></div>
+  <div class="card" style="margin-bottom:20px;">
+    <div class="card-body">
+      <p>
+        <strong>原因:</strong> {{ project.get_lost_reason_display|default:"未記入" }}
+        {% if project.decided_on %}（{{ project.decided_on }} 確定）{% endif %}
+      </p>
+      {% if project.lost_note %}<p>{{ project.lost_note|linebreaksbr }}</p>{% endif %}
+      {% include "estimation/partials/competitor_table.html" %}
+    </div>
+  </div>
+{% elif competitors %}
+  <div class="page-header"><h2>競合</h2></div>
+  <div class="card" style="margin-bottom:20px;">
+    <div class="card-body">
+      {% include "estimation/partials/competitor_table.html" %}
+    </div>
+  </div>
+{% endif %}
+
 <div style="margin-top:20px;">
   <a href="{% url 'estimation:project_list' %}" class="btn btn-outline">案件一覧に戻る</a>
 </div>
+
+{# base.html に extra_js ブロックが無いので、現場管理の工期画面と同じく content の末尾に置く #}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/frappe-gantt@0.6.1/dist/frappe-gantt.min.css">
+<script src="https://cdn.jsdelivr.net/npm/frappe-gantt@0.6.1/dist/frappe-gantt.min.js"></script>
+<script>
+{% if gantt_tasks_exist %}
+document.addEventListener('DOMContentLoaded', function() {
+  var tasks = {{ gantt_json|safe }};
+  // language は指定しない。frappe-gantt 0.6.1 は 'ja' の月名テーブルを持たず、
+  // 月ラベル生成時に例外を投げて描画が途中で止まる（apps/schedules と同じ理由）。
+  var gantt = new Gantt('#est-gantt-chart', tasks, {
+    view_mode: 'Week',
+    custom_popup_html: function(task) {
+      return '<div class="details-container" style="padding:12px;min-width:200px;">'
+        + '<h5 style="margin:0 0 6px;font-size:.95rem;">' + task.name + '</h5>'
+        + '<p style="margin:0;font-size:.82rem;color:#666;">'
+        + task.start.toLocaleDateString('ja-JP') + ' ～ ' + task.end.toLocaleDateString('ja-JP')
+        + '</p>'
+        + '<p style="margin:4px 0 0;font-size:.82rem;">進捗: ' + task.progress + '%</p>'
+        + (task._memo ? '<p style="margin:4px 0 0;font-size:.82rem;">' + task._memo + '</p>' : '')
+        + '</div>';
+    }
+  });
+
+  // 工程ごとの色を塗る。frappe-gantt は custom_class しか見ないので、
+  // 色を1つずつクラスにすると際限なく増える。バーを引いてから直接塗る。
+  tasks.forEach(function(t) {
+    var bar = document.querySelector('#est-gantt-chart .bar-wrapper[data-id="' + t.id + '"] .bar');
+    if (bar && t._color) { bar.style.fill = t._color; }
+  });
+
+  document.querySelectorAll('.gantt-mode').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      document.querySelectorAll('.gantt-mode').forEach(function(b) { b.classList.remove('active'); });
+      this.classList.add('active');
+      gantt.change_view_mode(this.dataset.mode);
+      tasks.forEach(function(t) {
+        var bar = document.querySelector('#est-gantt-chart .bar-wrapper[data-id="' + t.id + '"] .bar');
+        if (bar && t._color) { bar.style.fill = t._color; }
+      });
+    });
+  });
+});
+{% endif %}
+</script>
 {% endblock %}

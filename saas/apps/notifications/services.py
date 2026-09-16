@@ -354,6 +354,9 @@ def check_bid_deadline_alerts(company):
         status__in=[
             BidProject.Status.NEW,
             BidProject.Status.CONSIDERING,
+            # 見積中（積算案件へ引っ越し済み。ADR-0070）も期限の対象。
+            # 積算に着手した案件こそ入札書の提出期限を落としてはならない。
+            BidProject.Status.ESTIMATING,
             BidProject.Status.BID,
         ],
         deadline__isnull=False,

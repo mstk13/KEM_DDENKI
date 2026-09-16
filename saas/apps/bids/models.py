@@ -50,10 +50,17 @@ class BidProject(TenantModel):
     class Status(models.TextChoices):
         NEW = "new", "新着"
         CONSIDERING = "considering", "検討中"
+        # 積算を始めた案件。積算案件（estimation.EstimationProject）に引っ越し済みで、
+        # 入札案件一覧の既定の絞り込みからは外れる（ADR-0070）。
+        ESTIMATING = "estimating", "見積中"
         BID = "bid", "入札済"
         WON = "won", "落札"
         LOST = "lost", "失注"
         SKIPPED = "skipped", "見送り"
+
+    # 積算案件へ引っ越した後の状態。入札案件一覧の既定の絞り込みから外す対象で、
+    # 一覧・引っ越し判定の両方から参照する（ADR-0070）。
+    MOVED_STATUSES = (Status.ESTIMATING,)
 
     class SourceType(models.TextChoices):
         MANUAL = "manual", "手動登録"
