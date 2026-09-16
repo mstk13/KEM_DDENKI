@@ -787,11 +787,17 @@ class TestKindFields:
             assert AttendPlan.KIND_FIELDS[kind]["place"] == "現場名"
             assert AttendPlan.KIND_FIELDS[kind]["time"] is True
 
-    def test_出社と在宅は時刻だけ訊く(self):
+    def test_出社と在宅は時刻と作業内容を訊く(self):
+        """現場へ出ない働く区分は「何を行うか」を入れる（ADR-0070）。"""
         for kind in ("office", "remote"):
             assert AttendPlan.KIND_FIELDS[kind]["time"] is True
-            assert AttendPlan.KIND_FIELDS[kind]["place"] == ""
+            assert AttendPlan.KIND_FIELDS[kind]["place"] == "作業内容"
             assert AttendPlan.KIND_FIELDS[kind]["span"] is False
+
+    def test_休みの区分は何も訊かない(self):
+        for kind in ("paid", "off"):
+            assert AttendPlan.KIND_FIELDS[kind]["place"] == ""
+            assert AttendPlan.KIND_FIELDS[kind]["suggest"] == ""
 
     def test_出張だけ行先と期間を訊く(self):
         spec = AttendPlan.KIND_FIELDS["trip"]
@@ -1185,10 +1191,11 @@ class TestPlanFillDetails:
         assert plan.end_time is None
 
     def test_場所を訊かない区分には残さない(self, client, company_a, user_a):
+        """有休・休みは何も訊かないので、送られてきても保存しない（ADR-0069・0070）。"""
         worker = self._worker(company_a)
         client.force_login(user_a)
 
-        self._fill(client, worker, kind="office", note="本社")
+        self._fill(client, worker, kind="paid", note="本社")
 
         assert {p.note for p in AttendPlan.unscoped.filter(worker=worker)} == {""}
 
@@ -1225,7 +1232,9 @@ class TestPlanFillDetails:
         assert 'id="plan-fill-place-row"' in html
         # 現場名の候補（ADR-0037）は、まとめて記入の欄でも使う
         assert 'id="plan-fill-note"' in html
-        assert 'list="attend-site-names"' in html
+        # 候補は区分で変わるので、list は画面の JavaScript が付け替える（ADR-0070）
+        assert '<datalist id="attend-site-names">' in html
+        assert "applySuggest(fillNote, spec);" in html
 
 
 @pytest.mark.django_db
