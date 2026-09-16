@@ -1137,3 +1137,91 @@ class TestTimelineOnBoard:
 
         assert "誰も予定が入っていません" in html
         assert "plan-timeline-bar" not in html
+
+
+@pytest.mark.django_db
+class TestPlanFillDetails:
+    """まとめて記入でも、区分ごとの詳細（現場名・行先）を入れられる。
+
+    マスの詳細ダイアログ・日シートと同じ KIND_FIELDS に従う。
+    """
+
+    def _worker(self, company):
+        return Worker.unscoped.create(
+            company=company, name="田中太郎", employee_code="E001", hourly_cost=3000,
+        )
+
+    def _fill(self, client, worker, **extra):
+        data = {"worker": worker.pk, "month": "2026-09", "target": "1"}
+        data.update(extra)
+        return client.post("/attendance/plans/fill/", data, follow=True)
+
+    def test_現場名がその月の予定すべてに入る(self, client, company_a, user_a):
+        worker = self._worker(company_a)
+        client.force_login(user_a)
+
+        self._fill(
+            client, worker, kind="site", note=" 入間基地 ",
+            start_time="08:30", end_time="17:00",
+        )
+
+        plans = AttendPlan.unscoped.filter(worker=worker)
+        # 2026年9月の火曜は 1・8・15・22・29 の5日
+        assert plans.count() == 5
+        assert {p.note for p in plans} == {"入間基地"}
+        assert {p.start_time for p in plans} == {datetime.time(8, 30)}
+
+    def test_出張は行先だけ入り時刻は入らない(self, client, company_a, user_a):
+        worker = self._worker(company_a)
+        client.force_login(user_a)
+
+        self._fill(client, worker, kind="trip", note="大阪", start_time="08:00")
+
+        plan = AttendPlan.unscoped.filter(worker=worker).first()
+        assert plan.kind == "trip"
+        assert plan.note == "大阪"
+        assert plan.start_time is None
+        assert plan.end_time is None
+
+    def test_場所を訊かない区分には残さない(self, client, company_a, user_a):
+        worker = self._worker(company_a)
+        client.force_login(user_a)
+
+        self._fill(client, worker, kind="office", note="本社")
+
+        assert {p.note for p in AttendPlan.unscoped.filter(worker=worker)} == {""}
+
+    def test_上書きすると現場名も置き換わる(self, client, company_a, user_a):
+        worker = self._worker(company_a)
+        AttendPlan.unscoped.create(
+            company=company_a, worker=worker,
+            plan_date=datetime.date(2026, 9, 1), kind="site", note="旧現場",
+        )
+        client.force_login(user_a)
+
+        self._fill(client, worker, kind="site", note="新現場", overwrite="1")
+
+        changed = AttendPlan.unscoped.get(
+            worker=worker, plan_date=datetime.date(2026, 9, 1),
+        )
+        assert changed.note == "新現場"
+
+    def test_知らせに行先が出る(self, client, company_a, user_a):
+        worker = self._worker(company_a)
+        client.force_login(user_a)
+
+        html = self._fill(client, worker, kind="trip", note="大阪").content.decode()
+
+        assert "「出張」（行先: 大阪）にしました" in html
+
+    def test_画面に区分ごとの入力欄が出る(self, client, company_a, user_a):
+        self._worker(company_a)
+        client.force_login(user_a)
+
+        html = client.get("/attendance/plans/?month=2026-09").content.decode()
+
+        assert 'id="plan-fill-kind"' in html
+        assert 'id="plan-fill-place-row"' in html
+        # 現場名の候補（ADR-0037）は、まとめて記入の欄でも使う
+        assert 'id="plan-fill-note"' in html
+        assert 'list="attend-site-names"' in html
