@@ -167,6 +167,25 @@ def start_estimation(bid_project, created_by=None):
     return site, created
 
 
+def sync_estimation_move(bid_project, created_by=None):
+    """状態が「積算中」なら、引っ越し先の積算案件を用意する（ADR-0076）。
+
+    状態は「積算開始」ボタン以外からも変えられる。編集画面のフォーム、
+    一覧・詳細のインライン編集（ADR-0074）がそれで、どれも素の save で通る。
+    その経路では積算案件が作られないまま入札案件一覧から消えてしまい、
+    行き先の無い迷子の案件になる。
+
+    状態を保存しうるすべての経路の直後にこれを通す。「積算中」でなければ
+    何もしないので、他の状態への変更を邪魔しない。start_estimation は
+    何度呼んでも現場・積算案件をそれぞれ1つしか作らないため、
+    引っ越し済みの案件に対して呼んでも増えない。
+    """
+    if bid_project.status != BidProject.Status.ESTIMATING:
+        return False
+    start_estimation(bid_project, created_by=created_by)
+    return True
+
+
 def get_dashboard_stats(company):
     """入札ダッシュボードの集計データを取得する。
 

@@ -180,6 +180,94 @@ class TestBidListHidesMovedProjects:
         assert bid.title in res.content.decode()
 
 
+def _edit_post(bid, **overrides):
+    """入札案件の編集画面に送る中身。必須項目を埋めておく。"""
+    data = {
+        "title": bid.title, "client": bid.client, "agency_dept": "",
+        "region": "", "location": "", "category": "", "bid_method": "",
+        "electronic_bid": "", "design_no": "",
+        "announced_on": "", "deadline": "", "opening_on": "",
+        "budget": "0", "source_url": "", "status": bid.status,
+        "required_category": "", "required_grade": "", "required_grades": "",
+        "required_score": "", "required_issuer_type": "",
+        "work_outline": "", "requirements": "", "notes": "",
+        "cost-estimate_amount": "0", "cost-actual_cost": "0", "cost-memo": "",
+    }
+    data.update(overrides)
+    return data
+
+
+@pytest.mark.django_db
+class TestEditFormMovesToo:
+    """編集画面・新規登録で状態を「積算中」にしたときも引っ越す。
+
+    状態は「積算開始」ボタン以外からも変えられる。どの経路でも積算案件を
+    用意しないと、一覧から消えたのに引っ越し先が無い迷子の案件ができる。
+    """
+
+    def test_編集画面で積算中に変えると積算案件ができる(self, client, company_a, user_a):
+        bid = _bid(company_a)
+        client.force_login(user_a)
+
+        res = client.post(
+            f"/bids/{bid.pk}/edit/", _edit_post(bid, status="estimating"),
+        )
+
+        bid.refresh_from_db()
+        assert bid.status == BidProject.Status.ESTIMATING
+        est = EstimationProject.unscoped.get(company=company_a, bid_project=bid)
+        assert est.status == EstimationProject.Status.ESTIMATING
+        assert est.phases.count() == 3
+        # 引っ越し先を開く。入札案件一覧に戻してもこの案件はもう出ない
+        assert res.status_code == 302
+        assert res.url == f"/estimation/projects/{est.pk}/"
+
+    def test_編集画面で別の状態に変えたときは作らない(self, client, company_a, user_a):
+        bid = _bid(company_a)
+        client.force_login(user_a)
+
+        res = client.post(
+            f"/bids/{bid.pk}/edit/", _edit_post(bid, status="considering"),
+        )
+
+        bid.refresh_from_db()
+        assert res.status_code == 302
+        assert res.url == f"/bids/{bid.pk}/"
+        assert bid.status == BidProject.Status.CONSIDERING
+        assert not EstimationProject.unscoped.filter(company=company_a).exists()
+
+    def test_編集画面で積算中のまま保存しても増えない(self, client, company_a, user_a):
+        bid = _bid(company_a)
+        start_estimation(bid, created_by=user_a)
+        bid.refresh_from_db()
+        client.force_login(user_a)
+
+        client.post(f"/bids/{bid.pk}/edit/", _edit_post(bid, notes="メモを足した"))
+
+        assert EstimationProject.unscoped.filter(company=company_a).count() == 1
+        assert Site.unscoped.filter(company=company_a).count() == 1
+        assert EstimationPhase.unscoped.filter(company=company_a).count() == 3
+
+    def test_新規登録で積算中を選んでも引っ越す(self, client, company_a, user_a):
+        client.force_login(user_a)
+
+        client.post("/bids/new/", {
+            "title": "新しく積算する案件", "client": "厚木市",
+            "agency_dept": "", "region": "", "location": "", "category": "",
+            "bid_method": "", "electronic_bid": "", "design_no": "",
+            "announced_on": "", "deadline": "", "opening_on": "",
+            "budget": "0", "source_url": "", "status": "estimating",
+            "required_category": "", "required_grade": "", "required_grades": "",
+            "required_score": "", "required_issuer_type": "",
+            "work_outline": "", "requirements": "", "notes": "",
+            "cost-estimate_amount": "0", "cost-actual_cost": "0", "cost-memo": "",
+        })
+
+        bid = BidProject.unscoped.get(company=company_a, title="新しく積算する案件")
+        est = EstimationProject.unscoped.get(company=company_a, bid_project=bid)
+        assert est.status == EstimationProject.Status.ESTIMATING
+
+
 @pytest.mark.django_db
 class TestInlineEditMovesToo:
     """一覧のインライン編集（ADR-0074）で状態を直したときも引っ越す。
