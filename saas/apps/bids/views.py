@@ -262,6 +262,9 @@ def schedule_override(request, pk):
         label     … 公告の項目ラベル（設定のキー）
         kind      … deadline / period / hidden / auto（auto は既定に戻す）
         start,end … YYYY-MM-DD。ドラッグで動かした位置
+        stage     … 段階名（参加申請・見積提出など）。空なら公告からの自動判定に戻す
+        title     … 表に出す「公告の項目」の見出し。空なら公告どおりに戻す
+        detail    … 備考。空なら公告どおりに戻す
         reset     … その項目の手直しを消す
         reset_all … 案件の手直しを全部消す
     """
@@ -298,6 +301,17 @@ def schedule_override(request, pk):
                         {"ok": False, "error": f"{key} の日付が不正です"}, status=400,
                     )
                 entry[key] = value
+
+            # 段階名・公告の項目の見出し・備考の手直し（ADR-0075）。
+            # 空で送られたら、その手直しだけ取り消して公告どおりに戻す。
+            for key, limit in (("stage", 100), ("title", 300), ("detail", 500)):
+                if key not in request.POST:
+                    continue
+                value = request.POST.get(key, "").strip()[:limit]
+                if value:
+                    entry[key] = value
+                else:
+                    entry.pop(key, None)
 
             # 中身が空になったら項目ごと消す。「手直しあり」の印を残さないため。
             if entry:
