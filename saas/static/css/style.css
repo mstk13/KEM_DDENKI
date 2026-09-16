@@ -1176,3 +1176,12 @@ svg.gantt .bar-wrapper .bar-label.big {
   flex: none; border: 0; background: none; cursor: pointer;
   font-size: 1.25rem; line-height: 1; color: var(--text-secondary);
 }
+
+/* 画面の文字をタップしてその場で直す（ADR-0073） */
+.inline-edit { cursor: pointer; border-bottom: 1px dashed var(--border-light, #d7dce3); display: inline-block; max-width: 100%; }
+.inline-edit:hover { background: var(--surface-hover, #f3f5f9); }
+.inline-edit:focus { outline: 2px solid var(--primary, #1e3a8a); outline-offset: 2px; }
+.inline-edit-input { display: inline-block; width: auto; min-width: 140px; max-width: 100%; padding: 2px 6px; font-size: inherit; }
+textarea.inline-edit-input { width: 100%; min-width: 260px; }
+.inline-edit-saved { background: #ecfdf5; transition: background .3s; }
+.inline-edit-error { color: var(--danger, #dc2626); font-size: .8rem; margin-top: 2px; }

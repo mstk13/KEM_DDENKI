@@ -32,19 +32,19 @@
   <div class="card">
     <div class="card-header"><h2>案件情報</h2></div>
     <dl class="detail-grid">
-      <dt>工事名称</dt><dd>{{ project.title }}</dd>
-      <dt>発注機関</dt><dd>{{ project.client|default:"-" }}</dd>
-      <dt>担当部・事務所</dt><dd>{{ project.agency_dept|default:"-" }}</dd>
-      <dt>工事場所</dt><dd>{{ project.location|default:"-" }}</dd>
-      <dt>地域</dt><dd>{{ project.region|default:"-" }}</dd>
-      <dt>工事種別</dt><dd>{{ project.category|default:"-" }}</dd>
-      <dt>入札契約方式</dt><dd>{{ project.bid_method|default:"-" }}</dd>
-      <dt>電子入札対象</dt><dd>{{ project.electronic_bid|default:"-" }}</dd>
-      <dt>設計書番号</dt><dd>{{ project.design_no|default:"-" }}</dd>
-      <dt>予定価格</dt><dd>{% if project.budget %}{{ project.budget|floatformat:0 }} 円{% else %}非公表 / 未取得{% endif %}</dd>
-      <dt>状態</dt><dd>{{ project.get_status_display }}</dd>
-      <dt>入札期限</dt><dd>{% if project.deadline %}{{ project.deadline|date:"Y/m/d" }}{% if project.deadline.hour or project.deadline.minute %} {{ project.deadline|time:"H:i" }}{% endif %}{% else %}-{% endif %}</dd>
-      <dt>開札日</dt><dd>{{ project.opening_on|default:"-" }}</dd>
+      <dt>工事名称</dt><dd>{% inline_edit project "title" %}</dd>
+      <dt>発注機関</dt><dd>{% inline_edit project "client" %}</dd>
+      <dt>担当部・事務所</dt><dd>{% inline_edit project "agency_dept" %}</dd>
+      <dt>工事場所</dt><dd>{% inline_edit project "location" %}</dd>
+      <dt>地域</dt><dd>{% inline_edit project "region" %}</dd>
+      <dt>工事種別</dt><dd>{% inline_edit project "category" %}</dd>
+      <dt>入札契約方式</dt><dd>{% inline_edit project "bid_method" %}</dd>
+      <dt>電子入札対象</dt><dd>{% inline_edit project "electronic_bid" %}</dd>
+      <dt>設計書番号</dt><dd>{% inline_edit project "design_no" %}</dd>
+      <dt>予定価格</dt><dd>{% inline_edit project "budget" %} 円</dd>
+      <dt>状態</dt><dd>{% inline_edit project "status" %}</dd>
+      <dt>入札期限</dt><dd>{% inline_edit project "deadline" %}</dd>
+      <dt>開札日</dt><dd>{% inline_edit project "opening_on" %}</dd>
       <dt>情報源URL</dt>
       <dd>
         {% if project.source_url %}
@@ -118,16 +118,11 @@
           公告から等級・点数の要件を読み取れていません。参加要件欄を確認してください。
         {% endif %}
       </dd>
-      <dt>公告側の必要等級</dt>
-      <dd>
-        {% if project.required_grades %}{{ project.required_grades }} のいずれか
-        {% elif project.required_grade %}{{ project.required_grade }} 以上
-        {% else %}-{% endif %}
-      </dd>
-      <dt>公告側の必要点数</dt>
-      <dd>{% if project.required_score %}{{ project.required_score }} 点以上{% else %}-{% endif %}</dd>
-      <dt>公告側の必要業種区分</dt><dd>{{ project.required_category|default:"-" }}</dd>
-      <dt>資格種別</dt><dd>{{ project.required_issuer_type|default:"-" }}</dd>
+      <dt>公告側の必要等級（該当）</dt><dd>{% inline_edit project "required_grades" %}</dd>
+      <dt>公告側の必要等級（下限）</dt><dd>{% inline_edit project "required_grade" %}</dd>
+      <dt>公告側の必要点数</dt><dd>{% inline_edit project "required_score" %} 点以上</dd>
+      <dt>公告側の必要業種区分</dt><dd>{% inline_edit project "required_category" %}</dd>
+      <dt>資格種別</dt><dd>{% inline_edit project "required_issuer_type" %}</dd>
       {% with req=qual_check.license_requirement %}
       <dt>公告側の建設業許可</dt>
       <dd>

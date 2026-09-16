@@ -1,5 +1,6 @@
 """入札案件のテンプレートフィルター。"""
 
+import json
 import re
 
 from django import template
@@ -270,3 +271,44 @@ def _shortfall_notes_html(reasons) -> str:
             f'<div class="shortfall-item"{style}>{_shortfall_note_html(reason)}</div>'
         )
     return "".join(parts)
+
+
+# ---- 画面の文字をタップしてその場で直す（ADR-0073） ----
+
+
+@register.simple_tag(name="inline_edit")
+def inline_edit_tag(obj, field_name):
+    """タップで直せる文字を出す。
+
+    Usage: {% inline_edit project "client" %}
+
+    直せる項目は apps/bids/inline_edit.py の EDITABLE に書いた分だけ。
+    許していない項目を指したときは、ただの文字として出す（画面は壊さない）。
+    """
+    from apps.bids import inline_edit as editor
+
+    if obj is None or getattr(obj, "pk", None) is None:
+        return ""
+    label = f"{obj._meta.app_label}.{obj._meta.object_name}"
+    try:
+        field = editor.get_field(label, field_name)
+    except editor.NotEditable:
+        value = getattr(obj, field_name, "")
+        return escape(str(value) if value not in (None, "") else editor.EMPTY_DISPLAY)
+
+    kind = editor.input_type(field)
+    attrs = [
+        'class="inline-edit"',
+        f'data-model="{escape(label)}"',
+        f'data-pk="{obj.pk}"',
+        f'data-field="{escape(field_name)}"',
+        f'data-type="{kind}"',
+        f'data-value="{escape(editor.raw_value(obj, field))}"',
+    ]
+    if kind == "select":
+        choices = json.dumps(editor.choices_for(field), ensure_ascii=False)
+        attrs.append(f'data-choices="{escape(choices)}"')
+    attrs.append('tabindex="0" role="button" title="タップすると直せます"')
+    return mark_safe(  # noqa: S308 - 値は escape 済み
+        f'<span {" ".join(attrs)}>{escape(editor.display_value(obj, field))}</span>'
+    )
