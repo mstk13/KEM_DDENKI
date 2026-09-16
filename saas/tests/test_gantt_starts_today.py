@@ -110,6 +110,9 @@ class TestScreens:
         # 左端のラベル（当日）が枠の外に出て切れないようにする
         assert "showFirstGanttLabel(chart);" in home
         assert "showFirstGanttLabel(chart);" in compare
+        # バーの高さは既定（20px）の2倍
+        assert "bar_height: 40," in home
+        assert "bar_height: 40," in compare
 
     def test_現場の工程も当日から(self, client, company_a, user_a):
         site = _site(company_a, "A現場", _days(-20), _days(20))
