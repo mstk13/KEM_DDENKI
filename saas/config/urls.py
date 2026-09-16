@@ -61,6 +61,7 @@ urlpatterns = [
     path("workers/", include("apps.workers.urls")),
     path("masters/", include("apps.masters.urls")),
     path("dev/", include("apps.devkanri.urls")),
+    path("company/", include("apps.tenants.urls")),
     path("schedules/", include("apps.schedules.urls")),
     path("bids/", include("apps.bids.urls")),
     path("notifications/", include("apps.notifications.urls")),
