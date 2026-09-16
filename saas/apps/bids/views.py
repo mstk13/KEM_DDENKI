@@ -26,6 +26,8 @@ from apps.bids.forms import (
 )
 from apps.bids.gantt import KINDS, KNOWN_STAGES, build_bid_gantt
 from apps.bids.models import (
+    BidCompetitor,
+    BidCost,
     BidProject,
     BidScheduleRule,
     ConstructionLicense,
@@ -706,6 +708,80 @@ def license_delete(request, pk):
         obj.delete()
         messages.success(request, f"建設業許可「{name}」を削除しました。")
     return redirect(_licenses_url())
+
+
+@login_required
+@require_POST
+def inline_edit(request):
+    """画面の文字をタップして、その場で直す（ADR-0073）。
+
+    直せるモデルと項目は apps/bids/inline_edit.py の EDITABLE に書いた分だけ。
+    会社で絞られたマネージャ（objects）で引くので、他社のデータは直せない。
+    """
+    from apps.bids import inline_edit as editor
+
+    try:
+        payload = json.loads(request.body or b"{}")
+    except ValueError:
+        return JsonResponse({"ok": False, "error": "送信内容を読めませんでした。"}, status=400)
+
+    model_label = str(payload.get("model", ""))
+    field_name = str(payload.get("field", ""))
+    pk = str(payload.get("pk", ""))
+    try:
+        field = editor.get_field(model_label, field_name)
+    except editor.NotEditable as e:
+        return JsonResponse({"ok": False, "error": str(e)}, status=400)
+    if not pk.isdigit():
+        return JsonResponse({"ok": False, "error": "対象が分かりません。"}, status=400)
+
+    model = editor.get_model(model_label)
+    obj = model.objects.filter(pk=int(pk)).first()
+    if obj is None:
+        return JsonResponse({"ok": False, "error": "対象が見つかりません。"}, status=404)
+
+    try:
+        display, value = editor.save_value(obj, field, payload.get("value", ""))
+    except ValueError as e:
+        return JsonResponse({"ok": False, "error": str(e)}, status=400)
+    return JsonResponse({"ok": True, "display": display, "value": value})
+
+
+@login_required
+@require_POST
+def cost_start(request, pk):
+    """原価情報の枠を作る（ADR-0074）。
+
+    作ったあとは、詳細画面でそれぞれの金額をタップして直す。
+    """
+    project = get_object_or_404(BidProject, pk=pk)
+    if getattr(project, "cost", None) is None:
+        BidCost.objects.create(
+            company=request.user.company, created_by=request.user, project=project,
+        )
+    return redirect("bids:project_detail", pk=pk)
+
+
+@login_required
+@require_POST
+def competitor_add(request, pk):
+    """競合の行を1つ足す（ADR-0074）。中身は詳細画面でタップして直す。"""
+    project = get_object_or_404(BidProject, pk=pk)
+    BidCompetitor.objects.create(
+        company=request.user.company, created_by=request.user,
+        project=project, competitor_name="（競合名を入れてください）",
+    )
+    return redirect("bids:project_detail", pk=pk)
+
+
+@login_required
+@require_POST
+def competitor_delete(request, pk):
+    """競合の行を消す（ADR-0074）。"""
+    competitor = get_object_or_404(BidCompetitor, pk=pk)
+    project_pk = competitor.project_id
+    competitor.delete()
+    return redirect("bids:project_detail", pk=project_pk)
 
 
 @login_required

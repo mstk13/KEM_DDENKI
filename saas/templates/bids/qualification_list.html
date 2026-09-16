@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load bid_filters %}
 {% block title %}入札参加資格一覧 — {{ APP_NAME }}{% endblock %}
 {% block topbar_title %}入札参加資格{% endblock %}
 
@@ -42,12 +43,12 @@ tr.qual-red:hover { background: #ffebeb; }
       <tbody>
         {% for lic in licenses %}
         <tr class="{% if lic.renewed %}qual-green{% else %}{{ lic.alert_class }}{% endif %}">
-          <td>{{ lic.trade }}</td>
+          <td>{% inline_edit lic "trade" %}</td>
           <td><span class="badge {% if lic.license_class == 'special' %}badge-blue{% else %}badge-gray{% endif %}">{{ lic.get_license_class_display }}</span></td>
-          <td>{{ lic.full_number }}</td>
-          <td>{{ lic.valid_from|date:"Y/n/j" }}〜<wbr>{{ lic.valid_until|date:"Y/n/j" }}</td>
+          <td style="white-space:nowrap;">{% inline_edit lic "authority" %} {% inline_edit lic "license_number" %}</td>
+          <td>{% inline_edit lic "valid_from" %}〜<wbr>{% inline_edit lic "valid_until" %}</td>
           <td style="white-space:nowrap;">
-            {{ lic.renewal_deadline|date:"Y/n/j"|default:"-" }}
+            {% inline_edit lic "renewal_deadline" %}
             {% if lic.renewed %}<span class="badge badge-green">更新済</span>
             {% elif lic.status_label %}<div style="font-size:12px;color:var(--text-muted);">{{ lic.status_label }}</div>{% endif %}
           </td>
@@ -85,11 +86,11 @@ tr.qual-red:hover { background: #ffebeb; }
       <tbody>
         {% for q in qualifications %}
         <tr class="{% if q.renewed %}qual-green{% elif q.valid_until and q.valid_until <= alert_2week %}qual-red{% elif q.valid_until and q.valid_until <= alert_1month %}qual-yellow{% elif q.valid_until and q.valid_until <= alert_2month %}qual-orange{% endif %}">
-          <td class="issuer-cell">{{ q.issuer }}</td>
-          <td>{{ q.category|default:"-" }}</td>
-          <td>{{ q.grade|default:"-" }}</td>
-          <td>{{ q.keisin_score|default:"-" }}</td>
-          <td>{{ q.valid_until|date:"Y/n/j"|default:"-" }}</td>
+          <td class="issuer-cell">{% inline_edit q "issuer" %}</td>
+          <td>{% inline_edit q "category" %}</td>
+          <td>{% inline_edit q "grade" %}</td>
+          <td>{% inline_edit q "keisin_score" %}</td>
+          <td style="white-space:nowrap;">{% inline_edit q "valid_until" %}</td>
           <td style="white-space:nowrap;">
             <a href="{% url 'bids:qualification_edit' q.pk %}" class="btn btn-outline btn-sm">編集</a>
             <form method="post" action="{% url 'bids:qualification_delete' q.pk %}" style="display:inline;">
@@ -138,15 +139,15 @@ tr.qual-red:hover { background: #ffebeb; }
       <tbody>
         {% for u in unified_qualifications %}
         <tr>
-          <td style="white-space:nowrap;">{{ u.agency }}</td>
-          <td style="text-align:center;">{{ u.goods_sales_grade|default:"-" }}</td>
-          <td style="text-align:center;">{{ u.goods_sales_score|default_if_none:"-" }}</td>
-          <td class="items-cell">{{ u.goods_sales_items|default:"-" }}</td>
-          <td style="text-align:center;">{{ u.services_grade|default:"-" }}</td>
-          <td style="text-align:center;">{{ u.services_score|default_if_none:"-" }}</td>
-          <td class="items-cell">{{ u.services_items|default:"-" }}</td>
-          <td style="text-align:center;">{{ u.purchase_grade|default:"-" }}</td>
-          <td style="text-align:center;">{{ u.purchase_score|default_if_none:"-" }}</td>
+          <td style="white-space:nowrap;">{% inline_edit u "agency" %}</td>
+          <td style="text-align:center;">{% inline_edit u "goods_sales_grade" %}</td>
+          <td style="text-align:center;">{% inline_edit u "goods_sales_score" %}</td>
+          <td class="items-cell">{% inline_edit u "goods_sales_items" %}</td>
+          <td style="text-align:center;">{% inline_edit u "services_grade" %}</td>
+          <td style="text-align:center;">{% inline_edit u "services_score" %}</td>
+          <td class="items-cell">{% inline_edit u "services_items" %}</td>
+          <td style="text-align:center;">{% inline_edit u "purchase_grade" %}</td>
+          <td style="text-align:center;">{% inline_edit u "purchase_score" %}</td>
           <td style="white-space:nowrap;width:1%;text-align:right;">
             <a href="{% url 'bids:unified_qualification_edit' u.pk %}" class="btn btn-outline btn-sm">編集</a>
             <form method="post" action="{% url 'bids:unified_qualification_delete' u.pk %}" style="display:inline;">
