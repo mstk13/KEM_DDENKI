@@ -460,6 +460,29 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 
+  // 公告の文字をそのまま属性に入れるので、引用符と山かっこだけ逃がす。
+  function attr(text) {
+    return String(text == null ? '' : text)
+      .replace(/&/g, '&amp;').replace(/"/g, '&quot;')
+      .replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  // バー（図）からも段階名を直せるようにする。表の「段階」と同じ保存先。
+  function renameStage(label, current) {
+    var next = window.prompt(
+      '段階名を入れてください。空にすると公告どおりに戻ります。', current || ''
+    );
+    if (next === null) return;
+    save({label: label, stage: next.trim()});
+  }
+
+  document.addEventListener('click', function(e) {
+    var btn = e.target.closest ? e.target.closest('.bid-stage-rename') : null;
+    if (!btn) return;
+    e.preventDefault();
+    renameStage(btn.dataset.label, btn.dataset.stage);
+  });
+
   // toISOString は UTC に寄るので日付がずれる。ローカルのまま組み立てる。
   function ymd(d) {
     return d.getFullYear() + '-'
@@ -485,6 +508,9 @@ document.addEventListener('DOMContentLoaded', function() {
         + (task._edited
             ? '<p style="margin:4px 0 0;font-size:.8rem;color:#c2410c;">公告から手直し済み</p>'
             : '')
+        + '<button type="button" class="btn btn-outline btn-sm bid-stage-rename"'
+        + ' style="margin-top:8px;" data-label="' + attr(task._label) + '"'
+        + ' data-stage="' + attr(task.name) + '">段階名を直す</button>'
         + '</div>';
     }
   }) : null;

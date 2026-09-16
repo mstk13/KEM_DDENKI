@@ -211,6 +211,14 @@ class TestStageNames:
         assert "参加申請" in html
         assert "参加表明書の提出" not in html
 
+    def test_図のバーからも段階名を直せる(self, client, user_a, scheduled):
+        client.force_login(user_a)
+
+        html = client.get(reverse("bids:project_detail", args=[scheduled.pk])).content.decode()
+
+        assert "bid-stage-rename" in html
+        assert "段階名を直す" in html
+
     def test_表の段階と備考がタップで直せる(self, client, user_a, scheduled):
         client.force_login(user_a)
 
