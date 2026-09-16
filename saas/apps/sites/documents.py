@@ -8,17 +8,23 @@
 - 受け付けるのは PDF（.pdf）と Excel（.xlsx・.xls）だけ。拡張子と中身の先頭の形の両方で確かめる
 """
 
-import zipfile
 from pathlib import Path
 
 from django.db import transaction
 from django.db.models import Count, Max, Prefetch, Q
 
+# PDF・Excel の受け取り方は自社書類（ADR-0071）と同じ決まりを使う。
+# ここから import している名前は、この場所からも使えるようにしておく（既存の import 先のため）
+from apps.core.documents import (  # noqa: F401
+    ACCEPT_ATTR,
+    FILE_TYPES,
+    MAX_DOCUMENT_FILE_MB,
+    MAX_DOCUMENT_FILES_PER_UPLOAD,
+    UnsupportedDocumentFile,
+    content_type_for,
+    detect_file_kind,
+)
 from apps.sites.models import DocumentPhase, DocumentTemplate, SiteDocument, SiteDocumentFile
-
-# 1件の大きさと、一度に登録できる件数。完成図書などスキャンした PDF は大きくなるので広めにとる
-MAX_DOCUMENT_FILE_MB = 50
-MAX_DOCUMENT_FILES_PER_UPLOAD = 10
 
 # 最初の書類リストの既定。会社の Excel「現場ごとの書類一覧.xlsx」のシートと
 # 「別紙添付目次」から作った（プロダクトオーナー確認 2026-09-15）。
@@ -69,77 +75,6 @@ DEFAULT_DOCUMENTS = (
         ),
     ),
 )
-
-# 拡張子ごとの種類と、開くときの Content-Type
-FILE_TYPES = {
-    ".pdf": (SiteDocumentFile.Kind.PDF, "application/pdf"),
-    ".xlsx": (
-        SiteDocumentFile.Kind.EXCEL,
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    ),
-    ".xls": (SiteDocumentFile.Kind.EXCEL, "application/vnd.ms-excel"),
-}
-# ファイルを選ぶ画面で、PDF と Excel だけを出す
-ACCEPT_ATTR = ",".join([*FILE_TYPES, *(content_type for _, content_type in FILE_TYPES.values())])
-
-# .xls（と、パスワード付きの .xlsx）の入れ物の先頭
-_OLE_MAGIC = bytes.fromhex("d0cf11e0a1b11ae1")
-
-
-class UnsupportedDocumentFile(ValueError):
-    """PDF・Excel ではないファイル。"""
-
-
-def _read_head(uploaded, size: int) -> bytes:
-    uploaded.seek(0)
-    try:
-        return uploaded.read(size)
-    finally:
-        uploaded.seek(0)
-
-
-def _is_xlsx_zip(uploaded) -> bool:
-    uploaded.seek(0)
-    try:
-        with zipfile.ZipFile(uploaded) as archive:
-            names = archive.namelist()
-    except (zipfile.BadZipFile, OSError, ValueError):
-        return False
-    finally:
-        uploaded.seek(0)
-    return "[Content_Types].xml" in names and any(name.startswith("xl/") for name in names)
-
-
-def detect_file_kind(uploaded) -> str:
-    """PDF か Excel かを返す。どちらでもなければ UnsupportedDocumentFile。
-
-    拡張子だけ変えたファイル（写真や Word を .pdf にしたもの）を通さないよう、中身の先頭も見る。
-    """
-    suffix = Path(uploaded.name or "").suffix.lower()
-    if suffix not in FILE_TYPES:
-        raise UnsupportedDocumentFile(
-            "PDF（.pdf）か Excel（.xlsx・.xls）のファイルを選んでください"
-        )
-    head = _read_head(uploaded, 1024)
-    if suffix == ".pdf":
-        # PDF の印は先頭 1024 バイトのどこかにあればよい（規格上、前に余計なものが付くことがある）
-        matches = b"%PDF-" in head
-    elif suffix == ".xls":
-        matches = head.startswith(_OLE_MAGIC)
-    else:
-        # パスワード付きの .xlsx は ZIP ではなく、.xls と同じ入れ物になる
-        matches = head.startswith(_OLE_MAGIC) or _is_xlsx_zip(uploaded)
-    if not matches:
-        raise UnsupportedDocumentFile(
-            "中身が PDF・Excel ではありません（拡張子だけ変えたファイルは登録できません）"
-        )
-    return FILE_TYPES[suffix][0]
-
-
-def content_type_for(name: str) -> str:
-    entry = FILE_TYPES.get(Path(name).suffix.lower())
-    return entry[1] if entry else "application/octet-stream"
-
 
 def ensure_default_templates(company) -> None:
     """会社に最初の書類リストが1件も無ければ、既定の書類を入れる。
