@@ -32,19 +32,19 @@
   <div class="card">
     <div class="card-header"><h2>案件情報</h2></div>
     <dl class="detail-grid">
-      <dt>工事名称</dt><dd>{{ project.title }}</dd>
-      <dt>発注機関</dt><dd>{{ project.client|default:"-" }}</dd>
-      <dt>担当部・事務所</dt><dd>{{ project.agency_dept|default:"-" }}</dd>
-      <dt>工事場所</dt><dd>{{ project.location|default:"-" }}</dd>
-      <dt>地域</dt><dd>{{ project.region|default:"-" }}</dd>
-      <dt>工事種別</dt><dd>{{ project.category|default:"-" }}</dd>
-      <dt>入札契約方式</dt><dd>{{ project.bid_method|default:"-" }}</dd>
-      <dt>電子入札対象</dt><dd>{{ project.electronic_bid|default:"-" }}</dd>
-      <dt>設計書番号</dt><dd>{{ project.design_no|default:"-" }}</dd>
-      <dt>予定価格</dt><dd>{% if project.budget %}{{ project.budget|floatformat:0 }} 円{% else %}非公表 / 未取得{% endif %}</dd>
-      <dt>状態</dt><dd>{{ project.get_status_display }}</dd>
-      <dt>入札期限</dt><dd>{% if project.deadline %}{{ project.deadline|date:"Y/m/d" }}{% if project.deadline.hour or project.deadline.minute %} {{ project.deadline|time:"H:i" }}{% endif %}{% else %}-{% endif %}</dd>
-      <dt>開札日</dt><dd>{{ project.opening_on|default:"-" }}</dd>
+      <dt>工事名称</dt><dd>{% inline_edit project "title" %}</dd>
+      <dt>発注機関</dt><dd>{% inline_edit project "client" %}</dd>
+      <dt>担当部・事務所</dt><dd>{% inline_edit project "agency_dept" %}</dd>
+      <dt>工事場所</dt><dd>{% inline_edit project "location" %}</dd>
+      <dt>地域</dt><dd>{% inline_edit project "region" %}</dd>
+      <dt>工事種別</dt><dd>{% inline_edit project "category" %}</dd>
+      <dt>入札契約方式</dt><dd>{% inline_edit project "bid_method" %}</dd>
+      <dt>電子入札対象</dt><dd>{% inline_edit project "electronic_bid" %}</dd>
+      <dt>設計書番号</dt><dd>{% inline_edit project "design_no" %}</dd>
+      <dt>予定価格</dt><dd>{% inline_edit project "budget" %} 円</dd>
+      <dt>状態</dt><dd>{% inline_edit project "status" %}</dd>
+      <dt>入札期限</dt><dd>{% inline_edit project "deadline" %}</dd>
+      <dt>開札日</dt><dd>{% inline_edit project "opening_on" %}</dd>
       <dt>情報源URL</dt>
       <dd>
         {% if project.source_url %}
@@ -78,25 +78,27 @@
         {% else %}
         {{ qual_check.reason }}
         {% endif %}
+        <div style="color:var(--text-muted);font-size:12px;margin-top:4px;">
+          判定結果は下の項目から自動で出します。直したい場合は自社資格・公告側の要件をタップしてください。
+        </div>
       </dd>
       <dt>該当する自社資格</dt>
       <dd>
         {% if qual_check.matched %}
-          {{ qual_check.matched.issuer }}／{{ qual_check.matched.category }}
-          {% if qual_check.matched.grade %}（{{ qual_check.matched.grade }}等級）{% endif %}
+          {% inline_edit qual_check.matched "issuer" reload=True %}／{% inline_edit qual_check.matched "category" reload=True %}
         {% else %}-{% endif %}
       </dd>
       <dt>等級 / 点数</dt>
       <dd>
         {% if qual_check.matched %}
-          等級 {{ qual_check.matched.grade|default:"-" }} /
-          経審点 {{ qual_check.matched.keisin_score|default:"-" }} /
-          総合点 {{ qual_check.matched.total_score|default:"-" }}
+          等級 {% inline_edit qual_check.matched "grade" reload=True %} /
+          経審点 {% inline_edit qual_check.matched "keisin_score" reload=True %} /
+          総合点 {% inline_edit qual_check.matched "total_score" reload=True %}
         {% else %}-{% endif %}
       </dd>
       <dt>資格の有効期限</dt>
       <dd>
-        {% if qual_check.matched %}{{ qual_check.matched.valid_until|default:"-" }}
+        {% if qual_check.matched %}{% inline_edit qual_check.matched "valid_until" reload=True %}
         {% else %}-{% endif %}
         {% if qual_check.expired %}
         <div style="color:var(--gray-400);font-size:12px;">
@@ -105,7 +107,7 @@
         {% endif %}
       </dd>
       <dt>業者番号</dt>
-      <dd>{% if qual_check.matched %}{{ qual_check.matched.vendor_number|default:"-" }}{% else %}-{% endif %}</dd>
+      <dd>{% if qual_check.matched %}{% inline_edit qual_check.matched "vendor_number" reload=True %}{% else %}-{% endif %}</dd>
       <dt>照合した要件</dt>
       <dd>
         {% if qual_check.checked %}
@@ -118,16 +120,11 @@
           公告から等級・点数の要件を読み取れていません。参加要件欄を確認してください。
         {% endif %}
       </dd>
-      <dt>公告側の必要等級</dt>
-      <dd>
-        {% if project.required_grades %}{{ project.required_grades }} のいずれか
-        {% elif project.required_grade %}{{ project.required_grade }} 以上
-        {% else %}-{% endif %}
-      </dd>
-      <dt>公告側の必要点数</dt>
-      <dd>{% if project.required_score %}{{ project.required_score }} 点以上{% else %}-{% endif %}</dd>
-      <dt>公告側の必要業種区分</dt><dd>{{ project.required_category|default:"-" }}</dd>
-      <dt>資格種別</dt><dd>{{ project.required_issuer_type|default:"-" }}</dd>
+      <dt>公告側の必要等級（該当）</dt><dd>{% inline_edit project "required_grades" reload=True %}</dd>
+      <dt>公告側の必要等級（下限）</dt><dd>{% inline_edit project "required_grade" reload=True %}</dd>
+      <dt>公告側の必要点数</dt><dd>{% inline_edit project "required_score" reload=True %} 点以上</dd>
+      <dt>公告側の必要業種区分</dt><dd>{% inline_edit project "required_category" reload=True %}</dd>
+      <dt>資格種別</dt><dd>{% inline_edit project "required_issuer_type" reload=True %}</dd>
       {% with req=qual_check.license_requirement %}
       <dt>公告側の建設業許可</dt>
       <dd>
@@ -137,6 +134,9 @@
       <dt>公告側の営業所の所在地</dt>
       <dd>
         {% if req.prefectures %}{% if req.area_name %}{{ req.area_name }}の管轄区域: {% endif %}{{ req.prefectures|join:"、" }}{% else %}-{% endif %}
+        <div style="color:var(--text-muted);font-size:12px;margin-top:4px;">
+          この2つは下の「参加要件」の文から読み取ります。直すときは参加要件を直してください。
+        </div>
       </dd>
       {% endwith %}
     </dl>
@@ -209,7 +209,7 @@
           {% if project.announced_on %}
           <tr>
             <td>-</td><td>公告</td><td>公告日</td><td>-</td>
-            <td style="white-space:nowrap;">{{ project.announced_on|date:"Y/m/d" }}</td>
+            <td style="white-space:nowrap;">{% inline_edit project "announced_on" reload=True %}</td>
             <td><span class="badge badge-gray">-</span></td>
             <td>-</td><td>-</td>
           </tr>
@@ -217,20 +217,32 @@
           {% for row in gantt.rows %}
           <tr>
             <td>{{ row.step }}</td>
-            <td>{{ row.stage }}</td>
             <td>
-              {{ row.label }}
+              <span class="schedule-edit" data-label="{{ row.label }}" data-key="stage"
+                    data-input="text" data-value="{{ row.stage }}" tabindex="0" role="button"
+                    title="タップすると直せます">{{ row.stage }}</span>
+            </td>
+            <td>
+              <span class="schedule-edit" data-label="{{ row.label }}" data-key="title"
+                    data-input="text" data-value="{{ row.title }}" tabindex="0" role="button"
+                    title="タップすると直せます">{{ row.title }}</span>
               {% if row.overridden %}
                 <span class="badge badge-orange" style="margin-left:4px;">手直し</span>
               {% endif %}
             </td>
             <td style="white-space:nowrap;">
-              {{ row.start|date:"Y/m/d H:i" }}
+              <span class="schedule-edit" data-label="{{ row.label }}" data-key="start"
+                    data-value="{{ row.start|date:'Y-m-d' }}" tabindex="0" role="button"
+                    title="タップすると直せます">{{ row.start|date:"Y/m/d H:i" }}</span>
               {% if not row.has_own_start %}
                 <span style="color:var(--text-muted);font-size:.78rem;">前の締切から</span>
               {% endif %}
             </td>
-            <td style="white-space:nowrap;">{{ row.end|date:"Y/m/d H:i" }}</td>
+            <td style="white-space:nowrap;">
+              <span class="schedule-edit" data-label="{{ row.label }}" data-key="end"
+                    data-value="{{ row.end|date:'Y-m-d' }}" tabindex="0" role="button"
+                    title="タップすると直せます">{{ row.end|date:"Y/m/d H:i" }}</span>
+            </td>
             <td style="white-space:nowrap;">
               {% if row.state == "done" %}
                 <span class="badge badge-gray">締切済</span>
@@ -259,14 +271,26 @@
               </button>
               {% endif %}
             </td>
-            <td>{{ row.detail|default:"-" }}</td>
+            <td>
+              <span class="schedule-edit" data-label="{{ row.label }}" data-key="detail"
+                    data-input="text" data-value="{{ row.detail }}" tabindex="0" role="button"
+                    title="タップすると直せます">{{ row.detail|default:"-" }}</span>
+            </td>
           </tr>
           {% endfor %}
           {% for row in gantt.hidden %}
           <tr style="opacity:.55;">
             <td>-</td>
-            <td>{{ row.stage }}</td>
-            <td>{{ row.label }}</td>
+            <td>
+              <span class="schedule-edit" data-label="{{ row.label }}" data-key="stage"
+                    data-input="text" data-value="{{ row.stage }}" tabindex="0" role="button"
+                    title="タップすると直せます">{{ row.stage }}</span>
+            </td>
+            <td>
+              <span class="schedule-edit" data-label="{{ row.label }}" data-key="title"
+                    data-input="text" data-value="{{ row.title }}" tabindex="0" role="button"
+                    title="タップすると直せます">{{ row.title }}</span>
+            </td>
             <td>-</td>
             <td style="white-space:nowrap;">{{ row.end|date:"Y/m/d H:i" }}</td>
             <td><span class="badge badge-gray">非表示</span></td>
@@ -302,45 +326,62 @@
     <div class="card-header"><h2>原価情報</h2></div>
     {% if cost %}
     <dl class="detail-grid">
-      <dt>見積額</dt><dd>{{ cost.estimate_amount|floatformat:0 }} 円</dd>
-      <dt>実際原価</dt><dd>{{ cost.actual_cost|floatformat:0 }} 円</dd>
-      <dt>メモ</dt><dd>{{ cost.memo|default:"-" }}</dd>
+      <dt>見積額</dt><dd>{% inline_edit cost "estimate_amount" %} 円</dd>
+      <dt>実際原価</dt><dd>{% inline_edit cost "actual_cost" %} 円</dd>
+      <dt>メモ</dt><dd>{% inline_edit cost "memo" %}</dd>
     </dl>
     {% else %}
-    <div class="card-body" style="color:var(--gray-400);text-align:center;padding:20px;">原価情報が未登録です</div>
+    <div class="card-body" style="color:var(--gray-400);text-align:center;padding:20px;">
+      原価情報が未登録です
+      <form method="post" action="{% url 'bids:cost_start' project.pk %}" style="margin-top:8px;">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-outline btn-sm">原価情報を作る</button>
+      </form>
+    </div>
     {% endif %}
   </div>
 </div>
 
 <div class="card" style="margin-top:20px;">
-  <div class="card-header"><h2>工事概要</h2></div>
+  <div class="card-header">
+    <h2>工事概要</h2>
+    {% inline_edit project "work_outline" text="この欄を直す" block=True reload=True %}
+  </div>
   <div class="card-body">
     {% if project.work_outline %}
     {{ project.work_outline|structured_text }}
     {% else %}
     <div style="color:var(--gray-400);text-align:center;padding:20px;">
-      未入力です。編集画面から公告・仕様書の内容を転記してください。
+      未入力です。「この欄を直す」から公告・仕様書の内容を書けます。
     </div>
     {% endif %}
   </div>
 </div>
 
 <div class="card" style="margin-top:20px;">
-  <div class="card-header"><h2>参加要件</h2></div>
+  <div class="card-header">
+    <h2>参加要件</h2>
+    {% inline_edit project "requirements" text="この欄を直す" block=True reload=True %}
+  </div>
   <div class="card-body">
     {% if project.requirements or qual_check.eligible == False %}
     {% requirements_with_shortfall project.requirements qual_check %}
     {% else %}
     <div style="color:var(--gray-400);text-align:center;padding:20px;">
-      未入力です。公告の入札参加資格・実績要件・配置技術者の条件を転記してください。
+      未入力です。「この欄を直す」から公告の入札参加資格・実績要件・配置技術者の条件を書けます。
     </div>
     {% endif %}
   </div>
 </div>
 
-{% if project.summary or project.notes %}
 <div class="card" style="margin-top:20px;">
-  <div class="card-header"><h2>案件概要（情報源の原文）</h2></div>
+  <div class="card-header">
+    <h2>案件概要（情報源の原文）</h2>
+    <span style="display:flex;gap:8px;align-items:center;">
+      {% inline_edit project "summary" text="原文を直す" block=True reload=True %}
+      {% inline_edit project "notes" text="備考を直す" block=True reload=True %}
+    </span>
+  </div>
   <div class="card-body">
     {% if project.summary %}
     <pre style="white-space:pre-wrap;word-break:break-all;margin:0;font-family:inherit;">{{ project.summary }}</pre>
@@ -348,25 +389,42 @@
     {% if project.notes %}
     <p style="margin-top:12px;white-space:pre-wrap;">{{ project.notes }}</p>
     {% endif %}
+    {% if not project.summary and not project.notes %}
+    <div style="color:var(--gray-400);text-align:center;padding:20px;">
+      未入力です。「原文を直す」「備考を直す」から書けます。
+    </div>
+    {% endif %}
   </div>
 </div>
-{% endif %}
 
 <div class="card" style="margin-top:20px;">
-  <div class="card-header"><h2>競合情報</h2></div>
+  <div class="card-header">
+    <h2>競合情報</h2>
+    <form method="post" action="{% url 'bids:competitor_add' project.pk %}" style="display:inline;">
+      {% csrf_token %}
+      <button type="submit" class="btn btn-outline btn-sm">競合を足す</button>
+    </form>
+  </div>
   <div class="table-wrap">
     <table>
-      <thead><tr><th>競合名</th><th>金額</th><th>情報源</th><th>メモ</th></tr></thead>
+      <thead><tr><th>競合名</th><th>金額</th><th>情報源</th><th>メモ</th><th></th></tr></thead>
       <tbody>
         {% for c in competitors %}
         <tr>
-          <td>{{ c.competitor_name }}</td>
-          <td>{{ c.competitor_amount|floatformat:0 }} 円</td>
-          <td>{{ c.source|default:"-" }}</td>
-          <td>{{ c.memo|default:"-" }}</td>
+          <td>{% inline_edit c "competitor_name" %}</td>
+          <td>{% inline_edit c "competitor_amount" %} 円</td>
+          <td>{% inline_edit c "source" %}</td>
+          <td>{% inline_edit c "memo" %}</td>
+          <td style="white-space:nowrap;width:1%;text-align:right;">
+            <form method="post" action="{% url 'bids:competitor_delete' c.pk %}" style="display:inline;">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-outline btn-sm" style="color:var(--danger);"
+                      onclick="return confirm('この競合の行を消しますか？')">削除</button>
+            </form>
+          </td>
         </tr>
         {% empty %}
-        <tr><td colspan="4" style="text-align:center;color:var(--gray-400);padding:20px;">競合情報が登録されていません</td></tr>
+        <tr><td colspan="5" style="text-align:center;color:var(--gray-400);padding:20px;">競合情報が登録されていません</td></tr>
         {% endfor %}
       </tbody>
     </table>
@@ -402,6 +460,29 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 
+  // 公告の文字をそのまま属性に入れるので、引用符と山かっこだけ逃がす。
+  function attr(text) {
+    return String(text == null ? '' : text)
+      .replace(/&/g, '&amp;').replace(/"/g, '&quot;')
+      .replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  // バー（図）からも段階名を直せるようにする。表の「段階」と同じ保存先。
+  function renameStage(label, current) {
+    var next = window.prompt(
+      '段階名を入れてください。空にすると公告どおりに戻ります。', current || ''
+    );
+    if (next === null) return;
+    save({label: label, stage: next.trim()});
+  }
+
+  document.addEventListener('click', function(e) {
+    var btn = e.target.closest ? e.target.closest('.bid-stage-rename') : null;
+    if (!btn) return;
+    e.preventDefault();
+    renameStage(btn.dataset.label, btn.dataset.stage);
+  });
+
   // toISOString は UTC に寄るので日付がずれる。ローカルのまま組み立てる。
   function ymd(d) {
     return d.getFullYear() + '-'
@@ -419,7 +500,7 @@ document.addEventListener('DOMContentLoaded', function() {
     custom_popup_html: function(task) {
       return '<div class="details-container" style="padding:12px;min-width:220px;">'
         + '<h5 style="margin:0 0 6px;font-size:.95rem;">' + task.name + '</h5>'
-        + '<p style="margin:0;font-size:.82rem;color:#666;">' + task._label + '</p>'
+        + '<p style="margin:0;font-size:.82rem;color:#666;">' + (task._title || task._label) + '</p>'
         + '<p style="margin:6px 0 0;font-size:.85rem;">締切: ' + task._deadline + '</p>'
         + (task._detail
             ? '<p style="margin:4px 0 0;font-size:.8rem;color:#666;">' + task._detail + '</p>'
@@ -427,6 +508,9 @@ document.addEventListener('DOMContentLoaded', function() {
         + (task._edited
             ? '<p style="margin:4px 0 0;font-size:.8rem;color:#c2410c;">公告から手直し済み</p>'
             : '')
+        + '<button type="button" class="btn btn-outline btn-sm bid-stage-rename"'
+        + ' style="margin-top:8px;" data-label="' + attr(task._label) + '"'
+        + ' data-stage="' + attr(task.name) + '">段階名を直す</button>'
         + '</div>';
     }
   }) : null;
@@ -449,6 +533,49 @@ document.addEventListener('DOMContentLoaded', function() {
   document.querySelectorAll('.bid-schedule-kind').forEach(function(sel) {
     sel.addEventListener('change', function() {
       save({label: this.dataset.label, kind: this.value});
+    });
+  });
+
+  // 表の日付をタップして直す（ADR-0074）。保存の中身はバーを動かしたときと同じ。
+  document.querySelectorAll('.schedule-edit').forEach(function(span) {
+    function start() {
+      if (span.dataset.editing === '1') return;
+      span.dataset.editing = '1';
+      var previous = span.textContent;
+      var isText = span.dataset.input === 'text';
+      var input = document.createElement('input');
+      input.type = isText ? 'text' : 'date';
+      input.value = span.dataset.value || '';
+      if (isText) input.placeholder = '空にすると公告どおりに戻します';
+      input.className = 'inline-edit-input form-control';
+      span.textContent = '';
+      span.appendChild(input);
+      input.focus();
+      var done = false;
+      function finish(commit) {
+        if (done) return;
+        done = true;
+        var value = isText ? input.value.trim() : input.value;
+        // 日付は空にできない。段階名・見出し・備考は空にすると公告どおりに戻す
+        if (!commit || (!value && !isText) || value === (span.dataset.value || '')) {
+          span.textContent = previous;
+          span.dataset.editing = '';
+          return;
+        }
+        span.textContent = '保存中…';
+        var params = {label: span.dataset.label};
+        params[span.dataset.key] = value;
+        save(params);
+      }
+      input.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') { e.preventDefault(); finish(true); }
+        if (e.key === 'Escape') { e.preventDefault(); finish(false); }
+      });
+      input.addEventListener('blur', function() { finish(true); });
+    }
+    span.addEventListener('click', start);
+    span.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' && e.target === span) { e.preventDefault(); start(); }
     });
   });
 

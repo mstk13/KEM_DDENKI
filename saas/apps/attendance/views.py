@@ -34,6 +34,7 @@ from apps.attendance.plans import (
     site_name_suggestions,
     sort_plans,
     summarize_day,
+    work_note_suggestions,
 )
 from apps.core.json_utils import json_for_script
 from apps.workers.models import Worker
@@ -102,6 +103,8 @@ def plan_board(request):
         "kind_fields_json": json_for_script(AttendPlan.KIND_FIELDS),
         # 「場所・メモ」の候補（登録済みの現場名）。候補にない行き先も入力できる（ADR-0037）
         "site_names": site_name_suggestions(request.user.company),
+        # 「作業内容」の候補（これまでに入れた内容）。候補にない内容も入力できる（ADR-0070）
+        "work_notes": work_note_suggestions(request.user.company),
         # ダイアログで1日を時間で分けて足せる予定の上限（ADR-0038）
         "max_entries": MAX_ENTRIES_PER_DAY,
         "fill_targets": FILL_TARGETS,
@@ -362,6 +365,8 @@ def plan_day(request):
         "working_kinds_json": json_for_script(list(AttendPlan.WORKING_KINDS)),
         # 「現場名・行先」の候補（登録済みの現場名）。候補にない行き先も入力できる（ADR-0037）
         "site_names": site_name_suggestions(request.user.company),
+        # 「作業内容」の候補（これまでに入れた内容）。候補にない内容も入力できる（ADR-0070）
+        "work_notes": work_note_suggestions(request.user.company),
         # 1人に足せる予定の上限（ADR-0038）
         "max_entries": MAX_ENTRIES_PER_DAY,
         "standard_start": settings_dict.get("standard_start", ""),

@@ -1,5 +1,6 @@
 """
-書類未添付・健診期限アラートと、建設業許可の期限の知らせ（ADR-0064）を
+書類未添付・健診期限アラート、建設業許可の期限の知らせ（ADR-0064）、
+自社書類の更新の知らせ（ADR-0071）を
 全テナントに送信する管理コマンド。
 
 cron 例（毎朝8時）:
@@ -18,11 +19,12 @@ from apps.notifications.services import (
     check_health_checkup_due_alerts,
     check_health_report_missing_alerts,
 )
+from apps.tenants.document_alerts import check_company_document_alerts
 from apps.tenants.models import Company
 
 
 class Command(BaseCommand):
-    help = "証明書・健診書類の未添付アラート、健診期限アラート、建設業許可の期限の知らせを送信"
+    help = "証明書・健診の未添付、健診期限、建設業許可の期限、自社書類の更新の知らせを送信"
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -43,4 +45,5 @@ class Command(BaseCommand):
             check_health_report_missing_alerts(company)
             check_health_checkup_due_alerts(company)
             check_construction_license_alerts(company)
+            check_company_document_alerts(company)
             self.stdout.write(self.style.SUCCESS(f"[{company.name}] 完了"))

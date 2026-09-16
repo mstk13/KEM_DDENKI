@@ -240,14 +240,12 @@
       <div class="form-row">
         <div class="form-group">
           <label for="id_start_date">工期開始</label>
-          <input type="date" name="start_date" id="id_start_date" class="form-control"
-                 value="{{ form.start_date.value|default:'' }}">
+          {{ form.start_date }}
           {{ form.start_date.errors }}
         </div>
         <div class="form-group">
           <label for="id_end_date">工期終了</label>
-          <input type="date" name="end_date" id="id_end_date" class="form-control"
-                 value="{{ form.end_date.value|default:'' }}">
+          {{ form.end_date }}
           {{ form.end_date.errors }}
         </div>
       </div>

@@ -188,13 +188,21 @@ def _collect_events(project) -> list[dict]:
 
 
 def _annotate(events: list[dict], project) -> list[dict]:
-    """各項目に段階・扱いを付け、案件ごとの手直し（扱い・日付）を反映する。"""
+    """各項目に段階・扱いを付け、案件ごとの手直し（段階名・見出し・扱い・日付・備考）を反映する。
+
+    段階名（参加申請・見積提出など）は公告のラベルから当てているので、
+    公告の書き方が独特で当たらないことがある。画面から直せるようにしてある（ADR-0075）。
+    """
     overrides = project.schedule_overrides or {}
     rules = _company_rules(project)
 
     for event in events:
         override = overrides.get(event["label"]) or {}
-        event["stage"] = _stage_of(event["label"])
+        event["stage"] = override.get("stage") or _stage_of(event["label"])
+        # 表に出す「公告の項目」。手直しの鍵は公告どおりのラベルのまま変えない
+        event["title"] = override.get("title") or event["label"]
+        if override.get("detail"):
+            event["detail"] = override["detail"]
         event["kind"] = _resolve_kind(event, override, rules)
         event["overridden"] = bool(override)
 
@@ -236,7 +244,7 @@ def build_bid_gantt(project) -> dict:
         return _empty()
 
     hidden = [
-        {"stage": e["stage"], "label": e["label"], "kind": HIDDEN,
+        {"stage": e["stage"], "label": e["label"], "title": e["title"], "kind": HIDDEN,
          "end": e["end"], "overridden": e["overridden"]}
         for e in events if e["kind"] == HIDDEN
     ]
@@ -319,6 +327,7 @@ def build_bid_gantt(project) -> dict:
             # popup とドラッグ保存に使う。
             # frappe-gantt はタスクの独自キーをそのまま持ち回る。
             "_label": event["label"],
+            "_title": event["title"],
             "_deadline": timezone.localtime(end).strftime("%Y/%m/%d %H:%M"),
             "_detail": event["detail"],
             "_edited": event["overridden"],
@@ -328,6 +337,7 @@ def build_bid_gantt(project) -> dict:
             "step": step,
             "stage": event["stage"],
             "label": event["label"],
+            "title": event["title"],
             "kind": event["kind"],
             "start": start,
             "end": end,

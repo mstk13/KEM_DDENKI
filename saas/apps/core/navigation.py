@@ -273,8 +273,14 @@ NAVIGATION: tuple[NavItem | NavGroup, ...] = (
         ),
     ),
     NavGroup(
-        "開発",
+        "開発・自社情報",
         (
+            NavItem(
+                "自社情報",
+                "tenants:company_document_list",
+                "🏢",
+                ("tenants:company_document_*",),
+            ),
             NavItem(
                 "開発管理",
                 "devkanri:project_list",

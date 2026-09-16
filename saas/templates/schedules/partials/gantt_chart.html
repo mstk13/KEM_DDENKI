@@ -31,16 +31,22 @@ document.addEventListener('DOMContentLoaded', function() {
     return el.innerHTML;
   }
 
+  // 目盛りの左端を当日にする（ADR-0072）
+  clampGanttStartToToday(Gantt);
   var gantt = new Gantt('#gantt-chart', tasks, {
     view_mode: 'Week',
+    // バーの高さ。既定の20pxでは細いので2倍にする
+    bar_height: 40,
     // language は指定しない。frappe-gantt 0.6.1 は 'ja' の月名テーブルを持たず、
     // 月ラベル生成時に例外を投げて描画が途中で止まる（バーが出ない）。
     custom_popup_html: function(task) {
-      var days = Math.round((task.end - task.start) / 86400000) + 1;
+      // 当日より前から始まっている予定は当日から描いている（real_start が実際の開始日）
+      var realStart = task.real_start ? new Date(task.real_start) : task.start;
+      var days = Math.round((task.end - realStart) / 86400000) + 1;
       return '<div class="details-container gantt-popup">'
         + '<h5>' + escapeHtml(task.name) + '</h5>'
         + '<p class="gantt-popup-dates">'
-        + task.start.toLocaleDateString('ja-JP') + ' ～ ' + task.end.toLocaleDateString('ja-JP')
+        + realStart.toLocaleDateString('ja-JP') + ' ～ ' + task.end.toLocaleDateString('ja-JP')
         + '</p>'
         + '<p>工期: ' + days + '日</p>'
         + '<p>進捗: ' + task.progress + '%</p>'
@@ -49,6 +55,7 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 
   localizeGanttMonths(chart);
+  showFirstGanttLabel(chart);
 
   block.querySelectorAll('.gantt-mode').forEach(function(btn) {
     btn.addEventListener('click', function() {
@@ -57,6 +64,7 @@ document.addEventListener('DOMContentLoaded', function() {
       gantt.change_view_mode(this.dataset.mode);
       // 表示切替で描き直されるため、月ラベルを付け直す
       localizeGanttMonths(chart);
+  showFirstGanttLabel(chart);
     });
   });
 });

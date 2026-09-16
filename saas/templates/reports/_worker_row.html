@@ -9,7 +9,7 @@
     <input type="time" name="{{ row.start.html_name }}" id="{{ row.start.id_for_label }}" class="form-control worker-start" value="{{ row.start.value|default_if_none:'' }}" title="開始">
     <span>〜</span>
     <input type="time" name="{{ row.end.html_name }}" id="{{ row.end.id_for_label }}" class="form-control worker-end" value="{{ row.end.value|default_if_none:'' }}" title="終了">
-    <input type="number" name="{{ row.hours.html_name }}" id="{{ row.hours.id_for_label }}" class="form-control worker-hours" step="0.25" min="0" placeholder="h" value="{{ row.hours.value|default_if_none:'' }}" title="作業時間">
+    <input type="number" name="{{ row.hours.html_name }}" id="{{ row.hours.id_for_label }}" class="form-control worker-hours" step="0.01" min="0" placeholder="h" value="{{ row.hours.value|default_if_none:'' }}" title="作業時間">
     <span>h</span>
   </div>
   {{ row.start.errors }}{{ row.end.errors }}{{ row.hours.errors }}

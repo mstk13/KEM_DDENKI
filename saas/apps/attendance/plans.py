@@ -104,6 +104,38 @@ def _workers(company):
 SUGGESTED_SITE_STATUSES = ("in_progress", "ordered", "estimating")
 
 
+# 「何を行うか」の候補を集める区分。現場へ出ない働く区分（ADR-0070）。
+NOTE_SUGGEST_KINDS = ("office", "remote", "half")
+
+# 候補に出す件数。多すぎると選ぶより打つほうが早くなる。
+NOTE_SUGGEST_LIMIT = 20
+
+
+def work_note_suggestions(company, limit: int = NOTE_SUGGEST_LIMIT) -> list[str]:
+    """出社・在宅・半休の「作業内容」に候補として出す、これまでに入れた内容（ADR-0070）。
+
+    新しく入れたものから順に、同じ内容は1つにまとめて返す。
+    候補は入力の手助けで、候補にない内容もそのまま保存できる。
+    """
+    # unscoped: site_name_suggestions と同じく company を引数で受けて明示的に絞る。
+    rows = (
+        AttendPlan.unscoped.filter(company=company, kind__in=NOTE_SUGGEST_KINDS)
+        .exclude(note="")
+        .order_by("-plan_date", "-pk")
+        .values_list("note", flat=True)
+    )
+    names: list[str] = []
+    seen = set()
+    for note in rows:
+        note = note.strip()
+        if note and note not in seen:
+            seen.add(note)
+            names.append(note)
+        if len(names) >= limit:
+            break
+    return names
+
+
 def site_name_suggestions(company) -> list[str]:
     """出社予定の「場所・メモ」に候補として出す現場名（ADR-0037）。
 

@@ -44,7 +44,7 @@
       <div class="form-row">
         <div class="form-group">
           <label for="id_due_date">期限</label>
-          <input type="date" name="due_date" id="id_due_date" class="form-control" value="{{ form.due_date.value|default:'' }}">
+          {{ form.due_date }}
         </div>
         <div class="form-group">
           <label for="id_estimate_hours">見積(h)</label>
