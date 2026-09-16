@@ -8,6 +8,9 @@
   <a href="{% url 'estimation:project_create' %}" class="btn btn-primary">+ 案件を登録</a>
 </div>
 
+{# 進行中の案件の日程（ADR-0078）。1案件1本で、工程を色で分ける #}
+{% include "estimation/partials/projects_gantt.html" %}
+
 <div class="card" style="margin-bottom:20px;">
   <div class="card-body">
     <form method="get" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;">
