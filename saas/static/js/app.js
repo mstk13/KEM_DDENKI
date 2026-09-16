@@ -75,13 +75,31 @@ function clampGanttStartToToday(GanttClass) {
   GanttClass.__clampedToToday = true;
 }
 
-// 一番左の目盛り（当日）のラベルは、中央そろえだと半分が枠の外に出て読めない。
-// 最初の1つだけ左そろえにする（ADR-0072）。
-// frappe-gantt の CSS が text-anchor: middle を指定しているので、属性ではなく style で上書きする。
+// 一番左の目盛り（当日）のラベルを読めるようにする（ADR-0072）。
+// 1) 中央そろえだと半分が枠の外に出るので、最初の1つだけ左そろえにする。
+//    frappe-gantt の CSS が text-anchor: middle を指定しているため、属性ではなく style で上書きする
+// 2) frappe-gantt 0.6.1 は日表示の一番左の日付（上の段）を出さない。
+//    1つ前の日と比べる処理で、最初だけ「1年後の同じ日」と比べてしまい、日が同じとみなされるため。
+//    当日の日付を自分で足す
 function showFirstGanttLabel(container) {
-  var labels = container.querySelectorAll('.lower-text');
-  if (!labels.length) return;
-  labels[0].style.textAnchor = 'start';
+  var lower = container.querySelectorAll('.lower-text');
+  if (!lower.length) return;
+  lower[0].style.textAnchor = 'start';
+
+  var upper = container.querySelector('.upper-text');
+  if (!upper || !upper.parentNode) return;
+  // 上の段が「9/17」のような日付のとき（日表示）だけ補う。週・月表示は「10月」なので触らない
+  if (!/^\d{1,2}\/\d{1,2}$/.test(upper.textContent.trim())) return;
+  var firstX = parseFloat(lower[0].getAttribute('x'));
+  if (parseFloat(upper.getAttribute('x')) - firstX < 1) return;
+
+  var today = new Date();
+  var label = upper.cloneNode(true);
+  label.textContent = (today.getMonth() + 1) + '/' + today.getDate();
+  // その日のかたまりの左端にそろえる（下の段のラベルは日のまん中に置かれている）
+  label.setAttribute('x', 2);
+  label.style.textAnchor = 'start';
+  upper.parentNode.insertBefore(label, upper);
 }
 
 function localizeGanttMonths(container) {
