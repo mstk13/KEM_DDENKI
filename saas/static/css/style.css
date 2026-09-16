@@ -1192,4 +1192,7 @@ textarea.inline-edit-input { width: 100%; min-width: 260px; }
 /* 重要日程の表で、日付をタップして直す */
 .schedule-edit { cursor: pointer; border-bottom: 1px dashed var(--border-light, #d7dce3); }
 .schedule-edit:hover { background: var(--surface-hover, #f3f5f9); }
+/* 文字の欄は、タップで直せることが分かるように鉛筆を出す */
+.schedule-edit[data-input="text"]::after { content: " ✎"; color: var(--text-muted, #6b7280); font-size: .85em; }
+.schedule-edit[data-editing="1"]::after { content: none; }
 .inline-edit-error { color: var(--danger, #dc2626); font-size: .8rem; margin-top: 2px; }
