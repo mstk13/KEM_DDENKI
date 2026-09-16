@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}自社書類を削除 — {{ APP_NAME }}{% endblock %}
+{% block topbar_title %}自社情報{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>自社書類を削除</h1>
+</div>
+
+<div class="card">
+  <div class="card-body">
+    <p style="margin:8px 0;">
+      <span class="badge {% if document.kind == 'pdf' %}badge-red{% else %}badge-green{% endif %}">{{ document.get_kind_display }}</span>
+      <b>{{ document.name }}</b>（{{ document.original_filename }}、{{ document.size|filesizeformat }}）
+    </p>
+    <p style="margin-bottom:16px;">
+      この書類を削除します。<b>保存したファイルも消え、元に戻せません。</b>
+    </p>
+    <form method="post">
+      {% csrf_token %}
+      <div class="form-actions">
+        <button type="submit" class="btn btn-danger">削除する</button>
+        <a href="{% url 'tenants:company_document_detail' document.pk %}" class="btn btn-outline">キャンセル</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
