@@ -217,9 +217,15 @@
           {% for row in gantt.rows %}
           <tr>
             <td>{{ row.step }}</td>
-            <td>{{ row.stage }}</td>
             <td>
-              {{ row.label }}
+              <span class="schedule-edit" data-label="{{ row.label }}" data-key="stage"
+                    data-input="text" data-value="{{ row.stage }}" tabindex="0" role="button"
+                    title="タップすると直せます">{{ row.stage }}</span>
+            </td>
+            <td>
+              <span class="schedule-edit" data-label="{{ row.label }}" data-key="title"
+                    data-input="text" data-value="{{ row.title }}" tabindex="0" role="button"
+                    title="タップすると直せます">{{ row.title }}</span>
               {% if row.overridden %}
                 <span class="badge badge-orange" style="margin-left:4px;">手直し</span>
               {% endif %}
@@ -265,14 +271,26 @@
               </button>
               {% endif %}
             </td>
-            <td>{{ row.detail|default:"-" }}</td>
+            <td>
+              <span class="schedule-edit" data-label="{{ row.label }}" data-key="detail"
+                    data-input="text" data-value="{{ row.detail }}" tabindex="0" role="button"
+                    title="タップすると直せます">{{ row.detail|default:"-" }}</span>
+            </td>
           </tr>
           {% endfor %}
           {% for row in gantt.hidden %}
           <tr style="opacity:.55;">
             <td>-</td>
-            <td>{{ row.stage }}</td>
-            <td>{{ row.label }}</td>
+            <td>
+              <span class="schedule-edit" data-label="{{ row.label }}" data-key="stage"
+                    data-input="text" data-value="{{ row.stage }}" tabindex="0" role="button"
+                    title="タップすると直せます">{{ row.stage }}</span>
+            </td>
+            <td>
+              <span class="schedule-edit" data-label="{{ row.label }}" data-key="title"
+                    data-input="text" data-value="{{ row.title }}" tabindex="0" role="button"
+                    title="タップすると直せます">{{ row.title }}</span>
+            </td>
             <td>-</td>
             <td style="white-space:nowrap;">{{ row.end|date:"Y/m/d H:i" }}</td>
             <td><span class="badge badge-gray">非表示</span></td>
@@ -459,7 +477,7 @@ document.addEventListener('DOMContentLoaded', function() {
     custom_popup_html: function(task) {
       return '<div class="details-container" style="padding:12px;min-width:220px;">'
         + '<h5 style="margin:0 0 6px;font-size:.95rem;">' + task.name + '</h5>'
-        + '<p style="margin:0;font-size:.82rem;color:#666;">' + task._label + '</p>'
+        + '<p style="margin:0;font-size:.82rem;color:#666;">' + (task._title || task._label) + '</p>'
         + '<p style="margin:6px 0 0;font-size:.85rem;">締切: ' + task._deadline + '</p>'
         + (task._detail
             ? '<p style="margin:4px 0 0;font-size:.8rem;color:#666;">' + task._detail + '</p>'
@@ -498,9 +516,11 @@ document.addEventListener('DOMContentLoaded', function() {
       if (span.dataset.editing === '1') return;
       span.dataset.editing = '1';
       var previous = span.textContent;
+      var isText = span.dataset.input === 'text';
       var input = document.createElement('input');
-      input.type = 'date';
+      input.type = isText ? 'text' : 'date';
       input.value = span.dataset.value || '';
+      if (isText) input.placeholder = '空にすると公告どおりに戻します';
       input.className = 'inline-edit-input form-control';
       span.textContent = '';
       span.appendChild(input);
@@ -509,8 +529,9 @@ document.addEventListener('DOMContentLoaded', function() {
       function finish(commit) {
         if (done) return;
         done = true;
-        var value = input.value;
-        if (!commit || !value || value === span.dataset.value) {
+        var value = isText ? input.value.trim() : input.value;
+        // 日付は空にできない。段階名・見出し・備考は空にすると公告どおりに戻す
+        if (!commit || (!value && !isText) || value === (span.dataset.value || '')) {
           span.textContent = previous;
           span.dataset.editing = '';
           return;

@@ -160,3 +160,62 @@ class TestScheduleDates:
         assert res.status_code == 200
         project.refresh_from_db()
         assert project.schedule_overrides["入札書の提出期限"]["end"] == "2026-09-28"
+
+
+@pytest.mark.django_db
+class TestStageNames:
+    """受注までの流れの段階名・公告の項目・備考も直せる（ADR-0075）。"""
+
+    @pytest.fixture
+    def scheduled(self, project):
+        project.bid_schedule = [
+            {"label": "申請書等の提出期限", "datetime": "2026-09-17 12:00", "detail": "正午必着"},
+        ]
+        project.save()
+        return project
+
+    def _save(self, client, project, data):
+        return client.post(
+            reverse("bids:schedule_override", args=[project.pk]),
+            {"label": "申請書等の提出期限", **data},
+        )
+
+    def test_段階名を直すと図と表に出る(self, client, user_a, scheduled):
+        client.force_login(user_a)
+
+        assert self._save(client, scheduled, {"stage": "参加表明書の提出"}).status_code == 200
+
+        html = client.get(reverse("bids:project_detail", args=[scheduled.pk])).content.decode()
+        assert "参加表明書の提出" in html
+        scheduled.refresh_from_db()
+        assert scheduled.schedule_overrides["申請書等の提出期限"]["stage"] == "参加表明書の提出"
+
+    def test_公告の項目と備考も直せる(self, client, user_a, scheduled):
+        client.force_login(user_a)
+
+        self._save(client, scheduled, {"title": "参加申請書の提出", "detail": "窓口持参のみ"})
+
+        html = client.get(reverse("bids:project_detail", args=[scheduled.pk])).content.decode()
+        assert "参加申請書の提出" in html
+        assert "窓口持参のみ" in html
+
+    def test_空にすると公告どおりに戻る(self, client, user_a, scheduled):
+        client.force_login(user_a)
+        self._save(client, scheduled, {"stage": "参加表明書の提出"})
+
+        self._save(client, scheduled, {"stage": ""})
+
+        scheduled.refresh_from_db()
+        assert scheduled.schedule_overrides == {}
+        html = client.get(reverse("bids:project_detail", args=[scheduled.pk])).content.decode()
+        assert "参加申請" in html
+        assert "参加表明書の提出" not in html
+
+    def test_表の段階と備考がタップで直せる(self, client, user_a, scheduled):
+        client.force_login(user_a)
+
+        html = client.get(reverse("bids:project_detail", args=[scheduled.pk])).content.decode()
+
+        assert 'data-key="stage"' in html
+        assert 'data-key="title"' in html
+        assert 'data-key="detail"' in html
