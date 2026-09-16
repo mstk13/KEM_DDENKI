@@ -38,6 +38,8 @@ urlpatterns = [
     path("licenses/new/", views.license_create, name="license_create"),
     path("licenses/<int:pk>/edit/", views.license_edit, name="license_edit"),
     path("licenses/<int:pk>/delete/", views.license_delete, name="license_delete"),
+    # 画面の文字をタップしてその場で直す（ADR-0073）
+    path("inline-edit/", views.inline_edit, name="inline_edit"),
     path("unit-prices/", views.unit_price_list, name="unit_price_list"),
     path("unit-prices/new/", views.unit_price_create, name="unit_price_create"),
     path("unit-prices/<int:pk>/edit/", views.unit_price_edit, name="unit_price_edit"),

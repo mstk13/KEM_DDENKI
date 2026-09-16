@@ -562,6 +562,43 @@ def license_delete(request, pk):
 
 
 @login_required
+@require_POST
+def inline_edit(request):
+    """画面の文字をタップして、その場で直す（ADR-0073）。
+
+    直せるモデルと項目は apps/bids/inline_edit.py の EDITABLE に書いた分だけ。
+    会社で絞られたマネージャ（objects）で引くので、他社のデータは直せない。
+    """
+    from apps.bids import inline_edit as editor
+
+    try:
+        payload = json.loads(request.body or b"{}")
+    except ValueError:
+        return JsonResponse({"ok": False, "error": "送信内容を読めませんでした。"}, status=400)
+
+    model_label = str(payload.get("model", ""))
+    field_name = str(payload.get("field", ""))
+    pk = str(payload.get("pk", ""))
+    try:
+        field = editor.get_field(model_label, field_name)
+    except editor.NotEditable as e:
+        return JsonResponse({"ok": False, "error": str(e)}, status=400)
+    if not pk.isdigit():
+        return JsonResponse({"ok": False, "error": "対象が分かりません。"}, status=400)
+
+    model = editor.get_model(model_label)
+    obj = model.objects.filter(pk=int(pk)).first()
+    if obj is None:
+        return JsonResponse({"ok": False, "error": "対象が見つかりません。"}, status=404)
+
+    try:
+        display, value = editor.save_value(obj, field, payload.get("value", ""))
+    except ValueError as e:
+        return JsonResponse({"ok": False, "error": str(e)}, status=400)
+    return JsonResponse({"ok": True, "display": display, "value": value})
+
+
+@login_required
 def skipped_list(request):
     """資格判定で見送った案件の一覧。理由を開いて公告と照らせるようにする。"""
     from apps.bids.models import ScrapeTarget

@@ -101,6 +101,7 @@
 
 </div>
 <script src="{% static 'js/app.js' %}"></script>
+<script src="{% static 'js/inline-edit.js' %}"></script>
 {% if user.is_authenticated %}
 <script src="{% static 'js/offline-db.js' %}"></script>
 <script src="{% static 'js/offline.js' %}" data-sw-url="{% url 'service_worker' %}"
