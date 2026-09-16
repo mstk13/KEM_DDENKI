@@ -49,8 +49,8 @@ def _project_list_queryset(request, *, use_get=True):
     qs = BidProject.objects.order_by("-created_at")
 
     # 入札期限切れかつ未確定の案件を除外（確定済みは表示）
-    # 見積中も残す。積算に着手した案件は、入札期限を過ぎても開札まで追うため
-    # （絞り込みで「見積中」を選んだときに消えていると探せない）。
+    # 積算中も残す。積算に着手した案件は、入札期限を過ぎても開札まで追うため
+    # （絞り込みで「積算中」を選んだときに消えていると探せない）。
     settled = [
         BidProject.Status.ESTIMATING,
         BidProject.Status.BID,
@@ -86,8 +86,8 @@ def _project_list_queryset(request, *, use_get=True):
 
     if q:
         qs = qs.filter(Q(title__icontains=q) | Q(client__icontains=q))
-    # 絞り込みが無いときは、積算案件へ引っ越した案件を出さない（ADR-0070）。
-    # 消してはいないので、絞り込みで「見積中」を選べば入札側の経緯を追える。
+    # 絞り込みが無いときは、積算案件へ引っ越した案件を出さない（ADR-0076）。
+    # 消してはいないので、絞り込みで「積算中」を選べば入札側の経緯を追える。
     qs = (
         qs.filter(status=status) if status
         else qs.exclude(status__in=BidProject.MOVED_STATUSES)
@@ -360,7 +360,7 @@ def schedule_rule_list(request):
 
 @login_required
 def bid_start_estimation(request, pk):
-    """案件を見積中にし、積算案件へ引っ越す（ADR-0070）。"""
+    """案件を積算中にし、積算案件へ引っ越す（ADR-0076）。"""
     if request.method != "POST":
         return redirect("bids:project_detail", pk=pk)
 

@@ -53,7 +53,7 @@ urlpatterns = [
     path("purchases/", views.purchase_list, name="purchase_list"),
     path("purchases/new/", views.purchase_create, name="purchase_create"),
     path("purchases/csv-import/", views.purchase_csv_import, name="purchase_csv_import"),
-    # ADR-0070: 結果（受注・失注）と日程
+    # ADR-0076: 結果（受注・失注）と日程
     path("projects/<int:pk>/won/", views.project_mark_won, name="project_mark_won"),
     path("projects/<int:pk>/lost/", views.project_mark_lost, name="project_mark_lost"),
     path(

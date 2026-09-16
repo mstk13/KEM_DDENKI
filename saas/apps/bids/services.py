@@ -47,7 +47,7 @@ def create_site_from_won_bid(bid_project, created_by=None):
 def apply_won_bid_to_site(site, bid_project):
     """登録済みの現場に落札を反映する。
 
-    状態は見積中のときだけ受注済に進める（施工中などを戻さない）。
+    状態は積算中のときだけ受注済に進める（施工中などを戻さない）。
     受注金額・顧客は空のときだけ埋め、現場コードや画面で入れた値は変えない。
     """
     from apps.sites.models import Site
@@ -122,16 +122,16 @@ def _notify_won(bid_project, site, created):
 
 
 def start_estimation(bid_project, created_by=None):
-    """案件を見積中にし、積算案件へ引っ越す（ADR-0070）。
+    """案件を積算中にし、積算案件へ引っ越す（ADR-0076）。
 
     用意するものは3つ。いずれも既にあれば作り直さない（ADR-0031）ので、
     何度呼んでも現場と積算案件はそれぞれ1つ。
 
-    1. 見積中の現場（Site）
+    1. 積算中の現場（Site）
     2. 積算案件（estimation.EstimationProject）
     3. 公告の手続き期限から起こした積算工程（EstimationPhase）
 
-    入札案件は「見積中」になり、入札案件一覧の既定の絞り込みから外れる。
+    入札案件は「積算中」になり、入札案件一覧の既定の絞り込みから外れる。
     消すのではなく状態で外すのは、公告・競合・書類の経緯を入札側に残すため。
 
     Returns:

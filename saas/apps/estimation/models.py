@@ -850,7 +850,7 @@ class EstimationProject(TenantModel):
     )
     notes = models.TextField("備考", blank=True)
 
-    # --- 失注の記録（ADR-0070） ---
+    # --- 失注の記録（ADR-0076） ---
     #
     # 失注は「負けた」で終わらせると次に活きない。何円差で誰に負けたかを
     # 競合ごとに残し（EstimationCompetitor）、原因の区分をここに持つ。
@@ -1137,7 +1137,7 @@ class CostComparison(TenantModel):
 
 
 class EstimationCompetitor(TenantModel):
-    """積算案件の競合。失注したときに「誰にいくらで負けたか」を残す（ADR-0070）。
+    """積算案件の競合。失注したときに「誰にいくらで負けたか」を残す（ADR-0076）。
 
     bids.BidCompetitor は入札案件にぶら下がる同趣旨のモデルだが、
     あちらは公告段階で見込みの競合を並べるためのもので、
@@ -1197,7 +1197,7 @@ class EstimationCompetitor(TenantModel):
 
 
 class EstimationPhase(TenantModel):
-    """積算案件の日程。ガントチャートで見る（ADR-0070）。
+    """積算案件の日程。ガントチャートで見る（ADR-0076）。
 
     schedules.Phase は現場（施工）の工程で、site FK が必須。
     積算段階では現場が無いこともあり、並べるものも施工の工種ではなく

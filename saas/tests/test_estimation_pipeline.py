@@ -1,8 +1,8 @@
-"""入札案件 → 積算案件 → 現場管理 の引っ越しと、失注の記録（ADR-0070）。
+"""入札案件 → 積算案件 → 現場管理 の引っ越しと、失注の記録（ADR-0076）。
 
 確かめること:
 
-- 積算を始めると積算案件ができ、入札案件は「見積中」になって一覧から消える
+- 積算を始めると積算案件ができ、入札案件は「積算中」になって一覧から消える
 - 公告の手続き期限が積算工程として取り込まれ、二度押ししても増えない
 - 受注すると現場が受注済になり、現場管理へ渡る
 - 失注すると原因が残り、競合との差額が自社応札額から計算される
@@ -60,7 +60,7 @@ def _bid(company, **kwargs):
 
 @pytest.mark.django_db
 class TestMoveToEstimation:
-    def test_積算開始で積算案件ができ入札案件は見積中になる(self, company_a, user_a):
+    def test_積算開始で積算案件ができ入札案件は積算中になる(self, company_a, user_a):
         bid = _bid(company_a)
 
         site, created = start_estimation(bid, created_by=user_a)
@@ -146,7 +146,7 @@ class TestMoveToEstimation:
 
 @pytest.mark.django_db
 class TestBidListHidesMovedProjects:
-    def test_見積中の案件は入札案件一覧の既定では出ない(self, client, company_a, user_a):
+    def test_積算中の案件は入札案件一覧の既定では出ない(self, client, company_a, user_a):
         bid = _bid(company_a)
         start_estimation(bid, created_by=user_a)
         client.force_login(user_a)
@@ -156,7 +156,7 @@ class TestBidListHidesMovedProjects:
         assert res.status_code == 200
         assert bid.title not in res.content.decode()
 
-    def test_見積中で絞り込めば入札側の経緯を追える(self, client, company_a, user_a):
+    def test_積算中で絞り込めば入札側の経緯を追える(self, client, company_a, user_a):
         bid = _bid(company_a)
         start_estimation(bid, created_by=user_a)
         client.force_login(user_a)
@@ -199,7 +199,7 @@ class TestOutcome:
 
         assert Site.unscoped.filter(company=company_a).count() == 1
 
-    def test_失注すると原因が残り見積中の現場は中止になる(self, company_a, user_a):
+    def test_失注すると原因が残り積算中の現場は中止になる(self, company_a, user_a):
         bid = _bid(company_a)
         site, _ = start_estimation(bid, created_by=user_a)
         est = EstimationProject.unscoped.get(company=company_a, bid_project=bid)

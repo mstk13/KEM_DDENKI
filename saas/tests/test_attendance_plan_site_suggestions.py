@@ -2,7 +2,7 @@
 
 固定したいのは次の点:
 
-1. 候補は自社の 施工中 → 受注済 → 見積中 の現場名。終わった現場は出さない。同じ名前は1つ
+1. 候補は自社の 施工中 → 受注済 → 積算中 の現場名。終わった現場は出さない。同じ名前は1つ
 2. 月グリッドのダイアログと日シートの入力欄に候補（<datalist>）が付く
 3. 候補は手助けにすぎず、候補にない行き先もそのまま保存できる
 """
@@ -28,7 +28,7 @@ def _worker(company, name="田中太郎"):
 @pytest.mark.django_db
 class TestSiteNameSuggestions:
     def test_行き先になりうる現場だけを状態の順に並べる(self, company_a):
-        _site(company_a, "S1", "C見積中の現場", Site.Status.ESTIMATING)
+        _site(company_a, "S1", "C積算中の現場", Site.Status.ESTIMATING)
         _site(company_a, "S2", "B受注済の現場", Site.Status.ORDERED)
         _site(company_a, "S3", "A施工中の現場", Site.Status.IN_PROGRESS)
         _site(company_a, "S4", "Z施工中の現場", Site.Status.IN_PROGRESS)
@@ -37,7 +37,7 @@ class TestSiteNameSuggestions:
         _site(company_a, "S7", "中止した現場", Site.Status.CANCELLED)
 
         assert site_name_suggestions(company_a) == [
-            "A施工中の現場", "Z施工中の現場", "B受注済の現場", "C見積中の現場",
+            "A施工中の現場", "Z施工中の現場", "B受注済の現場", "C積算中の現場",
         ]
 
     def test_同じ名前は1つにまとめ前後の空白を除く(self, company_a):

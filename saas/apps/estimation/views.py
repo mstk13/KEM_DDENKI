@@ -699,7 +699,7 @@ def project_detail(request, pk):
     )
     total_diff = total_standard - total_own if total_standard and total_own else Decimal("0")
 
-    # 日程（ADR-0070）。現場管理と同じ frappe-gantt に渡す
+    # 日程（ADR-0076）。現場管理と同じ frappe-gantt に渡す
     from apps.core.json_utils import json_for_script
     from apps.estimation.services.gantt import get_project_gantt_data
 
@@ -901,7 +901,7 @@ def purchase_csv_import(request):
 
 
 # ---------------------------------------------------------------------------
-# 積算案件の結果（受注・失注）と日程 — ADR-0070
+# 積算案件の結果（受注・失注）と日程 — ADR-0076
 # ---------------------------------------------------------------------------
 
 

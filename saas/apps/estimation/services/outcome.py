@@ -1,9 +1,9 @@
-"""積算案件の結果（受注・失注）を確定する（ADR-0070）。
+"""積算案件の結果（受注・失注）を確定する（ADR-0076）。
 
 入札案件 → 積算案件 → 現場管理 という流れの、最後の切り替え。
 
 受注したら現場を受注済にして現場管理へ渡す。現場は積算開始の時点で
-見積中として作ってあるので、ここで作り直さない（ADR-0031。案件は現場を
+積算中として作ってあるので、ここで作り直さない（ADR-0031。案件は現場を
 中心に束ねる）。
 
 失注したら、誰にいくらで負けたかを競合ごとに残す。差額は保存せず
@@ -21,7 +21,7 @@ from apps.estimation.models import EstimationProject
 def _sync_bid_status(project: EstimationProject, status) -> None:
     """引っ越し元の入札案件にも結果を反映する。
 
-    入札案件は「見積中」のまま残っている。結果を書き戻さないと、
+    入札案件は「積算中」のまま残っている。結果を書き戻さないと、
     入札ダッシュボードの受注率が積算に移した案件を数え落とす。
     """
     bid = project.bid_project
@@ -94,7 +94,7 @@ def mark_won(project: EstimationProject, award_amount=None, decided_on=None,
 def mark_lost(project: EstimationProject, reason="", note="", decided_on=None):
     """積算案件を失注にする。競合は EstimationCompetitor 側で別に記録する。
 
-    見積中として作った現場は中止にする。受注していない現場が施工の一覧に
+    積算中として作った現場は中止にする。受注していない現場が施工の一覧に
     残り続けると、稼働中の現場を数えるときに紛れ込むため。
     施工中より先に進んでいる現場は触らない（あり得ないが、戻さない）。
     """

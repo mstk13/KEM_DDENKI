@@ -447,7 +447,7 @@ class BoqImportForm(forms.Form):
 
 
 class EstimationWonForm(forms.Form):
-    """受注の確定。落札額と結果確定日を入れて現場管理へ渡す（ADR-0070）。"""
+    """受注の確定。落札額と結果確定日を入れて現場管理へ渡す（ADR-0076）。"""
 
     award_amount = forms.DecimalField(
         label="落札額（円）", max_digits=14, decimal_places=0, required=False,
@@ -462,7 +462,7 @@ class EstimationWonForm(forms.Form):
 
 
 class EstimationLostForm(forms.ModelForm):
-    """失注の確定。原因の区分とメモを入れる（ADR-0070）。
+    """失注の確定。原因の区分とメモを入れる（ADR-0076）。
 
     競合の社名と金額は EstimationCompetitorForm で別に足す。
     1社とは限らず、後から分かることもあるため同じ画面で完結させない。
@@ -499,7 +499,7 @@ class EstimationCompetitorForm(forms.ModelForm):
 
 
 class EstimationPhaseForm(forms.ModelForm):
-    """積算工程。現場管理の工程フェーズと同じ項目立てにする（ADR-0070）。"""
+    """積算工程。現場管理の工程フェーズと同じ項目立てにする（ADR-0076）。"""
 
     class Meta:
         model = EstimationPhase

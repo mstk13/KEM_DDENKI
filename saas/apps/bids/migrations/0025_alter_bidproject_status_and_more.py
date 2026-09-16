@@ -17,7 +17,7 @@ class Migration(migrations.Migration):
                 choices=[
                     ("new", "新着"),
                     ("considering", "検討中"),
-                    ("estimating", "見積中"),
+                    ("estimating", "積算中"),
                     ("bid", "入札済"),
                     ("won", "落札"),
                     ("lost", "失注"),
@@ -35,7 +35,7 @@ class Migration(migrations.Migration):
                 choices=[
                     ("new", "新着"),
                     ("considering", "検討中"),
-                    ("estimating", "見積中"),
+                    ("estimating", "積算中"),
                     ("bid", "入札済"),
                     ("won", "落札"),
                     ("lost", "失注"),

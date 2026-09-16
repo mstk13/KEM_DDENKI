@@ -1,4 +1,4 @@
-"""入札案件から積算案件を起こす（ADR-0070）。
+"""入札案件から積算案件を起こす（ADR-0076）。
 
 入札案件（bids.BidProject）で積算を始めると、ここが積算案件
 （EstimationProject）と、その日程（EstimationPhase）を用意する。

@@ -13,7 +13,7 @@
       <button type="submit" class="btn btn-primary">差分分析を実行</button>
     </form>
     {% if not is_settled %}
-      {# 結果の確定（ADR-0070）。受注は現場管理へ引き渡し、失注は原因を残す #}
+      {# 結果の確定（ADR-0076）。受注は現場管理へ引き渡し、失注は原因を残す #}
       <a href="{% url 'estimation:project_mark_won' project.pk %}" class="btn btn-primary">受注した</a>
       <a href="{% url 'estimation:project_mark_lost' project.pk %}" class="btn btn-outline">失注した</a>
     {% endif %}
@@ -127,7 +127,7 @@
 </div>
 {% endif %}
 
-{# --- 日程（ADR-0070）。現場管理と同じ frappe-gantt ＋ 下の一覧から手修正 --- #}
+{# --- 日程（ADR-0076）。現場管理と同じ frappe-gantt ＋ 下の一覧から手修正 --- #}
 <div class="page-header">
   <h2>日程</h2>
   <div style="display:flex;gap:8px;">
@@ -205,7 +205,7 @@
   </div>
 </div>
 
-{# --- 結果（ADR-0070） --- #}
+{# --- 結果（ADR-0076） --- #}
 {% if project.status == 'lost' %}
   <div class="page-header"><h2>失注の記録</h2></div>
   <div class="card" style="margin-bottom:20px;">

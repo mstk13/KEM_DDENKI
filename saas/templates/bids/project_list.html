@@ -62,7 +62,7 @@
           <td>
             {% if p.status == 'new' %}<span class="badge badge-blue">新着</span>
             {% elif p.status == 'considering' %}<span class="badge badge-orange">検討中</span>
-            {% elif p.status == 'estimating' %}<span class="badge badge-blue">見積中</span>
+            {% elif p.status == 'estimating' %}<span class="badge badge-blue">積算中</span>
             {% elif p.status == 'bid' %}<span class="badge badge-gray">入札済</span>
             {% elif p.status == 'won' %}<span class="badge badge-green">落札</span>
             {% elif p.status == 'lost' %}<span class="badge badge-red">失注</span>
@@ -88,7 +88,7 @@
             {% if p.status == 'new' or p.status == 'considering' %}
             <form method="post" action="{% url 'bids:start_estimation' p.pk %}" style="display:inline;">
               {% csrf_token %}
-              <button type="submit" class="btn btn-primary btn-sm" onclick="return confirm('この案件を積算案件に移しますか？\n公告の日程を工程として取り込み、見積中の現場を用意します。\nこの一覧からは見えなくなります（絞り込みで「見積中」を選ぶと出ます）。')">積算へ移す</button>
+              <button type="submit" class="btn btn-primary btn-sm" onclick="return confirm('この案件を積算案件に移しますか？\n公告の日程を工程として取り込み、積算中の現場を用意します。\nこの一覧からは見えなくなります（絞り込みで「積算中」を選ぶと出ます）。')">積算へ移す</button>
             </form>
             {% endif %}
           </td>
