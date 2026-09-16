@@ -1,6 +1,6 @@
 """ガントチャートは当日から先だけを出す（ADR-0072）。
 
-- 終わった予定（終了日が昨日以前）は出さない
+- 目盛りの左端は当日。終わった予定は左の外に出て見えない（データからは外さない）
 - 始まっている予定は当日から描く。実際の開始日は real_start に残す
 - 比較表の工期・日数はもとの日付のまま
 """
@@ -38,12 +38,15 @@ def _days(n):
 
 
 class TestClip:
-    def test_終わった予定は出さない(self):
+    def test_終わった予定は日付を変えずに残す(self):
+        """取り除くと、終わった現場しか無いときにチャートごと消えてしまう。"""
         tasks = [_task("2026-09-01", "2026-09-15"), _task("2026-09-10", "2026-09-16", "site-2")]
 
         clipped = clip_gantt_tasks_to_today(tasks, TODAY)
 
-        assert [t["id"] for t in clipped] == ["site-2"]
+        assert [t["id"] for t in clipped] == ["site-1", "site-2"]
+        assert clipped[0]["start"] == "2026-09-01"
+        assert "real_start" not in clipped[0]
 
     def test_始まっている予定は当日から描き実際の開始日を残す(self):
         clipped = clip_gantt_tasks_to_today([_task("2026-09-01", "2026-09-30")], TODAY)
@@ -75,10 +78,11 @@ class TestScreens:
 
         res = client.get("/")
 
-        tasks = json.loads(res.context["gantt_json"])
-        assert [t["name"] for t in tasks] == ["続いている現場"]
-        assert tasks[0]["start"] == timezone.localdate().isoformat()
-        assert tasks[0]["real_start"] == _days(-10).isoformat()
+        tasks = {t["name"]: t for t in json.loads(res.context["gantt_json"])}
+        assert tasks["続いている現場"]["start"] == timezone.localdate().isoformat()
+        assert tasks["続いている現場"]["real_start"] == _days(-10).isoformat()
+        # 終わった現場は日付そのまま（目盛りの左端が当日なので画面には出ない）
+        assert tasks["終わった現場"]["start"] == _days(-30).isoformat()
 
     def test_工期管理のガントは当日から_比較表はもとの日付(self, client, company_a, user_a):
         site = _site(company_a, "続いている現場", _days(-10), _days(10))
@@ -87,9 +91,8 @@ class TestScreens:
 
         res = client.get(reverse("schedules:list"))
 
-        tasks = json.loads(res.context["gantt_json"])
-        assert [t["name"] for t in tasks] == ["続いている現場"]
-        assert tasks[0]["start"] == timezone.localdate().isoformat()
+        tasks = {t["name"]: t for t in json.loads(res.context["gantt_json"])}
+        assert tasks["続いている現場"]["start"] == timezone.localdate().isoformat()
         legend = {row["name"]: row for row in res.context["legend"]}
         assert legend["続いている現場"]["start"] == site.start_date
         assert legend["終わった現場"]["days"] == 30
@@ -125,7 +128,7 @@ class TestScreens:
 
         res = client.get(reverse("schedules:detail", args=[site.pk]))
 
-        tasks = json.loads(res.context["gantt_json"])
-        assert [t["name"] for t in tasks] == ["続いている工程"]
-        assert tasks[0]["start"] == timezone.localdate().isoformat()
-        assert tasks[0]["real_start"] == _days(-5).isoformat()
+        tasks = {t["name"]: t for t in json.loads(res.context["gantt_json"])}
+        assert tasks["続いている工程"]["start"] == timezone.localdate().isoformat()
+        assert tasks["続いている工程"]["real_start"] == _days(-5).isoformat()
+        assert tasks["終わった工程"]["start"] == _days(-20).isoformat()
