@@ -258,6 +258,26 @@
 </div>
 
 {% comment %}
+提出書類（ADR-0067）。現場ごとに提出する書類のリストと、置いた PDF・Excel。
+ここには進み具合と、まだ提出していない書類の名前だけ出す。
+{% endcomment %}
+<div class="card" id="site-documents" style="margin-top:20px;">
+  <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+    <h2>提出書類</h2>
+    <a href="{% url 'sites:document_list' site.pk %}" class="btn btn-primary btn-sm">書類のリストを開く</a>
+  </div>
+  <div class="card-body">
+    {% include "sites/documents/_progress.html" with progress=document_progress %}
+    {% if pending_documents %}
+    <p style="margin-top:6px;">
+      まだ提出していない書類：
+      {% for document in pending_documents %}<a href="{% url 'sites:document_detail' document.pk %}">{{ document.name }}</a>{% if not forloop.last %}、{% endif %}{% endfor %}{% if document_progress.not_started|add:document_progress.prepared > pending_documents|length %} ほか{% endif %}
+    </p>
+    {% endif %}
+  </div>
+</div>
+
+{% comment %}
 安全書類（ADR-0061）。今日の KY 用紙の記入状況。記入は安全書類の画面で。
 {% endcomment %}
 <div class="card" id="site-safety" style="margin-top:20px;">

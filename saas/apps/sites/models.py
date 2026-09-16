@@ -305,3 +305,166 @@ def delete_site_photo_files(sender, instance, **kwargs):
             storage.delete(name)
 
     transaction.on_commit(_remove_files)
+
+
+# ===================================================================
+# 提出書類（ADR-0067）
+#
+# 会社ごとの「最初の書類リスト」（DocumentTemplate）を、現場の書類の一覧を初めて開いたときに
+# 現場へ写す（SiteDocument）。
+# 書類ごとに PDF・Excel のファイルを何件でも置ける（SiteDocumentFile）。
+# 写す・足す・置く処理は apps/sites/documents.py。
+# ===================================================================
+
+
+class DocumentPhase(models.TextChoices):
+    """書類を出す時期。一覧をこの順に分けて出す。"""
+
+    START = "start", "着工時"
+    DURING = "during", "施工中"
+    COMPLETION = "completion", "完成時"
+    OTHER = "other", "その他"
+
+
+class DocumentTemplate(TenantModel):
+    """会社の「最初の書類リスト」の1行。これから開く現場の書類の一覧に写す。"""
+
+    name = models.CharField("書類名", max_length=200)
+    phase = models.CharField(
+        "時期", max_length=20, choices=DocumentPhase.choices, default=DocumentPhase.OTHER,
+    )
+    display_order = models.PositiveIntegerField("並び順", default=0)
+    is_active = models.BooleanField(
+        "最初のリストに入れる",
+        default=True,
+        help_text="外すと、これから開く現場のリストに出なくなる（写し済みの現場の書類は残る）。",
+    )
+
+    history = HistoricalRecords()
+
+    class Meta:
+        verbose_name = "提出書類の最初のリスト"
+        verbose_name_plural = "提出書類の最初のリスト"
+        ordering = ["display_order", "pk"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["company", "name"], name="sites_document_template_unique_name",
+            ),
+        ]
+
+    def __str__(self):
+        return self.name
+
+
+class SiteDocument(TenantModel):
+    """現場ごとに提出する書類の1行。状況と提出日を持つ。"""
+
+    class Status(models.TextChoices):
+        NOT_STARTED = "not_started", "未作成"
+        PREPARED = "prepared", "作成済み"
+        SUBMITTED = "submitted", "提出済み"
+        NOT_REQUIRED = "not_required", "不要"
+
+    # 一覧の色分け。テンプレートに状況ごとの分岐を書かずに済むようモデル側に持つ
+    STATUS_BADGES = {
+        Status.NOT_STARTED: "badge-gray",
+        Status.PREPARED: "badge-orange",
+        Status.SUBMITTED: "badge-green",
+        Status.NOT_REQUIRED: "badge-gray",
+    }
+
+    site = models.ForeignKey(
+        Site, on_delete=models.CASCADE, related_name="documents", verbose_name="現場",
+    )
+    template = models.ForeignKey(
+        DocumentTemplate,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="site_documents",
+        verbose_name="最初のリストの書類",
+    )
+    name = models.CharField("書類名", max_length=200)
+    phase = models.CharField(
+        "時期", max_length=20, choices=DocumentPhase.choices, default=DocumentPhase.OTHER,
+    )
+    display_order = models.PositiveIntegerField("並び順", default=0)
+    is_custom = models.BooleanField(
+        "この現場で足した書類",
+        default=False,
+        help_text="足した書類は消せる。最初のリストの書類は消さず、状況を「不要」にする。",
+    )
+    status = models.CharField(
+        "状況", max_length=20, choices=Status.choices, default=Status.NOT_STARTED,
+    )
+    submitted_on = models.DateField("提出日", null=True, blank=True)
+    note = models.TextField("メモ", blank=True)
+
+    history = HistoricalRecords()
+
+    class Meta:
+        verbose_name = "提出書類"
+        verbose_name_plural = "提出書類"
+        ordering = ["display_order", "pk"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["site", "name"], name="sites_site_document_unique_name",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.site} - {self.name}"
+
+    @property
+    def status_badge(self) -> str:
+        return self.STATUS_BADGES.get(self.status, "badge-gray")
+
+
+def site_document_path(instance, filename):
+    """提出書類のファイルの保存先。会社・現場ごとのフォルダに、推測できない乱数の名前で置く。
+
+    元の名前は original_filename に残し、開くときにその名前で返す。
+    """
+    suffix = Path(filename).suffix.lower()[:10]
+    site_id = instance.document.site_id
+    return f"site_documents/{instance.company_id}/{site_id}/{uuid.uuid4().hex}{suffix}"
+
+
+class SiteDocumentFile(TenantModel):
+    """提出書類に置いたファイル（PDF・Excel）。差し替えても前の版を残す。"""
+
+    class Kind(models.TextChoices):
+        PDF = "pdf", "PDF"
+        EXCEL = "excel", "Excel"
+
+    document = models.ForeignKey(
+        SiteDocument, on_delete=models.CASCADE, related_name="files", verbose_name="書類",
+    )
+    file = models.FileField("ファイル", upload_to=site_document_path, max_length=255)
+    kind = models.CharField("種類", max_length=10, choices=Kind.choices)
+    original_filename = models.CharField("元のファイル名", max_length=255)
+    size = models.PositiveBigIntegerField("大きさ（バイト）", default=0)
+    note = models.CharField("メモ", max_length=200, blank=True)
+
+    history = HistoricalRecords()
+
+    class Meta:
+        verbose_name = "提出書類のファイル"
+        verbose_name_plural = "提出書類のファイル"
+        ordering = ["-created_at", "-pk"]
+
+    def __str__(self):
+        return f"{self.document} - {self.original_filename}"
+
+
+@receiver(post_delete, sender=SiteDocumentFile)
+def delete_site_document_file(sender, instance, **kwargs):
+    """ファイルを消したら、保存したファイルも消す（書類や現場ごと消したときも）。
+
+    作業員名簿など個人の情報を含む書類があるので、ファイルを残さない。
+    削除が取り消されたときにファイルだけ消えないよう、確定してから消す。
+    """
+    storage = instance.file.storage
+    name = instance.file.name
+    if name:
+        transaction.on_commit(lambda: storage.delete(name))
