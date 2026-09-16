@@ -654,11 +654,17 @@ def project_list(request):
     if q:
         projects = projects.filter(name__icontains=q)
 
+    # 一覧の上に、進行中の案件の日程を1案件1本で出す（ADR-0078）。
+    # 表の絞り込みには連動させない。ここは「いま動いている案件の締切」を
+    # 常に置いておく場所で、絞り込むたびに消えると用をなさないため。
+    from apps.estimation.services.gantt import get_projects_gantt_data
+
     return render(request, "estimation/project_list.html", {
         "projects": projects,
         "status": status,
         "q": q,
         "statuses": EstimationProject.Status.choices,
+        "gantt": get_projects_gantt_data(request.user.company),
     })
 
 
