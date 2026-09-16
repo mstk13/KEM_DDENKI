@@ -409,6 +409,7 @@ def plan_fill(request):
         month  … YYYY-MM
         target … "weekday"（平日）/ "all"（毎日）/ "0"〜"6"（月〜日曜）
         kind   … 埋める区分。空なら対象日の予定を消す
+        note   … 現場名・行先。区分が場所を訊くものでなければ無視する
         start_time, end_time … HH:MM。空なら所定どおり
         overwrite … "1" のとき既に入っている日も上書きする
                     （時間で分けてあった日も1件にまとめ直す）
@@ -453,6 +454,14 @@ def plan_fill(request):
         messages.error(request, "時刻が不正です")
         return redirect(back)
 
+    # 区分ごとに訊く項目を、マスの詳細ダイアログ・日シートと合わせる（KIND_FIELDS）。
+    # 時刻を持たない区分（出張・有休・休み）には時刻を入れない。
+    # 場所を訊かない区分（出社・在宅など）に現場名・行先を残さない。
+    spec = AttendPlan.KIND_FIELDS.get(kind, {})
+    if not spec.get("time"):
+        start_time = end_time = None
+    note = request.POST.get("note", "").strip()[:200] if spec.get("place") else ""
+
     overwrite = bool(request.POST.get("overwrite"))
     existing = defaultdict(list)
     for plan in AttendPlan.objects.filter(worker__in=workers, plan_date__in=days):
@@ -465,7 +474,7 @@ def plan_fill(request):
             if not plans:
                 AttendPlan.objects.create(
                     company=request.user.company, worker=worker, plan_date=day,
-                    kind=kind, start_time=start_time, end_time=end_time,
+                    kind=kind, start_time=start_time, end_time=end_time, note=note,
                     created_by=request.user,
                 )
                 filled += 1
@@ -474,8 +483,11 @@ def plan_fill(request):
                 first.kind = kind
                 first.start_time = start_time
                 first.end_time = end_time
+                first.note = note
                 first.save(
-                    update_fields=["kind", "start_time", "end_time", "updated_at"],
+                    update_fields=[
+                        "kind", "start_time", "end_time", "note", "updated_at",
+                    ],
                 )
                 # 時間で分けてあった日は1件にまとめ直す
                 for plan in rest:
@@ -483,7 +495,9 @@ def plan_fill(request):
                 filled += 1
 
     label = dict(AttendPlan.Kind.choices)[kind]
+    # 何を入れたかが分かるよう、現場名・行先も知らせに出す
+    detail = f"（{spec.get('place')}: {note}）" if note else ""
     messages.success(
-        request, f"{who}の{target_label} {filled} 件を「{label}」にしました",
+        request, f"{who}の{target_label} {filled} 件を「{label}」{detail}にしました",
     )
     return redirect(back)
