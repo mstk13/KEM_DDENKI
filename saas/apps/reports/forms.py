@@ -181,7 +181,8 @@ class DailyReportForm(forms.ModelForm):
             "end_time": forms.TimeInput(
                 format="%H:%M", attrs={"type": "time", "class": "form-control"},
             ),
-            "work_hours": forms.NumberInput(attrs={"class": "form-control", "step": "0.25"}),
+            # 0.01 刻み。0.25 刻みにすると 0.41 や自動計算の 7.58 をブラウザが受け付けない
+            "work_hours": forms.NumberInput(attrs={"class": "form-control", "step": "0.01"}),
             "work_description": forms.Textarea(attrs={"class": "form-control", "rows": 3}),
             "memo": forms.Textarea(attrs={"class": "form-control", "rows": 2}),
         }
@@ -336,7 +337,8 @@ class DailyReportForm(forms.ModelForm):
             self.fields[hours_name] = forms.DecimalField(
                 required=False, min_value=0, max_digits=5, decimal_places=2,
                 widget=forms.NumberInput(attrs={
-                    "class": "form-control", "step": "0.25", "placeholder": "時間",
+                    # 0.01 刻み（0.25 刻みだと 0.41 のような時間を入れられない）
+                    "class": "form-control", "step": "0.01", "placeholder": "時間",
                 }),
             )
             row = {
