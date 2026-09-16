@@ -20,7 +20,7 @@
       <div class="form-row">
         <div class="form-group">
           <label for="id_target_date">目標日</label>
-          <input type="date" name="target_date" id="id_target_date" class="form-control" value="{{ form.target_date.value|default:'' }}">
+          {{ form.target_date }}
         </div>
         <div class="form-group">
           <label for="id_completed">完了</label>
