@@ -6,14 +6,19 @@ from pathlib import Path
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db.models import Q
-from django.http import JsonResponse
+from django.http import Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.views.decorators.http import require_POST
 
 from apps.bids.forms import (
     BidCostForm,
+    BidDatesForm,
+    BidOutlineForm,
     BidProjectForm,
+    BidQualificationForm,
+    BidRequirementsForm,
+    BidScheduleForm,
     ConstructionLicenseForm,
     QualificationForm,
     UnifiedQualificationForm,
@@ -158,9 +163,37 @@ def project_list(request):
     })
 
 
+# 公告の読み取りを直す欄（ADR-0073）。詳細画面の「直す」から開く。
+# 直した項目には「人が直した」印が付き、公告を取り直しても書き換えない。
+CORRECTION_FORMS = {
+    "outline": (BidOutlineForm, "工事概要"),
+    "requirements": (BidRequirementsForm, "参加要件"),
+    "qualification": (BidQualificationForm, "参加資格の判定に使う項目"),
+    "dates": (BidDatesForm, "公告日・入札期限・開札日"),
+    "schedule": (BidScheduleForm, "重要日程"),
+}
+
+
+def build_correction_form(project, section, data=None):
+    """欄の名前から、その欄を直すフォームを作る。知らない名前なら None。"""
+    entry = CORRECTION_FORMS.get(section)
+    if entry is None:
+        return None
+    form_class = entry[0]
+    if form_class is BidScheduleForm:
+        return form_class(data, project=project)
+    return form_class(data, instance=project)
+
+
 @login_required
-def project_detail(request, pk):
+def project_detail(request, pk, correction_form=None, edit_section=""):
+    """案件の詳細。?edit=<欄> で、公告の読み取りを直す欄を開く（ADR-0073）。"""
     project = get_object_or_404(BidProject, pk=pk)
+    if correction_form is None:
+        edit_section = request.GET.get("edit", "")
+        correction_form = build_correction_form(project, edit_section)
+        if correction_form is None:
+            edit_section = ""
     cost = getattr(project, "cost", None)
     competitors = project.competitors.all()
     qual_check = check_qualifications_for_projects(
@@ -180,7 +213,121 @@ def project_detail(request, pk):
         "gantt_json": json_for_script(gantt["tasks"]),
         "kind_choices": BidScheduleRule.Kind.choices,
         "has_overrides": bool(project.schedule_overrides),
+        "edit_section": edit_section,
+        "correction_form": correction_form,
+        "corrected_fields": project.corrected_fields or [],
     })
+
+
+@login_required
+@require_POST
+def project_correct(request, pk, section):
+    """公告から読んだ内容を、欄ごとに直す（ADR-0073）。
+
+    直した項目には「人が直した」印が付き、公告を取り直しても書き換えない。
+    """
+    project = get_object_or_404(BidProject, pk=pk)
+    form = build_correction_form(project, section, request.POST)
+    if form is None:
+        raise Http404("その欄は直せません。")
+    if not form.is_valid():
+        return project_detail(request, pk, correction_form=form, edit_section=section)
+    form.save()
+    label = CORRECTION_FORMS[section][1]
+    messages.success(
+        request, f"{label}を直しました。公告を取り直しても、この内容は書き換えません。",
+    )
+    return redirect("bids:project_detail", pk=project.pk)
+
+
+@login_required
+@require_POST
+def project_reread(request, pk):
+    """公告PDFを AI に読み直させ、直す候補として画面に出す（ADR-0073）。
+
+    ここでは保存しない。人が見て「これで直す」を押した項目だけを入れる。
+    """
+    from apps.bids.announcement import fetch_document
+    from apps.bids.announcement_llm import extract_with_llm, is_available
+    from apps.bids.services import announcement_candidates
+
+    project = get_object_or_404(BidProject, pk=pk)
+    if not is_available():
+        messages.error(
+            request,
+            "AI での読み直しは今は使えません（API キーが未設定か、月の上限に達しています）。",
+        )
+        return redirect("bids:project_detail", pk=project.pk)
+
+    candidates = announcement_candidates(project)
+    result = None
+    used_url = ""
+    for url in candidates:
+        data = fetch_document(url)
+        if not data:
+            continue
+        result = extract_with_llm(data, company=project.company, user=request.user)
+        if result and (result["work_outline"] or result["requirements"]):
+            used_url = url
+            break
+        result = None
+
+    if result is None:
+        messages.error(
+            request, "公告を読み直せませんでした（読める公開文書が見つかりませんでした）。",
+        )
+        return redirect("bids:project_detail", pk=project.pk)
+
+    labels = {
+        "work_outline": "工事概要",
+        "requirements": "参加要件",
+        "required_grades": "必要等級",
+        "required_score": "必要点数",
+    }
+    proposal = {name: result[name] for name in labels}
+    rows = [
+        {"name": name, "label": labels[name], "value": value, "current": getattr(project, name)}
+        for name, value in proposal.items() if value not in (None, "")
+    ]
+    return render(request, "bids/project_reread.html", {
+        "project": project,
+        "rows": rows,
+        "proposal_json": json.dumps(proposal, ensure_ascii=False),
+        "used_url": used_url,
+    })
+
+
+@login_required
+@require_POST
+def project_reread_apply(request, pk):
+    """AI が読み直した内容のうち、選ばれた項目だけを入れる（ADR-0073）。"""
+    project = get_object_or_404(BidProject, pk=pk)
+    try:
+        proposal = json.loads(request.POST.get("proposal", "{}"))
+    except ValueError:
+        proposal = {}
+    if not isinstance(proposal, dict):
+        proposal = {}
+
+    changed = []
+    for name in request.POST.getlist("apply"):
+        if name not in proposal:
+            continue
+        value = proposal[name]
+        if value in (None, ""):
+            continue
+        setattr(project, name, value)
+        changed.append(name)
+
+    if not changed:
+        messages.info(request, "入れる項目が選ばれていません。")
+        return redirect("bids:project_detail", pk=project.pk)
+
+    # 人が見て選んだ内容なので、手直しと同じ扱いにする（取り直しで書き換えない）
+    project.mark_corrected(changed)
+    project.save(update_fields=[*changed, "corrected_fields", "updated_at"])
+    messages.success(request, f"AI の読み直しから {len(changed)} 項目を入れました。")
+    return redirect("bids:project_detail", pk=project.pk)
 
 
 @login_required

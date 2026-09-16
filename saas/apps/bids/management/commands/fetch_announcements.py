@@ -39,11 +39,15 @@ class Command(BaseCommand):
         projects = list(qs)
         if options["force"]:
             for project in projects:
-                project.work_outline = ""
-                project.requirements = ""
+                # 人が直した項目は消さない（ADR-0073）。直した中身を取り直しで失わないため
+                if not project.is_corrected("work_outline"):
+                    project.work_outline = ""
+                if not project.is_corrected("requirements"):
+                    project.requirements = ""
                 # 別表の読み取りを直したときに古い日程が残らないようにする。
                 # fill_announcement は空のときしか書かないため、ここで消しておく。
-                project.bid_schedule = []
+                if not project.is_corrected("bid_schedule"):
+                    project.bid_schedule = []
 
         self.stdout.write(f"対象 {len(projects)} 件")
         filled = fill_announcements(projects, limit=options["limit"])

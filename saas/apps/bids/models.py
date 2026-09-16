@@ -181,12 +181,28 @@ class BidProject(TenantModel):
     # 時刻（正午必着など）は公告から読んだ値をそのまま使う。
     # bid_schedule を上書きせず別に持つのは、公告を取り直しても
     # 手直しが消えないようにするため。
+    # 人が画面で直した項目の名前（ADR-0073）。公告を取り直しても、ここに載っている項目は
+    # 書き換えない。「読み取りが違っていたので直した」を、取り直しのたびに消さないため。
+    corrected_fields = models.JSONField("手で直した項目", default=list, blank=True)
+
     schedule_overrides = models.JSONField(
         "手続きの扱い（案件別）", default=dict, blank=True,
         help_text="ガントチャート上で変更した項目の扱いと日付",
     )
 
     history = HistoricalRecords()
+
+    def is_corrected(self, name: str) -> bool:
+        """その項目を人が直したか（公告の取り直しで書き換えない項目か）。"""
+        return name in (self.corrected_fields or [])
+
+    def mark_corrected(self, names) -> list[str]:
+        """人が直した項目として印を付ける。付け足した名前を返す。"""
+        current = list(self.corrected_fields or [])
+        added = [name for name in names if name and name not in current]
+        if added:
+            self.corrected_fields = [*current, *added]
+        return added
 
     class Meta:
         verbose_name = "入札案件"

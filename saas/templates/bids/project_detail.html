@@ -30,7 +30,15 @@
 
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
   <div class="card">
-    <div class="card-header"><h2>案件情報</h2></div>
+    <div class="card-header" id="dates" style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+      <h2>案件情報</h2>
+      <a href="?edit=dates#dates" class="btn btn-outline btn-xs">日付を直す</a>
+    </div>
+    {% if edit_section == "dates" %}
+    <div class="card-body">
+      {% include "bids/_correction_form.html" with section="dates" %}
+    </div>
+    {% endif %}
     <dl class="detail-grid">
       <dt>工事名称</dt><dd>{{ project.title }}</dd>
       <dt>発注機関</dt><dd>{{ project.client|default:"-" }}</dd>
@@ -59,7 +67,15 @@
   </div>
 
   <div class="card">
-    <div class="card-header"><h2>参加資格判定</h2></div>
+    <div class="card-header" id="qualification" style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+      <h2>参加資格判定</h2>
+      <a href="?edit=qualification#qualification" class="btn btn-outline btn-xs">読み取りを直す</a>
+    </div>
+    {% if edit_section == "qualification" %}
+    <div class="card-body">
+      {% include "bids/_correction_form.html" with section="qualification" %}
+    </div>
+    {% endif %}
     <dl class="detail-grid">
       <dt>判定結果</dt>
       <dd>
@@ -180,10 +196,11 @@
   </div>
 </div>
 
-<div class="card" style="margin-top:20px;">
+<div class="card" style="margin-top:20px;" id="schedule">
   <div class="card-header">
     <h2>重要日程と手続きの扱い</h2>
     <span style="display:flex;gap:8px;align-items:center;">
+      <a href="?edit=schedule#schedule" class="btn btn-outline btn-sm">日程を直す</a>
       <a href="{% url 'bids:schedule_rule_list' %}" class="btn btn-outline btn-sm">
         会社の既定を編集
       </a>
@@ -194,6 +211,11 @@
       {% endif %}
     </span>
   </div>
+  {% if edit_section == "schedule" %}
+  <div class="card-body">
+    {% include "bids/_correction_form.html" with section="schedule" %}
+  </div>
+  {% endif %}
   <form id="bid-schedule-form" onsubmit="return false;">
     {% csrf_token %}
     <div class="table-wrap">
@@ -313,26 +335,38 @@
 </div>
 
 <div class="card" style="margin-top:20px;">
-  <div class="card-header"><h2>工事概要</h2></div>
+  <div class="card-header" id="outline" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+    <h2>工事概要</h2>
+    <span style="display:flex;gap:6px;align-items:center;"><form method="post" action="{% url 'bids:project_reread' project.pk %}" style="display:inline;">{% csrf_token %}<button type="submit" class="btn btn-outline btn-xs">AI で読み直す</button></form><a href="?edit=outline#outline" class="btn btn-outline btn-xs">直す</a></span>
+  </div>
   <div class="card-body">
-    {% if project.work_outline %}
+    {% if edit_section == "outline" %}
+    {% include "bids/_correction_form.html" with section="outline" %}
+    {% elif project.work_outline %}
+    {% if "work_outline" in corrected_fields %}<p style="margin:0 0 8px;"><span class="badge badge-blue">手直しあり</span></p>{% endif %}
     {{ project.work_outline|structured_text }}
     {% else %}
     <div style="color:var(--gray-400);text-align:center;padding:20px;">
-      未入力です。編集画面から公告・仕様書の内容を転記してください。
+      未入力です。「直す」から公告・仕様書の内容を転記するか、「AI で読み直す」を押してください。
     </div>
     {% endif %}
   </div>
 </div>
 
 <div class="card" style="margin-top:20px;">
-  <div class="card-header"><h2>参加要件</h2></div>
+  <div class="card-header" id="requirements" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+    <h2>参加要件</h2>
+    <span style="display:flex;gap:6px;align-items:center;"><a href="?edit=requirements#requirements" class="btn btn-outline btn-xs">直す</a></span>
+  </div>
   <div class="card-body">
-    {% if project.requirements or qual_check.eligible == False %}
+    {% if edit_section == "requirements" %}
+    {% include "bids/_correction_form.html" with section="requirements" %}
+    {% elif project.requirements or qual_check.eligible == False %}
+    {% if "requirements" in corrected_fields %}<p style="margin:0 0 8px;"><span class="badge badge-blue">手直しあり</span></p>{% endif %}
     {% requirements_with_shortfall project.requirements qual_check %}
     {% else %}
     <div style="color:var(--gray-400);text-align:center;padding:20px;">
-      未入力です。公告の入札参加資格・実績要件・配置技術者の条件を転記してください。
+      未入力です。「直す」から公告の入札参加資格・実績要件・配置技術者の条件を転記してください。
     </div>
     {% endif %}
   </div>

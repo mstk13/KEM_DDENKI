@@ -1,0 +1,46 @@
+{% comment %}
+公告の読み取りを直す小さなフォーム（ADR-0073）。詳細画面の欄の中に出す。
+コンテキスト: correction_form … 直す欄のフォーム、project、section … 欄の名前
+{% endcomment %}
+<form method="post" action="{% url 'bids:project_correct' project.pk section %}">
+  {% csrf_token %}
+  {{ correction_form.non_field_errors }}
+  {% if correction_form.row_count %}
+  {# 重要日程は行ごとに 項目名・日時・補足 を直す #}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>項目名</th><th style="width:210px;">日時</th><th>補足</th></tr>
+      </thead>
+      <tbody>
+        {% for row in correction_form.rows %}
+        <tr>
+          <td>{{ row.label }}{{ row.label.errors }}</td>
+          <td>{{ row.datetime }}{{ row.datetime.errors }}</td>
+          <td>{{ row.detail }}{{ row.detail.errors }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p style="margin:8px 0 0;font-size:.82rem;color:var(--text-secondary);">
+    項目名を空にすると、その行は消えます。空の行に入れると足せます。
+  </p>
+  {% else %}
+  {% for field in correction_form %}
+  <div class="form-group">
+    <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+    {{ field }}
+    {% if field.help_text %}<small style="color:var(--text-secondary);">{{ field.help_text }}</small>{% endif %}
+    {{ field.errors }}
+  </div>
+  {% endfor %}
+  {% endif %}
+  <div class="form-actions">
+    <button type="submit" class="btn btn-primary btn-sm">直す</button>
+    <a href="{% url 'bids:project_detail' project.pk %}" class="btn btn-outline btn-sm">やめる</a>
+  </div>
+  <p style="margin:8px 0 0;font-size:.82rem;color:var(--text-secondary);">
+    直した項目は「手直し」として残り、公告を取り直しても書き換えません。
+  </p>
+</form>
