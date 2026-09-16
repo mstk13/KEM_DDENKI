@@ -2,7 +2,8 @@
 
 データ移送（workers/0018・0019）でも登録・入れ替えをしている。作業員が見つからなかった人を
 確かめたり、作業員の氏名を直したあとに登録し直したりするときに使う。
-一覧に無い資格のうち、この一覧から登録したものは消す（手で登録した資格は残す）。
+一覧に載っている作業員の資格は、この一覧のものだけにする。一覧に無い資格は消す。
+原本の写真が添付されている資格は消さずに残す。
 
 使い方:
     python manage.py register_listed_qualifications            # 確認だけ（何も変えない）
@@ -61,6 +62,10 @@ class Command(BaseCommand):
             )
             for worker_name, name in report["removed"]:
                 write(f"- {worker_name}: {name}")
+        if report["kept"]:
+            write(f"■ 写真が付いているので残した資格 {len(report['kept'])} 件")
+            for worker_name, name in report["kept"]:
+                write(f"- {worker_name}: {name}")
         if report["missing"]:
             write(
                 f"■ 作業員が見つからない氏名 {len(report['missing'])} 人"
@@ -68,6 +73,14 @@ class Command(BaseCommand):
             )
             for name in report["missing"]:
                 write(f"- {name}")
+            registered = list(
+                Worker.objects.filter(company=company, is_active=True)
+                .order_by("employee_code", "pk")
+                .values_list("employee_code", "name")
+            )
+            write(f"■ 登録されている在籍中の作業員 {len(registered)} 人（氏名の書き方の確認用）")
+            for code, name in registered:
+                write(f"- {code or '（社員番号なし）'} {name}")
         if report["ambiguous"]:
             write(
                 f"■ 同じ氏名の作業員が複数いる {len(report['ambiguous'])} 人（登録していません）"

@@ -12,8 +12,9 @@
 
 作業員は氏名で探す。空白の有無と、髙→高・榮→栄・釼→剣 のような字の違いは同じとみなす。
 同じ作業員に同じ資格名が既にあれば登録しない（何度流しても増えない）。
-このファイルから登録した資格のうち、一覧に無くなったものは消す（前に別の表記で登録したものを含む）。
-手で登録した資格（備考が違う）は消さない。
+一覧に載っている作業員の資格は、この一覧のものだけにする。一覧に無い資格は消す
+（前に別の表記で登録したものや、手で登録したものを含む）。
+ただし原本の写真が添付されている資格は消さず、報告に残す。
 
 データ移送（workers/0018・0019）と管理コマンド register_listed_qualifications の両方から使う。
 データ移送からは履歴モデルを渡すので、モデルは引数で受け取り、
@@ -22,7 +23,7 @@
 
 SOURCE = "資格保有一覧.xls（2026/9/15）"
 NOTE = f"{SOURCE}から登録。原本の写真は未添付"
-# 前に PDF の「資格保有状況一覧」から登録したときの備考。入れ替えのときに消す目印にする
+# 前に PDF の「資格保有状況一覧」から登録したときの備考（テストで使う）
 PREVIOUS_NOTES = ("資格保有状況一覧（2026/9/15）から登録。原本の写真は未添付",)
 COMPANY_NAME = "ケンモチ電機"
 
@@ -175,26 +176,25 @@ def find_company(Company):
     return companies[0] if len(companies) == 1 else None
 
 
-def _our_notes():
-    return (NOTE, *PREVIOUS_NOTES)
-
-
 def register_listed_qualifications(company, Worker, WorkerQualification, *, apply=True):
-    """一覧の資格を作業員ごとに登録し、一覧に無くなった資格を消す。
+    """一覧の資格を作業員ごとに登録し、一覧に無い資格を消す。
 
-    消すのはこの一覧から登録した資格だけ（備考が一致するもの）。
-    手で登録した資格や、写真を添えた別の資格はそのまま残す。
+    一覧に載っている作業員の資格は、この一覧のものだけにする。
+    原本の写真が添付されている資格は消さずに残し、報告（kept）に入れる。
 
     Returns:
         {
             "created": [(作業員名, 資格名)],   … 登録した（apply=False なら登録する予定）
             "existing": [(作業員名, 資格名)],  … 既に同じ資格名があるので何もしない
             "removed": [(作業員名, 資格名)],   … 一覧に無いので消した（予定）
+            "kept": [(作業員名, 資格名)],      … 一覧に無いが写真が付いているので残した
             "missing": [一覧の氏名],            … 作業員が見つからない
             "ambiguous": [一覧の氏名],          … 同じ氏名の在籍中の作業員が複数いる
         }
     """
-    report = {"created": [], "existing": [], "removed": [], "missing": [], "ambiguous": []}
+    report = {
+        "created": [], "existing": [], "removed": [], "kept": [], "missing": [], "ambiguous": [],
+    }
     if company is None:
         report["missing"] = list(HOLDERS)
         return report
@@ -221,11 +221,14 @@ def register_listed_qualifications(company, Worker, WorkerQualification, *, appl
             if qual.name in wanted:
                 held.add(qual.name)
                 continue
-            if qual.note in _our_notes():
-                # この一覧から登録したが、一覧に無くなった資格（表記を直した分を含む）
-                report["removed"].append((worker.name, qual.name))
-                if apply:
-                    qual.delete()
+            if qual.certificate_image:
+                # 原本の写真が付いている資格は消さない（写真ごと消えてしまうため）
+                report["kept"].append((worker.name, qual.name))
+                continue
+            # 一覧に無い資格は消す（前の表記で登録したものや、手で登録したものを含む）
+            report["removed"].append((worker.name, qual.name))
+            if apply:
+                qual.delete()
         for name in names:
             if name in held:
                 report["existing"].append((worker.name, name))
