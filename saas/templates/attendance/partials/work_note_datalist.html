@@ -1,0 +1,10 @@
+{% comment %}
+出社・在宅・半休の「作業内容」に出す候補（これまでに入れた内容）。ADR-0070。
+入力欄に list="attend-work-notes" を付けると候補が出る。<datalist> は候補を出すだけで、
+候補にない内容もそのまま入力・保存できる。
+
+コンテキスト: work_notes … attendance.plans.work_note_suggestions の結果
+{% endcomment %}
+<datalist id="attend-work-notes">
+  {% for note in work_notes %}<option value="{{ note }}"></option>{% endfor %}
+</datalist>
