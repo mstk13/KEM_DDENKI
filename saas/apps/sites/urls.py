@@ -7,6 +7,8 @@ app_name = "sites"
 urlpatterns = [
     path("", views.site_list, name="list"),
     path("new/", views.site_create, name="create"),
+    # 現場名の重複に入力の途中で気づくための候補（ADR-0077）
+    path("name-suggestions/", views.site_name_suggestions, name="name_suggestions"),
     path("import/", views.site_import, name="import"),
     path("<int:pk>/", views.site_detail, name="detail"),
     path("<int:pk>/estimate-import/", views.site_estimate_import, name="estimate_import"),

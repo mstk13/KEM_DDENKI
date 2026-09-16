@@ -157,19 +157,16 @@ def _after_save(obj, field):
     """項目を直したあとに、状態から決まる後始末をする。
 
     入札案件の状態を「積算中」にすると、その案件は入札案件一覧の既定の
-    絞り込みから外れる（ADR-0076）。「積算開始」ボタンを押したときと同じく
-    積算案件を用意しておかないと、一覧から消えたのに引っ越し先が無い、
-    という迷子の案件ができる。
+    絞り込みから外れる（ADR-0076）。積算案件を用意しておかないと、
+    一覧から消えたのに引っ越し先が無い、という迷子の案件ができる。
 
-    start_estimation は何度呼んでも現場・積算案件をそれぞれ1つしか作らないので、
-    ボタン経由で既に引っ越し済みの案件をここで直しても増えない。
+    判断と後始末は bids.services.sync_estimation_move に持たせてある。
+    編集画面のフォームも同じ関数を通すので、経路で挙動が食い違わない。
     """
     from apps.bids.models import BidProject
 
     if not isinstance(obj, BidProject) or field.name != "status":
         return
-    if obj.status != BidProject.Status.ESTIMATING:
-        return
 
-    from apps.bids.services import start_estimation
-    start_estimation(obj, created_by=obj.created_by)
+    from apps.bids.services import sync_estimation_move
+    sync_estimation_move(obj, created_by=obj.created_by)

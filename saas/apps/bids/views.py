@@ -32,7 +32,12 @@ from apps.bids.models import (
     UnitPrice,
 )
 from apps.bids.qualification import check_qualifications_for_projects
-from apps.bids.services import get_dashboard_stats, mark_as_won, start_estimation
+from apps.bids.services import (
+    get_dashboard_stats,
+    mark_as_won,
+    start_estimation,
+    sync_estimation_move,
+)
 from apps.core.json_utils import json_for_script
 
 
@@ -226,6 +231,14 @@ def project_create(request):
             cost.company = request.user.company
             cost.created_by = request.user
             cost.save()
+            # 登録時に状態を「積算中」で入れたときも積算案件へ引っ越す（ADR-0076）
+            if sync_estimation_move(project, created_by=request.user):
+                est = project.estimation_projects.order_by("pk").first()
+                if est is not None:
+                    messages.success(
+                        request, f"「{project.title}」を積算案件として登録しました。",
+                    )
+                    return redirect("estimation:project_detail", pk=est.pk)
             return redirect("bids:project_detail", pk=project.pk)
     else:
         form = BidProjectForm()
@@ -251,6 +264,17 @@ def project_edit(request, pk):
             if not cost_obj.pk:
                 cost_obj.created_by = request.user
             cost_obj.save()
+            # 編集画面で状態を「積算中」にしたときも積算案件へ引っ越す（ADR-0076）
+            if sync_estimation_move(project, created_by=request.user):
+                est = project.estimation_projects.order_by("pk").first()
+                if est is not None:
+                    messages.success(
+                        request,
+                        f"「{project.title}」を積算案件に移しました。"
+                        "入札案件一覧からは見えなくなります"
+                        "（絞り込みで「積算中」を選ぶと出ます）。",
+                    )
+                    return redirect("estimation:project_detail", pk=est.pk)
             return redirect("bids:project_detail", pk=project.pk)
     else:
         form = BidProjectForm(instance=project)
