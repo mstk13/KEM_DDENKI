@@ -9,6 +9,7 @@
 - 以上が他社のデータに触れない（テナント越境）
 """
 import datetime
+import json
 from decimal import Decimal
 
 import pytest
@@ -56,6 +57,18 @@ def _bid(company, **kwargs):
     }
     fields.update(kwargs)
     return BidProject.unscoped.create(company=company, **fields)
+
+
+def _inline_edit(client, obj, field, value):
+    """一覧のインライン編集（ADR-0074）を叩く。ビューは JSON を受ける。"""
+    return client.post(
+        "/bids/inline-edit/",
+        data=json.dumps({
+            "model": "bids.BidProject", "pk": obj.pk,
+            "field": field, "value": value,
+        }),
+        content_type="application/json",
+    )
 
 
 @pytest.mark.django_db
@@ -165,6 +178,46 @@ class TestBidListHidesMovedProjects:
 
         assert res.status_code == 200
         assert bid.title in res.content.decode()
+
+
+@pytest.mark.django_db
+class TestInlineEditMovesToo:
+    """一覧のインライン編集（ADR-0074）で状態を直したときも引っ越す。
+
+    直しただけで積算案件ができないと、一覧から消えたのに引っ越し先が無い
+    迷子の案件ができる。
+    """
+
+    def test_一覧で積算中に直すと積算案件ができる(self, client, company_a, user_a):
+        bid = _bid(company_a)
+        client.force_login(user_a)
+
+        res = _inline_edit(client, bid, "status", "estimating")
+
+        bid.refresh_from_db()
+        assert res.status_code == 200
+        assert bid.status == BidProject.Status.ESTIMATING
+        est = EstimationProject.unscoped.get(company=company_a, bid_project=bid)
+        assert est.status == EstimationProject.Status.ESTIMATING
+        assert est.phases.count() == 3
+
+    def test_引っ越し済みの案件を直しても増えない(self, client, company_a, user_a):
+        bid = _bid(company_a)
+        start_estimation(bid, created_by=user_a)
+        client.force_login(user_a)
+
+        _inline_edit(client, bid, "status", "estimating")
+
+        assert EstimationProject.unscoped.filter(company=company_a).count() == 1
+        assert Site.unscoped.filter(company=company_a).count() == 1
+
+    def test_別の状態に直したときは積算案件を作らない(self, client, company_a, user_a):
+        bid = _bid(company_a)
+        client.force_login(user_a)
+
+        _inline_edit(client, bid, "status", "considering")
+
+        assert not EstimationProject.unscoped.filter(company=company_a).exists()
 
 
 @pytest.mark.django_db

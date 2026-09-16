@@ -71,6 +71,11 @@
 
 入札ダッシュボードの受注率は、決定5の書き戻しで保たれるため変更しない。
 
+**一覧のインライン編集（ADR-0074）で状態を「積算中」に直したときも引っ越す。**
+ボタンを押さずに状態だけ直せてしまうと、一覧から消えたのに引っ越し先が無い
+迷子の案件ができる。`start_estimation` は何度呼んでも現場・積算案件を
+1つしか作らないので、引っ越し済みの案件を直しても増えない。
+
 ### 2. 積算開始で積算案件を作る
 
 `bids.services.start_estimation()` が、積算中の現場に加えて
@@ -177,3 +182,12 @@
   受注・失注・差額計算・画面操作、およびテナント越境（他社の積算案件を開けない、
   工程・競合を足せない、受注にできない）
 - `tests/test_notifications_alert_filters.py` の期待値を更新（積算中も期限アラートの対象）
+
+### 既知の問題（このPRとは無関係）
+
+`developer` の時点で以下の3件が落ちている。参加要件の不足理由を出す位置の
+アサーションで、このPRの変更前から同じ結果になることを確認済み。
+
+- `tests/test_license_requirement_check.py::TestProjectDetail::test_判定結果と参加要件の該当項目に理由を出す`
+- `tests/test_bids_eligible_scrape.py::TestProjectDetailShortfall::test_grade_shortfall_is_placed_on_grade_item`
+- `tests/test_bids_eligible_scrape.py::TestProjectDetailShortfall::test_category_shortfall_is_placed_on_qualification_item`
