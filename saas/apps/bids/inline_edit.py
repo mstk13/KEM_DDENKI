@@ -20,7 +20,7 @@ EDITABLE = {
         "announced_on", "opening_on", "deadline", "source_url",
         "required_issuer_type", "required_category", "required_grade",
         "required_grades", "required_score",
-        "work_outline", "requirements", "notes",
+        "summary", "work_outline", "requirements", "notes",
     ],
     "bids.Qualification": [
         "issuer", "category", "grade", "keisin_score", "total_score",
@@ -35,6 +35,8 @@ EDITABLE = {
         "services_grade", "services_score", "services_items",
         "purchase_grade", "purchase_score",
     ],
+    "bids.BidCost": ["estimate_amount", "actual_cost", "memo"],
+    "bids.BidCompetitor": ["competitor_name", "competitor_amount", "source", "memo"],
     "bids.UnitPrice": ["category", "item_name", "unit", "unit_price", "memo"],
     "bids.ScrapeTarget": [
         "name", "url", "region", "prefecture", "keyword", "koji_gyosyu",

@@ -30,7 +30,10 @@
       });
     } else if (type === 'textarea') {
       input = document.createElement('textarea');
-      input.rows = Math.min(10, Math.max(3, value.split('\n').length + 1));
+      var lines = value.split('\n').length + 1;
+      input.rows = span.dataset.block === '1'
+        ? Math.min(24, Math.max(8, lines))
+        : Math.min(10, Math.max(3, lines));
       input.value = value;
     } else {
       input = document.createElement('input');
@@ -42,6 +45,7 @@
       input.value = value;
     }
     input.className = 'inline-edit-input form-control';
+    if (span.dataset.block === '1') input.classList.add('inline-edit-block-input');
     return input;
   }
 
@@ -96,6 +100,8 @@
       }).then(function (data) {
         span.dataset.editing = '';
         if (data.ok) {
+          // 判定結果や図が一緒に変わる欄は、画面を読み直して出し直す
+          if (span.dataset.reload === '1') { window.location.reload(); return; }
           span.textContent = data.display;
           span.dataset.value = data.value;
           span.classList.add('inline-edit-saved');

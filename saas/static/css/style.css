@@ -1184,4 +1184,12 @@ svg.gantt .bar-wrapper .bar-label.big {
 .inline-edit-input { display: inline-block; width: auto; min-width: 140px; max-width: 100%; padding: 2px 6px; font-size: inherit; }
 textarea.inline-edit-input { width: 100%; min-width: 260px; }
 .inline-edit-saved { background: #ecfdf5; transition: background .3s; }
+.inline-edit-saving { color: var(--text-muted, #6b7280); }
+/* 長い文（工事概要など）の「直す」ボタンと、その入力欄 */
+.inline-edit-trigger { border-bottom: none; font-size: .8rem; color: var(--primary, #1e3a8a); padding: 2px 8px; border: 1px solid var(--border-light, #d7dce3); border-radius: 4px; background: var(--surface, #fff); }
+.inline-edit-trigger:hover { background: var(--surface-hover, #f3f5f9); }
+.inline-edit-block-input { display: block; width: 100%; min-width: 0; font-size: .9rem; }
+/* 重要日程の表で、日付をタップして直す */
+.schedule-edit { cursor: pointer; border-bottom: 1px dashed var(--border-light, #d7dce3); }
+.schedule-edit:hover { background: var(--surface-hover, #f3f5f9); }
 .inline-edit-error { color: var(--danger, #dc2626); font-size: .8rem; margin-top: 2px; }
