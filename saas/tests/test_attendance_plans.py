@@ -27,6 +27,7 @@ from apps.attendance.plans import (
     parse_date,
     parse_month,
     shift_month,
+    work_note_suggestions,
 )
 from apps.workers.models import Worker
 
@@ -786,11 +787,17 @@ class TestKindFields:
             assert AttendPlan.KIND_FIELDS[kind]["place"] == "現場名"
             assert AttendPlan.KIND_FIELDS[kind]["time"] is True
 
-    def test_出社と在宅は時刻だけ訊く(self):
+    def test_出社と在宅は時刻と作業内容を訊く(self):
+        """現場へ出ない働く区分は「何を行うか」を入れる（ADR-0070）。"""
         for kind in ("office", "remote"):
             assert AttendPlan.KIND_FIELDS[kind]["time"] is True
-            assert AttendPlan.KIND_FIELDS[kind]["place"] == ""
+            assert AttendPlan.KIND_FIELDS[kind]["place"] == "作業内容"
             assert AttendPlan.KIND_FIELDS[kind]["span"] is False
+
+    def test_休みの区分は何も訊かない(self):
+        for kind in ("paid", "off"):
+            assert AttendPlan.KIND_FIELDS[kind]["place"] == ""
+            assert AttendPlan.KIND_FIELDS[kind]["suggest"] == ""
 
     def test_出張だけ行先と期間を訊く(self):
         spec = AttendPlan.KIND_FIELDS["trip"]
@@ -1184,10 +1191,11 @@ class TestPlanFillDetails:
         assert plan.end_time is None
 
     def test_場所を訊かない区分には残さない(self, client, company_a, user_a):
+        """有休・休みは何も訊かないので、送られてきても保存しない（ADR-0069・0070）。"""
         worker = self._worker(company_a)
         client.force_login(user_a)
 
-        self._fill(client, worker, kind="office", note="本社")
+        self._fill(client, worker, kind="paid", note="本社")
 
         assert {p.note for p in AttendPlan.unscoped.filter(worker=worker)} == {""}
 
@@ -1224,4 +1232,93 @@ class TestPlanFillDetails:
         assert 'id="plan-fill-place-row"' in html
         # 現場名の候補（ADR-0037）は、まとめて記入の欄でも使う
         assert 'id="plan-fill-note"' in html
-        assert 'list="attend-site-names"' in html
+        # 候補は区分で変わるので、list は画面の JavaScript が付け替える（ADR-0070）
+        assert '<datalist id="attend-site-names">' in html
+        assert "applySuggest(fillNote, spec);" in html
+
+
+@pytest.mark.django_db
+class TestOfficeTask:
+    """出社・在宅・半休は「作業内容」を入れられる（ADR-0070）。
+
+    現場名・行先と同じ note に入り、候補はこれまでに入れた内容から出す。
+    """
+
+    def _worker(self, company, name="田中太郎", code="E001"):
+        return Worker.unscoped.create(
+            company=company, name=name, employee_code=code, hourly_cost=3000,
+        )
+
+    @pytest.mark.parametrize(
+        ("kind", "label", "suggest"),
+        [
+            ("office", "作業内容", "notes"),
+            ("remote", "作業内容", "notes"),
+            ("half", "作業内容", "notes"),
+            ("site", "現場名", "sites"),
+            ("trip", "行先", "sites"),
+            ("paid", "", ""),
+        ],
+    )
+    def test_区分ごとに訊く項目が決まっている(self, kind, label, suggest):
+        spec = AttendPlan.KIND_FIELDS[kind]
+
+        assert spec["place"] == label
+        assert spec["suggest"] == suggest
+
+    def test_まとめて記入で作業内容が入る(self, client, company_a, user_a):
+        worker = self._worker(company_a)
+        client.force_login(user_a)
+
+        client.post("/attendance/plans/fill/", {
+            "worker": worker.pk, "month": "2026-09", "target": "1",
+            "kind": "office", "note": "事務作業",
+        })
+
+        plans = AttendPlan.unscoped.filter(worker=worker)
+        assert plans.count() == 5
+        assert {p.note for p in plans} == {"事務作業"}
+
+    def test_マスの詳細でも作業内容が入る(self, client, company_a, user_a):
+        worker = self._worker(company_a)
+        client.force_login(user_a)
+
+        client.post("/attendance/plans/set/", {
+            "worker": worker.pk, "date": "2026-09-01",
+            "kind": "office", "note": "資材の整理",
+        })
+
+        plan = AttendPlan.unscoped.get(worker=worker, plan_date=datetime.date(2026, 9, 1))
+        assert plan.note == "資材の整理"
+
+    def test_候補はこれまでに入れた内容から新しい順に出る(self, client, company_a, user_a):
+        worker = self._worker(company_a)
+        for day, kind, note in [
+            (1, "office", "事務作業"),
+            (2, "remote", "書類作成"),
+            (3, "office", "事務作業"),  # 同じ内容は1つにまとめる
+            (4, "site", "A社ビル新築"),  # 現場名は作業内容の候補にしない
+            (7, "off", ""),
+        ]:
+            AttendPlan.unscoped.create(
+                company=company_a, worker=worker,
+                plan_date=datetime.date(2026, 9, day), kind=kind, note=note,
+            )
+        client.force_login(user_a)
+
+        notes = work_note_suggestions(company_a)
+        html = client.get("/attendance/plans/?month=2026-09").content.decode()
+
+        assert notes == ["事務作業", "書類作成"]
+        assert 'id="attend-work-notes"' in html
+        assert "<option value=\"事務作業\">" in html
+        assert "A社ビル新築" not in html.split('id="attend-work-notes"')[1].split("</datalist>")[0]
+
+    def test_他社の作業内容は候補に出ない(self, company_a, company_b):
+        other = self._worker(company_b, name="佐藤", code="E900")
+        AttendPlan.unscoped.create(
+            company=company_b, worker=other,
+            plan_date=datetime.date(2026, 9, 1), kind="office", note="B社の作業",
+        )
+
+        assert work_note_suggestions(company_a) == []

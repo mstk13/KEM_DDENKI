@@ -63,7 +63,7 @@
       <div class="form-group" style="margin-bottom:0;" id="plan-fill-place-row" hidden>
         <label id="plan-fill-place-label" for="plan-fill-note">場所</label>
         <input type="text" name="note" id="plan-fill-note" class="form-control"
-               maxlength="200" list="attend-site-names" autocomplete="off">
+               maxlength="200" autocomplete="off">
       </div>
       <div class="form-group" style="margin-bottom:0;" id="plan-fill-start-row">
         <label>開始</label>
@@ -303,6 +303,7 @@
     <p id="plan-dialog-sub" style="margin:0 0 14px;font-size:.85rem;color:var(--text-secondary);"></p>
 
     {% include "attendance/partials/site_name_datalist.html" %}
+    {% include "attendance/partials/work_note_datalist.html" %}
     <div id="plan-dialog-entries"></div>
 
     <button type="button" class="btn btn-outline btn-sm" id="plan-dialog-add">
@@ -360,7 +361,7 @@
       <div class="form-group">
         <label data-for="note" class="plan-entry-place-label">場所・メモ</label>
         <input type="text" class="form-control plan-entry-note" maxlength="200"
-               list="attend-site-names" autocomplete="off">
+               autocomplete="off">
       </div>
     </div>
     <div class="plan-entry-time-row">
@@ -382,6 +383,14 @@ document.addEventListener('DOMContentLoaded', function() {
   var entriesUrl = '{% url "attendance:plan_entries" %}';
   var KIND_FIELDS = {{ kind_fields_json|safe }};
 
+  // 入力欄に出す候補は区分で変わる（現場名／これまでの作業内容）。ADR-0070
+  var SUGGEST_LISTS = {sites: 'attend-site-names', notes: 'attend-work-notes'};
+
+  function applySuggest(input, spec) {
+    var listId = SUGGEST_LISTS[spec.suggest];
+    if (listId) { input.setAttribute('list', listId); } else { input.removeAttribute('list'); }
+  }
+
   // まとめて記入の入力欄を区分に合わせて出し分ける（マスの詳細ダイアログと同じ KIND_FIELDS）。
   // 現場・直行直帰なら「現場名」、出張なら「行先」を訊く。時刻を持たない区分では時刻欄を隠す。
   // 予定表に行が無いときは、まとめて記入の欄そのものが出ないので何もしない。
@@ -399,6 +408,7 @@ document.addEventListener('DOMContentLoaded', function() {
       fillPlaceRow.hidden = !spec.place;
       fillPlaceLabel.textContent = spec.place || '場所';
       fillNote.placeholder = spec.place ? spec.place + 'を入力（任意）' : '';
+      applySuggest(fillNote, spec);
       if (!spec.place) { fillNote.value = ''; }
       fillStartRow.hidden = !spec.time;
       fillEndRow.hidden = !spec.time;
@@ -561,6 +571,7 @@ document.addEventListener('DOMContentLoaded', function() {
       row.querySelector('.plan-entry-remove').style.display = rows.length > 1 ? '' : 'none';
       row.querySelector('.plan-entry-place-label').textContent = spec.place || '場所・メモ';
       field(row, 'note').placeholder = spec.place ? spec.place + 'を入力' : '任意';
+      applySuggest(field(row, 'note'), spec);
       row.querySelector('.plan-entry-time-row').style.display = spec.time ? '' : 'none';
     });
     var single = rows.length === 1 ? specOf(field(rows[0], 'kind').value) : null;

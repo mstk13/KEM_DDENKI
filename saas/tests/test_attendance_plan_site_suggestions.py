@@ -67,7 +67,9 @@ class TestSuggestionsOnScreens:
         assert '<option value="A社ビル新築"></option>' in html
         assert "B社の現場" not in html
         assert 'class="form-control plan-entry-note" maxlength="200"' in html
-        assert 'list="attend-site-names"' in html
+        # 候補は区分で変わるので、list は画面の JavaScript が付け替える（ADR-0070）
+        assert "SUGGEST_LISTS = {sites: 'attend-site-names'" in html
+        assert "applySuggest(field(row, 'note'), spec);" in html
 
     def test_日シートの行き先欄に候補が付く(self, client, company_a, user_a):
         worker = _worker(company_a)
@@ -79,7 +81,8 @@ class TestSuggestionsOnScreens:
         assert html.count('<datalist id="attend-site-names">') == 1
         assert '<option value="A社ビル新築"></option>' in html
         assert f'name="note_{worker.pk}"' in html
-        assert 'list="attend-site-names" autocomplete="off"' in html
+        # 候補は区分で変わるので、list は画面の JavaScript が付け替える（ADR-0070）
+        assert "{sites: 'attend-site-names', notes: 'attend-work-notes'}[spec.suggest]" in html
 
     def test_候補にない行き先もそのまま保存できる(self, client, company_a, user_a):
         worker = _worker(company_a)
