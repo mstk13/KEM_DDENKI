@@ -94,6 +94,20 @@ class TestScreens:
         assert legend["続いている現場"]["start"] == site.start_date
         assert legend["終わった現場"]["days"] == 30
 
+    def test_目盛りの左端も当日にする(self, client, company_a, user_a):
+        """frappe-gantt は開始日の1か月前から目盛りを引くので、画面側で当日に詰める。"""
+        _site(company_a, "続いている現場", _days(-10), _days(10))
+        client.force_login(user_a)
+
+        home = client.get("/").content.decode()
+        compare = client.get(reverse("schedules:list")).content.decode()
+
+        assert "clampGanttStartToToday(Gantt);" in home
+        assert "clampGanttStartToToday(Gantt);" in compare
+        # 左端のラベル（当日）が枠の外に出て切れないようにする
+        assert "showFirstGanttLabel(chart);" in home
+        assert "showFirstGanttLabel(chart);" in compare
+
     def test_現場の工程も当日から(self, client, company_a, user_a):
         site = _site(company_a, "A現場", _days(-20), _days(20))
         Phase.unscoped.create(

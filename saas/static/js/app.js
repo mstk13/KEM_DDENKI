@@ -57,6 +57,33 @@ document.addEventListener('DOMContentLoaded', function() {
 // frappe-gantt 0.6.1 は英語の月名しか持たず（language:'ja' は月名テーブルが
 // 無いため例外になり描画が止まる）、描画後にラベルだけ置き換えている。
 // change_view_mode で毎回描き直されるので、表示切替のたびに呼ぶこと。
+// ガントの目盛りを当日から始める（ADR-0072）。
+// frappe-gantt 0.6.1 は「一番早い開始日の1か月前」から目盛りを引くので、
+// タスクを当日から先だけにしても、左側に過ぎた日が残ってしまう。
+// 表示（日・週・月）を切り替えるたびに日付を作り直すので、クラスの側で差し替える。
+function clampGanttStartToToday(GanttClass) {
+  if (!GanttClass || GanttClass.__clampedToToday) return;
+  var setupDates = GanttClass.prototype.setup_gantt_dates;
+  GanttClass.prototype.setup_gantt_dates = function () {
+    setupDates.call(this);
+    var today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (this.gantt_start && this.gantt_start < today) {
+      this.gantt_start = today;
+    }
+  };
+  GanttClass.__clampedToToday = true;
+}
+
+// 一番左の目盛り（当日）のラベルは、中央そろえだと半分が枠の外に出て読めない。
+// 最初の1つだけ左そろえにする（ADR-0072）。
+// frappe-gantt の CSS が text-anchor: middle を指定しているので、属性ではなく style で上書きする。
+function showFirstGanttLabel(container) {
+  var labels = container.querySelectorAll('.lower-text');
+  if (!labels.length) return;
+  labels[0].style.textAnchor = 'start';
+}
+
 function localizeGanttMonths(container) {
   var MONTHS = {
     January: 1, February: 2, March: 3, April: 4, May: 5, June: 6,
