@@ -1,0 +1,134 @@
+{% comment %}
+積算中の案件の日程（ADR-0078）。**1案件1本**で、その1本を工程の色で塗り分ける。
+
+frappe-gantt は1タスク1バーで1本を塗り分けられないため、ここだけは帯を並べた
+自前の描画にしている。位置はサーバ側で全体の期間に対する％を出してあるので、
+テンプレートは並べるだけ。JavaScript は使わない（印刷でもそのまま出る）。
+
+コンテキスト: gantt … estimation.services.gantt.get_projects_gantt_data の結果
+{% endcomment %}
+<div class="card" style="margin-bottom:20px;">
+  <div class="card-header">
+    <h2>積算中の案件の日程</h2>
+    {% if gantt.rows %}
+      <span style="font-size:.82rem;color:var(--text-muted);">
+        {{ gantt.start|date:"Y/m/d" }} 〜 {{ gantt.end|date:"Y/m/d" }}
+      </span>
+    {% endif %}
+  </div>
+  <div class="card-body">
+    {% if gantt.rows %}
+      {# 凡例。工程名と色の対応 #}
+      <div style="display:flex;flex-wrap:wrap;gap:12px;margin-bottom:12px;font-size:.82rem;">
+        {% for item in gantt.legend %}
+          <span style="display:inline-flex;align-items:center;gap:4px;">
+            <span style="width:12px;height:12px;border-radius:2px;background:{{ item.color }};"></span>
+            {{ item.name }}
+          </span>
+        {% endfor %}
+      </div>
+
+      <div class="est-gantt">
+        {# 目盛り。月の1日に線を引く #}
+        <div class="est-gantt-axis">
+          <div class="est-gantt-label"></div>
+          <div class="est-gantt-track est-gantt-axis-track">
+            {% for tick in gantt.ticks %}
+              <span class="est-gantt-tick" style="left:{{ tick.left_pct }}%;">{{ tick.label }}</span>
+            {% endfor %}
+            {% if gantt.today_pct is not None %}
+              <span class="est-gantt-today" style="left:{{ gantt.today_pct }}%;" title="今日"></span>
+            {% endif %}
+          </div>
+        </div>
+
+        {% for row in gantt.rows %}
+          <div class="est-gantt-row">
+            <div class="est-gantt-label">
+              <a href="{% url 'estimation:project_detail' row.project.pk %}">{{ row.project.name }}</a>
+              <span class="est-gantt-sub">
+                {{ row.project.orderer.name }} / {{ row.start|date:"Y/m/d" }}〜{{ row.end|date:"Y/m/d" }}（{{ row.days }}日）
+              </span>
+            </div>
+            <div class="est-gantt-track">
+              {% for tick in gantt.ticks %}
+                <span class="est-gantt-gridline" style="left:{{ tick.left_pct }}%;"></span>
+              {% endfor %}
+              {% if gantt.today_pct is not None %}
+                <span class="est-gantt-today" style="left:{{ gantt.today_pct }}%;"></span>
+              {% endif %}
+              {% for seg in row.segments %}
+                <span class="est-gantt-seg"
+                      style="left:{{ seg.left_pct }}%;width:{{ seg.width_pct }}%;background:{{ seg.color }};"
+                      title="{{ seg.name }}：{{ seg.start|date:'Y/m/d' }}〜{{ seg.end|date:'Y/m/d' }}（進捗 {{ seg.progress }}%）"></span>
+              {% endfor %}
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <p style="color:var(--text-muted);margin:0;">
+        積算中の案件に、開始日と終了日の入った工程がまだありません。
+        案件を開いて「公告から取り込む」か「+ 工程追加」で日程を入れると、ここに並びます。
+      </p>
+    {% endif %}
+  </div>
+</div>
+
+<style>
+/* 1案件1本のガント（ADR-0078）。
+   左に案件名、右に期間の帯。帯の中の色が工程。
+   位置はサーバが出した％なので、CSS は並べるだけ。 */
+.est-gantt { overflow-x: auto; }
+.est-gantt-row,
+.est-gantt-axis { display: flex; align-items: stretch; min-width: 640px; }
+.est-gantt-row { border-top: 1px solid var(--border-light, #e5e7eb); }
+.est-gantt-label {
+  flex: 0 0 240px;
+  padding: 8px 12px 8px 0;
+  font-size: .85rem;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+.est-gantt-sub {
+  display: block;
+  color: var(--text-muted, #6b7280);
+  font-size: .75rem;
+}
+.est-gantt-track {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 34px;
+  background: var(--surface-hover, #f8fafc);
+}
+.est-gantt-axis-track { min-height: 22px; background: transparent; }
+.est-gantt-tick {
+  position: absolute;
+  top: 2px;
+  font-size: .72rem;
+  color: var(--text-muted, #6b7280);
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+.est-gantt-gridline {
+  position: absolute;
+  top: 0; bottom: 0;
+  border-left: 1px dotted var(--border-light, #e5e7eb);
+}
+.est-gantt-today {
+  position: absolute;
+  top: 0; bottom: 0;
+  border-left: 2px solid var(--danger, #dc2626);
+}
+.est-gantt-seg {
+  position: absolute;
+  top: 8px;
+  height: 18px;
+  border-radius: 2px;
+  /* 隣の工程との境目が分かるように、ごく細い隙間を空ける */
+  box-shadow: inset -1px 0 0 rgba(255, 255, 255, .7);
+}
+@media (max-width: 640px) {
+  .est-gantt-label { flex-basis: 140px; }
+}
+</style>
