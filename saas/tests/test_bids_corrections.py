@@ -49,7 +49,11 @@ def logged_in(client, user_a):
 def _edit_page_data(project, **overrides):
     """まとめての編集画面に送る値。今の値をそのまま入れ、原価の欄も付ける（必須のため）。"""
     form = BidProjectForm(instance=project)
-    data = {name: form[name].value() or "" for name in form.fields}
+    # 0 は 0 のまま送る（見積額などは必須）。None だけ空にする
+    data = {
+        name: ("" if form[name].value() is None else form[name].value())
+        for name in form.fields
+    }
     data.update({"cost-estimate_amount": "0", "cost-actual_cost": "0", "cost-memo": ""})
     data.update(overrides)
     return data
