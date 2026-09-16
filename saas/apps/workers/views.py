@@ -125,29 +125,7 @@ def _sort_by_employee_code(qs):
 
 @login_required
 def worker_list(request):
-    # 一覧に保有資格を出すので、資格もまとめて読む（N+1 を避ける）。
-    # 並びは資格保有一覧と同じ 免許 → 技能講習 → 特別教育 → その他
-    category_order = models.Case(
-        *[
-            models.When(category=value, then=models.Value(i))
-            for i, value in enumerate([
-                WorkerQualification.Category.LICENSE,
-                WorkerQualification.Category.SKILL_COURSE,
-                WorkerQualification.Category.EDUCATION,
-                WorkerQualification.Category.OTHER,
-            ])
-        ],
-        default=models.Value(9),
-        output_field=models.IntegerField(),
-    )
-    qs = Worker.objects.select_related("job_title", "position").prefetch_related(
-        models.Prefetch(
-            "qualifications",
-            queryset=WorkerQualification.objects.annotate(
-                category_order=category_order,
-            ).order_by("category_order", "pk"),
-        ),
-    )
+    qs = Worker.objects.select_related("job_title", "position")
 
     # 検索フィルタ
     q = request.GET.get("q", "").strip()

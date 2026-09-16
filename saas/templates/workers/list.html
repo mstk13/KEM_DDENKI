@@ -3,11 +3,6 @@
 {% block topbar_title %}人材管理{% endblock %}
 
 {% block content %}
-<style>
-/* 一覧の保有資格。資格名は折り返して並べる */
-.worker-quals { max-width: 420px; font-size: .76rem; line-height: 1.7; color: var(--text-secondary); }
-.worker-quals .qual-name { display: inline-block; background: var(--surface-hover); border-radius: 4px; padding: 0 6px; margin: 0 4px 2px 0; white-space: nowrap; }
-</style>
 <div class="page-header">
   <h1>作業員一覧</h1>
   <div style="display:flex;gap:8px;">
@@ -50,7 +45,7 @@
   <div class="card-header"><h2>有効な作業員（{{ active_workers|length }}名）</h2></div>
   <div class="table-wrap">
     <table>
-      <thead><tr><th>社員番号</th><th>氏名</th><th>よみがな</th><th>職種</th><th>役職</th><th>保有資格</th>{% if is_president %}<th>時間単価</th>{% endif %}<th></th></tr></thead>
+      <thead><tr><th>社員番号</th><th>氏名</th><th>よみがな</th><th>職種</th><th>役職</th>{% if is_president %}<th>時間単価</th>{% endif %}<th></th></tr></thead>
       <tbody>
         {% for w in active_workers %}
         <tr>
@@ -59,14 +54,11 @@
           <td style="color:var(--text-muted);font-size:.82rem;">{{ w.name_kana|default:"-" }}</td>
           <td>{{ w.job_title|default:"-" }}</td>
           <td>{{ w.position|default:"-" }}</td>
-          <td class="worker-quals">
-            {% for q in w.qualifications.all %}<span class="qual-name">{{ q.name }}</span>{% empty %}-{% endfor %}
-          </td>
           {% if is_president %}<td>{{ w.hourly_cost|floatformat:0 }} 円/h</td>{% endif %}
           <td style="white-space:nowrap;"><a href="{% url 'workers:edit' w.pk %}" class="btn btn-outline btn-sm">編集</a> <a href="{% url 'workers:delete' w.pk %}" class="btn btn-danger btn-sm">削除</a></td>
         </tr>
         {% empty %}
-        <tr><td colspan="8"><div class="empty"><div class="empty-icon">&#x1f465;</div><p>該当する作業員がいません</p></div></td></tr>
+        <tr><td colspan="7"><div class="empty"><div class="empty-icon">&#x1f465;</div><p>該当する作業員がいません</p></div></td></tr>
         {% endfor %}
       </tbody>
     </table>
@@ -78,7 +70,7 @@
   <div class="card-header"><h2 style="color:var(--text-muted);">退職者（{{ inactive_workers|length }}名）</h2></div>
   <div class="table-wrap">
     <table>
-      <thead><tr><th>社員番号</th><th>氏名</th><th>よみがな</th><th>職種</th><th>役職</th><th>保有資格</th>{% if is_president %}<th>時間単価</th>{% endif %}<th></th></tr></thead>
+      <thead><tr><th>社員番号</th><th>氏名</th><th>よみがな</th><th>職種</th><th>役職</th>{% if is_president %}<th>時間単価</th>{% endif %}<th></th></tr></thead>
       <tbody>
         {% for w in inactive_workers %}
         <tr style="color:var(--text-muted);">
@@ -87,9 +79,6 @@
           <td style="font-size:.82rem;">{{ w.name_kana|default:"-" }}</td>
           <td>{{ w.job_title|default:"-" }}</td>
           <td>{{ w.position|default:"-" }}</td>
-          <td class="worker-quals">
-            {% for q in w.qualifications.all %}<span class="qual-name">{{ q.name }}</span>{% empty %}-{% endfor %}
-          </td>
           {% if is_president %}<td>{{ w.hourly_cost|floatformat:0 }} 円/h</td>{% endif %}
           <td style="white-space:nowrap;"><a href="{% url 'workers:edit' w.pk %}" class="btn btn-outline btn-sm">編集</a> <a href="{% url 'workers:delete' w.pk %}" class="btn btn-danger btn-sm">削除</a></td>
         </tr>
