@@ -1,4 +1,8 @@
-"""資格保有状況一覧（2026/9/15）の資格を、作業員ごとに登録する（ADR-0068）。"""
+"""資格保有一覧.xls の資格を、作業員ごとに登録する（ADR-0068）。
+
+- 資格名は Excel の見出しのまま。「△」は「（補）」を付ける
+- この一覧から登録した資格のうち、一覧に無いものは消す（手で登録した資格は残す）
+"""
 
 import importlib
 from io import StringIO
@@ -12,31 +16,39 @@ from apps.workers.listed_qualifications import (
     CATEGORIES,
     HOLDERS,
     NOTE,
+    PREVIOUS_NOTES,
     find_company,
     normalize_person_name,
     register_listed_qualifications,
 )
 from apps.workers.models import Worker, WorkerQualification
 
-migration = importlib.import_module("apps.workers.migrations.0018_register_listed_qualifications")
+register_migration = importlib.import_module(
+    "apps.workers.migrations.0018_register_listed_qualifications"
+)
+replace_migration = importlib.import_module(
+    "apps.workers.migrations.0019_replace_listed_qualifications"
+)
 
 # アプリ側の氏名は空白や字の違いがあってもよい
 APP_NAMES = {
-    "釼持 陽子": "剣持　陽子",
-    "釼持 政宏": "釼持政宏",
-    "高橋 章": "高橋 章",
-    "江頭 敏幸": "江頭 敏幸",
-    "片桐 徳男": "片桐 徳男",
-    "茨木 浩次": "茨木 浩次",
-    "出永 修": "出永 修",
-    "佐藤 榮一": "佐藤 栄一",
-    "古矢 隆": "古矢 隆",
-    "村井 君好": "村井 君好",
-    "髙橋 翔太": "高橋 翔太",
-    "杉本 和幸": "杉本 和幸",
-    "梅田 義彦": "梅田 義彦",
-    "松倉 利昭": "松倉 利昭",
+    "釼持　陽子": "剣持　陽子",
+    "釼持　政宏": "釼持政宏",
+    "高橋　章": "高橋 章",
+    "江頭　敏幸": "江頭 敏幸",
+    "片桐　徳男": "片桐 徳男",
+    "茨木　浩次": "茨木 浩次",
+    "出永　修": "出永 修",
+    "佐藤　榮一": "佐藤 栄一",
+    "古矢　隆": "古矢 隆",
+    "村井　君好": "村井 君好",
+    "髙橋　翔太": "高橋 翔太",
+    "杉本　和幸": "杉本 和幸",
+    "梅田　義彦": "梅田 義彦",
+    "松倉　利昭": "松倉 利昭",
 }
+HOSHO = "電気工事施工監理技士　１級（補）"
+ICHIKYU = "電気工事施工監理技士　１級"
 
 
 @pytest.fixture
@@ -65,6 +77,20 @@ class TestSource:
             assert len(names) == len(set(names))
             assert all(name in CATEGORIES for name in names)
 
+    def test_資格名はExcelの見出しのまま(self):
+        assert CATEGORIES[ICHIKYU] == "license"
+        assert CATEGORIES[HOSHO] == "license"
+        assert CATEGORIES["高所作業車・作業床高⒑ｍ以上"] == "skill_course"
+        assert CATEGORIES["車両系建設機械・機重３ｔ未満"] == "education"
+        assert CATEGORIES["3M工法取得認定（高圧端末 常温収縮）"] == "other"
+        # 「(補△)」は凡例なので資格名には入れない
+        assert not any("(補△)" in name for name in CATEGORIES)
+
+    def test_補は政宏だけ(self):
+        holders = [who for who, names in HOLDERS.items() if HOSHO in names]
+        assert holders == ["釼持　政宏"]
+        assert ICHIKYU not in HOLDERS["釼持　政宏"]
+
     def test_氏名の空白と字の違いを揃える(self):
         assert normalize_person_name("髙橋　翔太") == normalize_person_name("高橋 翔太")
         assert normalize_person_name("佐藤 榮一") == normalize_person_name("佐藤栄一")
@@ -81,59 +107,78 @@ class TestRegister:
 
         assert len(report["created"]) == 150
         assert report["missing"] == [] and report["ambiguous"] == []
-        masahiro = workers["釼持 政宏"]
-        assert "電気工事施工管理技士 1級（技士補）" in _names(masahiro)
-        assert "電気工事施工管理技士 1級" not in _names(masahiro)
-        assert _names(workers["髙橋 翔太"]) == {"運転免許証", "職長・安全衛生責任者教育"}
-        assert _names(workers["松倉 利昭"]) == {"電気工事施工管理技士 1級", "電気工事士 1種"}
-        q = WorkerQualification.unscoped.get(worker=workers["釼持 陽子"], name="フルハーネス")
+        assert report["removed"] == []
+        assert HOSHO in _names(workers["釼持　政宏"])
+        assert _names(workers["松倉　利昭"]) == {ICHIKYU, "電気工事士　1種"}
+        assert _names(workers["髙橋　翔太"]) == {"運転免許証", "職長・安全衛生責任者教育"}
+        q = WorkerQualification.unscoped.get(worker=workers["釼持　陽子"], name="フルハーネス")
         assert q.category == WorkerQualification.Category.EDUCATION
         assert q.note == NOTE
         assert not q.certificate_image
         assert q.acquired_date is None and q.expiry_date is None
-        other = WorkerQualification.unscoped.get(
-            worker=workers["釼持 陽子"], name="3M工法取得認定（高圧端末 常温収縮）",
-        )
-        assert other.category == WorkerQualification.Category.OTHER
 
-    def test_何度流しても増えず_手で入れた資格は残す(self, kem):
+    def test_前の表記で登録した資格は消して入れ替える(self, kem):
         workers = _workers(kem)
+        matsukura = workers["松倉　利昭"]
         WorkerQualification.unscoped.create(
-            company=kem, worker=workers["松倉 利昭"], name="電気工事士 1種",
-            category=WorkerQualification.Category.LICENSE, note="手で登録",
+            company=kem, worker=matsukura, name="電気工事施工管理技士 1級",
+            category=WorkerQualification.Category.LICENSE, note=PREVIOUS_NOTES[0],
+        )
+        WorkerQualification.unscoped.create(
+            company=kem, worker=matsukura, name="手で入れた資格",
+            category=WorkerQualification.Category.OTHER, note="手で登録",
         )
 
-        first = register_listed_qualifications(kem, Worker, WorkerQualification)
+        report = register_listed_qualifications(kem, Worker, WorkerQualification)
+
+        assert ("松倉 利昭", "電気工事施工管理技士 1級") in report["removed"]
+        assert _names(matsukura) == {ICHIKYU, "電気工事士　1種", "手で入れた資格"}
+
+    def test_確認だけなら消さず登録もしない(self, kem):
+        workers = _workers(kem)
+        old = WorkerQualification.unscoped.create(
+            company=kem, worker=workers["松倉　利昭"], name="電気工事施工管理技士 1級",
+            category=WorkerQualification.Category.LICENSE, note=PREVIOUS_NOTES[0],
+        )
+
+        report = register_listed_qualifications(kem, Worker, WorkerQualification, apply=False)
+
+        assert len(report["created"]) == 150
+        assert len(report["removed"]) == 1
+        assert WorkerQualification.unscoped.filter(pk=old.pk).exists()
+        assert WorkerQualification.unscoped.filter(company=kem).count() == 1
+
+    def test_何度流しても増えない(self, kem):
+        _workers(kem)
+
+        register_listed_qualifications(kem, Worker, WorkerQualification)
         second = register_listed_qualifications(kem, Worker, WorkerQualification)
 
-        assert len(first["created"]) == 149
-        assert first["existing"] == [("松倉 利昭", "電気工事士 1種")]
-        assert second["created"] == []
+        assert second["created"] == [] and second["removed"] == []
+        assert len(second["existing"]) == 150
         assert WorkerQualification.unscoped.filter(company=kem).count() == 150
-        kept = WorkerQualification.unscoped.get(worker=workers["松倉 利昭"], name="電気工事士 1種")
-        assert kept.note == "手で登録"
 
     def test_見つからない作業員と同姓同名は登録しない(self, kem):
         names = dict(APP_NAMES)
-        del names["杉本 和幸"]
+        del names["杉本　和幸"]
         _workers(kem, names)
         Worker.unscoped.create(company=kem, employee_code="E900", name="梅田 義彦", hourly_cost=0)
 
         report = register_listed_qualifications(kem, Worker, WorkerQualification)
 
-        assert report["missing"] == ["杉本 和幸"]
-        assert report["ambiguous"] == ["梅田 義彦"]
+        assert report["missing"] == ["杉本　和幸"]
+        assert report["ambiguous"] == ["梅田　義彦"]
         assert not WorkerQualification.unscoped.filter(worker__name="梅田 義彦").exists()
 
     def test_退職者と同姓同名なら在籍中の人に登録する(self, kem):
-        workers = _workers(kem, {"松倉 利昭": "松倉 利昭"})
+        workers = _workers(kem, {"松倉　利昭": "松倉 利昭"})
         Worker.unscoped.create(
             company=kem, employee_code="E900", name="松倉 利昭", hourly_cost=0, is_active=False,
         )
 
         register_listed_qualifications(kem, Worker, WorkerQualification)
 
-        assert len(_names(workers["松倉 利昭"])) == 2
+        assert len(_names(workers["松倉　利昭"])) == 2
 
     def test_他社の作業員には登録しない(self, kem, company_a):
         _workers(kem)
@@ -154,17 +199,27 @@ class TestRegister:
 
 @pytest.mark.django_db
 class TestMigrationAndCommand:
-    def test_データ移送で登録する(self, kem):
-        _workers(kem)
+    def test_データ移送で登録し_入れ替えでも増えない(self, kem):
+        workers = _workers(kem)
+        WorkerQualification.unscoped.create(
+            company=kem, worker=workers["松倉　利昭"], name="電気工事施工管理技士 1級",
+            category=WorkerQualification.Category.LICENSE, note=PREVIOUS_NOTES[0],
+        )
 
-        migration.forwards(django_apps, None)
+        register_migration.forwards(django_apps, None)
+        replace_migration.forwards(django_apps, None)
 
         assert WorkerQualification.unscoped.filter(company=kem).count() == 150
+        assert not WorkerQualification.unscoped.filter(name="電気工事施工管理技士 1級").exists()
 
-    def test_コマンドは確認だけでは登録せず_見つからない氏名を出す(self, kem):
+    def test_コマンドは確認だけでは変えず_見つからない氏名と消す資格を出す(self, kem):
         names = dict(APP_NAMES)
-        del names["杉本 和幸"]
-        _workers(kem, names)
+        del names["杉本　和幸"]
+        workers = _workers(kem, names)
+        WorkerQualification.unscoped.create(
+            company=kem, worker=workers["松倉　利昭"], name="電気工事施工管理技士 1級",
+            category=WorkerQualification.Category.LICENSE, note=PREVIOUS_NOTES[0],
+        )
         out = StringIO()
 
         call_command("register_listed_qualifications", stdout=out)
@@ -172,9 +227,11 @@ class TestMigrationAndCommand:
         text = out.getvalue()
         assert "確認だけです" in text
         assert "登録予定 143 件" in text
-        assert "- 杉本 和幸" in text
-        assert not WorkerQualification.unscoped.exists()
+        assert "一覧に無い資格 1 件（消す予定）" in text
+        assert "- 杉本　和幸" in text
+        assert WorkerQualification.unscoped.filter(company=kem).count() == 1
 
         call_command("register_listed_qualifications", "--apply", stdout=StringIO())
 
         assert WorkerQualification.unscoped.filter(company=kem).count() == 143
+        assert not WorkerQualification.unscoped.filter(name="電気工事施工管理技士 1級").exists()
