@@ -590,7 +590,7 @@ class TestQuickUpload:
 
     def test_候補は施工中から並び_請求済と中止は出さない(self, logged_in, company_a, company_b):
         _site(company_a, "完工", Site.Status.COMPLETED)
-        _site(company_a, "見積中", Site.Status.ESTIMATING)
+        _site(company_a, "積算中", Site.Status.ESTIMATING)
         _site(company_a, "中止", Site.Status.CANCELLED)
         _site(company_a, "受注済", Site.Status.ORDERED)
         _site(company_a, "請求済", Site.Status.BILLED)
@@ -600,7 +600,7 @@ class TestQuickUpload:
         res = logged_in.get(reverse("sites:photo_quick"))
 
         names = [site.name for site in res.context["form"].fields["site"].queryset]
-        assert names == ["施工中", "受注済", "見積中", "完工"]
+        assert names == ["施工中", "受注済", "積算中", "完工"]
 
     def test_指定した現場を選んだ状態で開く(self, logged_in, company_a):
         site = _site(company_a, "S010", Site.Status.IN_PROGRESS)

@@ -11,6 +11,7 @@ from apps.permissions.decorators import module_permission_required
 from apps.permissions.services import has_module_permission
 from apps.reports.models import DailyReport
 from apps.schedules.services import (
+    clip_gantt_tasks_to_today,
     get_active_sites_with_week_schedule,
     get_comparison_gantt_data,
 )
@@ -51,6 +52,8 @@ def dashboard(request):
     )
     # 工期管理（schedules:list）を条件なしで開いたときと同じ中身。
     gantt = get_comparison_gantt_data(company)
+    # ガントは当日から先だけを出す（ADR-0072）
+    gantt_tasks = clip_gantt_tasks_to_today(gantt["tasks"], today)
 
     context = {
         "active_sites": active_sites,
@@ -64,8 +67,8 @@ def dashboard(request):
         "week_end": week["week_end"],
         "site_schedules": week["sites"],
         "more_sites": max(active_sites - len(week["sites"]), 0),
-        "gantt_json": json_for_script(gantt["tasks"]),
-        "gantt_tasks_exist": len(gantt["tasks"]) > 0,
+        "gantt_json": json_for_script(gantt_tasks),
+        "gantt_tasks_exist": len(gantt_tasks) > 0,
         "members_date": members_date,
         "members_is_today": members_date == today,
         "members_prev_date": members_date - datetime.timedelta(days=1),

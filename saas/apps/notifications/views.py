@@ -63,14 +63,28 @@ def notification_list(request):
     )
 
 
+def _wants_json(request):
+    """画面のボタンではなく、スクリプトからの呼び出しか。"""
+    return (
+        bool(request.headers.get("HX-Request"))
+        or request.headers.get("X-Requested-With") == "XMLHttpRequest"
+        or "application/json" in request.headers.get("Accept", "")
+    )
+
+
 @login_required
 def notification_read(request, pk):
-    """通知を既読にする（HTMX対応）。"""
+    """通知を既読にする。
+
+    画面の「既読」ボタン（ふつうのフォーム送信）で押したときは通知の一覧に戻す。
+    これまでは JSON をそのまま返していたので、画面に {"ok": true} だけが出ていた。
+    HTMX・fetch など JSON を期待する呼び出しには、これまでどおり JSON を返す。
+    """
     if request.method == "POST":
         mark_as_read(pk, request.user)
-        if request.headers.get("HX-Request"):
-            return JsonResponse({"ok": True})
-    return JsonResponse({"ok": True})
+    if _wants_json(request):
+        return JsonResponse({"ok": True})
+    return redirect("notification_list")
 
 
 @login_required
@@ -166,12 +180,12 @@ def push_test(request):
 
 @login_required
 def notification_read_all(request):
-    """全通知を既読にする。"""
+    """全通知を既読にする。画面から押したときは通知の一覧に戻す。"""
     if request.method == "POST":
         mark_all_as_read(request.user)
-        if request.headers.get("HX-Request"):
-            return JsonResponse({"ok": True})
-    return JsonResponse({"ok": True})
+    if _wants_json(request):
+        return JsonResponse({"ok": True})
+    return redirect("notification_list")
 
 
 @login_required

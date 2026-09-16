@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load bid_filters %}
 {% block title %}単価マスタ一覧 — {{ APP_NAME }}{% endblock %}
 {% block topbar_title %}単価マスタ{% endblock %}
 
@@ -17,11 +18,11 @@
       <tbody>
         {% for up in unit_prices %}
         <tr>
-          <td>{{ up.category }}</td>
-          <td>{{ up.item_name }}</td>
-          <td>{{ up.unit }}</td>
-          <td>{{ up.unit_price|floatformat:0 }} 円</td>
-          <td>{{ up.memo|default:"-"|truncatechars:30 }}</td>
+          <td>{% inline_edit up "category" %}</td>
+          <td>{% inline_edit up "item_name" %}</td>
+          <td>{% inline_edit up "unit" %}</td>
+          <td style="white-space:nowrap;">{% inline_edit up "unit_price" %} 円</td>
+          <td>{% inline_edit up "memo" %}</td>
           <td><a href="{% url 'bids:unit_price_edit' up.pk %}" class="btn btn-outline btn-sm">編集</a></td>
         </tr>
         {% empty %}

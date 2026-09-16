@@ -122,10 +122,13 @@ class TestLicenseViews:
 
         assert 'id="licenses"' in html
         assert "自社の建設業許可" in html
-        assert "神奈川県知事 許可（特-7）第5170号" in html
-        assert "神奈川県知事 許可（般-7）第5170号" in html
+        # 許可先・許可番号はタップで直せるよう、それぞれ別の span で出す（ADR-0073）
+        assert ">神奈川県知事</span>" in html
+        assert ">許可（特-7）第5170号</span>" in html
+        assert ">許可（般-7）第5170号</span>" in html
         assert ">特定</span>" in html and ">一般</span>" in html
-        assert "2025/4/21〜<wbr>2030/4/20" in html
+        assert ">2025/04/21</span>〜<wbr>" in html
+        assert ">2030/04/20</span>" in html
         assert "提出期限まで残り" in html
         # 建設業許可の欄が、発注機関ごとの入札参加資格より上にある
         assert html.index("自社の建設業許可") < html.index("発注機関ごとの入札参加資格")

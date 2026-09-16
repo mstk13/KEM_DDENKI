@@ -159,7 +159,9 @@ class TestProjectDetail:
         # 満たした要件が無いときは「読み取れていません」と取り違えない
         assert "満たした要件はありません" in html
 
-        rows = html.split("<tr>")
+        # 「参加要件」の表だけを見る（見出しの「この欄を直す」は原文を属性に持つため）
+        requirements_table = html.split("参加要件</h2>")[1].split("<tbody>")[1]
+        rows = requirements_table.split("<tr>")
 
         def row(word):
             return next(r for r in rows if word in r)

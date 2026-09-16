@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load bid_filters %}
 {% block title %}入札案件一覧 — {{ APP_NAME }}{% endblock %}
 {% block topbar_title %}入札管理{% endblock %}
 
@@ -56,27 +57,19 @@
         {% for p in projects %}
         <tr>
           <td><a href="{% url 'bids:project_detail' p.pk %}">{{ p.title }}</a></td>
-          <td>{{ p.client|default:"-" }}</td>
-          <td>{{ p.region|default:"-" }}</td>
-          <td>{{ p.category|default:"-" }}</td>
-          <td>
-            {% if p.status == 'new' %}<span class="badge badge-blue">新着</span>
-            {% elif p.status == 'considering' %}<span class="badge badge-orange">検討中</span>
-            {% elif p.status == 'bid' %}<span class="badge badge-gray">入札済</span>
-            {% elif p.status == 'won' %}<span class="badge badge-green">落札</span>
-            {% elif p.status == 'lost' %}<span class="badge badge-red">失注</span>
-            {% elif p.status == 'skipped' %}<span class="badge badge-gray">見送り</span>
-            {% endif %}
-          </td>
+          <td>{% inline_edit p "client" %}</td>
+          <td>{% inline_edit p "region" %}</td>
+          <td>{% inline_edit p "category" %}</td>
+          <td>{% inline_edit p "status" %}</td>
           <td>
             {% if p.qual_check.eligible == True %}<span class="badge badge-green" title="{{ p.qual_check.reason }}">参加可</span>
             {% elif p.qual_check.eligible == False %}<span class="badge badge-red" title="{{ p.qual_check.reason }}">資格不足</span>
             {% else %}<span class="badge badge-gray" title="参加要件が未設定です">未判定</span>
             {% endif %}
           </td>
-          <td>{{ p.budget|floatformat:0 }} 円</td>
-          <td style="white-space:nowrap;">{{ p.announced_on|date:"Y/m/d"|default:"-" }}</td>
-          <td style="white-space:nowrap;">{% if p.deadline %}{{ p.deadline|date:"Y/m/d" }}{% if p.deadline.hour or p.deadline.minute %} {{ p.deadline|time:"H:i" }}{% endif %}{% else %}-{% endif %}</td>
+          <td>{% inline_edit p "budget" %} 円</td>
+          <td style="white-space:nowrap;">{% inline_edit p "announced_on" %}</td>
+          <td style="white-space:nowrap;">{% inline_edit p "deadline" %}</td>
           <td>{% if p.source_url %}<a href="https://docs.google.com/gview?url={{ p.source_url|urlencode }}&embedded=true" target="_blank" rel="noopener noreferrer" title="{{ p.source_url }}">PDF</a>{% else %}-{% endif %}</td>
           <td style="white-space:nowrap;">
             <a href="{% url 'bids:project_edit' p.pk %}" class="btn btn-outline btn-sm">編集</a>
@@ -87,7 +80,7 @@
             {% if p.status == 'new' or p.status == 'considering' %}
             <form method="post" action="{% url 'bids:start_estimation' p.pk %}" style="display:inline;">
               {% csrf_token %}
-              <button type="submit" class="btn btn-primary btn-sm" onclick="return confirm('この案件を見積中として現場管理に登録しますか？')">見積もりへ</button>
+              <button type="submit" class="btn btn-primary btn-sm" onclick="return confirm('この案件を積算案件に移しますか？\n公告の日程を工程として取り込み、積算中の現場を用意します。\nこの一覧からは見えなくなります（絞り込みで「積算中」を選ぶと出ます）。')">積算へ移す</button>
             </form>
             {% endif %}
           </td>

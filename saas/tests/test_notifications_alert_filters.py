@@ -84,7 +84,7 @@ class TestScheduleDelayAlerts:
 
 @pytest.mark.django_db
 class TestBidDeadlineAlerts:
-    def test_新着_検討中_入札済で期限が近い案件だけを対象にする(self, company_a, user_a):
+    def test_新着_検討中_積算中_入札済で期限が近い案件だけを対象にする(self, company_a, user_a):
         rule = _rule(company_a, AlertRule.AlertType.BID_DEADLINE, 7)
         deadline = timezone.now() + timedelta(days=3)
         bids = {
@@ -97,8 +97,11 @@ class TestBidDeadlineAlerts:
 
         check_bid_deadline_alerts(company_a)
 
+        # 積算中（積算案件へ引っ越し済み。ADR-0076）も対象。
+        # 積算に着手した案件こそ入札書の提出期限を落としてはならない。
         assert _alerted_ids(rule) == {
             bids[BidProject.Status.NEW].pk,
             bids[BidProject.Status.CONSIDERING].pk,
+            bids[BidProject.Status.ESTIMATING].pk,
             bids[BidProject.Status.BID].pk,
         }

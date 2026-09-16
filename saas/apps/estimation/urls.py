@@ -53,4 +53,25 @@ urlpatterns = [
     path("purchases/", views.purchase_list, name="purchase_list"),
     path("purchases/new/", views.purchase_create, name="purchase_create"),
     path("purchases/csv-import/", views.purchase_csv_import, name="purchase_csv_import"),
+    # ADR-0076: 結果（受注・失注）と日程
+    path("projects/<int:pk>/won/", views.project_mark_won, name="project_mark_won"),
+    path("projects/<int:pk>/lost/", views.project_mark_lost, name="project_mark_lost"),
+    path(
+        "projects/<int:project_pk>/competitors/new/",
+        views.competitor_create, name="competitor_create",
+    ),
+    path(
+        "competitors/<int:pk>/delete/",
+        views.competitor_delete, name="competitor_delete",
+    ),
+    path(
+        "projects/<int:project_pk>/phases/new/",
+        views.phase_create, name="phase_create",
+    ),
+    path("phases/<int:pk>/edit/", views.phase_edit, name="phase_edit"),
+    path("phases/<int:pk>/delete/", views.phase_delete, name="phase_delete"),
+    path(
+        "projects/<int:project_pk>/phases/import-from-bid/",
+        views.phase_import_from_bid, name="phase_import_from_bid",
+    ),
 ]

@@ -12,6 +12,10 @@ urlpatterns = [
     path("<int:pk>/delete/", views.project_delete, name="project_delete"),
     # ガントチャート上の手直し（案件ごと）と、その既定（会社共通）
     path("<int:pk>/schedule/", views.schedule_override, name="schedule_override"),
+    # 原価情報の枠づくりと、競合の行の出し入れ（中身はタップして直す。ADR-0074）
+    path("<int:pk>/cost/start/", views.cost_start, name="cost_start"),
+    path("<int:pk>/competitors/add/", views.competitor_add, name="competitor_add"),
+    path("competitors/<int:pk>/delete/", views.competitor_delete, name="competitor_delete"),
     path("schedule-rules/", views.schedule_rule_list, name="schedule_rule_list"),
     path("qualifications/", views.qualification_list, name="qualification_list"),
     path("qualifications/new/", views.qualification_create, name="qualification_create"),
@@ -38,6 +42,8 @@ urlpatterns = [
     path("licenses/new/", views.license_create, name="license_create"),
     path("licenses/<int:pk>/edit/", views.license_edit, name="license_edit"),
     path("licenses/<int:pk>/delete/", views.license_delete, name="license_delete"),
+    # 画面の文字をタップしてその場で直す（ADR-0073）
+    path("inline-edit/", views.inline_edit, name="inline_edit"),
     path("unit-prices/", views.unit_price_list, name="unit_price_list"),
     path("unit-prices/new/", views.unit_price_create, name="unit_price_create"),
     path("unit-prices/<int:pk>/edit/", views.unit_price_edit, name="unit_price_edit"),
