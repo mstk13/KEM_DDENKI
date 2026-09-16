@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% block title %}自社情報 — {{ APP_NAME }}{% endblock %}
+{% block topbar_title %}自社情報{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>自社情報</h1>
+  <a href="{% url 'tenants:company_document_create' %}" class="btn btn-primary btn-sm">+ 書類を登録</a>
+</div>
+
+<div class="card">
+  <div class="card-body">
+    <p>
+      会社の書類（経営規模等評価結果通知書・許可証・証明書など）をしまっておく場所です。
+      PDF と Excel を登録でき、「AI で読み取る」で中身の要点を出せます。
+      見られるのは社長・管理者・事務員だけです。
+    </p>
+    {% if renewals %}
+    <p style="margin-top:10px;">
+      <b>更新の近い書類</b>：
+      {% for document in renewals %}
+      <a href="{% url 'tenants:company_document_detail' document.pk %}">{{ document.name }}</a>（{{ document.renewal_on|date:"Y-m-d" }}）{% if not forloop.last %}、{% endif %}
+      {% endfor %}
+    </p>
+    <p style="font-size:.82rem;color:var(--text-secondary);">
+      更新日の3か月前・1か月前・2週間前と当日に、社長・管理者・事務員へ知らせが届きます。
+    </p>
+    {% endif %}
+  </div>
+</div>
+
+{% comment %}
+自社の建設業許可（ADR-0064）。登録・編集は入札参加資格の画面の許可のフォームを使う。
+自社情報からも一覧で見られるようにして、会社の情報を1か所から辿れるようにする。
+{% endcomment %}
+<div class="card" style="margin-top:16px;" id="licenses">
+  <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+    <h2>建設業許可</h2>
+    <a href="{% url 'bids:license_create' %}" class="btn btn-outline btn-sm">+ 許可を登録</a>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>業種</th>
+          <th style="width:90px;">区分</th>
+          <th>許可番号</th>
+          <th style="width:110px;">有効期限</th>
+          <th style="width:110px;">更新の提出期限</th>
+          <th style="width:80px;"></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for license in licenses %}
+        <tr>
+          <td><b>{{ license.trade }}</b>{% if license.renewed %} <span class="badge badge-gray">更新済</span>{% endif %}</td>
+          <td>{{ license.get_license_class_display }}</td>
+          <td>{{ license.full_number }}</td>
+          <td{% if license.valid_until < today %} style="color:var(--danger);"{% endif %}>{{ license.valid_until|date:"Y-m-d" }}</td>
+          <td>{{ license.renewal_deadline|date:"Y-m-d"|default:"—" }}</td>
+          <td><a href="{% url 'bids:license_edit' license.pk %}" class="btn btn-outline btn-xs">編集</a></td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="6">
+            <div class="empty" style="padding:20px;">
+              <p>建設業許可がまだ登録されていません。「+ 許可を登録」から入れてください。</p>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% for group in groups %}
+<div class="card" style="margin-top:16px;">
+  <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+    <h2>
+      {% if group.type %}{{ group.type.name }}{% else %}その他の書類{% endif %}
+      {% if group.type.has_renewal %}<span class="badge badge-orange">更新あり</span>{% endif %}
+    </h2>
+    {% if group.type %}
+    <a href="{% url 'tenants:company_document_create' %}?type={{ group.type.pk }}" class="btn btn-outline btn-sm">+ この書類を登録</a>
+    {% endif %}
+  </div>
+  <div class="card-body">
+    {% if group.latest %}
+    <p>
+      <a href="{% url 'tenants:company_document_detail' group.latest.pk %}"><b>{{ group.latest.original_filename }}</b></a>
+      <span class="badge {% if group.latest.kind == 'pdf' %}badge-red{% else %}badge-green{% endif %}">{{ group.latest.get_kind_display }}</span>
+      {% if group.latest.confirmed %}<span class="badge badge-green">確認済み</span>{% else %}<span class="badge badge-gray">未確認</span>{% endif %}
+      {% if group.latest.ai_checked_at %}<span class="badge badge-blue">AI 読み取り済み</span>{% endif %}
+    </p>
+    <p style="font-size:.85rem;color:var(--text-secondary);">
+      発行日 {{ group.latest.issued_on|date:"Y-m-d"|default:"—" }}
+      {% if group.latest.renewal_on %}／更新日 {{ group.latest.renewal_on|date:"Y-m-d" }}{% endif %}
+      {% if group.older %}／前の版 {{ group.older|length }} 件{% endif %}
+    </p>
+    {% if group.latest.ai_summary %}
+    <p style="font-size:.85rem;">{{ group.latest.ai_summary|truncatechars:120 }}</p>
+    {% endif %}
+    {% else %}
+    <p style="color:var(--text-secondary);">まだ登録されていません。</p>
+    {% endif %}
+  </div>
+</div>
+{% endfor %}
+{% endblock %}

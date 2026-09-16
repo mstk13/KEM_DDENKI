@@ -128,7 +128,9 @@ def test_定義した項目のパターンが互いを食い合わない():
 def test_サイドバーは業務グループの順に並ぶ():
     top_level = [entry.label for entry in NAVIGATION]
 
-    assert top_level == ["ホーム", "現場", "日報・勤怠", "人材", "取引先・業者", "設定", "開発"]
+    assert top_level == [
+        "ホーム", "現場", "日報・勤怠", "人材", "取引先・業者", "設定", "開発・自社情報",
+    ]
 
 
 def test_同じ現場の工程と原価と発注が現場グループにそろう():

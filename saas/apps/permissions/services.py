@@ -192,6 +192,15 @@ def can_view_worker_private(user, worker=None) -> bool:
     return worker is not None and worker.pk is not None and profile.pk == worker.pk
 
 
+def can_view_company_documents(user) -> bool:
+    """自社書類（経審・許可証・決算書など）を見て登録できるか。ADR-0071。
+
+    社長・管理者（社員番号 Y）・事務員・Developer だけ。中身に売上や評点が入るため、
+    作業員の個人の情報と同じ範囲に合わせる（can_view_worker_private の worker なしと同じ判定）。
+    """
+    return can_view_worker_private(user)
+
+
 def can_delete_report(user, report) -> bool:
     """日報を削除できるかどうかを判定する。
 

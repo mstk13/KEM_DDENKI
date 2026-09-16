@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% block title %}{{ document.name }} — 自社情報 — {{ APP_NAME }}{% endblock %}
+{% block topbar_title %}自社情報{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>{{ document.name }}</h1>
+  <a href="{% url 'tenants:company_document_list' %}" class="btn btn-outline btn-sm">自社情報に戻る</a>
+</div>
+
+<div class="card">
+  <div class="card-header"><h2>ファイル</h2></div>
+  <div class="card-body">
+    <p>
+      <span class="badge {% if document.kind == 'pdf' %}badge-red{% else %}badge-green{% endif %}">{{ document.get_kind_display }}</span>
+      <a href="{% url 'tenants:company_document_file' document.pk %}"{% if document.kind == "pdf" %} target="_blank" rel="noopener"{% endif %}>{{ document.original_filename }}</a>
+      <small style="color:var(--text-secondary);">（{{ document.size|filesizeformat }}）</small>
+    </p>
+    <p style="font-size:.85rem;color:var(--text-secondary);">
+      登録 {{ document.created_at|date:"Y-m-d H:i" }}{% if document.created_by %}（{{ document.created_by.get_full_name|default:document.created_by.username }}）{% endif %}
+    </p>
+    <p>
+      {% if document.confirmed %}
+      <span class="badge badge-green">中身を確認済み</span>
+      <small style="color:var(--text-secondary);">
+        {{ document.confirmed_at|date:"Y-m-d H:i" }}{% if document.confirmed_by %}（{{ document.confirmed_by.get_full_name|default:document.confirmed_by.username }}）{% endif %}
+      </small>
+      {% else %}
+      <span class="badge badge-gray">未確認</span>
+      {% endif %}
+    </p>
+    {% if not document.confirmed %}
+    <form method="post" action="{% url 'tenants:company_document_confirm' document.pk %}">
+      {% csrf_token %}
+      <button type="submit" class="btn btn-outline btn-sm">中身を確認しました</button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card" style="margin-top:16px;">
+  <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+    <h2>AI が読み取った中身</h2>
+    {% if ai_available %}
+    <form method="post" action="{% url 'tenants:company_document_analyze' document.pk %}">
+      {% csrf_token %}
+      <button type="submit" class="btn btn-primary btn-sm">AI で読み取る{% if document.ai_checked_at %}（やり直す）{% endif %}</button>
+    </form>
+    {% endif %}
+  </div>
+  <div class="card-body">
+    {% if document.ai_checked_at %}
+    <p style="font-size:.82rem;color:var(--text-secondary);">
+      {{ document.ai_checked_at|date:"Y-m-d H:i" }} に読み取りました。AI の読み取りは目安です。
+      大事な値は原本を見て確かめてください。
+    </p>
+    {% if document.ai_summary %}<p>{{ document.ai_summary|linebreaksbr }}</p>{% endif %}
+    {% if document.ai_fields %}
+    <div class="table-wrap" style="margin-top:10px;">
+      <table>
+        <thead><tr><th style="width:40%;">項目</th><th>書かれている内容</th></tr></thead>
+        <tbody>
+          {% for row in document.ai_fields %}
+          <tr><td>{{ row.label }}</td><td>{{ row.value }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+    {% elif ai_available %}
+    <p>「AI で読み取る」を押すと、この書類に何が書かれているかを出します。</p>
+    {% else %}
+    <p style="color:var(--text-secondary);">
+      AI の読み取りは今は使えません（API キーが未設定か、月の上限に達しています）。
+    </p>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card" style="margin-top:16px;">
+  <div class="card-header"><h2>日付とメモ</h2></div>
+  <div class="card-body">
+    <form method="post">
+      {% csrf_token %}
+      {{ form.non_field_errors }}
+      {% for field in form %}
+      <div class="form-group">
+        <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+        {{ field }}
+        {% if field.help_text %}<small style="color:var(--text-secondary);">{{ field.help_text }}</small>{% endif %}
+        {{ field.errors }}
+      </div>
+      {% endfor %}
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">保存する</button>
+        <a href="{% url 'tenants:company_document_delete' document.pk %}" class="btn btn-danger-link">この書類を削除</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
