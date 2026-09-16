@@ -78,25 +78,27 @@
         {% else %}
         {{ qual_check.reason }}
         {% endif %}
+        <div style="color:var(--text-muted);font-size:12px;margin-top:4px;">
+          判定結果は下の項目から自動で出します。直したい場合は自社資格・公告側の要件をタップしてください。
+        </div>
       </dd>
       <dt>該当する自社資格</dt>
       <dd>
         {% if qual_check.matched %}
-          {{ qual_check.matched.issuer }}／{{ qual_check.matched.category }}
-          {% if qual_check.matched.grade %}（{{ qual_check.matched.grade }}等級）{% endif %}
+          {% inline_edit qual_check.matched "issuer" reload=True %}／{% inline_edit qual_check.matched "category" reload=True %}
         {% else %}-{% endif %}
       </dd>
       <dt>等級 / 点数</dt>
       <dd>
         {% if qual_check.matched %}
-          等級 {{ qual_check.matched.grade|default:"-" }} /
-          経審点 {{ qual_check.matched.keisin_score|default:"-" }} /
-          総合点 {{ qual_check.matched.total_score|default:"-" }}
+          等級 {% inline_edit qual_check.matched "grade" reload=True %} /
+          経審点 {% inline_edit qual_check.matched "keisin_score" reload=True %} /
+          総合点 {% inline_edit qual_check.matched "total_score" reload=True %}
         {% else %}-{% endif %}
       </dd>
       <dt>資格の有効期限</dt>
       <dd>
-        {% if qual_check.matched %}{{ qual_check.matched.valid_until|default:"-" }}
+        {% if qual_check.matched %}{% inline_edit qual_check.matched "valid_until" reload=True %}
         {% else %}-{% endif %}
         {% if qual_check.expired %}
         <div style="color:var(--gray-400);font-size:12px;">
@@ -105,7 +107,7 @@
         {% endif %}
       </dd>
       <dt>業者番号</dt>
-      <dd>{% if qual_check.matched %}{{ qual_check.matched.vendor_number|default:"-" }}{% else %}-{% endif %}</dd>
+      <dd>{% if qual_check.matched %}{% inline_edit qual_check.matched "vendor_number" reload=True %}{% else %}-{% endif %}</dd>
       <dt>照合した要件</dt>
       <dd>
         {% if qual_check.checked %}
@@ -118,11 +120,11 @@
           公告から等級・点数の要件を読み取れていません。参加要件欄を確認してください。
         {% endif %}
       </dd>
-      <dt>公告側の必要等級（該当）</dt><dd>{% inline_edit project "required_grades" %}</dd>
-      <dt>公告側の必要等級（下限）</dt><dd>{% inline_edit project "required_grade" %}</dd>
-      <dt>公告側の必要点数</dt><dd>{% inline_edit project "required_score" %} 点以上</dd>
-      <dt>公告側の必要業種区分</dt><dd>{% inline_edit project "required_category" %}</dd>
-      <dt>資格種別</dt><dd>{% inline_edit project "required_issuer_type" %}</dd>
+      <dt>公告側の必要等級（該当）</dt><dd>{% inline_edit project "required_grades" reload=True %}</dd>
+      <dt>公告側の必要等級（下限）</dt><dd>{% inline_edit project "required_grade" reload=True %}</dd>
+      <dt>公告側の必要点数</dt><dd>{% inline_edit project "required_score" reload=True %} 点以上</dd>
+      <dt>公告側の必要業種区分</dt><dd>{% inline_edit project "required_category" reload=True %}</dd>
+      <dt>資格種別</dt><dd>{% inline_edit project "required_issuer_type" reload=True %}</dd>
       {% with req=qual_check.license_requirement %}
       <dt>公告側の建設業許可</dt>
       <dd>
@@ -132,6 +134,9 @@
       <dt>公告側の営業所の所在地</dt>
       <dd>
         {% if req.prefectures %}{% if req.area_name %}{{ req.area_name }}の管轄区域: {% endif %}{{ req.prefectures|join:"、" }}{% else %}-{% endif %}
+        <div style="color:var(--text-muted);font-size:12px;margin-top:4px;">
+          この2つは下の「参加要件」の文から読み取ります。直すときは参加要件を直してください。
+        </div>
       </dd>
       {% endwith %}
     </dl>
@@ -204,7 +209,7 @@
           {% if project.announced_on %}
           <tr>
             <td>-</td><td>公告</td><td>公告日</td><td>-</td>
-            <td style="white-space:nowrap;">{{ project.announced_on|date:"Y/m/d" }}</td>
+            <td style="white-space:nowrap;">{% inline_edit project "announced_on" reload=True %}</td>
             <td><span class="badge badge-gray">-</span></td>
             <td>-</td><td>-</td>
           </tr>
@@ -220,12 +225,18 @@
               {% endif %}
             </td>
             <td style="white-space:nowrap;">
-              {{ row.start|date:"Y/m/d H:i" }}
+              <span class="schedule-edit" data-label="{{ row.label }}" data-key="start"
+                    data-value="{{ row.start|date:'Y-m-d' }}" tabindex="0" role="button"
+                    title="タップすると直せます">{{ row.start|date:"Y/m/d H:i" }}</span>
               {% if not row.has_own_start %}
                 <span style="color:var(--text-muted);font-size:.78rem;">前の締切から</span>
               {% endif %}
             </td>
-            <td style="white-space:nowrap;">{{ row.end|date:"Y/m/d H:i" }}</td>
+            <td style="white-space:nowrap;">
+              <span class="schedule-edit" data-label="{{ row.label }}" data-key="end"
+                    data-value="{{ row.end|date:'Y-m-d' }}" tabindex="0" role="button"
+                    title="タップすると直せます">{{ row.end|date:"Y/m/d H:i" }}</span>
+            </td>
             <td style="white-space:nowrap;">
               {% if row.state == "done" %}
                 <span class="badge badge-gray">締切済</span>
@@ -297,45 +308,62 @@
     <div class="card-header"><h2>原価情報</h2></div>
     {% if cost %}
     <dl class="detail-grid">
-      <dt>見積額</dt><dd>{{ cost.estimate_amount|floatformat:0 }} 円</dd>
-      <dt>実際原価</dt><dd>{{ cost.actual_cost|floatformat:0 }} 円</dd>
-      <dt>メモ</dt><dd>{{ cost.memo|default:"-" }}</dd>
+      <dt>見積額</dt><dd>{% inline_edit cost "estimate_amount" %} 円</dd>
+      <dt>実際原価</dt><dd>{% inline_edit cost "actual_cost" %} 円</dd>
+      <dt>メモ</dt><dd>{% inline_edit cost "memo" %}</dd>
     </dl>
     {% else %}
-    <div class="card-body" style="color:var(--gray-400);text-align:center;padding:20px;">原価情報が未登録です</div>
+    <div class="card-body" style="color:var(--gray-400);text-align:center;padding:20px;">
+      原価情報が未登録です
+      <form method="post" action="{% url 'bids:cost_start' project.pk %}" style="margin-top:8px;">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-outline btn-sm">原価情報を作る</button>
+      </form>
+    </div>
     {% endif %}
   </div>
 </div>
 
 <div class="card" style="margin-top:20px;">
-  <div class="card-header"><h2>工事概要</h2></div>
+  <div class="card-header">
+    <h2>工事概要</h2>
+    {% inline_edit project "work_outline" text="この欄を直す" block=True reload=True %}
+  </div>
   <div class="card-body">
     {% if project.work_outline %}
     {{ project.work_outline|structured_text }}
     {% else %}
     <div style="color:var(--gray-400);text-align:center;padding:20px;">
-      未入力です。編集画面から公告・仕様書の内容を転記してください。
+      未入力です。「この欄を直す」から公告・仕様書の内容を書けます。
     </div>
     {% endif %}
   </div>
 </div>
 
 <div class="card" style="margin-top:20px;">
-  <div class="card-header"><h2>参加要件</h2></div>
+  <div class="card-header">
+    <h2>参加要件</h2>
+    {% inline_edit project "requirements" text="この欄を直す" block=True reload=True %}
+  </div>
   <div class="card-body">
     {% if project.requirements or qual_check.eligible == False %}
     {% requirements_with_shortfall project.requirements qual_check %}
     {% else %}
     <div style="color:var(--gray-400);text-align:center;padding:20px;">
-      未入力です。公告の入札参加資格・実績要件・配置技術者の条件を転記してください。
+      未入力です。「この欄を直す」から公告の入札参加資格・実績要件・配置技術者の条件を書けます。
     </div>
     {% endif %}
   </div>
 </div>
 
-{% if project.summary or project.notes %}
 <div class="card" style="margin-top:20px;">
-  <div class="card-header"><h2>案件概要（情報源の原文）</h2></div>
+  <div class="card-header">
+    <h2>案件概要（情報源の原文）</h2>
+    <span style="display:flex;gap:8px;align-items:center;">
+      {% inline_edit project "summary" text="原文を直す" block=True reload=True %}
+      {% inline_edit project "notes" text="備考を直す" block=True reload=True %}
+    </span>
+  </div>
   <div class="card-body">
     {% if project.summary %}
     <pre style="white-space:pre-wrap;word-break:break-all;margin:0;font-family:inherit;">{{ project.summary }}</pre>
@@ -343,25 +371,42 @@
     {% if project.notes %}
     <p style="margin-top:12px;white-space:pre-wrap;">{{ project.notes }}</p>
     {% endif %}
+    {% if not project.summary and not project.notes %}
+    <div style="color:var(--gray-400);text-align:center;padding:20px;">
+      未入力です。「原文を直す」「備考を直す」から書けます。
+    </div>
+    {% endif %}
   </div>
 </div>
-{% endif %}
 
 <div class="card" style="margin-top:20px;">
-  <div class="card-header"><h2>競合情報</h2></div>
+  <div class="card-header">
+    <h2>競合情報</h2>
+    <form method="post" action="{% url 'bids:competitor_add' project.pk %}" style="display:inline;">
+      {% csrf_token %}
+      <button type="submit" class="btn btn-outline btn-sm">競合を足す</button>
+    </form>
+  </div>
   <div class="table-wrap">
     <table>
-      <thead><tr><th>競合名</th><th>金額</th><th>情報源</th><th>メモ</th></tr></thead>
+      <thead><tr><th>競合名</th><th>金額</th><th>情報源</th><th>メモ</th><th></th></tr></thead>
       <tbody>
         {% for c in competitors %}
         <tr>
-          <td>{{ c.competitor_name }}</td>
-          <td>{{ c.competitor_amount|floatformat:0 }} 円</td>
-          <td>{{ c.source|default:"-" }}</td>
-          <td>{{ c.memo|default:"-" }}</td>
+          <td>{% inline_edit c "competitor_name" %}</td>
+          <td>{% inline_edit c "competitor_amount" %} 円</td>
+          <td>{% inline_edit c "source" %}</td>
+          <td>{% inline_edit c "memo" %}</td>
+          <td style="white-space:nowrap;width:1%;text-align:right;">
+            <form method="post" action="{% url 'bids:competitor_delete' c.pk %}" style="display:inline;">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-outline btn-sm" style="color:var(--danger);"
+                      onclick="return confirm('この競合の行を消しますか？')">削除</button>
+            </form>
+          </td>
         </tr>
         {% empty %}
-        <tr><td colspan="4" style="text-align:center;color:var(--gray-400);padding:20px;">競合情報が登録されていません</td></tr>
+        <tr><td colspan="5" style="text-align:center;color:var(--gray-400);padding:20px;">競合情報が登録されていません</td></tr>
         {% endfor %}
       </tbody>
     </table>
@@ -444,6 +489,46 @@ document.addEventListener('DOMContentLoaded', function() {
   document.querySelectorAll('.bid-schedule-kind').forEach(function(sel) {
     sel.addEventListener('change', function() {
       save({label: this.dataset.label, kind: this.value});
+    });
+  });
+
+  // 表の日付をタップして直す（ADR-0074）。保存の中身はバーを動かしたときと同じ。
+  document.querySelectorAll('.schedule-edit').forEach(function(span) {
+    function start() {
+      if (span.dataset.editing === '1') return;
+      span.dataset.editing = '1';
+      var previous = span.textContent;
+      var input = document.createElement('input');
+      input.type = 'date';
+      input.value = span.dataset.value || '';
+      input.className = 'inline-edit-input form-control';
+      span.textContent = '';
+      span.appendChild(input);
+      input.focus();
+      var done = false;
+      function finish(commit) {
+        if (done) return;
+        done = true;
+        var value = input.value;
+        if (!commit || !value || value === span.dataset.value) {
+          span.textContent = previous;
+          span.dataset.editing = '';
+          return;
+        }
+        span.textContent = '保存中…';
+        var params = {label: span.dataset.label};
+        params[span.dataset.key] = value;
+        save(params);
+      }
+      input.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') { e.preventDefault(); finish(true); }
+        if (e.key === 'Escape') { e.preventDefault(); finish(false); }
+      });
+      input.addEventListener('blur', function() { finish(true); });
+    }
+    span.addEventListener('click', start);
+    span.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' && e.target === span) { e.preventDefault(); start(); }
     });
   });
 

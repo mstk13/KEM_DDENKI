@@ -277,13 +277,21 @@ def _shortfall_notes_html(reasons) -> str:
 
 
 @register.simple_tag(name="inline_edit")
-def inline_edit_tag(obj, field_name):
+def inline_edit_tag(obj, field_name, reload=False, text=None, block=False):
     """タップで直せる文字を出す。
 
-    Usage: {% inline_edit project "client" %}
+    Usage:
+        {% inline_edit project "client" %}
+        {% inline_edit project "required_grade" reload=True %}
+        {% inline_edit project "work_outline" text="この欄を直す" block=True reload=True %}
 
     直せる項目は apps/bids/inline_edit.py の EDITABLE に書いた分だけ。
     許していない項目を指したときは、ただの文字として出す（画面は壊さない）。
+
+    Args:
+        reload: 保存したあとに画面を読み直す。判定や図が一緒に変わる欄で使う
+        text:   値の代わりに出す文字。長い文（工事概要など）の「直す」ボタン用
+        block:  入力欄を横いっぱいに広げる（長い文向け）
     """
     from apps.bids import inline_edit as editor
 
@@ -308,7 +316,14 @@ def inline_edit_tag(obj, field_name):
     if kind == "select":
         choices = json.dumps(editor.choices_for(field), ensure_ascii=False)
         attrs.append(f'data-choices="{escape(choices)}"')
+    if reload:
+        attrs.append('data-reload="1"')
+    if block:
+        attrs.append('data-block="1"')
     attrs.append('tabindex="0" role="button" title="タップすると直せます"')
+    shown = escape(text) if text else escape(editor.display_value(obj, field))
+    css = "inline-edit inline-edit-trigger" if text else "inline-edit"
+    attrs[0] = f'class="{css}"'
     return mark_safe(  # noqa: S308 - 値は escape 済み
-        f'<span {" ".join(attrs)}>{escape(editor.display_value(obj, field))}</span>'
+        f'<span {" ".join(attrs)}>{shown}</span>'
     )
