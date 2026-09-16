@@ -105,12 +105,21 @@ def _month_ticks(origin, goal, total_days):
     return ticks
 
 
+# 図に並べる状態。**結果がまだ出ていない案件**を出す。
+#
+# 「積算中」だけに絞らないのは、それでは案件が図から抜け落ちるため。
+# 手で作った積算案件の初期状態は「検討中」で、応札を終えると「応札済」になる。
+# とくに応札済は開札を待っている状態で、日程がいちばん要る時期に消えてしまう。
+# 決まった案件（落札・失注・見送り）は追う必要がないので出さない。
+IN_FLIGHT_STATUSES = ("planning", "estimating", "bid")
+
+
 def get_projects_gantt_data(company, statuses=None, today=None):
     """積算案件を1案件1本で並べたガントのデータ（ADR-0078）。
 
     Args:
         company: 対象テナント
-        statuses: 対象の状態。既定は積算中のみ
+        statuses: 対象の状態。既定は結果が出ていない案件（IN_FLIGHT_STATUSES）
         today: 「今日」の線を引く日。テストから差し替える
 
     Returns:
@@ -119,12 +128,15 @@ def get_projects_gantt_data(company, statuses=None, today=None):
           "ticks": [{"label", "left_pct"}, ...],
           "legend": [{"name", "color"}, ...],
           "start", "end", "today_pct",
+          "target_count": 対象の案件数,
+          "dated_count": そのうち日程が入っている件数,
         }
-        日付の入った工程が1件も無ければ rows は空。
+        日付の入った工程が1件も無ければ rows は空。件数は画面の案内に使う
+        （「案件が無い」のか「日程が入っていない」のかを出し分けるため）。
     """
     from apps.estimation.models import EstimationPhase, EstimationProject
 
-    statuses = statuses or [EstimationProject.Status.ESTIMATING]
+    statuses = statuses or list(IN_FLIGHT_STATUSES)
     today = today or timezone.localdate()
 
     # unscoped: company を引数で受けて明示的に絞る（services の他と同じ方針）
@@ -150,7 +162,7 @@ def get_projects_gantt_data(company, statuses=None, today=None):
         if start and end:
             spans[project.pk] = (start, end)
     if not spans:
-        return _empty_projects_gantt()
+        return _empty_projects_gantt(target_count=len(projects))
 
     origin = min(start for start, _ in spans.values())
     goal = max(end for _, end in spans.values())
@@ -204,9 +216,12 @@ def get_projects_gantt_data(company, statuses=None, today=None):
         "start": origin,
         "end": goal,
         "today_pct": today_pct,
+        "target_count": len(projects),
+        "dated_count": len(rows),
     }
 
 
-def _empty_projects_gantt():
+def _empty_projects_gantt(target_count=0):
     return {"rows": [], "ticks": [], "legend": [],
-            "start": None, "end": None, "today_pct": None}
+            "start": None, "end": None, "today_pct": None,
+            "target_count": target_count, "dated_count": 0}

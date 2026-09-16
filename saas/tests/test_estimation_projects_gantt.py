@@ -2,7 +2,7 @@
 
 確かめること:
 
-- 積算中の案件だけを、1案件1本で並べる
+- 結果が出ていない案件（検討中・積算中・応札済）を、1案件1本で並べる
 - 1本の中は工程ごとの色の帯になっていて、位置は全体の期間に対する％
 - 終わりが近い案件から上に出す
 - 日付の入っていない工程・案件は数えない
@@ -99,20 +99,31 @@ class TestRows:
 
 @pytest.mark.django_db
 class TestWhatIsIncluded:
-    def test_積算中の案件だけを出す(self, company_a):
-        estimating = _project(company_a, "積算中の案件")
-        _phase(estimating, "工程", _d(9, 1), _d(9, 30))
-        for status in (
-            EstimationProject.Status.WON,
-            EstimationProject.Status.LOST,
-            EstimationProject.Status.PLANNING,
-        ):
-            other = _project(company_a, f"{status} の案件", status=status)
-            _phase(other, "工程", _d(9, 1), _d(9, 30))
+    @pytest.mark.parametrize("status", [
+        EstimationProject.Status.PLANNING,   # 手で作った案件の初期状態
+        EstimationProject.Status.ESTIMATING,
+        EstimationProject.Status.BID,        # 開札待ち。日程がいちばん要る
+    ])
+    def test_結果が出ていない案件は出す(self, company_a, status):
+        project = _project(company_a, "案件", status=status)
+        _phase(project, "工程", _d(9, 1), _d(9, 30))
 
         data = get_projects_gantt_data(company_a, today=_d(9, 16))
 
-        assert [row["project"].pk for row in data["rows"]] == [estimating.pk]
+        assert [row["project"].pk for row in data["rows"]] == [project.pk]
+
+    @pytest.mark.parametrize("status", [
+        EstimationProject.Status.WON,
+        EstimationProject.Status.LOST,
+        EstimationProject.Status.SKIPPED,
+    ])
+    def test_決まった案件は出さない(self, company_a, status):
+        project = _project(company_a, "決まった案件", status=status)
+        _phase(project, "工程", _d(9, 1), _d(9, 30))
+
+        data = get_projects_gantt_data(company_a, today=_d(9, 16))
+
+        assert data["rows"] == []
 
     def test_状態を指定すれば他の状態も出せる(self, company_a):
         won = _project(company_a, "落札した案件", status=EstimationProject.Status.WON)
@@ -123,6 +134,16 @@ class TestWhatIsIncluded:
         )
 
         assert len(data["rows"]) == 1
+
+    def test_件数を返して空の理由を出し分けられるようにする(self, company_a):
+        """「案件が無い」と「日程が入っていない」では次の手が違う。"""
+        _project(company_a, "日程未入力の案件")
+
+        data = get_projects_gantt_data(company_a, today=_d(9, 16))
+
+        assert data["rows"] == []
+        assert data["target_count"] == 1
+        assert data["dated_count"] == 0
 
     def test_日付の入っていない工程は数えない(self, company_a):
         project = _project(company_a, "案件")
@@ -235,22 +256,45 @@ class TestListView:
 
         html = client.get("/estimation/projects/").content.decode()
 
-        assert "積算中の案件の日程" in html
+        assert "進行中の案件の日程" in html
         assert "est-gantt-seg" in html
         # 凡例に工程名と色が並ぶ
         assert "参加申請" in html
         assert "#dc2626" in html
 
-    def test_日程が無いときは案内を出す(self, client, company_a, user_a):
+    def test_手で作った検討中の案件も出る(self, client, company_a, user_a):
+        """手で作った積算案件の初期状態は「検討中」。
+
+        「積算中」だけに絞ると、いちばん多い状態の案件が図から丸ごと消える。
+        """
+        project = _project(
+            company_a, "手で作った案件", status=EstimationProject.Status.PLANNING,
+        )
+        _phase(project, "現地調査", _d(9, 1), _d(9, 10))
+        client.force_login(user_a)
+
+        html = client.get("/estimation/projects/").content.decode()
+
+        assert "手で作った案件" in html
+        assert "est-gantt-seg" in html
+
+    def test_日程が無いときは件数つきの案内を出す(self, client, company_a, user_a):
         _project(company_a, "日程未入力の案件")
         client.force_login(user_a)
 
         html = client.get("/estimation/projects/").content.decode()
 
-        assert "積算中の案件の日程" in html
-        assert "開始日と終了日の入った工程がまだありません" in html
+        assert "進行中の案件の日程" in html
+        assert "進行中の案件が 1 件ありますが" in html
 
-    def test_絞り込みを変えてもガントは積算中のまま(self, client, company_a, user_a):
+    def test_案件が1件も無いときは入れ方を案内する(self, client, company_a, user_a):
+        client.force_login(user_a)
+
+        html = client.get("/estimation/projects/").content.decode()
+
+        assert "進行中（検討中・積算中・応札済）の案件がありません" in html
+
+    def test_絞り込みを変えてもガントは進行中のまま(self, client, company_a, user_a):
         """ガントは表の絞り込みに連動させない。
 
         「いま動いている案件の締切」を常に置いておく場所なので、

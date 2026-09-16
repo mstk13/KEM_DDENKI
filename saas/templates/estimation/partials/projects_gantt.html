@@ -1,5 +1,6 @@
 {% comment %}
-積算中の案件の日程（ADR-0078）。**1案件1本**で、その1本を工程の色で塗り分ける。
+進行中（検討中・積算中・応札済）の案件の日程（ADR-0078）。
+**1案件1本**で、その1本を工程の色で塗り分ける。
 
 frappe-gantt は1タスク1バーで1本を塗り分けられないため、ここだけは帯を並べた
 自前の描画にしている。位置はサーバ側で全体の期間に対する％を出してあるので、
@@ -9,9 +10,10 @@ frappe-gantt は1タスク1バーで1本を塗り分けられないため、こ�
 {% endcomment %}
 <div class="card" style="margin-bottom:20px;">
   <div class="card-header">
-    <h2>積算中の案件の日程</h2>
+    <h2>進行中の案件の日程</h2>
     {% if gantt.rows %}
       <span style="font-size:.82rem;color:var(--text-muted);">
+        検討中・積算中・応札済 {{ gantt.dated_count }} 件 ／
         {{ gantt.start|date:"Y/m/d" }} 〜 {{ gantt.end|date:"Y/m/d" }}
       </span>
     {% endif %}
@@ -47,7 +49,8 @@ frappe-gantt は1タスク1バーで1本を塗り分けられないため、こ�
             <div class="est-gantt-label">
               <a href="{% url 'estimation:project_detail' row.project.pk %}">{{ row.project.name }}</a>
               <span class="est-gantt-sub">
-                {{ row.project.orderer.name }} / {{ row.start|date:"Y/m/d" }}〜{{ row.end|date:"Y/m/d" }}（{{ row.days }}日）
+                {{ row.project.get_status_display }} / {{ row.project.orderer.name }}<br>
+                {{ row.start|date:"Y/m/d" }}〜{{ row.end|date:"Y/m/d" }}（{{ row.days }}日）
               </span>
             </div>
             <div class="est-gantt-track">
@@ -67,9 +70,16 @@ frappe-gantt は1タスク1バーで1本を塗り分けられないため、こ�
         {% endfor %}
       </div>
     {% else %}
+      {# なぜ空なのかを出し分ける。「案件が無い」と「日程が入っていない」では次の手が違う #}
       <p style="color:var(--text-muted);margin:0;">
-        積算中の案件に、開始日と終了日の入った工程がまだありません。
-        案件を開いて「公告から取り込む」か「+ 工程追加」で日程を入れると、ここに並びます。
+        {% if gantt.target_count %}
+          進行中の案件が {{ gantt.target_count }} 件ありますが、
+          <strong>開始日と終了日の両方が入った工程</strong>がまだありません。
+          案件を開いて「公告から取り込む」か「+ 工程追加」で日程を入れると、ここに並びます。
+        {% else %}
+          進行中（検討中・積算中・応札済）の案件がありません。
+          入札案件の一覧から「積算へ移す」を押すと、公告の日程を取り込んだ積算案件がここに並びます。
+        {% endif %}
       </p>
     {% endif %}
   </div>
