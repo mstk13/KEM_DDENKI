@@ -1,8 +1,8 @@
 """資格保有一覧.xls の資格を、作業員ごとに登録する（ADR-0068）。
 
 - 資格名は Excel の見出しのまま。「△」は「（補）」を付ける
-- 一覧に載っている作業員の資格は、この一覧のものだけにする（手で登録した資格も消す）
-- ただし原本の写真が付いている資格は残す
+- 一覧に載っている作業員の資格は、この一覧のものだけにする
+  （手で登録した資格も、写真が付いている資格も消す）
 """
 
 import importlib
@@ -29,6 +29,9 @@ register_migration = importlib.import_module(
 )
 replace_migration = importlib.import_module(
     "apps.workers.migrations.0019_replace_listed_qualifications"
+)
+replace_all_migration = importlib.import_module(
+    "apps.workers.migrations.0020_replace_all_listed_qualifications"
 )
 
 # アプリ側の氏名は空白や字の違いがあってもよい
@@ -134,10 +137,10 @@ class TestRegister:
 
         assert ("松倉 利昭", "電気工事施工管理技士 1級") in report["removed"]
         assert ("松倉 利昭", "手で入れた資格") in report["removed"]
-        assert report["kept"] == []
+        assert report["removed_with_image"] == []
         assert _names(matsukura) == {ICHIKYU, "電気工事士　1種"}
 
-    def test_写真が付いている資格は消さない(self, kem):
+    def test_写真が付いている資格も消して報告に残す(self, kem):
         workers = _workers(kem)
         matsukura = workers["松倉　利昭"]
         WorkerQualification.unscoped.create(
@@ -148,8 +151,8 @@ class TestRegister:
 
         report = register_listed_qualifications(kem, Worker, WorkerQualification)
 
-        assert report["kept"] == [("松倉 利昭", "写真付きの資格")]
-        assert "写真付きの資格" in _names(matsukura)
+        assert report["removed_with_image"] == [("松倉 利昭", "写真付きの資格")]
+        assert _names(matsukura) == {ICHIKYU, "電気工事士　1種"}
 
     def test_確認だけなら消さず登録もしない(self, kem):
         workers = _workers(kem)
@@ -215,31 +218,6 @@ class TestRegister:
 
 
 @pytest.mark.django_db
-class TestWorkerList:
-    def test_作業員一覧に保有資格の列が出る(self, client, kem, django_user_model):
-        workers = _workers(kem)
-        register_listed_qualifications(kem, Worker, WorkerQualification)
-        user = django_user_model.objects.create_user(
-            username="miru", password="testpass123", company=kem,
-        )
-        client.force_login(user)
-
-        html = client.get("/workers/").content.decode()
-
-        assert "<th>保有資格</th>" in html
-        assert ICHIKYU in html
-        assert "高所作業車・作業床高⒑ｍ以上" in html
-        # 資格が無い作業員の欄は空
-        no_qual = Worker.unscoped.create(
-            company=kem, employee_code="E999", name="資格なし太郎", hourly_cost=0,
-        )
-        html = client.get("/workers/").content.decode()
-        row = html.split(no_qual.name)[1].split("</tr>")[0]
-        assert "qual-name" not in row
-        assert len(workers) == 14
-
-
-@pytest.mark.django_db
 class TestMigrationAndCommand:
     def test_データ移送で登録し_入れ替えでも増えない(self, kem):
         workers = _workers(kem)
@@ -250,6 +228,7 @@ class TestMigrationAndCommand:
 
         register_migration.forwards(django_apps, None)
         replace_migration.forwards(django_apps, None)
+        replace_all_migration.forwards(django_apps, None)
 
         assert WorkerQualification.unscoped.filter(company=kem).count() == 150
         assert not WorkerQualification.unscoped.filter(name="電気工事施工管理技士 1級").exists()

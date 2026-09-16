@@ -14,7 +14,8 @@
 同じ作業員に同じ資格名が既にあれば登録しない（何度流しても増えない）。
 一覧に載っている作業員の資格は、この一覧のものだけにする。一覧に無い資格は消す
 （前に別の表記で登録したものや、手で登録したものを含む）。
-ただし原本の写真が添付されている資格は消さず、報告に残す。
+原本の写真が添付されている資格も消す（プロダクトオーナーの指示、2026-09-16）。
+消した資格に写真が付いていた場合は、報告（removed_with_image）に残す。
 
 データ移送（workers/0018・0019）と管理コマンド register_listed_qualifications の両方から使う。
 データ移送からは履歴モデルを渡すので、モデルは引数で受け取り、
@@ -180,20 +181,21 @@ def register_listed_qualifications(company, Worker, WorkerQualification, *, appl
     """一覧の資格を作業員ごとに登録し、一覧に無い資格を消す。
 
     一覧に載っている作業員の資格は、この一覧のものだけにする。
-    原本の写真が添付されている資格は消さずに残し、報告（kept）に入れる。
+    写真が付いている資格も消すが、消したことが分かるよう報告（removed_with_image）に入れる。
 
     Returns:
         {
             "created": [(作業員名, 資格名)],   … 登録した（apply=False なら登録する予定）
             "existing": [(作業員名, 資格名)],  … 既に同じ資格名があるので何もしない
             "removed": [(作業員名, 資格名)],   … 一覧に無いので消した（予定）
-            "kept": [(作業員名, 資格名)],      … 一覧に無いが写真が付いているので残した
+            "removed_with_image": [(作業員名, 資格名)],  … 消したうち写真が付いていたもの
             "missing": [一覧の氏名],            … 作業員が見つからない
             "ambiguous": [一覧の氏名],          … 同じ氏名の在籍中の作業員が複数いる
         }
     """
     report = {
-        "created": [], "existing": [], "removed": [], "kept": [], "missing": [], "ambiguous": [],
+        "created": [], "existing": [], "removed": [], "removed_with_image": [],
+        "missing": [], "ambiguous": [],
     }
     if company is None:
         report["missing"] = list(HOLDERS)
@@ -221,12 +223,10 @@ def register_listed_qualifications(company, Worker, WorkerQualification, *, appl
             if qual.name in wanted:
                 held.add(qual.name)
                 continue
-            if qual.certificate_image:
-                # 原本の写真が付いている資格は消さない（写真ごと消えてしまうため）
-                report["kept"].append((worker.name, qual.name))
-                continue
             # 一覧に無い資格は消す（前の表記で登録したものや、手で登録したものを含む）
             report["removed"].append((worker.name, qual.name))
+            if qual.certificate_image:
+                report["removed_with_image"].append((worker.name, qual.name))
             if apply:
                 qual.delete()
         for name in names:
