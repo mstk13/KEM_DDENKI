@@ -52,19 +52,25 @@
       </div>
       <div class="form-group" style="margin-bottom:0;">
         <label>区分</label>
-        <select name="kind" class="form-control">
+        <select name="kind" class="form-control" id="plan-fill-kind">
           {% for value, text in kind_choices %}
             <option value="{{ value }}">{{ text }}</option>
           {% endfor %}
           <option value="">（予定を消す）</option>
         </select>
       </div>
-      <div class="form-group" style="margin-bottom:0;">
+      {# 現場名・行先などの詳細。区分ごとにラベルが変わり、訊かない区分では隠す（KIND_FIELDS） #}
+      <div class="form-group" style="margin-bottom:0;" id="plan-fill-place-row" hidden>
+        <label id="plan-fill-place-label" for="plan-fill-note">場所</label>
+        <input type="text" name="note" id="plan-fill-note" class="form-control"
+               maxlength="200" list="attend-site-names" autocomplete="off">
+      </div>
+      <div class="form-group" style="margin-bottom:0;" id="plan-fill-start-row">
         <label>開始</label>
         <input type="time" name="start_time" class="form-control"
                placeholder="{{ standard_start }}">
       </div>
-      <div class="form-group" style="margin-bottom:0;">
+      <div class="form-group" style="margin-bottom:0;" id="plan-fill-end-row">
         <label>終了</label>
         <input type="time" name="end_time" class="form-control"
                placeholder="{{ standard_end }}">
@@ -77,6 +83,7 @@
     </form>
     <p style="margin:10px 0 0;font-size:.82rem;color:var(--text-secondary);">
       「火曜日」を選ぶと、この月の火曜だけをまとめて記入します。
+      区分に合わせて入力欄が変わります（現場・直行直帰なら現場名、出張なら行先）。
       時刻を空にすると所定（{{ standard_start }}〜{{ standard_end }}）どおりの扱いです。
       上書きにチェックを入れないと、すでに入っている日はそのまま残ります
       （上書きすると、時間で分けてあった日も1件にまとめ直します）。
@@ -374,6 +381,31 @@ document.addEventListener('DOMContentLoaded', function() {
   var setUrl = '{% url "attendance:plan_set" %}';
   var entriesUrl = '{% url "attendance:plan_entries" %}';
   var KIND_FIELDS = {{ kind_fields_json|safe }};
+
+  // まとめて記入の入力欄を区分に合わせて出し分ける（マスの詳細ダイアログと同じ KIND_FIELDS）。
+  // 現場・直行直帰なら「現場名」、出張なら「行先」を訊く。時刻を持たない区分では時刻欄を隠す。
+  // 予定表に行が無いときは、まとめて記入の欄そのものが出ないので何もしない。
+  var fillKind = document.getElementById('plan-fill-kind');
+  if (fillKind) {
+    var fillPlaceRow = document.getElementById('plan-fill-place-row');
+    var fillPlaceLabel = document.getElementById('plan-fill-place-label');
+    var fillNote = document.getElementById('plan-fill-note');
+    var fillStartRow = document.getElementById('plan-fill-start-row');
+    var fillEndRow = document.getElementById('plan-fill-end-row');
+
+    var syncFillFields = function() {
+      // 区分が空（予定を消す）のときは、詳細をすべて隠す
+      var spec = KIND_FIELDS[fillKind.value] || {time: false, place: ''};
+      fillPlaceRow.hidden = !spec.place;
+      fillPlaceLabel.textContent = spec.place || '場所';
+      fillNote.placeholder = spec.place ? spec.place + 'を入力（任意）' : '';
+      if (!spec.place) { fillNote.value = ''; }
+      fillStartRow.hidden = !spec.time;
+      fillEndRow.hidden = !spec.time;
+    };
+    fillKind.addEventListener('change', syncFillFields);
+    syncFillFields();
+  }
   var MAX_ENTRIES = {{ max_entries }};
   var STANDARD_START = '{{ standard_start|escapejs }}';
   var STANDARD_END = '{{ standard_end|escapejs }}';
