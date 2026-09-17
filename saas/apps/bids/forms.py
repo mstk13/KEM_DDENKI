@@ -27,7 +27,6 @@ class BidProjectForm(forms.ModelForm):
         ]
         widgets = {
             "announced_on": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
-            "deadline": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
             "opening_on": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
             "work_outline": forms.Textarea(attrs={"class": "form-control", "rows": 6}),
             "requirements": forms.Textarea(attrs={"class": "form-control", "rows": 6}),
@@ -39,6 +38,13 @@ class BidProjectForm(forms.ModelForm):
         for _name, field in self.fields.items():
             if not isinstance(field.widget, (forms.DateInput, forms.Textarea)):
                 field.widget.attrs.setdefault("class", "form-control")
+
+
+# 入札期限は日付だけでなく時刻も持つ（ADR-0088）。
+# <input type="date"> のままだと、公告から読んだ時刻（17時など）が編集画面で保存するたびに消える。
+# DateTimeLocalField はこのファイルの下のほうで定義しているので、最後に差し替える。
+def _use_datetime_local_for_deadline():
+    BidProjectForm.base_fields["deadline"] = DateTimeLocalField(label="入札期限")
 
 
 class BidCostForm(forms.ModelForm):
@@ -191,3 +197,26 @@ class ScrapeTargetForm(forms.ModelForm):
         for _name, field in self.fields.items():
             if not isinstance(field.widget, forms.CheckboxInput):
                 field.widget.attrs.setdefault("class", "form-control")
+
+
+# <input type="datetime-local"> が送ってくる形。日付だけの入力も受ける
+DATETIME_LOCAL_FORMATS = ("%Y-%m-%dT%H:%M", "%Y-%m-%d %H:%M", "%Y-%m-%d")
+
+
+class DateTimeLocalField(forms.DateTimeField):
+    """時刻まで入れられる日時の欄。公告から読んだ時刻（17時など）を落とさない（ADR-0088）。"""
+
+    def __init__(self, **kwargs):
+        kwargs.setdefault("required", False)
+        kwargs.setdefault("input_formats", DATETIME_LOCAL_FORMATS)
+        kwargs.setdefault(
+            "widget",
+            forms.DateTimeInput(
+                attrs={"type": "datetime-local", "class": "form-control"},
+                format="%Y-%m-%dT%H:%M",
+            ),
+        )
+        super().__init__(**kwargs)
+
+
+_use_datetime_local_for_deadline()

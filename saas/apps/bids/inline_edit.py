@@ -149,6 +149,10 @@ def save_value(obj, field, value):
     if not form.is_valid():
         raise ValueError("／".join(form.errors[field.name]))
     saved = form.save()
+    # 入札案件の項目を直したら「人が直した」印を付け、公告の取り直しで書き換えない（ADR-0088）
+    mark = getattr(saved, "mark_corrected", None)
+    if mark is not None and form.changed_data and mark(form.changed_data):
+        saved.save(update_fields=["corrected_fields"])
     _after_save(saved, field)
     return display_value(saved, field), raw_value(saved, field)
 
