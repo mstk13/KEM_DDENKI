@@ -114,6 +114,56 @@ def qualification_checklist(request):
 
 
 @login_required
+def certificate_import(request):
+    """資格証のPDFを、ZIP でまとめて取り込む（ADR-0091）。
+
+    サーバーの中に入らなくても取り込めるようにするための画面。
+    既定は確認だけ。「実際に登録する」を選んだときだけ添付する。
+    """
+    import tempfile
+
+    from apps.workers.certificate_import import (
+        extract_archive,
+        find_dates_csv,
+        import_certificates,
+        read_dates,
+    )
+    from apps.workers.forms import CertificateZipForm
+
+    if not (_is_admin(request.user) or _has_role(request.user, "office_staff")):
+        raise PermissionDenied("この画面は事務員・管理者のみ使えます。")
+
+    report = None
+    applied = False
+    form = CertificateZipForm(request.POST or None, request.FILES or None)
+    if request.method == "POST" and form.is_valid():
+        applied = form.cleaned_data["apply"]
+        with tempfile.TemporaryDirectory() as work_dir:
+            try:
+                root = extract_archive(form.cleaned_data["archive"], work_dir)
+            except Exception:
+                messages.error(request, "ZIP を読めませんでした。作り直して試してください。")
+                return redirect("workers:certificate_import")
+
+            csv_path = find_dates_csv(root)
+            report = import_certificates(
+                root, request.user.company, Worker, WorkerQualification,
+                dates=read_dates(csv_path), apply=applied,
+            )
+        if applied:
+            messages.success(
+                request,
+                f"{len(report['attached'])} 件の資格証を登録しました。",
+            )
+
+    return render(request, "workers/certificate_import.html", {
+        "form": form,
+        "report": report,
+        "applied": applied,
+    })
+
+
+@login_required
 def document_alert_dashboard(request):
     """事務員向け: 証明書・健診書類の未添付一覧。"""
     from apps.core.date_utils import add_months, add_years

@@ -203,6 +203,34 @@ class WorkerForm(forms.ModelForm):
         return worker
 
 
+class CertificateZipForm(forms.Form):
+    """資格証のPDFをまとめて取り込む（ADR-0091）。
+
+    サーバーの中に入らなくても取り込めるよう、資格書一覧フォルダを
+    ZIP にして画面から渡す。中身は <氏名>/<資格名>.pdf と有効期限.csv。
+    """
+
+    MAX_SIZE = 100 * 1024 * 1024
+
+    archive = forms.FileField(
+        label="資格書一覧（ZIP）",
+        help_text="フォルダごと ZIP にしたもの。100MB まで。",
+        widget=forms.ClearableFileInput(attrs={"accept": ".zip", "class": "form-control"}),
+    )
+    apply = forms.BooleanField(
+        label="実際に登録する", required=False,
+        help_text="外したままだと、何が登録されるかの確認だけを出します。",
+    )
+
+    def clean_archive(self):
+        archive = self.cleaned_data["archive"]
+        if not archive.name.lower().endswith(".zip"):
+            raise forms.ValidationError("ZIP ファイルを選んでください。")
+        if archive.size > self.MAX_SIZE:
+            raise forms.ValidationError("ファイルが大きすぎます（100MB まで）。")
+        return archive
+
+
 class WorkerQualificationForm(forms.ModelForm):
     class Meta:
         model = WorkerQualification

@@ -24,6 +24,8 @@ import csv
 import datetime
 import pathlib
 import re
+import shutil
+import zipfile
 
 from django.core.files import File
 
@@ -142,6 +144,57 @@ def category_for(qualification_name: str) -> str:
         if word in qualification_name:
             return category
     return OTHER
+
+
+def extract_archive(archive, destination):
+    """ZIP を安全に展開し、資格書一覧のフォルダの場所を返す（ADR-0091）。
+
+    ZIP には「資格書一覧/釼持　政宏/…」のように親フォルダが1つ入ることが多いので、
+    中に人のフォルダが並んでいる階層まで降りて返す。
+
+    - 上位ディレクトリへ抜ける名前（../）や絶対パスは展開しない
+    - pdf / csv 以外は展開しない
+    """
+    destination = pathlib.Path(destination)
+    with zipfile.ZipFile(archive) as zf:
+        for info in zf.infolist():
+            if info.is_dir():
+                continue
+            name = info.filename.replace("\\", "/")
+            if name.startswith("/") or ".." in pathlib.PurePosixPath(name).parts:
+                continue
+            if pathlib.PurePosixPath(name).suffix.lower() not in (".pdf", ".csv"):
+                continue
+            target = destination / name
+            target.parent.mkdir(parents=True, exist_ok=True)
+            with zf.open(info) as src, open(target, "wb") as dst:
+                shutil.copyfileobj(src, dst)
+
+    return _folder_root(destination)
+
+
+def _folder_root(path):
+    """人のフォルダが並んでいる階層まで降りる。
+
+    ZIP の作り方で「資格書一覧/」が1枚多く入ることがあるため。
+    """
+    current = pathlib.Path(path)
+    for _ in range(3):
+        entries = [p for p in current.iterdir() if not p.name.startswith("__MACOSX")]
+        directories = [p for p in entries if p.is_dir()]
+        if len(directories) == 1 and len(entries) == 1:
+            current = directories[0]
+            continue
+        return current
+    return current
+
+
+def find_dates_csv(root):
+    """フォルダの中の有効期限CSV。無ければ None。"""
+    root = pathlib.Path(root)
+    for path in sorted(root.glob("*.csv")) + sorted(root.glob("*/*.csv")):
+        return path
+    return None
 
 
 def read_dates(csv_path):
