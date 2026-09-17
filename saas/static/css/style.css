@@ -1196,3 +1196,15 @@ textarea.inline-edit-input { width: 100%; min-width: 260px; }
 .schedule-edit[data-input="text"]::after { content: " ✎"; color: var(--text-muted, #6b7280); font-size: .85em; }
 .schedule-edit[data-editing="1"]::after { content: none; }
 .inline-edit-error { color: var(--danger, #dc2626); font-size: .8rem; margin-top: 2px; }
+
+/* 日報の重複の知らせ（ADR-0076）と、日報の未提出の赤字（ADR-0077） */
+.duplicate-warning { border: 1px solid var(--danger, #dc2626); border-left-width: 4px; border-radius: 6px; background: #fef2f2; padding: 12px 16px; margin-bottom: 16px; color: #7f1d1d; }
+.duplicate-warning-title { margin: 0; font-weight: 700; color: var(--danger, #dc2626); }
+.report-missing { border: 1px solid var(--danger, #dc2626); border-left-width: 4px; border-radius: 6px; background: #fef2f2; padding: 10px 14px; margin-bottom: 16px; color: var(--danger, #dc2626); font-weight: 700; }
+.report-missing a { color: var(--danger, #dc2626); text-decoration: underline; }
+.report-missing-note { font-weight: 400; font-size: .85rem; color: #7f1d1d; }
+/* 資格証の提出チェックリスト（ADR-0078） */
+.cert-check { text-align: center; white-space: nowrap; }
+.cert-check-yes { color: #15803d; font-weight: 700; }
+.cert-check-no { color: var(--danger, #dc2626); font-weight: 700; }
+.cert-check-none { color: var(--text-muted, #9ca3af); }

@@ -5,7 +5,9 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 
 from apps.permissions.services import can_approve_report, can_delete_report
+from apps.reports.duplicates import find_duplicate_reports
 from apps.reports.forms import DailyReportForm
+from apps.reports.missing_alerts import missing_days_for_worker
 from apps.reports.models import DailyReport, SafetyRecord
 from apps.reports.services import (
     alert_safety_incomplete,
@@ -176,6 +178,10 @@ def report_list(request):
     sites, workers = _filter_choices()
     return render(request, "reports/list.html", {
         "reports": reports,
+        # 自分の日報が抜けている日を赤字で出す（ADR-0077）
+        "my_missing_days": missing_days_for_worker(
+            getattr(request.user, "worker_profile", None),
+        ),
         "status_choices": DailyReport.Status.choices,
         "selected_status": filters["status"],
         "selected_month": selected_month,
@@ -288,6 +294,11 @@ def report_list_pdf(request):
     return _pdf_response(generate_reports_pdf(list(reports)), f"日報_{label}.pdf")
 
 
+def _submit_action(request):
+    """押されたボタン。重複の確認画面から送り直したときは hidden から受ける（ADR-0076）。"""
+    return request.POST.get("action") or request.POST.get("duplicate_action", "")
+
+
 def _report_form_context(company):
     """日報フォームの候補一覧と、現場→発注先の対応表を返す。"""
     from apps.core.json_utils import json_for_script
@@ -374,9 +385,22 @@ def report_create(request):
             request.POST, company=request.user.company, self_worker=profile,
         )
         if form.is_valid():
+            # 同じ日・同じ人の日報が既にあれば、いったん止めて選んでもらう（ADR-0076）
+            duplicates = find_duplicate_reports(
+                request.user.company,
+                list(form.cleaned_data.get("workers") or []),
+                form.cleaned_data.get("report_date"),
+            )
+            if duplicates and request.POST.get("confirm_duplicate") != "1":
+                return render(request, "reports/form.html", {
+                    "form": form,
+                    "duplicates": duplicates,
+                    "duplicate_action": request.POST.get("action", ""),
+                    **_report_form_context(request.user.company),
+                })
             status = (
                 DailyReport.Status.SUBMITTED
-                if request.POST.get("action") == "submit"
+                if _submit_action(request) == "submit"
                 else None
             )
             saved, skipped = form.save_reports(
@@ -392,7 +416,11 @@ def report_create(request):
             return redirect("reports:list")
     else:
         form = DailyReportForm(company=request.user.company, self_worker=profile)
-    ctx = {"form": form, **_report_form_context(request.user.company)}
+    ctx = {
+        "form": form,
+        "my_missing_days": missing_days_for_worker(profile),
+        **_report_form_context(request.user.company),
+    }
     return render(request, "reports/form.html", ctx)
 
 
@@ -421,9 +449,24 @@ def report_edit(request, pk):
             request.POST, instance=report, company=request.user.company,
         )
         if form.is_valid():
+            duplicates = find_duplicate_reports(
+                request.user.company,
+                list(form.cleaned_data.get("workers") or []),
+                form.cleaned_data.get("report_date"),
+                exclude_pk=report.pk,
+            )
+            if duplicates and request.POST.get("confirm_duplicate") != "1":
+                return render(request, "reports/form.html", {
+                    "form": form,
+                    "duplicates": duplicates,
+                    "duplicate_action": request.POST.get("action", ""),
+                    "can_delete": can_delete_report(request.user, report),
+                    "back_url": back_url,
+                    **_report_form_context(request.user.company),
+                })
             status = (
                 DailyReport.Status.SUBMITTED
-                if request.POST.get("action") == "submit"
+                if _submit_action(request) == "submit"
                 else None
             )
             saved, skipped = form.save_reports(
