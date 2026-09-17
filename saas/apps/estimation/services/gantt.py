@@ -114,13 +114,14 @@ def _month_ticks(origin, goal, total_days):
 IN_FLIGHT_STATUSES = ("planning", "estimating", "bid")
 
 
-def get_projects_gantt_data(company, statuses=None, today=None):
+def get_projects_gantt_data(company, statuses=None, today=None, project_pks=None):
     """積算案件を1案件1本で並べたガントのデータ（ADR-0078）。
 
     Args:
         company: 対象テナント
         statuses: 対象の状態。既定は結果が出ていない案件（IN_FLIGHT_STATUSES）
         today: 「今日」の線を引く日。テストから差し替える
+        project_pks: この案件だけに絞る。詳細画面で1件だけ出すときに使う
 
     Returns:
         {
@@ -140,12 +141,15 @@ def get_projects_gantt_data(company, statuses=None, today=None):
     today = today or timezone.localdate()
 
     # unscoped: company を引数で受けて明示的に絞る（services の他と同じ方針）
-    projects = list(
+    qs = (
         EstimationProject.unscoped
         .filter(company=company, status__in=statuses)
         .select_related("orderer")
         .order_by("pk")
     )
+    if project_pks is not None:
+        qs = qs.filter(pk__in=project_pks)
+    projects = list(qs)
     if not projects:
         return _empty_projects_gantt()
 

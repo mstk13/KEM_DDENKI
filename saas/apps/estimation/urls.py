@@ -74,4 +74,19 @@ urlpatterns = [
         "projects/<int:project_pk>/phases/import-from-bid/",
         views.phase_import_from_bid, name="phase_import_from_bid",
     ),
+    # ADR-0080: 案件資料（公告PDF・仕様書など）と、そこからの日程読み取り
+    path(
+        "projects/<int:project_pk>/documents/add/",
+        views.document_add, name="document_add",
+    ),
+    path("documents/<int:pk>/file/", views.document_file, name="document_file"),
+    path("documents/<int:pk>/delete/", views.document_delete, name="document_delete"),
+    path(
+        "documents/<int:pk>/read-schedule/",
+        views.document_read_schedule, name="document_read_schedule",
+    ),
+    path(
+        "documents/<int:pk>/import-schedule/",
+        views.document_import_schedule, name="document_import_schedule",
+    ),
 ]

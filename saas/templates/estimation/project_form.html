@@ -16,7 +16,12 @@
         {{ form.name }}{{ form.name.errors }}
       </div>
       <div class="form-row">
-        <div class="form-group"><label>発注機関</label>{{ form.orderer }}{{ form.orderer.errors }}</div>
+        <div class="form-group">
+          <label for="{{ form.orderer_name.id_for_label }}">発注機関</label>
+          {{ form.orderer_name }}
+          <small class="text-muted" style="font-size:.78rem;">{{ form.orderer_name.help_text }}</small>
+          {{ form.orderer_name.errors }}
+        </div>
         <div class="form-group"><label>適用積算基準</label>{{ form.standard }}{{ form.standard.errors }}</div>
       </div>
       <div class="form-row">
@@ -26,7 +31,21 @@
       <div class="form-row">
         <div class="form-group"><label>入札公告日</label>{{ form.bid_announcement_date }}{{ form.bid_announcement_date.errors }}</div>
         <div class="form-group"><label>開札予定日</label>{{ form.bid_opening_date }}{{ form.bid_opening_date.errors }}</div>
+      </div>
+      <div class="form-row">
         <div class="form-group"><label>工期（日）</label>{{ form.construction_period_days }}{{ form.construction_period_days.errors }}</div>
+        <div class="form-group">
+          <label for="{{ form.construction_end_date.id_for_label }}">工期末日</label>
+          {{ form.construction_end_date }}
+          <small class="text-muted" style="font-size:.78rem;">{{ form.construction_end_date.help_text }}</small>
+          {{ form.construction_end_date.errors }}
+        </div>
+        <div class="form-group">
+          <label for="{{ form.estimator_name.id_for_label }}">積算担当者</label>
+          {{ form.estimator_name }}
+          <small class="text-muted" style="font-size:.78rem;">{{ form.estimator_name.help_text }}</small>
+          {{ form.estimator_name.errors }}
+        </div>
       </div>
       <div class="form-row">
         <div class="form-group"><label>現場</label>{{ form.site }}{{ form.site.errors }}</div>
@@ -37,6 +56,14 @@
         <div class="form-group"><label>落札額</label>{{ form.award_amount }}{{ form.award_amount.errors }}</div>
       </div>
       <div class="form-group"><label>備考</label>{{ form.notes }}{{ form.notes.errors }}</div>
+
+      {# 入力候補（ADR-0080）。datalist なので、ここに無い値も送信できる #}
+      <datalist id="orderer-name-options">
+        {% for name in form.orderer_choices %}<option value="{{ name }}"></option>{% endfor %}
+      </datalist>
+      <datalist id="estimator-name-options">
+        {% for name in form.estimator_choices %}<option value="{{ name }}"></option>{% endfor %}
+      </datalist>
       <div class="form-actions">
         <button type="submit" class="btn btn-primary">保存</button>
         <a href="{% url 'estimation:project_list' %}" class="btn btn-outline">キャンセル</a>

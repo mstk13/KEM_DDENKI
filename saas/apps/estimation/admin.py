@@ -5,6 +5,7 @@ from apps.estimation.models import (
     BoqLine,
     CostComparison,
     EstimationCompetitor,
+    EstimationDocument,
     EstimationItem,
     EstimationPhase,
     EstimationProject,
@@ -249,3 +250,13 @@ class EstimationPhaseAdmin(SimpleHistoryAdmin):
     )
     list_filter = ("company",)
     search_fields = ("name", "project__name")
+
+
+@admin.register(EstimationDocument)
+class EstimationDocumentAdmin(SimpleHistoryAdmin):
+    list_display = (
+        "name", "project", "doc_type", "kind",
+        "original_filename", "ai_checked_at", "company",
+    )
+    list_filter = ("doc_type", "kind", "company")
+    search_fields = ("name", "original_filename", "project__name")
