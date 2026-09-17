@@ -4,7 +4,7 @@
 
 {% block content %}
 <div class="page-header">
-  <h1>見積-{{ quotation.pk }} {{ quotation.supplier }}</h1>
+  <h1>見積-{{ quotation.pk }} {{ quotation.counterparty_name }}</h1>
   <div style="display:flex;gap:8px;">
     <a href="{% url 'materials:quotation_pdf' quotation.pk %}" class="btn btn-outline" target="_blank">PDF出力</a>
     <span class="badge badge-gray">{{ quotation.get_status_display }}</span>
@@ -16,7 +16,9 @@
     <div class="card-header"><h2>見積情報</h2></div>
     <div style="padding:16px;">
       <table style="width:100%;">
-        <tr><th style="text-align:left;width:30%;">仕入先</th><td>{{ quotation.supplier }}</td></tr>
+        {# 向きで呼び方も中身も変わる。決め打ちにすると自社発行で空欄になる（ADR-0085）。 #}
+        <tr><th style="text-align:left;width:30%;">{{ quotation.counterparty_label }}</th><td>{{ quotation.counterparty_name }}</td></tr>
+        <tr><th style="text-align:left;">見積の向き</th><td>{{ quotation.get_kind_display }}</td></tr>
         <tr><th style="text-align:left;">現場</th><td>{{ quotation.site|default:"—" }}</td></tr>
         <tr><th style="text-align:left;">見積日</th><td>{{ quotation.quotation_date }}</td></tr>
         <tr><th style="text-align:left;">有効期限</th><td>{{ quotation.valid_until|default:"—" }}</td></tr>

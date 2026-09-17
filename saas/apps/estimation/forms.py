@@ -609,6 +609,35 @@ class EstimationPhaseForm(forms.ModelForm):
         return cleaned
 
 
+def registrant_name(user) -> str:
+    """ログインしている人を、画面に出す名前にする。
+
+    作業員が紐づいていれば氏名。無ければ利用者の表示名。
+    どちらも空になることはあるので、その場合は空文字のまま返す。
+    """
+    if user is None or not getattr(user, "is_authenticated", False):
+        return ""
+    worker = getattr(user, "worker_profile", None)
+    if worker is not None and worker.name:
+        return worker.name[:100]
+    return (user.get_full_name() or user.get_username() or "")[:100]
+
+
+def _past_values(company, field: str) -> list[str]:
+    """会社の案件資料に過去に入った値を、重複なく並べる。"""
+    if company is None:
+        return []
+    # unscoped: フォーム初期化時に会社を明示フィルタするため
+    return sorted(
+        value for value in set(
+            EstimationDocument.unscoped
+            .filter(company=company)
+            .exclude(**{field: ""})
+            .values_list(field, flat=True)
+        ) if value
+    )
+
+
 class EstimationDocumentForm(forms.Form):
     """積算案件に資料を1件足す（ADR-0080）。
 
@@ -636,15 +665,39 @@ class EstimationDocumentForm(forms.Form):
         ),
         help_text=f"PDF（.pdf）と Excel（.xlsx・.xls）。1件 {_MAX_MB}MB まで。",
     )
+    provided_by = forms.CharField(
+        label="提供元", max_length=100, required=False,
+        widget=forms.TextInput(
+            attrs={"class": "form-control", "list": "doc-provided-by-options"},
+        ),
+        help_text="誰からもらった資料か。過去に入力した提供元は候補から選べます。",
+    )
+    registered_by_name = forms.CharField(
+        label="登録者", max_length=100, required=False,
+        widget=forms.TextInput(
+            attrs={"class": "form-control", "list": "doc-registered-by-options"},
+        ),
+        help_text="空のままならログインしている人の名前が入ります。",
+    )
     memo = forms.CharField(
         label="メモ", required=False,
         widget=forms.Textarea(attrs={"rows": 2, "class": "form-control"}),
     )
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, company=None, user=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["doc_type"].choices = EstimationDocument.DocType.choices
         self.fields["doc_type"].initial = EstimationDocument.DocType.ANNOUNCEMENT
+
+        # 提供元・登録者はマスタを持たない。**過去に入れた値そのもの**を候補にする。
+        # 積算担当者（ADR-0080）と同じ理由で、マスタにすると使わなくなった名前を
+        # 消す手間が残る。窓口の担当者は人の入れ替わりで変わる。
+        self.provided_by_choices = _past_values(company, "provided_by")
+        self.registered_by_choices = _past_values(company, "registered_by_name")
+
+        # 既定は今ログインしている人。代理で登録するときだけ書き換える。
+        if user is not None:
+            self.fields["registered_by_name"].initial = registrant_name(user)
 
     def clean_file(self):
         """PDF・Excel であることと、大きさを確かめる。"""
