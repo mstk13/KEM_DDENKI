@@ -174,24 +174,71 @@ class TestWhatIsIncluded:
 
 @pytest.mark.django_db
 class TestAxisAndToday:
-    def test_月の1日に目盛りを置く(self, company_a):
+    def test_目盛りは日付で刻む(self, company_a):
+        """月の1日だけでは、帯の左右がいつなのかを図から読めない（ADR-0083）。"""
+        project = _project(company_a, "案件")
+        _phase(project, "工程", _d(9, 1), _d(9, 12))
+
+        data = get_projects_gantt_data(company_a, today=_d(9, 6))
+
+        assert [tick["label"] for tick in data["ticks"]] == [
+            "9/1", "9/2", "9/3", "9/4", "9/5", "9/6",
+            "9/7", "9/8", "9/9", "9/10", "9/11", "9/12",
+        ]
+
+    def test_期間が延びても目盛りは日付のまま(self, company_a):
+        """入札公告の日程はたいてい1〜2か月。そこが日付で読めないと困る。"""
         project = _project(company_a, "案件")
         _phase(project, "工程", _d(9, 1), _d(11, 30))
 
         data = get_projects_gantt_data(company_a, today=_d(9, 16))
 
-        assert [tick["label"] for tick in data["ticks"]] == [
-            "2026/09", "2026/10", "2026/11",
-        ]
+        labels = [tick["label"] for tick in data["ticks"]]
+        assert labels[0] == "9/1"
+        assert "10/6" in labels
+        # 1週間おき。詰まって読めなくならない本数に収まる
+        assert 10 <= len(labels) <= 15
 
-    def test_期間が長いときは目盛りを間引く(self, company_a):
+    def test_年をまたぐ目盛りには年を足す(self, company_a):
+        project = _project(company_a, "年またぎ案件")
+        _phase(project, "工程", _d(12, 20), _d(1, 20, year=2027))
+
+        data = get_projects_gantt_data(company_a, today=_d(12, 25))
+
+        labels = [tick["label"] for tick in data["ticks"]]
+        assert labels[0] == "12/20"
+        assert "2027/1/4" in labels
+
+    def test_1年を大きく超える期間は月に戻す(self, company_a):
+        """この長さになると日付のラベルは隣と重なって読めない。"""
         project = _project(company_a, "長い案件")
         _phase(project, "工程", _d(1, 1), _d(12, 31, year=2027))
 
         data = get_projects_gantt_data(company_a, today=_d(9, 16))
 
+        labels = [tick["label"] for tick in data["ticks"]]
+        assert labels[0] == "2026/01"
         # 2年分を毎月出すと詰まって読めない
-        assert len(data["ticks"]) < 24
+        assert len(labels) < 24
+
+    def test_左端の目盛りは左に寄せる(self, company_a):
+        """中央そろえのままだと、左端の目盛りが図からはみ出して切れる。"""
+        project = _project(company_a, "案件")
+        _phase(project, "工程", _d(9, 1), _d(9, 8))
+
+        data = get_projects_gantt_data(company_a, today=_d(9, 6))
+
+        assert data["ticks"][0]["align"] == "start"
+        assert data["ticks"][3]["align"] == "center"
+
+    def test_右端いっぱいの目盛りは右に寄せる(self, company_a):
+        project = _project(company_a, "案件")
+        # 28日おきの目盛りが、ちょうど右端に乗る長さ
+        _phase(project, "工程", _d(1, 1), _d(1, 28, year=2027))
+
+        data = get_projects_gantt_data(company_a, today=_d(9, 16))
+
+        assert data["ticks"][-1]["align"] == "end"
 
     def test_今日が期間の中にあれば位置を返す(self, company_a):
         project = _project(company_a, "案件")
