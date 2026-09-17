@@ -1163,7 +1163,7 @@ def document_add(request, project_pk):
         size=uploaded.size,
         memo=form.cleaned_data.get("memo", ""),
         provided_by=form.cleaned_data.get("provided_by", ""),
-        # 空なら今ログインしている人。代理で登録するときだけ書き換える（ADR-0084）。
+        # 空なら今ログインしている人。代理で登録するときだけ書き換える（ADR-0085）。
         registered_by_name=(
             form.cleaned_data.get("registered_by_name", "")
             or registrant_name(request.user)

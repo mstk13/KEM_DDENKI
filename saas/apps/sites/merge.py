@@ -1,4 +1,4 @@
-"""二重に登録された現場を、片方に寄せる（ADR-0084）。
+"""二重に登録された現場を、片方に寄せる（ADR-0084・ADR-0086）。
 
 日報・原価・材料・工期・安全書類など、現場にぶら下がる行（22 種類）の
 参照をまとめて付け替える。寄せたほうの現場は**消さない**。
@@ -139,3 +139,40 @@ def undo_merge(candidate, *, user=None):
         candidate.save()
 
     return {"restored": restored}
+
+
+def candidate_for(company, primary, duplicate, *, user=None):
+    """手で選んだ組にも候補の行を用意する（ADR-0086）。
+
+    `merge_sites` は候補を渡されたときだけ、付け替えた行の id を記録する。
+    記録が無いと取り消せない。**手で選んだ統合ほど取り消せるべき**なので、
+    候補が無ければここで作ってから渡す。
+
+    同じ2件の候補は向きが逆で既にあることがある（機械が拾った組）。
+    その行を使い回す。unique_together（company, primary, duplicate）に
+    ぶつかる行を新しく作らないため。
+    """
+    from apps.sites.models import SiteMergeCandidate
+
+    # unscoped: company を引数で受けて明示的に絞る（merge_candidates と同じ方針）
+    existing = (
+        SiteMergeCandidate.unscoped.filter(company=company)
+        .filter(primary__in=[primary, duplicate], duplicate__in=[primary, duplicate])
+        .first()
+    )
+    if existing is not None:
+        # 向きは merge_sites が書き直す。ここでは状態だけ戻す
+        existing.state = SiteMergeCandidate.State.PENDING
+        existing.save(update_fields=["state", "updated_at"])
+        return existing
+
+    return SiteMergeCandidate.unscoped.create(  # unscoped: company を明示指定
+        company=company,
+        primary=primary,
+        duplicate=duplicate,
+        created_by=user,
+        name_score=0,
+        hints="人が選んだ組",
+        verdict=SiteMergeCandidate.Verdict.UNKNOWN,
+        state=SiteMergeCandidate.State.PENDING,
+    )

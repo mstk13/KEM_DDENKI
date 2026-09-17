@@ -26,6 +26,52 @@
   </div>
 </div>
 
+{# 手で選んでまとめる（ADR-0086）。機械が拾えなかった組はここから #}
+<div class="card" style="margin-bottom:20px;">
+  <div class="card-header"><h2>手で選んでまとめる</h2></div>
+  <div class="card-body">
+    <p style="margin:0 0 12px;color:var(--text-secondary);font-size:.88rem;">
+      上の候補に出ていない組も、ここで直接まとめられます。
+      字面が離れていて機械が拾えなかった組（「厚木鮎まつり」と「あゆ祭り」など）はこちらから。
+      <strong>3つ以上をまとめるときは、2つずつ繰り返してください。</strong>
+      まとめたあとは、下の「統合の履歴」から取り消せます。
+    </p>
+    <form method="post" action="{% url 'sites:merge_manual' %}">
+      {% csrf_token %}
+      <div class="form-row">
+        <div class="form-group">
+          <label for="merge-primary">残す現場</label>
+          <select name="primary" id="merge-primary" class="form-control" required>
+            <option value="">選んでください</option>
+            {% for site in mergeable_sites %}
+              <option value="{{ site.pk }}">{{ site.name }}{% if site.customer %}（{{ site.customer }}）{% endif %}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="merge-duplicate">まとめる現場（この現場の記録が上へ移ります）</label>
+          <select name="duplicate" id="merge-duplicate" class="form-control" required>
+            <option value="">選んでください</option>
+            {% for site in mergeable_sites %}
+              <option value="{{ site.pk }}">{{ site.name }}{% if site.customer %}（{{ site.customer }}）{% endif %}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label for="merge-new-name">まとめたあとの現場名（変えないなら空のまま）</label>
+        <input type="text" name="new_name" id="merge-new-name" class="form-control" maxlength="200"
+               placeholder="例: 厚木鮎祭り">
+        <small class="text-muted" style="font-size:.78rem;">
+          どれとも違う名前に揃えたいときに入れてください。残す現場の名前が変わります。
+        </small>
+      </div>
+      <button type="submit" class="btn btn-primary btn-sm"
+              onclick="return confirm('選んだ2つの現場をまとめます。よろしいですか？')">まとめる</button>
+    </form>
+  </div>
+</div>
+
 <div class="card">
   <div class="card-header">
     <h2>確認をお願いする組（{{ candidates|length }} 件）</h2>
