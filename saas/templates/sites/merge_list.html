@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+{% block title %}現場の名寄せ — {{ APP_NAME }}{% endblock %}
+{% block topbar_title %}現場の名寄せ{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>現場の名寄せ</h1>
+  <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+    <form method="post" action="{% url 'sites:merge_scan' %}" style="display:inline;">
+      {% csrf_token %}
+      <button type="submit" class="btn btn-primary btn-sm">いま調べる</button>
+    </form>
+    <a href="{% url 'sites:list' %}" class="btn btn-outline btn-sm">現場一覧へ</a>
+  </div>
+</div>
+
+<div class="card" style="margin-bottom:20px;">
+  <div class="card-body" style="padding-bottom:12px;">
+    <p style="margin:0;color:var(--text-secondary);font-size:.88rem;">
+      同じ現場が別の名前で登録されていないかを、名前の文字・意味（ローカルAI）・
+      発注先や工期の一致から探した結果です。
+      <strong>まとめるかどうかは人が決めます。</strong>「まとめる」を押すと、
+      日報・原価・材料・工期・安全書類などの紐づけを、残すほうの現場へ付け替えます。
+      間違えたときは下の「統合の履歴」から取り消せます。
+    </p>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <h2>確認をお願いする組（{{ candidates|length }} 件）</h2>
+    {% if ignored_count %}
+    <span class="badge badge-gray">別物として覚えた組 {{ ignored_count }} 件</span>
+    {% endif %}
+  </div>
+  {% if candidates %}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>現場A</th><th>現場B</th><th>手がかり</th><th>AIの判定</th><th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in candidates %}
+        {% with c=row.candidate %}
+        <tr>
+          <td>
+            <a href="{% url 'sites:detail' c.primary.pk %}">{{ c.primary.name }}</a>
+            <div style="font-size:12px;color:var(--text-muted);">
+              {{ c.primary.code }}／{{ c.primary.customer|default:"発注先なし" }}<br>
+              紐づく記録 {{ row.primary_rows }} 件
+            </div>
+          </td>
+          <td>
+            <a href="{% url 'sites:detail' c.duplicate.pk %}">{{ c.duplicate.name }}</a>
+            <div style="font-size:12px;color:var(--text-muted);">
+              {{ c.duplicate.code }}／{{ c.duplicate.customer|default:"発注先なし" }}<br>
+              紐づく記録 {{ row.duplicate_rows }} 件
+            </div>
+          </td>
+          <td style="font-size:12px;">
+            名前の近さ {{ c.name_score|floatformat:2 }}
+            {% if c.vector_score %}／意味の近さ {{ c.vector_score|floatformat:2 }}{% endif %}
+            {% if c.hints %}<div>{{ c.hints }}</div>{% endif %}
+          </td>
+          <td>
+            {% if c.verdict == "same" %}
+              <span class="badge badge-orange">同じ現場</span>
+            {% elif c.verdict == "different" %}
+              <span class="badge badge-blue">別の現場</span>
+            {% else %}
+              <span class="badge badge-gray">判断できない</span>
+            {% endif %}
+            {% if c.reason %}
+            <div style="font-size:12px;color:var(--text-muted);margin-top:4px;">{{ c.reason }}</div>
+            {% endif %}
+          </td>
+          <td style="white-space:nowrap;width:1%;">
+            <form method="post" action="{% url 'sites:merge_apply' c.pk %}" style="display:flex;gap:4px;flex-wrap:wrap;align-items:center;">
+              {% csrf_token %}
+              <select name="keep" class="form-control" style="min-width:190px;padding:4px 8px;font-size:.8rem;">
+                <option value="primary">「{{ c.primary.name }}」に寄せる</option>
+                <option value="duplicate">「{{ c.duplicate.name }}」に寄せる</option>
+              </select>
+              <button type="submit" class="btn btn-primary btn-sm"
+                      onclick="return confirm('この2つの現場をまとめます。よろしいですか？')">まとめる</button>
+            </form>
+            <form method="post" action="{% url 'sites:merge_ignore' c.pk %}" style="margin-top:4px;">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-outline btn-sm">別の現場</button>
+            </form>
+          </td>
+        </tr>
+        {% endwith %}
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="card-body">
+    <div class="empty"><p>確認をお願いする組はありません</p></div>
+  </div>
+  {% endif %}
+</div>
+
+{% if merged %}
+<div class="card" style="margin-top:20px;">
+  <div class="card-header"><h2>統合の履歴</h2></div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>残した現場</th><th>まとめた現場</th><th>日時</th><th></th></tr></thead>
+      <tbody>
+        {% for c in merged %}
+        <tr>
+          <td><a href="{% url 'sites:detail' c.primary.pk %}">{{ c.primary.name }}</a></td>
+          <td>{{ c.duplicate.name }}</td>
+          <td style="white-space:nowrap;">{{ c.decided_at|date:"Y/m/d H:i" }}</td>
+          <td style="white-space:nowrap;width:1%;text-align:right;">
+            <form method="post" action="{% url 'sites:merge_undo' c.pk %}" style="display:inline;">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-outline btn-sm"
+                      onclick="return confirm('この統合を取り消して、記録を元の現場に戻します。よろしいですか？')">取り消す</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

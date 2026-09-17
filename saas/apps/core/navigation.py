@@ -161,6 +161,9 @@ NAVIGATION: tuple[NavItem | NavGroup, ...] = (
             NavItem("材料・発注", "materials:list", "📦", ("materials:*",)),
             NavItem("工期管理", "schedules:list", "📅", ("schedules:*",)),
             NavItem("現場見積もり/実経費", "costs:list", "💰", ("costs:*",)),
+            # 同じ現場が別名で登録されていないかの確認（ADR-0084）。
+            # 材料・発注を現場管理のすぐ下に置く並び（ADR-0035）を崩さないよう末尾に置く。
+            NavItem("現場の名寄せ", "sites:merge_list", "🔗", ("sites:merge_*",)),
         ),
     ),
     NavGroup(

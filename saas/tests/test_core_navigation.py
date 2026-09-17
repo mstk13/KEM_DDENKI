@@ -138,7 +138,8 @@ def test_同じ現場の工程と原価と発注が現場グループにそろ�
     groups = {entry.label: entry for entry in NAVIGATION if isinstance(entry, NavGroup)}
 
     assert [item.label for item in groups["現場"].items] == [
-        "入札案件", "積算案件", "現場管理", "材料・発注", "工期管理", "現場見積もり/実経費",
+        "入札案件", "積算案件", "現場管理", "材料・発注", "工期管理",
+        "現場見積もり/実経費", "現場の名寄せ",
     ]
 
 
