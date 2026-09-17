@@ -19,12 +19,16 @@ from apps.notifications.services import (
     check_health_checkup_due_alerts,
     check_health_report_missing_alerts,
 )
+from apps.reports.missing_alerts import check_daily_report_missing_alerts
 from apps.tenants.document_alerts import check_company_document_alerts
 from apps.tenants.models import Company
 
 
 class Command(BaseCommand):
-    help = "証明書・健診の未添付、健診期限、建設業許可の期限、自社書類の更新の知らせを送信"
+    help = (
+        "証明書・健診の未添付、健診期限、建設業許可の期限、自社書類の更新、"
+        "日報の未提出の知らせを送信"
+    )
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -46,4 +50,5 @@ class Command(BaseCommand):
             check_health_checkup_due_alerts(company)
             check_construction_license_alerts(company)
             check_company_document_alerts(company)
+            check_daily_report_missing_alerts(company)
             self.stdout.write(self.style.SUCCESS(f"[{company.name}] 完了"))

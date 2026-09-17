@@ -8,6 +8,17 @@
   <a href="{% url 'reports:create' %}" class="btn btn-primary">+ 日報を書く</a>
 </div>
 
+{% if my_missing_days %}
+{# 日報を書いていない日を赤字で知らせる（ADR-0077） #}
+<div class="report-missing">
+  {% for day in my_missing_days %}{% if not forloop.first %}、{% endif %}{{ day|date:"n月j日" }}{% endfor %} の日報を書いていません
+  <div class="report-missing-note">
+    出社予定が入っている日のうち、日報がまだ無い日です。
+    <a href="{% url 'reports:create' %}">日報を書く</a>
+  </div>
+</div>
+{% endif %}
+
 <div class="card" style="margin-bottom:20px;">
   <div class="card-body">
     <form method="get" style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;">
