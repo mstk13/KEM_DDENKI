@@ -754,7 +754,9 @@ def project_detail(request, pk):
         "competitors": competitors,
         "competitor_form": EstimationCompetitorForm(),
         "documents": documents,
-        "document_form": EstimationDocumentForm(),
+        "document_form": EstimationDocumentForm(
+            company=request.user.company, user=request.user,
+        ),
         "single_gantt": single_gantt,
         "bid_document_urls": bid_document_urls,
         "is_settled": proj.status in (
@@ -1132,13 +1134,15 @@ def document_add(request, project_pk):
     """積算案件に資料を1件足す。"""
     from pathlib import Path
 
-    from apps.estimation.forms import EstimationDocumentForm
+    from apps.estimation.forms import EstimationDocumentForm, registrant_name
 
     proj = get_object_or_404(EstimationProject, pk=project_pk)
     if request.method != "POST":
         return redirect("estimation:project_detail", pk=proj.pk)
 
-    form = EstimationDocumentForm(request.POST, request.FILES)
+    form = EstimationDocumentForm(
+        request.POST, request.FILES, company=request.user.company, user=request.user,
+    )
     if not form.is_valid():
         errors = "／".join(
             str(message) for messages_ in form.errors.values() for message in messages_
@@ -1158,6 +1162,12 @@ def document_add(request, project_pk):
         original_filename=uploaded.name[:255],
         size=uploaded.size,
         memo=form.cleaned_data.get("memo", ""),
+        provided_by=form.cleaned_data.get("provided_by", ""),
+        # 空なら今ログインしている人。代理で登録するときだけ書き換える（ADR-0084）。
+        registered_by_name=(
+            form.cleaned_data.get("registered_by_name", "")
+            or registrant_name(request.user)
+        ),
     )
     document.file = uploaded
     document.save()
