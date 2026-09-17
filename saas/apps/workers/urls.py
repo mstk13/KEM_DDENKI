@@ -7,6 +7,8 @@ app_name = "workers"
 urlpatterns = [
     path("", views.worker_list, name="list"),
     path("document-alerts/", views.document_alert_dashboard, name="document_alerts"),
+    # 資格証の一括取り込み（ADR-0091）
+    path("certificates/import/", views.certificate_import, name="certificate_import"),
     # 資格証の提出チェックリスト（ADR-0081）
     path(
         "qualification-checklist/",

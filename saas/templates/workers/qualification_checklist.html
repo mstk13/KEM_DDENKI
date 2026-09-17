@@ -6,6 +6,7 @@
 <div class="page-header">
   <h1>資格証の提出チェックリスト</h1>
   <div style="display:flex;gap:6px;flex-wrap:wrap;">
+    <a href="{% url 'workers:certificate_import' %}" class="btn btn-primary btn-sm">資格証を取り込む</a>
     <a href="{% url 'workers:document_alerts' %}" class="btn btn-outline btn-sm">書類アラートへ</a>
     <a href="{% url 'workers:list' %}" class="btn btn-outline btn-sm">作業員一覧へ</a>
   </div>

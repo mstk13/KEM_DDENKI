@@ -23,6 +23,9 @@
 import csv
 import datetime
 import pathlib
+import re
+import shutil
+import zipfile
 
 from django.core.files import File
 
@@ -37,6 +40,12 @@ from apps.workers.listed_qualifications import (
 
 # 台紙（資格の一覧表）。添付の対象にしない
 CHECKLIST_MARK = "チェックリスト"
+
+# 同じ人の別の書き方。フォルダ名が漢字で、作業員がローマ字で登録されている場合に使う。
+# 「釼持雅崇」は Masataka Kemmochi として登録されている（プロダクトオーナー、2026-09-17）。
+PERSON_ALIASES = {
+    "釼持雅崇": ("Masataka Kemmochi",),
+}
 
 # ファイル名（拡張子なし）→ (登録済みの資格名, 優先度)。
 # 優先度は、同じ資格に複数のファイルがあるときにどれを添付するかを決める。大きいほう。
@@ -93,6 +102,40 @@ _CATEGORY_WORDS = (
 )
 
 
+def name_keys(name: str):
+    """同じ人を指す見つけ方の並び。漢字・ローマ字のどちらでも当たるようにする。
+
+    ローマ字は大文字小文字と姓名の順を問わない（Masataka Kemmochi / Kemmochi Masataka）。
+    """
+    keys = set()
+    normalized = normalize_person_name(name)
+    if normalized:
+        keys.add(normalized)
+        keys.update(_romaji_keys(normalized))
+    keys.update(_romaji_keys(name))
+    for alias in _aliases_for(normalized):
+        keys.add(normalize_person_name(alias))
+        keys.update(_romaji_keys(alias))
+    return keys
+
+
+def _aliases_for(normalized_name: str):
+    """別の書き方。表の鍵も同じように均してから引く（釼→剣 など）。"""
+    for key, aliases in PERSON_ALIASES.items():
+        if normalize_person_name(key) == normalized_name:
+            return aliases
+    return ()
+
+
+def _romaji_keys(name: str):
+    """ローマ字の名前を、姓名の順を問わない形にする。漢字なら空。"""
+    parts = [part for part in re.split(r"[\s　]+", (name or "").strip()) if part]
+    if not parts or not all(re.fullmatch(r"[A-Za-z'\-]+", part) for part in parts):
+        return set()
+    lowered = [part.lower() for part in parts]
+    return {"".join(lowered), "".join(reversed(lowered))}
+
+
 def category_for(qualification_name: str) -> str:
     """資格の区分。資格保有一覧にある資格はその区分、無ければ名前から決める。"""
     if qualification_name in CATEGORIES:
@@ -101,6 +144,57 @@ def category_for(qualification_name: str) -> str:
         if word in qualification_name:
             return category
     return OTHER
+
+
+def extract_archive(archive, destination):
+    """ZIP を安全に展開し、資格書一覧のフォルダの場所を返す（ADR-0091）。
+
+    ZIP には「資格書一覧/釼持　政宏/…」のように親フォルダが1つ入ることが多いので、
+    中に人のフォルダが並んでいる階層まで降りて返す。
+
+    - 上位ディレクトリへ抜ける名前（../）や絶対パスは展開しない
+    - pdf / csv 以外は展開しない
+    """
+    destination = pathlib.Path(destination)
+    with zipfile.ZipFile(archive) as zf:
+        for info in zf.infolist():
+            if info.is_dir():
+                continue
+            name = info.filename.replace("\\", "/")
+            if name.startswith("/") or ".." in pathlib.PurePosixPath(name).parts:
+                continue
+            if pathlib.PurePosixPath(name).suffix.lower() not in (".pdf", ".csv"):
+                continue
+            target = destination / name
+            target.parent.mkdir(parents=True, exist_ok=True)
+            with zf.open(info) as src, open(target, "wb") as dst:
+                shutil.copyfileobj(src, dst)
+
+    return _folder_root(destination)
+
+
+def _folder_root(path):
+    """人のフォルダが並んでいる階層まで降りる。
+
+    ZIP の作り方で「資格書一覧/」が1枚多く入ることがあるため。
+    """
+    current = pathlib.Path(path)
+    for _ in range(3):
+        entries = [p for p in current.iterdir() if not p.name.startswith("__MACOSX")]
+        directories = [p for p in entries if p.is_dir()]
+        if len(directories) == 1 and len(entries) == 1:
+            current = directories[0]
+            continue
+        return current
+    return current
+
+
+def find_dates_csv(root):
+    """フォルダの中の有効期限CSV。無ければ None。"""
+    root = pathlib.Path(root)
+    for path in sorted(root.glob("*.csv")) + sorted(root.glob("*/*.csv")):
+        return path
+    return None
 
 
 def read_dates(csv_path):
@@ -171,10 +265,10 @@ def import_certificates(root, company, Worker, WorkerQualification, *,
         "skipped_duplicate": [], "unknown_file": [], "unknown_worker": [],
     }
 
-    workers = {
-        normalize_person_name(worker.name): worker
-        for worker in Worker._base_manager.filter(company=company)
-    }
+    workers = {}
+    for worker in Worker._base_manager.filter(company=company):
+        for key in name_keys(worker.name):
+            workers.setdefault(key, worker)
 
     # 同じ資格に複数のファイルがあるときは優先度の高いものだけ使う
     best = {}
@@ -182,7 +276,7 @@ def import_certificates(root, company, Worker, WorkerQualification, *,
         if name is None:
             report["unknown_file"].append((person, path.name))
             continue
-        key = (normalize_person_name(person), name)
+        key = (normalize_person_name(person), name)  # 同じ資格の重複をまとめる鍵
         current = best.get(key)
         if current is None or priority > current[2]:
             if current is not None:
@@ -194,7 +288,9 @@ def import_certificates(root, company, Worker, WorkerQualification, *,
     for (person_key, name), (person, path, _priority) in sorted(
         best.items(), key=lambda item: (item[0][0], item[0][1]),
     ):
-        worker = workers.get(person_key)
+        worker = next(
+            (workers[key] for key in name_keys(person) if key in workers), None,
+        )
         if worker is None:
             if person not in report["unknown_worker"]:
                 report["unknown_worker"].append(person)

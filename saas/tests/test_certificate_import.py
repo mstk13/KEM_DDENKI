@@ -9,6 +9,7 @@
 import datetime
 
 import pytest
+from django.urls import reverse
 
 from apps.workers.certificate_import import (
     category_for,
@@ -225,3 +226,175 @@ class TestPdfAttachment:
 
         assert not form.is_valid()
         assert "certificate_image" in form.errors
+
+
+@pytest.mark.django_db
+class TestPersonAliases:
+    """漢字の名前とローマ字の登録を同じ人として扱う（ADR-0082）。
+
+    「釼持雅崇」は Masataka Kemmochi として登録されている。
+    """
+
+    def test_ローマ字で登録された作業員にも添付する(self, company_a, tmp_path):
+        from apps.workers.certificate_import import import_certificates
+
+        person_dir = tmp_path / "釼持雅崇"
+        person_dir.mkdir()
+        (person_dir / "産業廃棄物処理業許可申請講習会(更新・収集運搬課程)修了証.pdf").write_bytes(
+            PDF,
+        )
+        worker = Worker.unscoped.create(company=company_a, name="Masataka Kemmochi")
+
+        report = import_certificates(
+            tmp_path, company_a, Worker, WorkerQualification, apply=True,
+        )
+
+        assert report["unknown_worker"] == []
+        qualification = WorkerQualification.unscoped.get(worker=worker)
+        assert qualification.name == "産業廃棄物処理業許可申請講習会（更新・収集運搬課程）"
+        assert qualification.certificate_image
+        # 技能講習でも特別教育でもない講習会なので「その他」に入れる
+        assert qualification.category == "other"
+
+    def test_姓名の順が逆でも同じ人とみなす(self):
+        from apps.workers.certificate_import import name_keys
+
+        assert name_keys("釼持雅崇") & name_keys("Kemmochi Masataka")
+
+    def test_別の人とは混ざらない(self):
+        from apps.workers.certificate_import import name_keys
+
+        assert not (name_keys("釼持雅崇") & name_keys("釼持　政宏"))
+
+
+@pytest.mark.django_db
+class TestMasatakaMigration:
+    """データ移送 0022 と同じ手順で、資格名だけ先に登録できる（ADR-0082）。"""
+
+    def test_資格名だけを先に登録する(self, company_a):
+        from apps.workers.certificate_import import category_for, name_keys
+
+        worker = Worker.unscoped.create(company=company_a, name="Masataka Kemmochi")
+        name = "産業廃棄物処理業許可申請講習会（更新・収集運搬課程）"
+
+        found = next(
+            w for w in Worker.unscoped.filter(company=company_a)
+            if name_keys(w.name) & name_keys("釼持雅崇")
+        )
+        WorkerQualification.unscoped.get_or_create(
+            company=company_a, worker=found, name=name,
+            defaults={"category": category_for(name)},
+        )
+
+        assert found == worker
+        assert WorkerQualification.unscoped.filter(worker=worker, name=name).count() == 1
+
+
+@pytest.mark.django_db
+class TestZipUpload:
+    """ZIP をアップロードして取り込む（ADR-0091）。"""
+
+    @pytest.fixture
+    def admin_user(self, company_a, user_a):
+        Worker.unscoped.create(
+            company=company_a, name="事務花子", employee_code="Y01", user=user_a,
+        )
+        return user_a
+
+    def _zip(self, tmp_path, *, root_folder=True, extra=()):
+        import io
+        import zipfile
+
+        buffer = io.BytesIO()
+        prefix = "資格書一覧/" if root_folder else ""
+        with zipfile.ZipFile(buffer, "w") as zf:
+            zf.writestr(f"{prefix}髙橋　翔太/運転免許証.pdf", PDF)
+            zf.writestr(
+                f"{prefix}有効期限.csv",
+                "氏名,ファイル名,取得日,有効期限\n"
+                "髙橋　翔太,運転免許証.pdf,2026-05-13,2031-06-17\n",
+            )
+            for name, content in extra:
+                zf.writestr(name, content)
+        buffer.seek(0)
+        return buffer
+
+    def test_確認だけなら登録しない(self, client, company_a, admin_user, tmp_path):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        Worker.unscoped.create(company=company_a, name="高橋　翔太")
+        client.force_login(admin_user)
+
+        res = client.post(reverse("workers:certificate_import"), {
+            "archive": SimpleUploadedFile(
+                "certs.zip", self._zip(tmp_path).read(), content_type="application/zip",
+            ),
+        })
+
+        assert res.status_code == 200
+        assert "運転免許証" in res.content.decode()
+        assert not WorkerQualification.unscoped.exclude(certificate_image="").exists()
+
+    def test_登録するとPDFと期限が入る(self, client, company_a, admin_user, tmp_path):
+        import datetime
+
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        worker = Worker.unscoped.create(company=company_a, name="高橋　翔太")
+        client.force_login(admin_user)
+
+        client.post(reverse("workers:certificate_import"), {
+            "archive": SimpleUploadedFile(
+                "certs.zip", self._zip(tmp_path).read(), content_type="application/zip",
+            ),
+            "apply": "on",
+        })
+
+        qualification = WorkerQualification.unscoped.get(worker=worker)
+        assert qualification.name == "運転免許証"
+        assert qualification.certificate_image.name.endswith(".pdf")
+        assert qualification.expiry_date == datetime.date(2031, 6, 17)
+
+    def test_親フォルダが無いZIPでも読める(self, client, company_a, admin_user, tmp_path):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        Worker.unscoped.create(company=company_a, name="高橋　翔太")
+        client.force_login(admin_user)
+
+        client.post(reverse("workers:certificate_import"), {
+            "archive": SimpleUploadedFile(
+                "certs.zip",
+                self._zip(tmp_path, root_folder=False).read(),
+                content_type="application/zip",
+            ),
+            "apply": "on",
+        })
+
+        assert WorkerQualification.unscoped.exclude(certificate_image="").count() == 1
+
+    def test_上の階層へ抜ける名前は展開しない(self, tmp_path):
+        from apps.workers.certificate_import import extract_archive
+
+        archive = self._zip(tmp_path, extra=(("../逃げ出す.pdf", PDF),))
+
+        root = extract_archive(archive, tmp_path / "out")
+
+        assert not (tmp_path / "逃げ出す.pdf").exists()
+        assert (root / "髙橋　翔太" / "運転免許証.pdf").exists()
+
+    def test_PDFとCSV以外は展開しない(self, tmp_path):
+        from apps.workers.certificate_import import extract_archive
+
+        archive = self._zip(tmp_path, extra=(("資格書一覧/悪い.exe", b"MZ"),))
+
+        root = extract_archive(archive, tmp_path / "out")
+
+        assert not (root / "悪い.exe").exists()
+
+    def test_事務員でも管理者でもない人は使えない(self, client, company_a, user_a):
+        Worker.unscoped.create(
+            company=company_a, name="電工太郎", employee_code="E01", user=user_a,
+        )
+        client.force_login(user_a)
+
+        assert client.get(reverse("workers:certificate_import")).status_code == 403

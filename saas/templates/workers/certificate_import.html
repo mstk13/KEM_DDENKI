@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block title %}資格証の取り込み — {{ APP_NAME }}{% endblock %}
+{% block topbar_title %}資格証の取り込み{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>資格証の取り込み</h1>
+  <a href="{% url 'workers:cert_checklist' %}" class="btn btn-outline btn-sm">資格証チェックへ</a>
+</div>
+
+<div class="card">
+  <div class="card-header"><h2>ZIP を選ぶ</h2></div>
+  <div class="card-body">
+    <p style="color:var(--text-secondary);font-size:.88rem;margin-top:0;">
+      作業員ごとのフォルダに資格証の PDF を入れた「資格書一覧」フォルダを、
+      フォルダごと ZIP にして選んでください。
+      期限のある資格証の日付を入れた <code>有効期限.csv</code> が中にあれば、一緒に登録します。
+    </p>
+    <pre style="background:var(--surface-hover,#f3f5f9);padding:12px;border-radius:6px;font-size:.82rem;margin:0 0 16px;">資格書一覧/
+  釼持　政宏/
+    第一種電気工事士免状.pdf
+    高圧ケーブル工事技能認定証.pdf
+  髙橋　翔太/
+    運転免許証.pdf
+  有効期限.csv</pre>
+    <form method="post" enctype="multipart/form-data">
+      {% csrf_token %}
+      {% for field in form %}
+      <div class="form-group">
+        <label>{{ field.label }}</label>
+        {{ field }}
+        {% if field.help_text %}<div style="font-size:12px;color:var(--text-muted);">{{ field.help_text }}</div>{% endif %}
+        {{ field.errors }}
+      </div>
+      {% endfor %}
+      <button type="submit" class="btn btn-primary">取り込む</button>
+    </form>
+  </div>
+</div>
+
+{% if report %}
+<div class="card" style="margin-top:20px;">
+  <div class="card-header">
+    <h2>{% if applied %}登録した内容{% else %}このまま登録すると、こうなります{% endif %}</h2>
+    <span class="badge {% if applied %}badge-green{% else %}badge-gray{% endif %}">
+      {{ report.attached|length }} 件
+    </span>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>作業員</th><th>資格名</th><th>ファイル</th><th>有効期限</th></tr></thead>
+      <tbody>
+        {% for row in report.attached %}
+        <tr>
+          <td>{{ row.0 }}</td><td>{{ row.1 }}</td><td>{{ row.2 }}</td>
+          <td>{{ row.3|default:"-" }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="4"><div class="empty"><p>取り込む資格証がありません</p></div></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="card-body" style="font-size:.86rem;">
+    {% if report.created %}
+    <p><strong>保有資格を新しく作る（{{ report.created|length }} 件）</strong><br>
+      {% for row in report.created %}{{ row.0 }}／{{ row.1 }}{% if not forloop.last %}、{% endif %}{% endfor %}</p>
+    {% endif %}
+    {% if report.replaced %}
+    <p><strong>前の添付を差し替える（{{ report.replaced|length }} 件）</strong><br>
+      {% for row in report.replaced %}{{ row.0 }}／{{ row.1 }}{% if not forloop.last %}、{% endif %}{% endfor %}</p>
+    {% endif %}
+    {% if report.skipped_duplicate %}
+    <p><strong>同じ資格の2枚目以降（添付しません・{{ report.skipped_duplicate|length }} 件）</strong><br>
+      {% for row in report.skipped_duplicate %}{{ row.0 }}／{{ row.1 }}／{{ row.2 }}{% if not forloop.last %}、{% endif %}{% endfor %}</p>
+    {% endif %}
+    {% if report.unknown_file %}
+    <p style="color:var(--danger);"><strong>読み替え表に無いファイル（{{ report.unknown_file|length }} 件）</strong><br>
+      {% for row in report.unknown_file %}{{ row.0 }}／{{ row.1 }}{% if not forloop.last %}、{% endif %}{% endfor %}</p>
+    {% endif %}
+    {% if report.unknown_worker %}
+    <p style="color:var(--danger);"><strong>作業員が見つからない（{{ report.unknown_worker|length }} 名）</strong><br>
+      {{ report.unknown_worker|join:"、" }}</p>
+    {% endif %}
+    {% if not applied %}
+    <p style="margin-bottom:0;">内容がよければ「実際に登録する」にチェックを入れて、もう一度取り込んでください。</p>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+{% endblock %}
