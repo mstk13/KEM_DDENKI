@@ -159,7 +159,7 @@ class TestEditSave:
         )
         client.force_login(user_a)
 
-        # まず「重複があります」で止まる（ADR-0076）
+        # まず「重複があります」で止まる（ADR-0079）
         res = client.post(
             reverse("reports:edit", args=[data["report"].pk]),
             _post([data["me"], data["other"]]),

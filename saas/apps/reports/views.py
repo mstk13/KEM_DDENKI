@@ -178,7 +178,7 @@ def report_list(request):
     sites, workers = _filter_choices()
     return render(request, "reports/list.html", {
         "reports": reports,
-        # 自分の日報が抜けている日を赤字で出す（ADR-0077）
+        # 自分の日報が抜けている日を赤字で出す（ADR-0080）
         "my_missing_days": missing_days_for_worker(
             getattr(request.user, "worker_profile", None),
         ),
@@ -295,7 +295,7 @@ def report_list_pdf(request):
 
 
 def _submit_action(request):
-    """押されたボタン。重複の確認画面から送り直したときは hidden から受ける（ADR-0076）。"""
+    """押されたボタン。重複の確認画面から送り直したときは hidden から受ける（ADR-0079）。"""
     return request.POST.get("action") or request.POST.get("duplicate_action", "")
 
 
@@ -385,7 +385,7 @@ def report_create(request):
             request.POST, company=request.user.company, self_worker=profile,
         )
         if form.is_valid():
-            # 同じ日・同じ人の日報が既にあれば、いったん止めて選んでもらう（ADR-0076）
+            # 同じ日・同じ人の日報が既にあれば、いったん止めて選んでもらう（ADR-0079）
             duplicates = find_duplicate_reports(
                 request.user.company,
                 list(form.cleaned_data.get("workers") or []),

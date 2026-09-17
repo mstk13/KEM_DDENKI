@@ -9,7 +9,7 @@
 </div>
 
 {% if my_missing_days %}
-{# 日報を書いていない日を赤字で知らせる（ADR-0077） #}
+{# 日報を書いていない日を赤字で知らせる（ADR-0080） #}
 <div class="report-missing">
   {% for day in my_missing_days %}{% if not forloop.first %}、{% endif %}{{ day|date:"n月j日" }}{% endfor %} の日報を書いていません
   <div class="report-missing-note">

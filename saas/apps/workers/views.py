@@ -56,7 +56,7 @@ def _has_role(user, role_code):
 
 @login_required
 def qualification_checklist(request):
-    """資格証の提出チェックリスト（ADR-0078）。
+    """資格証の提出チェックリスト（ADR-0081）。
 
     作業員（縦）×資格名（横）の表にして、証明書の画像が登録してあれば〇、
     資格は登録してあるが証明書がまだなら△、その資格を持っていなければ空にする。

@@ -74,7 +74,7 @@
 </div>
 
 {% if my_missing_days %}
-{# 日報を書いていない日を赤字で知らせる（ADR-0077） #}
+{# 日報を書いていない日を赤字で知らせる（ADR-0080） #}
 <div class="report-missing">
   {% for day in my_missing_days %}{% if not forloop.first %}、{% endif %}{{ day|date:"n月j日" }}{% endfor %} の日報を書いていません
   <div class="report-missing-note">
@@ -89,7 +89,7 @@
       {% csrf_token %}
       {% if back_url %}<input type="hidden" name="next" value="{{ back_url }}">{% endif %}
       {% if duplicates %}
-      {# 同じ日・同じ人の日報が既にある（ADR-0076）。どちらで登録するか選んでもらう #}
+      {# 同じ日・同じ人の日報が既にある（ADR-0079）。どちらで登録するか選んでもらう #}
       <div class="duplicate-warning">
         <p class="duplicate-warning-title">重複があります</p>
         {% for item in duplicates %}
