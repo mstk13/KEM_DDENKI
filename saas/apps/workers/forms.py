@@ -236,6 +236,10 @@ class WorkerQualificationForm(forms.ModelForm):
         widgets = {
             "acquired_date": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
             "expiry_date": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
+            # 写真だけでなく、台紙ごとスキャンした PDF も受ける（ADR-0082）
+            "certificate_image": forms.ClearableFileInput(
+                attrs={"accept": ".pdf,image/*", "class": "form-control"},
+            ),
         }
 
     def __init__(self, *args, **kwargs):
