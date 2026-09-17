@@ -89,6 +89,18 @@ class Site(TenantModel):
         verbose_name="見積担当者",
     )
 
+    # 同じ現場が別名で二重に登録されたとき、片方をもう片方へ寄せる（ADR-0084）。
+    # 行は消さずに残す。日報や原価の付け替えを取り消せるようにするため。
+    merged_into = models.ForeignKey(
+        "self",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="merged_sites",
+        verbose_name="統合先の現場",
+    )
+    merged_at = models.DateTimeField("統合した日時", null=True, blank=True)
+
     history = HistoricalRecords()
 
     class Meta:
@@ -105,6 +117,76 @@ class Site(TenantModel):
         if self.payment_terms:
             return self.payment_terms
         return self.customer.payment_terms if self.customer else ""
+
+
+class SiteMergeCandidate(TenantModel):
+    """同じ現場が別名で登録されている疑いのある2件（ADR-0084）。
+
+    文字の似ている度合い・意味の近さ（ローカル埋め込み）・まわりの手がかりで拾い、
+    ローカルの生成モデルに「同じ現場か」を判定させた結果を貯める。
+    統合するかどうかは人が決める。機械は候補を出すところまで。
+    """
+
+    class State(models.TextChoices):
+        PENDING = "pending", "未確認"
+        MERGED = "merged", "統合済み"
+        IGNORED = "ignored", "別物"
+
+    class Verdict(models.TextChoices):
+        SAME = "same", "同じ現場"
+        DIFFERENT = "different", "別の現場"
+        UNKNOWN = "unknown", "判断できない"
+
+    # 残すほう（データの多いほう・古いほう）と、寄せるほう
+    primary = models.ForeignKey(
+        Site,
+        on_delete=models.CASCADE,
+        related_name="merge_candidates_as_primary",
+        verbose_name="残す現場",
+    )
+    duplicate = models.ForeignKey(
+        Site,
+        on_delete=models.CASCADE,
+        related_name="merge_candidates_as_duplicate",
+        verbose_name="寄せる現場",
+    )
+    name_score = models.FloatField("文字の似ている度合い", default=0)
+    vector_score = models.FloatField("意味の近さ", null=True, blank=True)
+    hints = models.TextField("一致した手がかり", blank=True)
+    verdict = models.CharField(
+        "AIの判定", max_length=20, choices=Verdict.choices, default=Verdict.UNKNOWN,
+    )
+    reason = models.TextField("AIの理由", blank=True)
+    state = models.CharField(
+        "状態", max_length=20, choices=State.choices, default=State.PENDING,
+    )
+    decided_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="decided_site_merges",
+        verbose_name="決めた人",
+    )
+    decided_at = models.DateTimeField("決めた日時", null=True, blank=True)
+    # 統合で付け替えた行。取り消しに使う {"reports.DailyReport": [1, 2, 3], ...}
+    moved_rows = models.JSONField("付け替えた行", default=dict, blank=True)
+
+    history = HistoricalRecords()
+
+    class Meta:
+        verbose_name = "現場の名寄せ候補"
+        verbose_name_plural = "現場の名寄せ候補"
+        unique_together = [("company", "primary", "duplicate")]
+        ordering = ["-name_score", "-pk"]
+
+    def __str__(self):
+        return f"{self.primary.name} ← {self.duplicate.name}"
+
+    @property
+    def score(self) -> float:
+        """候補の確からしさ。文字と意味の高いほう。"""
+        return max(self.name_score, self.vector_score or 0)
 
 
 class EstimateImport(TenantModel):
