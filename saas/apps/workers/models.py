@@ -2,6 +2,7 @@ import re
 from decimal import Decimal
 
 from django.conf import settings
+from django.core import validators
 from django.db import models
 from django.db.models.signals import post_save
 from django.dispatch import receiver
@@ -301,11 +302,25 @@ class WorkerQualification(TenantModel):
     )
     acquired_date = models.DateField("取得日", null=True, blank=True)
     expiry_date = models.DateField("有効期限", null=True, blank=True)
-    certificate_image = models.ImageField(
-        "証明書画像",
+    # 画像だけでなく PDF も受ける（ADR-0082）。台紙ごとスキャンした資格証は
+    # PDF で配られることが多く、ImageField のままだと登録できなかった。
+    certificate_image = models.FileField(
+        "証明書（画像・PDF）",
         upload_to="qualifications/%Y/%m/",
         blank=True,
+        validators=[
+            validators.FileExtensionValidator(
+                ["pdf", "jpg", "jpeg", "png", "gif", "webp", "heic"],
+            ),
+        ],
     )
+
+    @property
+    def certificate_is_pdf(self):
+        """添付が PDF かどうか。画面での見せ方を分けるために使う。"""
+        if not self.certificate_image:
+            return False
+        return self.certificate_image.name.lower().endswith(".pdf")
     note = models.TextField("備考", blank=True)
 
     history = HistoricalRecords()
