@@ -143,9 +143,39 @@
 同じ日・同じ作業員の日報が両方の名前で書かれていた場合、その行は動かず警告に出る。
 中身を見て、どちらを残すかを決める。
 
+### サーバ上から名前で流すコマンド
+
+画面を開けないとき、表記ゆれが多いときのために
+`manage.py merge_sites_by_name` を用意する。画面の「手で選んでまとめる」と
+**同じ道筋**（`candidate_for` → `merge_sites`）を通り、違うのは選び方が
+プルダウンではなく現場名だという点だけ。取り消しも画面から同じようにできる。
+
+```bash
+# まず確かめる（書き込まない）
+docker compose exec web python manage.py merge_sites_by_name \
+    --keep 高橋住宅 --merge 高橋アパート
+
+# 実際にまとめる
+docker compose exec web python manage.py merge_sites_by_name \
+    --keep 高橋住宅 --merge 高橋アパート --apply
+
+# 3つ以上をまとめ、最後に名前を揃える
+docker compose exec web python manage.py merge_sites_by_name \
+    --keep 厚木あゆ祭り --merge あゆ祭り --merge 厚木鮎まつり \
+    --rename 厚木鮎祭り --apply
+```
+
+**既定では書き込まない。** `--apply` を付けたときだけ動く。
+付けずに流すと、どの現場がいくつの記録を持っているかを出して終わる。
+**本番のデータを動かす操作なので、まず何が起きるかを見られることを既定にする。**
+
+同じ会社に同じ名前の現場が2つあるときは、どちらか分からないので止める。
+その場合は画面から選ぶ。
+
 ### テスト
 
-`tests/test_site_merge_manual.py`（17件、新規）。
+`tests/test_site_merge_manual.py`（17件、新規）と
+`tests/test_site_merge_command.py`（12件、新規）。
 候補に無い組をまとめられること、名前を揃えられること、3つを2回でまとめられること、
 取り消せること、同じ現場・統合済み・他社を弾くこと、一覧から消えること、
 詳細に行き先が出ること、テナント越境。
