@@ -118,8 +118,10 @@ def site_detail(request, pk):
         "processes": processes,
         "can_view_costs": can_view_costs,
         "cost_summary": cost_summary,
-        "purchase_orders": site.purchase_orders.select_related("supplier").order_by(
-            "-order_date"
+        # 発注一覧（materials:po_list）と項目を揃えており、発注者も出すので引いておく。
+        "purchase_orders": (
+            site.purchase_orders.select_related("supplier", "ordered_by")
+            .order_by("-order_date")
         ),
         # 材料の受発注の見積行。自社発行の見積は supplier が空で、相手先は
         # customer 側に入っているため customer も引く。

@@ -144,8 +144,12 @@ def compare_quotations(material_id, site_id=None):
         }, ...]
         ※ unit_price 昇順でソート
     """
+    # kind も見る。status だけで絞ると、自社が顧客へ出した見積（kind=ISSUED）が
+    # 「採用」になった時点で仕入先比較に混ざり、supplier が空の行になる。
+    # ここは仕入先どうしの値段比較なので、仕入先から受領した見積だけを見る（ADR-0085）。
     qs = QuotationItem.unscoped.filter(
         material_id=material_id,
+        quotation__kind=Quotation.Kind.RECEIVED,
         quotation__status__in=["received", "accepted"],
     ).select_related("quotation", "quotation__supplier")
 

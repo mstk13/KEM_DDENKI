@@ -131,9 +131,24 @@ class Quotation(TenantModel):
 
     @property
     def counterparty_name(self) -> str:
-        """相手先の表示名。向きによって仕入先／顧客のどちらかを出す。"""
+        """相手先の表示名。向きによって仕入先／顧客のどちらかを出す。
+
+        **画面に相手先を出すときは supplier を直接読まないこと。** 自社発行
+        （kind=ISSUED）は supplier が空で、相手先は customer 側に入るため、
+        supplier をそのまま出すと空欄になる。実際に見積一覧・見積詳細で
+        空欄になっていた（ADR-0085）。
+        """
         party = self.customer if self.kind == self.Kind.ISSUED else self.supplier
         return str(party) if party else "相手先未設定"
+
+    @property
+    def counterparty_label(self) -> str:
+        """相手先の呼び方。自社発行なら「顧客」、仕入先から受領なら「仕入先」。
+
+        見出しを「仕入先」で決め打ちにすると、自社発行の見積で顧客名に
+        「仕入先」と付いてしまう。向きによる言い換えもここに集める。
+        """
+        return "顧客" if self.kind == self.Kind.ISSUED else "仕入先"
 
 
 class QuotationItem(TenantModel):
