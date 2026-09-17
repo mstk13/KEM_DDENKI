@@ -3,6 +3,22 @@
 {% block topbar_title %}現場詳細{% endblock %}
 
 {% block content %}
+{# 統合した現場は一覧に出ない（ADR-0090）。リンクや履歴から来たときに迷わないよう、
+   どこへまとめたのかをここに出す #}
+{% if site.merged_into %}
+<div class="card" style="margin-bottom:20px;border-left:4px solid var(--warning,#dd6b20);">
+  <div class="card-body">
+    <p style="margin:0;">
+      この現場は <a href="{% url 'sites:detail' site.merged_into.pk %}"><strong>{{ site.merged_into.name }}</strong></a>
+      にまとめました（{{ site.merged_at|date:"Y年n月j日" }}）。記録はそちらにあります。
+    </p>
+    <p style="margin:6px 0 0;color:var(--text-muted);font-size:.85rem;">
+      現場一覧には出ません。まとめたのが誤りなら
+      <a href="{% url 'sites:merge_list' %}">現場の名寄せ</a> から取り消せます。
+    </p>
+  </div>
+</div>
+{% endif %}
 <div class="page-header">
   <h1>{{ site.name }}</h1>
   <div>

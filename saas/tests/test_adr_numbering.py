@@ -57,10 +57,6 @@ KNOWN_DUPLICATES = {
         "ADR-0082-certificate-pdf-import.md",
         "ADR-0082-worker-app-access-matrix.md",
     },
-    "0084": {
-        "ADR-0084-estimation-document-source.md",
-        "ADR-0084-site-merge-candidates.md",
-    },
 }
 
 

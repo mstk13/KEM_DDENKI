@@ -1319,7 +1319,7 @@ class EstimationDocument(TenantModel):
     size = models.PositiveBigIntegerField("大きさ（バイト）", default=0)
     memo = models.TextField("メモ", blank=True)
 
-    # 出どころと、社内で登録した人（ADR-0084）。
+    # 出どころと、社内で登録した人（ADR-0089）。
     #
     # 積算の途中で「この数量書は誰がくれたものか」を確かめたくなる。
     # 発注機関の窓口・元請・メーカーの営業と、同じ案件でも出どころが混ざるため、

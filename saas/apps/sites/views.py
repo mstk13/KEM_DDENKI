@@ -61,8 +61,12 @@ from apps.sites.services import (
 
 @login_required
 def site_list(request):
-    sites = Site.objects.select_related("customer", "manager", "estimator").order_by(
-        "-created_at"
+    # 統合した現場は出さない（ADR-0090）。一覧に残ると、名前がばらばらのままに
+    # 見えてまとめた意味がなく、次の日報がまたそちらに付く。
+    sites = (
+        Site.objects.filter(merged_into__isnull=True)
+        .select_related("customer", "manager", "estimator")
+        .order_by("-created_at")
     )
     return render(request, "sites/list.html", {"sites": sites})
 
@@ -1049,6 +1053,12 @@ def site_merge_list(request):
         "ignored_count": SiteMergeCandidate.objects.filter(
             state=SiteMergeCandidate.State.IGNORED,
         ).count(),
+        # 手で選んでまとめるための一覧（ADR-0090）
+        "mergeable_sites": (
+            Site.objects.filter(merged_into__isnull=True)
+            .select_related("customer")
+            .order_by("name")
+        ),
     })
 
 
@@ -1106,6 +1116,66 @@ def site_merge_apply(request, pk):
             f"{label} の {count} 件は、同じ内容が既にあるため動かしていません。"
             f"「{duplicate.name}」に残っています。",
         )
+    return redirect("sites:merge_list")
+
+
+@login_required
+@require_POST
+def site_merge_manual(request):
+    """人が選んだ2つの現場をまとめる（ADR-0090）。
+
+    機械が拾うのは「名前が似ている」か「意味が近い」組だけなので、
+    「厚木鮎まつり」と「あゆ祭り」のように字面も離れていて
+    ローカルAIも繋がっていない環境では、候補にすら出ない組が残る。
+    そこを人が直接指定できるようにする。
+
+    統合後の名前もここで直せる。3つ以上をまとめたあと、
+    どれとも違う正しい名前に揃えたいことがあるため。
+    """
+    from apps.sites.merge import candidate_for, merge_sites
+
+    company = request.user.company
+    keep_pk = request.POST.get("primary", "")
+    drop_pk = request.POST.get("duplicate", "")
+    new_name = request.POST.get("new_name", "").strip()
+
+    primary = Site.objects.filter(pk=keep_pk).first() if keep_pk else None
+    duplicate = Site.objects.filter(pk=drop_pk).first() if drop_pk else None
+
+    if primary is None or duplicate is None:
+        messages.error(request, "残す現場とまとめる現場を、どちらも選んでください。")
+        return redirect("sites:merge_list")
+    if primary.pk == duplicate.pk:
+        messages.error(request, "同じ現場は選べません。別の現場を選んでください。")
+        return redirect("sites:merge_list")
+    for site in (primary, duplicate):
+        if site.merged_into_id:
+            messages.error(
+                request,
+                f"「{site.name}」は既に「{site.merged_into.name}」にまとめてあります。",
+            )
+            return redirect("sites:merge_list")
+
+    candidate = candidate_for(company, primary, duplicate, user=request.user)
+    result = merge_sites(primary, duplicate, user=request.user, candidate=candidate)
+    moved = sum(result["moved"].values())
+    messages.success(
+        request,
+        f"「{duplicate.name}」を「{primary.name}」にまとめました（{moved} 件を付け替え）。",
+    )
+    for label, count in result["conflicts"]:
+        messages.warning(
+            request,
+            f"{label} の {count} 件は、同じ内容が既にあるため動かしていません。"
+            f"「{duplicate.name}」に残っています。",
+        )
+
+    if new_name and new_name != primary.name:
+        old_name = primary.name
+        primary.name = new_name[:200]
+        primary.save(update_fields=["name", "updated_at"])
+        messages.success(request, f"現場名を「{old_name}」から「{primary.name}」に変えました。")
+
     return redirect("sites:merge_list")
 
 
