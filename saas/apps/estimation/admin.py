@@ -256,7 +256,11 @@ class EstimationPhaseAdmin(SimpleHistoryAdmin):
 class EstimationDocumentAdmin(SimpleHistoryAdmin):
     list_display = (
         "name", "project", "doc_type", "kind",
+        "provided_by", "registered_by_name",
         "original_filename", "ai_checked_at", "company",
     )
     list_filter = ("doc_type", "kind", "company")
-    search_fields = ("name", "original_filename", "project__name")
+    search_fields = (
+        "name", "original_filename", "project__name",
+        "provided_by", "registered_by_name",
+    )
