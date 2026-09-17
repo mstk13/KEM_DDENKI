@@ -35,3 +35,8 @@ env/
 Thumbs.db
 .vscode/
 .idea/
+
+# 取り込み用に置く個人書類（資格証のPDFなど）。リポジトリには入れない（ADR-0082）
+saas/import/
+media/
+saas/media/
