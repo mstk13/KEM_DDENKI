@@ -9,12 +9,12 @@ from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 
 from apps.offline.decorators import offline_resendable
+from apps.permissions.access_matrix import accessible_app_labels
 from apps.permissions.services import can_view_worker_private
 from apps.workers.forms import (
     HEALTH_PRIVATE_FIELDS,
     WORKER_INSURANCE_FIELDS,
     WORKER_PRIVATE_FIELDS,
-    AppPermissionForm,
     HealthCheckupForm,
     WorkerForm,
     WorkerQualificationForm,
@@ -441,21 +441,14 @@ def worker_edit(request, pk):
             request.POST, instance=worker, company=request.user.company,
             can_view_private=can_view_private,
         )
-        perm_form = AppPermissionForm(request.POST) if is_admin else None
         if form.is_valid():
             worker = form.save()
-            if perm_form and perm_form.is_valid():
-                worker.allowed_apps = perm_form.cleaned_data["apps"]
-                worker.save(update_fields=["allowed_apps"])
             messages.success(request, "作業員情報を更新しました。")
             return redirect("workers:detail", pk=worker.pk)
     else:
         form = WorkerForm(
             instance=worker, company=request.user.company, can_view_private=can_view_private,
         )
-        perm_form = None
-        if is_admin:
-            perm_form = AppPermissionForm(initial={"apps": worker.allowed_apps or []})
 
     return render(request, "workers/form.html", {
         "form": form,
@@ -464,7 +457,9 @@ def worker_edit(request, pk):
         "health_checkups": worker.health_checkups.all(),
         "is_president": _is_president(request.user),
         "is_admin": is_admin,
-        "perm_form": perm_form,
+        # 使える機能は「設定 > 権限管理 > 作業員 × 機能」で直す（ADR-0082）。
+        # ここには今の状態だけを出す。2か所で直せると、後から直したほうが黙って勝つ。
+        "access_labels": accessible_app_labels(worker) if is_admin else None,
         "can_view_private": can_view_private,
         **_worker_form_sections(form),
     })
