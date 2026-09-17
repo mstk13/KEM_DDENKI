@@ -23,6 +23,7 @@
 import csv
 import datetime
 import pathlib
+import re
 
 from django.core.files import File
 
@@ -37,6 +38,12 @@ from apps.workers.listed_qualifications import (
 
 # 台紙（資格の一覧表）。添付の対象にしない
 CHECKLIST_MARK = "チェックリスト"
+
+# 同じ人の別の書き方。フォルダ名が漢字で、作業員がローマ字で登録されている場合に使う。
+# 「釼持雅崇」は Masataka Kemmochi として登録されている（プロダクトオーナー、2026-09-17）。
+PERSON_ALIASES = {
+    "釼持雅崇": ("Masataka Kemmochi",),
+}
 
 # ファイル名（拡張子なし）→ (登録済みの資格名, 優先度)。
 # 優先度は、同じ資格に複数のファイルがあるときにどれを添付するかを決める。大きいほう。
@@ -91,6 +98,40 @@ _CATEGORY_WORDS = (
     ("特別教育", EDUCATION),
     ("教育", EDUCATION),
 )
+
+
+def name_keys(name: str):
+    """同じ人を指す見つけ方の並び。漢字・ローマ字のどちらでも当たるようにする。
+
+    ローマ字は大文字小文字と姓名の順を問わない（Masataka Kemmochi / Kemmochi Masataka）。
+    """
+    keys = set()
+    normalized = normalize_person_name(name)
+    if normalized:
+        keys.add(normalized)
+        keys.update(_romaji_keys(normalized))
+    keys.update(_romaji_keys(name))
+    for alias in _aliases_for(normalized):
+        keys.add(normalize_person_name(alias))
+        keys.update(_romaji_keys(alias))
+    return keys
+
+
+def _aliases_for(normalized_name: str):
+    """別の書き方。表の鍵も同じように均してから引く（釼→剣 など）。"""
+    for key, aliases in PERSON_ALIASES.items():
+        if normalize_person_name(key) == normalized_name:
+            return aliases
+    return ()
+
+
+def _romaji_keys(name: str):
+    """ローマ字の名前を、姓名の順を問わない形にする。漢字なら空。"""
+    parts = [part for part in re.split(r"[\s　]+", (name or "").strip()) if part]
+    if not parts or not all(re.fullmatch(r"[A-Za-z'\-]+", part) for part in parts):
+        return set()
+    lowered = [part.lower() for part in parts]
+    return {"".join(lowered), "".join(reversed(lowered))}
 
 
 def category_for(qualification_name: str) -> str:
@@ -171,10 +212,10 @@ def import_certificates(root, company, Worker, WorkerQualification, *,
         "skipped_duplicate": [], "unknown_file": [], "unknown_worker": [],
     }
 
-    workers = {
-        normalize_person_name(worker.name): worker
-        for worker in Worker._base_manager.filter(company=company)
-    }
+    workers = {}
+    for worker in Worker._base_manager.filter(company=company):
+        for key in name_keys(worker.name):
+            workers.setdefault(key, worker)
 
     # 同じ資格に複数のファイルがあるときは優先度の高いものだけ使う
     best = {}
@@ -182,7 +223,7 @@ def import_certificates(root, company, Worker, WorkerQualification, *,
         if name is None:
             report["unknown_file"].append((person, path.name))
             continue
-        key = (normalize_person_name(person), name)
+        key = (normalize_person_name(person), name)  # 同じ資格の重複をまとめる鍵
         current = best.get(key)
         if current is None or priority > current[2]:
             if current is not None:
@@ -194,7 +235,9 @@ def import_certificates(root, company, Worker, WorkerQualification, *,
     for (person_key, name), (person, path, _priority) in sorted(
         best.items(), key=lambda item: (item[0][0], item[0][1]),
     ):
-        worker = workers.get(person_key)
+        worker = next(
+            (workers[key] for key in name_keys(person) if key in workers), None,
+        )
         if worker is None:
             if person not in report["unknown_worker"]:
                 report["unknown_worker"].append(person)
