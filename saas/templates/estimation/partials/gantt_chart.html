@@ -18,12 +18,12 @@
 </div>
 
 <div class="est-gantt">
-  {# 目盛り。月の1日に線を引く #}
+  {# 目盛り。日付で刻む（ADR-0083）。期間が1年を大きく超えるときだけ月 #}
   <div class="est-gantt-axis">
     <div class="est-gantt-label"></div>
     <div class="est-gantt-track est-gantt-axis-track">
       {% for tick in gantt.ticks %}
-        <span class="est-gantt-tick" style="left:{{ tick.left_pct }}%;">{{ tick.label }}</span>
+        <span class="est-gantt-tick {{ tick.align }}" style="left:{{ tick.left_pct }}%;">{{ tick.label }}</span>
       {% endfor %}
       {% if gantt.today_pct is not None %}
         <span class="est-gantt-today" style="left:{{ gantt.today_pct }}%;" title="今日"></span>
@@ -93,6 +93,9 @@
   transform: translateX(-50%);
   white-space: nowrap;
 }
+/* 左右の端の目盛りは、中央そろえのままだと図からはみ出して切れる */
+.est-gantt-tick.start { transform: none; }
+.est-gantt-tick.end { transform: translateX(-100%); }
 .est-gantt-gridline {
   position: absolute;
   top: 0; bottom: 0;
