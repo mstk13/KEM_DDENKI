@@ -8,6 +8,9 @@
   <a href="{% url 'estimation:project_create' %}" class="btn btn-primary">+ 案件を登録</a>
 </div>
 
+{# 進行中の案件の日程（ADR-0078）。1案件1本で、工程を色で分ける #}
+{% include "estimation/partials/projects_gantt.html" %}
+
 <div class="card" style="margin-bottom:20px;">
   <div class="card-body">
     <form method="get" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;">
@@ -34,7 +37,7 @@
   <div class="table-wrap">
     <table>
       <thead>
-        <tr><th>案件名</th><th>発注機関</th><th>工事種別</th><th>状態</th><th>応札額</th><th></th></tr>
+        <tr><th>案件名</th><th>発注機関</th><th>工事種別</th><th>状態</th><th>応札額</th><th>結果</th><th></th></tr>
       </thead>
       <tbody>
         {% for p in projects %}
@@ -52,10 +55,24 @@
             {% endif %}
           </td>
           <td>{% if p.bid_amount %}{{ p.bid_amount|floatformat:0 }} 円{% else %}-{% endif %}</td>
+          <td style="font-size:13px;">
+            {% if p.status == 'lost' %}
+              {{ p.get_lost_reason_display|default:"原因未記入" }}
+              {% with w=p.winning_competitor %}
+                {% if w and w.difference is not None %}
+                  <br><span class="text-muted">{{ w.name }}に {{ w.difference|floatformat:0 }} 円差</span>
+                {% endif %}
+              {% endwith %}
+            {% elif p.status == 'won' %}
+              {% if p.award_amount %}{{ p.award_amount|floatformat:0 }} 円で落札{% else %}落札{% endif %}
+            {% else %}
+              <span class="text-muted">—</span>
+            {% endif %}
+          </td>
           <td><a href="{% url 'estimation:project_edit' p.pk %}" class="btn btn-outline btn-sm">編集</a></td>
         </tr>
         {% empty %}
-        <tr><td colspan="6"><div class="empty"><div class="empty-icon">&#x1f4c1;</div><p>積算案件が登録されていません</p></div></td></tr>
+        <tr><td colspan="7"><div class="empty"><div class="empty-icon">&#x1f4c1;</div><p>積算案件が登録されていません</p></div></td></tr>
         {% endfor %}
       </tbody>
     </table>

@@ -32,7 +32,12 @@ from apps.bids.models import (
     UnitPrice,
 )
 from apps.bids.qualification import check_qualifications_for_projects
-from apps.bids.services import get_dashboard_stats, mark_as_won, start_estimation
+from apps.bids.services import (
+    get_dashboard_stats,
+    mark_as_won,
+    start_estimation,
+    sync_estimation_move,
+)
 from apps.core.json_utils import json_for_script
 
 
@@ -51,7 +56,14 @@ def _project_list_queryset(request, *, use_get=True):
     qs = BidProject.objects.order_by("-created_at")
 
     # 入札期限切れかつ未確定の案件を除外（確定済みは表示）
-    settled = [BidProject.Status.BID, BidProject.Status.WON, BidProject.Status.LOST]
+    # 積算中も残す。積算に着手した案件は、入札期限を過ぎても開札まで追うため
+    # （絞り込みで「積算中」を選んだときに消えていると探せない）。
+    settled = [
+        BidProject.Status.ESTIMATING,
+        BidProject.Status.BID,
+        BidProject.Status.WON,
+        BidProject.Status.LOST,
+    ]
     qs = qs.exclude(
         Q(deadline__lt=now) & ~Q(status__in=settled)
     )
@@ -81,8 +93,12 @@ def _project_list_queryset(request, *, use_get=True):
 
     if q:
         qs = qs.filter(Q(title__icontains=q) | Q(client__icontains=q))
-    if status:
-        qs = qs.filter(status=status)
+    # 絞り込みが無いときは、積算案件へ引っ越した案件を出さない（ADR-0076）。
+    # 消してはいないので、絞り込みで「積算中」を選べば入札側の経緯を追える。
+    qs = (
+        qs.filter(status=status) if status
+        else qs.exclude(status__in=BidProject.MOVED_STATUSES)
+    )
     if region:
         qs = qs.filter(region__icontains=region)
 
@@ -215,6 +231,14 @@ def project_create(request):
             cost.company = request.user.company
             cost.created_by = request.user
             cost.save()
+            # 登録時に状態を「積算中」で入れたときも積算案件へ引っ越す（ADR-0076）
+            if sync_estimation_move(project, created_by=request.user):
+                est = project.estimation_projects.order_by("pk").first()
+                if est is not None:
+                    messages.success(
+                        request, f"「{project.title}」を積算案件として登録しました。",
+                    )
+                    return redirect("estimation:project_detail", pk=est.pk)
             return redirect("bids:project_detail", pk=project.pk)
     else:
         form = BidProjectForm()
@@ -240,6 +264,17 @@ def project_edit(request, pk):
             if not cost_obj.pk:
                 cost_obj.created_by = request.user
             cost_obj.save()
+            # 編集画面で状態を「積算中」にしたときも積算案件へ引っ越す（ADR-0076）
+            if sync_estimation_move(project, created_by=request.user):
+                est = project.estimation_projects.order_by("pk").first()
+                if est is not None:
+                    messages.success(
+                        request,
+                        f"「{project.title}」を積算案件に移しました。"
+                        "入札案件一覧からは見えなくなります"
+                        "（絞り込みで「積算中」を選ぶと出ます）。",
+                    )
+                    return redirect("estimation:project_detail", pk=est.pk)
             return redirect("bids:project_detail", pk=project.pk)
     else:
         form = BidProjectForm(instance=project)
@@ -365,17 +400,27 @@ def schedule_rule_list(request):
 
 @login_required
 def bid_start_estimation(request, pk):
-    """案件を検討中にし、見積中の現場を用意する（登録済みならそれを使う）。"""
+    """案件を積算中にし、積算案件へ引っ越す（ADR-0076）。"""
     if request.method != "POST":
         return redirect("bids:project_detail", pk=pk)
 
     project = get_object_or_404(BidProject, pk=pk)
-    site, created = start_estimation(project, created_by=request.user)
-    if created:
-        messages.success(request, f"現場「{site.name}」を見積中として登録しました。")
-    else:
-        messages.info(request, f"現場「{site.name}」は登録済みです。")
-    return redirect("bids:project_list")
+    start_estimation(project, created_by=request.user)
+
+    # 引っ越し先を開く。入札案件一覧に戻しても、この案件はもう既定では出ない。
+    est = project.estimation_projects.order_by("pk").first()
+    if est is None:
+        messages.error(
+            request, "積算案件を作れませんでした。発注機関マスタを確認してください。",
+        )
+        return redirect("bids:project_detail", pk=pk)
+
+    messages.success(
+        request,
+        f"「{project.title}」を積算案件に移しました。"
+        f"公告の日程 {est.phases.count()} 件を工程として取り込んでいます。",
+    )
+    return redirect("estimation:project_detail", pk=est.pk)
 
 
 @login_required

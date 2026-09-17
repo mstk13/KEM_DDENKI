@@ -4,7 +4,9 @@ from simple_history.admin import SimpleHistoryAdmin
 from apps.estimation.models import (
     BoqLine,
     CostComparison,
+    EstimationCompetitor,
     EstimationItem,
+    EstimationPhase,
     EstimationProject,
     EstimationStandard,
     ItemAlias,
@@ -230,3 +232,20 @@ class CostComparisonAdmin(SimpleHistoryAdmin):
     )
     list_filter = ("company",)
     search_fields = ("estimation_item__canonical_name",)
+
+
+@admin.register(EstimationCompetitor)
+class EstimationCompetitorAdmin(SimpleHistoryAdmin):
+    list_display = ("name", "project", "amount", "is_winner", "company")
+    list_filter = ("is_winner", "company")
+    search_fields = ("name", "project__name")
+
+
+@admin.register(EstimationPhase)
+class EstimationPhaseAdmin(SimpleHistoryAdmin):
+    list_display = (
+        "name", "project", "start_date", "end_date",
+        "progress", "source_label", "company",
+    )
+    list_filter = ("company",)
+    search_fields = ("name", "project__name")

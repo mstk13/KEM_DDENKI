@@ -162,6 +162,45 @@ def site_create(request):
     return render(request, "sites/form.html", {"form": form})
 
 
+@login_required
+def site_name_suggestions(request):
+    """入力中の現場名に似た、登録済みの現場を返す（ADR-0077）。
+
+    重複登録は名前そのものではなく表記のゆれで起きるので、
+    ブラウザの <datalist> の前方一致では拾いきれない。均してから比べる。
+    """
+    from django.http import JsonResponse
+
+    from apps.sites.name_match import find_similar_sites
+
+    name = request.GET.get("name", "").strip()
+    exclude_pk = request.GET.get("exclude")
+    matches = find_similar_sites(
+        request.user.company, name,
+        exclude_pk=int(exclude_pk) if (exclude_pk or "").isdigit() else None,
+    )
+    return JsonResponse({"sites": [
+        {
+            "pk": site.pk,
+            "name": site.name,
+            "code": site.code,
+            "status": site.get_status_display(),
+            "period": _site_period_label(site),
+            "url": reverse("sites:detail", args=[site.pk]),
+        }
+        for site, _score in matches
+    ]})
+
+
+def _site_period_label(site):
+    """候補に添える工期。どちらも空なら空文字。"""
+    start = site.start_date.strftime("%Y/%m") if site.start_date else ""
+    end = site.end_date.strftime("%Y/%m") if site.end_date else ""
+    if start and end:
+        return f"{start}〜{end}"
+    return start or end
+
+
 def _parse_uploaded_estimate(request, uploaded):
     """アップロードされた見積ファイルを一時ファイルに落として読み取る。
 

@@ -80,7 +80,7 @@
             {% if p.status == 'new' or p.status == 'considering' %}
             <form method="post" action="{% url 'bids:start_estimation' p.pk %}" style="display:inline;">
               {% csrf_token %}
-              <button type="submit" class="btn btn-primary btn-sm" onclick="return confirm('この案件を見積中として現場管理に登録しますか？')">見積もりへ</button>
+              <button type="submit" class="btn btn-primary btn-sm" onclick="return confirm('この案件を積算案件に移しますか？\n公告の日程を工程として取り込み、積算中の現場を用意します。\nこの一覧からは見えなくなります（絞り込みで「積算中」を選ぶと出ます）。')">積算へ移す</button>
             </form>
             {% endif %}
           </td>

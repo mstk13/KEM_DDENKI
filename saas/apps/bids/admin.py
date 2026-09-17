@@ -35,6 +35,17 @@ class BidProjectAdmin(SimpleHistoryAdmin):
     search_fields = ("title", "client", "location", "design_no")
     inlines = [BidCostInline, BidCompetitorInline]
 
+    def save_model(self, request, obj, form, change):
+        """admin から「積算中」にしたときも積算案件へ引っ越す（ADR-0077）。
+
+        画面と同じ扱いにする。admin だけ引っ越さないと、admin で直した案件が
+        入札案件一覧から消えたまま行き先を持たない。
+        """
+        super().save_model(request, obj, form, change)
+        from apps.bids.services import sync_estimation_move
+
+        sync_estimation_move(obj, created_by=request.user)
+
 
 @admin.register(BidScheduleRule)
 class BidScheduleRuleAdmin(SimpleHistoryAdmin):

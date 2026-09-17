@@ -61,10 +61,19 @@ class SiteForm(forms.ModelForm):
                 .order_by("name")
                 .values_list("name", flat=True)
             )
+            # 現場名の候補（ADR-0077）。同じ現場を二重に登録しないための入力補助で、
+            # 顧客名と違い「選ばせる」ものではない。候補に無い名前もそのまま通す。
+            # unscoped: company を明示指定して絞るため
+            site_names = Site.unscoped.filter(company=company).order_by("name")
+            if self.instance.pk:
+                site_names = site_names.exclude(pk=self.instance.pk)
+            self.site_name_choices = list(site_names.values_list("name", flat=True))
         else:
             self.customer_choices = []
+            self.site_name_choices = []
 
         self.fields["customer_name"].widget.attrs["list"] = "customer-name-options"
+        self.fields["name"].widget.attrs["list"] = "site-name-options"
         if self.instance.pk and self.instance.customer_id:
             self.fields["customer_name"].initial = self.instance.customer.name
 
@@ -254,7 +263,7 @@ PHOTO_SITE_STATUSES = (
 
 
 def photo_site_choices(company):
-    """写真を撮る現場の候補。施工中 → 受注済 → 見積中 → 完工、同じ状態の中は新しい現場から。"""
+    """写真を撮る現場の候補。施工中 → 受注済 → 積算中 → 完工、同じ状態の中は新しい現場から。"""
     if company is None:
         return Site.objects.none()
     rank = Case(
