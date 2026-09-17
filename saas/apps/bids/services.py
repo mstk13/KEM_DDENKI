@@ -317,7 +317,8 @@ def find_existing_project(company, rec):
 def fill_missing_fields(project, rec, default_region=""):
     """既存案件の空いている項目だけを取り込み結果で埋める。
 
-    画面で手直しした値を上書きしないよう、既に値がある項目には触らない。
+    画面で手直しした値を上書きしないよう、既に値がある項目と、
+    人が直した印の付いた項目（ADR-0088）には触らない。
     変更があれば True を返す。
     """
     changed = []
@@ -338,6 +339,9 @@ def fill_missing_fields(project, rec, default_region=""):
         if value in (None, "", 0):
             continue
         if getattr(project, name) not in (None, "", 0):
+            continue
+        if project.is_corrected(name):
+            # 人が直した項目は、空に見えても取り込みで埋め直さない（ADR-0088）
             continue
         if max_length and isinstance(value, str):
             value = value[:max_length]
@@ -443,36 +447,44 @@ def fill_announcement(project) -> bool:
             )
         return False
 
+    def fillable(name, current):
+        """まだ空で、人が直した印も付いていない項目か（ADR-0088）。"""
+        return current in (None, "") and not project.is_corrected(name)
+
     changed = []
     if used_url and project.source_url != used_url:
         # 実際に要件が読めた文書を情報源として残す
         project.source_url = used_url[:500]
         changed.append("source_url")
-    if result["work_outline"] and not project.work_outline:
+    if result["work_outline"] and fillable("work_outline", project.work_outline):
         project.work_outline = result["work_outline"]
         changed.append("work_outline")
-    if result["requirements"] and not project.requirements:
+    if result["requirements"] and fillable("requirements", project.requirements):
         project.requirements = result["requirements"]
         changed.append("requirements")
-    if result["required_grade"] and not project.required_grade:
+    if result["required_grade"] and fillable("required_grade", project.required_grade):
         project.required_grade = result["required_grade"]
         changed.append("required_grade")
-    if result["required_grades"] and not project.required_grades:
+    if result["required_grades"] and fillable("required_grades", project.required_grades):
         project.required_grades = result["required_grades"]
         changed.append("required_grades")
-    if result["required_score"] and project.required_score is None:
+    if result["required_score"] and fillable("required_score", project.required_score):
         project.required_score = result["required_score"]
         changed.append("required_score")
-    if result.get("required_issuer_type") and not project.required_issuer_type:
+    if result.get("required_issuer_type") and fillable(
+            "required_issuer_type", project.required_issuer_type,
+    ):
         project.required_issuer_type = result["required_issuer_type"]
         changed.append("required_issuer_type")
-    if result.get("required_category") and not project.required_category:
+    if result.get("required_category") and fillable(
+            "required_category", project.required_category,
+    ):
         project.required_category = result["required_category"]
         changed.append("required_category")
-    if result.get("bid_schedule") and not project.bid_schedule:
+    if result.get("bid_schedule") and fillable("bid_schedule", project.bid_schedule):
         project.bid_schedule = result["bid_schedule"]
         changed.append("bid_schedule")
-    if result.get("bid_deadline") and not project.deadline:
+    if result.get("bid_deadline") and fillable("deadline", project.deadline):
         from datetime import datetime as _dt
         try:
             project.deadline = _dt.fromisoformat(result["bid_deadline"])

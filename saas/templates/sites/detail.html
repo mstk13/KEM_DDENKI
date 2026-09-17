@@ -192,16 +192,18 @@
   </div>
   <div class="table-wrap">
     <table>
-      <thead><tr><th>区分</th><th>日付</th><th>仕入先</th><th>金額</th><th>状態</th><th></th></tr></thead>
+      {# 項目は発注一覧（materials:po_list）・見積一覧に合わせる。現場は全行この現場なので出さない。 #}
+      <thead><tr><th>区分</th><th>日付</th><th>仕入先</th><th>発注者</th><th style="text-align:right;">合計金額</th><th>状態</th><th></th></tr></thead>
       <tbody>
         {% for po in purchase_orders %}
         <tr>
           <td><span class="badge badge-blue">発注</span></td>
           <td>{{ po.order_date }}</td>
           <td>{{ po.supplier }}</td>
-          <td>{{ po.total_amount|floatformat:0 }} 円</td>
-          <td>{{ po.get_status_display }}</td>
-          <td><a href="{% url 'materials:po_detail' po.pk %}" class="btn btn-outline btn-sm">明細</a></td>
+          <td>{{ po.ordered_by|default:"—" }}</td>
+          <td style="text-align:right;">¥{{ po.total_amount|floatformat:0 }}</td>
+          <td><span class="badge badge-gray">{{ po.get_status_display }}</span></td>
+          <td><a href="{% url 'materials:po_detail' po.pk %}" class="btn btn-outline btn-xs">詳細</a></td>
         </tr>
         {% endfor %}
         {% for q in quotations %}
@@ -210,13 +212,18 @@
           <td>{{ q.quotation_date }}</td>
           {# 自社発行の見積は supplier が空で相手先は顧客側に入る。 #}
           <td>{{ q.counterparty_name }}</td>
-          <td>{{ q.total_amount|floatformat:0 }} 円</td>
-          <td>{{ q.get_status_display }}</td>
-          <td><a href="{% url 'materials:quotation_detail' q.pk %}" class="btn btn-outline btn-sm">明細</a></td>
+          {# 見積に発注者はない。列を空けずに揃えておく。 #}
+          <td>—</td>
+          <td style="text-align:right;">¥{{ q.total_amount|floatformat:0 }}</td>
+          <td><span class="badge badge-gray">{{ q.get_status_display }}</span></td>
+          <td style="display:flex;gap:4px;">
+            <a href="{% url 'materials:quotation_detail' q.pk %}" class="btn btn-outline btn-xs">詳細</a>
+            <a href="{% url 'materials:quotation_pdf' q.pk %}" class="btn btn-outline btn-xs" target="_blank">PDF</a>
+          </td>
         </tr>
         {% endfor %}
         {% if not purchase_orders and not quotations %}
-        <tr><td colspan="6" style="text-align:center;color:var(--gray-400);padding:20px;">
+        <tr><td colspan="7" style="text-align:center;color:var(--gray-400);padding:20px;">
           この現場の見積・発注はまだ登録されていません
         </td></tr>
         {% endif %}

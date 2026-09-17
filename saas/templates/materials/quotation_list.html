@@ -13,12 +13,13 @@
 <div class="card">
   <div class="table-wrap">
     <table>
-      <thead><tr><th>見積日</th><th>仕入先</th><th>現場</th><th style="text-align:right;">合計金額</th><th>状態</th><th></th></tr></thead>
+      {# 受領と自社発行が混ざるので見出しは「相手先」。値は counterparty_name（ADR-0085）。 #}
+      <thead><tr><th>見積日</th><th>相手先</th><th>現場</th><th style="text-align:right;">合計金額</th><th>状態</th><th></th></tr></thead>
       <tbody>
         {% for q in quotations %}
         <tr>
           <td>{{ q.quotation_date }}</td>
-          <td>{{ q.supplier }}</td>
+          <td>{{ q.counterparty_name }}</td>
           <td>{{ q.site|default:"—" }}</td>
           <td style="text-align:right;">¥{{ q.total_amount|floatformat:0 }}</td>
           <td><span class="badge badge-gray">{{ q.get_status_display }}</span></td>

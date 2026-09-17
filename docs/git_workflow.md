@@ -66,6 +66,36 @@ gh pr create --base main --head release/2026-08-20
 そのため設定ではなく手順で回避する。head を捨ててよい一時ブランチにすれば、
 自動削除は一時ブランチだけを消し、`developer` は残る。
 
+### 使われなかったリリースブランチの片付け
+
+**Automatically delete head branches はマージしたときにだけ働く。** 出さずに終わった
+リリースブランチ（PR を作らなかった、PR を閉じた）は残り続け、次の人が
+「消していいのか分からない」ままになる。
+
+消していいかは、次の2つで機械的に決まる。
+
+```bash
+# 1. そのブランチにしか無いコミットがあるか（0 なら developer に全て入っている）
+git rev-list --count origin/developer..origin/release/YYYY-MM-DD
+
+# 2. そのブランチを head にした PR が開いていないか
+gh pr list --head release/YYYY-MM-DD
+```
+
+**1 が 0 で、2 が空なら消してよい。** 中身は developer に残るので失うものは無い。
+
+```bash
+git push origin --delete release/YYYY-MM-DD
+```
+
+**1 が 0 でも、そのブランチが developer の先頭と同じコミットを指している場合は消さない。**
+誰かがこれからリリース PR を出すために更新した可能性がある。日付と更新者を見て、
+心当たりが無ければ本人に確認する。
+
+```bash
+git log --format='%h %ci %an' -1 origin/release/YYYY-MM-DD
+```
+
 このルールを GitHub 側で強制する設定は [main ブランチ保護の設定](branch_protection_setup.md) を参照してください。
 （未設定のあいだは、ルールは強制されずお願いベースになります）
 
