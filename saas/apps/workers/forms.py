@@ -203,32 +203,6 @@ class WorkerForm(forms.ModelForm):
         return worker
 
 
-APP_PERMISSION_CHOICES = [
-    ("sites", "現場管理"),
-    ("reports", "日報管理"),
-    ("schedules", "工期管理"),
-    ("costs", "原価・予実"),
-    ("materials", "材料・発注"),
-    ("workers", "作業員管理"),
-    ("evaluations", "人材評価"),
-    ("hr_evaluation", "人事評価"),
-    ("bids", "入札管理"),
-    ("devkanri", "開発管理"),
-    ("masters", "マスタ管理"),
-]
-
-
-class AppPermissionForm(forms.Form):
-    """作業員ごとのアプリ権限チェックボックス。"""
-
-    apps = forms.MultipleChoiceField(
-        choices=APP_PERMISSION_CHOICES,
-        widget=forms.CheckboxSelectMultiple,
-        required=False,
-        label="利用可能アプリ",
-    )
-
-
 class WorkerQualificationForm(forms.ModelForm):
     class Meta:
         model = WorkerQualification
@@ -236,6 +210,10 @@ class WorkerQualificationForm(forms.ModelForm):
         widgets = {
             "acquired_date": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
             "expiry_date": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
+            # 写真だけでなく、台紙ごとスキャンした PDF も受ける（ADR-0082）
+            "certificate_image": forms.ClearableFileInput(
+                attrs={"accept": ".pdf,image/*", "class": "form-control"},
+            ),
         }
 
     def __init__(self, *args, **kwargs):

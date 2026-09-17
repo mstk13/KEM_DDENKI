@@ -9,12 +9,12 @@ from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 
 from apps.offline.decorators import offline_resendable
+from apps.permissions.access_matrix import accessible_app_labels
 from apps.permissions.services import can_view_worker_private
 from apps.workers.forms import (
     HEALTH_PRIVATE_FIELDS,
     WORKER_INSURANCE_FIELDS,
     WORKER_PRIVATE_FIELDS,
-    AppPermissionForm,
     HealthCheckupForm,
     WorkerForm,
     WorkerQualificationForm,
@@ -52,6 +52,65 @@ def _has_role(user, role_code):
     from apps.permissions.models import UserRole
 
     return UserRole.unscoped.filter(user=user, role__code=role_code).exists()
+
+
+@login_required
+def qualification_checklist(request):
+    """資格証の提出チェックリスト（ADR-0081）。
+
+    作業員（縦）×資格名（横）の表にして、証明書の画像が登録してあれば〇、
+    資格は登録してあるが証明書がまだなら△、その資格を持っていなければ空にする。
+    """
+    if not (_is_admin(request.user) or _has_role(request.user, "office_staff")):
+        raise PermissionDenied("この画面は事務員・管理者のみ閲覧できます。")
+
+    quals = (
+        WorkerQualification.objects.select_related("worker")
+        .order_by("name")
+    )
+    workers = sort_workers_by_code(
+        list(Worker.objects.filter(is_active=True))
+    )
+
+    # 横に並べる資格名。登録がある資格だけ出す（空の列を作らない）
+    names = sorted({q.name for q in quals})
+    by_worker = defaultdict(dict)
+    for qual in quals:
+        current = by_worker[qual.worker_id].get(qual.name)
+        # 同じ名前が複数あるときは、証明書のあるほうを表に出す
+        if current is None or (not current.certificate_image and qual.certificate_image):
+            by_worker[qual.worker_id][qual.name] = qual
+
+    rows = []
+    submitted_total = registered_total = 0
+    for worker in workers:
+        held = by_worker.get(worker.pk, {})
+        cells = []
+        for name in names:
+            qual = held.get(name)
+            cells.append({
+                "qual": qual,
+                "state": (
+                    "" if qual is None
+                    else ("yes" if qual.certificate_image else "no")
+                ),
+            })
+        submitted = sum(1 for c in cells if c["state"] == "yes")
+        registered = sum(1 for c in cells if c["state"])
+        submitted_total += submitted
+        registered_total += registered
+        rows.append({
+            "worker": worker, "cells": cells,
+            "submitted": submitted, "registered": registered,
+        })
+
+    return render(request, "workers/qualification_checklist.html", {
+        "names": names,
+        "rows": rows,
+        "submitted_total": submitted_total,
+        "registered_total": registered_total,
+        "missing_total": registered_total - submitted_total,
+    })
 
 
 @login_required
@@ -382,21 +441,14 @@ def worker_edit(request, pk):
             request.POST, instance=worker, company=request.user.company,
             can_view_private=can_view_private,
         )
-        perm_form = AppPermissionForm(request.POST) if is_admin else None
         if form.is_valid():
             worker = form.save()
-            if perm_form and perm_form.is_valid():
-                worker.allowed_apps = perm_form.cleaned_data["apps"]
-                worker.save(update_fields=["allowed_apps"])
             messages.success(request, "作業員情報を更新しました。")
             return redirect("workers:detail", pk=worker.pk)
     else:
         form = WorkerForm(
             instance=worker, company=request.user.company, can_view_private=can_view_private,
         )
-        perm_form = None
-        if is_admin:
-            perm_form = AppPermissionForm(initial={"apps": worker.allowed_apps or []})
 
     return render(request, "workers/form.html", {
         "form": form,
@@ -405,7 +457,9 @@ def worker_edit(request, pk):
         "health_checkups": worker.health_checkups.all(),
         "is_president": _is_president(request.user),
         "is_admin": is_admin,
-        "perm_form": perm_form,
+        # 使える機能は「設定 > 権限管理 > 作業員 × 機能」で直す（ADR-0082）。
+        # ここには今の状態だけを出す。2か所で直せると、後から直したほうが黙って勝つ。
+        "access_labels": accessible_app_labels(worker) if is_admin else None,
         "can_view_private": can_view_private,
         **_worker_form_sections(form),
     })

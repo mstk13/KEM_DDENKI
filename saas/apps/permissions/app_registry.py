@@ -1,15 +1,17 @@
 """
 機能（アプリ）キーの一覧。アクセス管理で使う語彙はここだけで定義する（ADR-0030）。
 
-今はキーの語彙が4か所に分かれていて、互いに食い違っている。
+キーの語彙は元々4か所に分かれていて、互いに食い違っていた。残りは3つ。
 
 - permissions.models.ModulePermission.MODULE_CHOICES
 - core.middleware._PATH_TO_APP
-- workers.forms.APP_PERMISSION_CHOICES
 - tenants.models.CompanyApp.APP_CODES（jinzai / nippou などローマ字の別語彙）
+- ~~workers.forms.APP_PERMISSION_CHOICES~~ … ADR-0082 で削除。
+  作業員ごとの設定画面はこの一覧を見るようになった。
 
 AppAccess と has_app_access はこの一覧だけを見る。expand の段階なので、
-ミドルウェア・ナビ・管理画面はまだここを参照していない（切り替えは後続の PR）。
+ミドルウェアはまだここを参照していない（切り替えは後続の PR）。
+設定画面（作業員 × 機能。ADR-0082）はここを見て列を並べ、印を AppAccess に書く。
 既にあるキー（hr_evaluation / evaluations / devkanri など）は名前を変えない。
 """
 

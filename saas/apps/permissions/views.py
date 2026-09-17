@@ -5,6 +5,7 @@ from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404, redirect, render
 
 from apps.accounts.models import User
+from apps.permissions.access_matrix import build_matrix, ensure_seeded, save_matrix
 from apps.permissions.decorators import module_permission_required
 from apps.permissions.models import ModulePermission, Role, UserRole
 from apps.permissions.services import get_permission_matrix, setup_default_roles
@@ -92,3 +93,25 @@ def user_role_update(request, user_id):
 
     messages.success(request, f"{target_user} のロールを更新しました。")
     return redirect("permissions:user_roles")
+
+
+@login_required
+@module_permission_required("settings", "admin")
+def app_access_matrix(request):
+    """作業員 × 機能 のチェック表（ADR-0082）。
+
+    行が作業員、列が機能。印の付いたマスがその作業員の使える機能になる。
+    """
+    company = request.user.company
+
+    if request.method == "POST":
+        changed = save_matrix(company, request.POST, user=request.user)
+        if changed:
+            messages.success(request, f"{changed}人の使える機能を更新しました。")
+        else:
+            messages.info(request, "変更はありませんでした。")
+        return redirect("permissions:app_access")
+
+    # 1行も無い会社は、今の実効権限をそのまま写してから出す（白紙にしない）。
+    ensure_seeded(company, user=request.user)
+    return render(request, "permissions/app_access_matrix.html", build_matrix(company))

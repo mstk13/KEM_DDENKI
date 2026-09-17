@@ -5,6 +5,7 @@ from django import forms
 from apps.estimation.models import (
     BoqLine,
     EstimationCompetitor,
+    EstimationDocument,
     EstimationItem,
     EstimationPhase,
     EstimationProject,
@@ -243,13 +244,34 @@ class WorkRateForm(forms.ModelForm):
 
 
 class EstimationProjectForm(forms.ModelForm):
+    """積算案件の登録・編集フォーム。
+
+    発注機関と積算担当者は**自由入力**にしている（ADR-0080）。
+    公告を見ながら積算を始める時点で、マスタに無い発注機関は珍しくない。
+    プルダウンだけだと「先に発注機関マスタへ登録してから案件を作る」という
+    2画面の往復が要り、積算そのものが止まる。
+    入力値は resolve_or_create_orderer が引き当て、未登録なら発注機関マスタに登録する。
+    """
+
+    orderer_name = forms.CharField(
+        label="発注機関",
+        help_text="登録済みの機関は候補から選べます。候補に無い機関名を直接入力すると発注機関マスタにも登録されます。",
+    )
+    estimator_name = forms.CharField(
+        label="積算担当者",
+        required=False,
+        help_text="過去に入力した担当者は候補から選べます。",
+    )
+
     class Meta:
         model = EstimationProject
         fields = [
-            "name", "orderer", "standard", "site", "bid_project",
+            "name", "standard", "site", "bid_project",
             "primary_work_category", "status",
             "bid_announcement_date", "bid_opening_date",
-            "construction_period_days", "bid_amount", "award_amount", "notes",
+            "construction_period_days", "construction_end_date",
+            "estimator_name",
+            "bid_amount", "award_amount", "notes",
         ]
         widgets = {
             "notes": forms.Textarea(attrs={"class": "form-control", "rows": 3}),
@@ -259,24 +281,80 @@ class EstimationProjectForm(forms.ModelForm):
             "bid_opening_date": forms.DateInput(
                 attrs={"class": "form-control", "type": "date"},
             ),
+            "construction_end_date": forms.DateInput(
+                attrs={"class": "form-control", "type": "date"},
+            ),
         }
 
-    def __init__(self, *args, company=None, **kwargs):
+    def __init__(self, *args, company=None, user=None, **kwargs):
         super().__init__(*args, **kwargs)
+        self._company = company
+        self._user = user
         if company:
             from apps.bids.models import BidProject
             from apps.sites.models import Site
 
             # unscoped: フォーム初期化時に会社を明示フィルタするため
-            self.fields["orderer"].queryset = Orderer.unscoped.filter(
-                company=company, is_active=True,
-            )
             self.fields["standard"].queryset = EstimationStandard.unscoped.filter(company=company)
             self.fields["site"].queryset = Site.unscoped.filter(company=company)
             self.fields["bid_project"].queryset = BidProject.unscoped.filter(company=company)
+            # 入力補助の候補。datalist なのでこの一覧に無い値も送信できる。
+            self.orderer_choices = list(
+                Orderer.unscoped.filter(company=company, is_active=True)
+                .order_by("name")
+                .values_list("name", flat=True)
+            )
+            # 担当者はマスタを持たない。**過去に入れた値そのもの**を候補にする。
+            # 誰が積算したかは人の入れ替わりで変わるので、マスタにすると
+            # 使わなくなった名前を消す手間が残る（ADR-0080）。
+            self.estimator_choices = sorted(
+                name for name in set(
+                    EstimationProject.unscoped
+                    .filter(company=company)
+                    .exclude(estimator_name="")
+                    .values_list("estimator_name", flat=True)
+                ) if name
+            )
+        else:
+            self.orderer_choices = []
+            self.estimator_choices = []
+
+        self.fields["orderer_name"].widget.attrs["list"] = "orderer-name-options"
+        self.fields["estimator_name"].widget.attrs["list"] = "estimator-name-options"
+        if self.instance.pk and self.instance.orderer_id:
+            self.fields["orderer_name"].initial = self.instance.orderer.name
+
         for _name, field in self.fields.items():
             if not isinstance(field.widget, forms.Textarea):
                 field.widget.attrs.setdefault("class", "form-control")
+
+    def clean_construction_end_date(self):
+        """工期末日は開札予定日より前にならない。打ち間違いをここで止める。"""
+        end = self.cleaned_data.get("construction_end_date")
+        opening = self.cleaned_data.get("bid_opening_date")
+        if end and opening and end < opening:
+            raise forms.ValidationError(
+                "工期末日が開札予定日より前になっています。日付を確認してください。",
+            )
+        return end
+
+    def save(self, commit=True):
+        from apps.estimation.services.from_bid import resolve_or_create_orderer
+
+        project = super().save(commit=False)
+        # 新規登録では project.company をビューが後から入れるので、
+        # フォームに渡された company を優先する（現場の顧客欄と同じ方針）。
+        company = self._company or (project.company if project.company_id else None)
+        if company is not None:
+            orderer = resolve_or_create_orderer(
+                company, self.cleaned_data.get("orderer_name"), created_by=self._user,
+            )
+            if orderer is not None:
+                project.orderer = orderer
+        if commit:
+            project.save()
+            self.save_m2m()
+        return project
 
 
 class BoqLineForm(forms.ModelForm):
@@ -529,3 +607,66 @@ class EstimationPhaseForm(forms.ModelForm):
         if start and end and start > end:
             raise forms.ValidationError("終了日は開始日より後にしてください。")
         return cleaned
+
+
+class EstimationDocumentForm(forms.Form):
+    """積算案件に資料を1件足す（ADR-0080）。
+
+    受け取れる形式と大きさの決まりは apps.core.documents に揃える
+    （現場の提出書類・自社書類と同じ規則）。
+    """
+
+    from apps.core.documents import ACCEPT_ATTR as _ACCEPT_ATTR
+    from apps.core.documents import MAX_DOCUMENT_FILE_MB as _MAX_MB
+
+    name = forms.CharField(
+        label="資料名", max_length=200, required=False,
+        widget=forms.TextInput(attrs={"class": "form-control"}),
+        help_text="空のままならファイル名をそのまま使います。",
+    )
+    doc_type = forms.ChoiceField(
+        label="種別",
+        choices=[],  # __init__ でモデルの選択肢を入れる
+        widget=forms.Select(attrs={"class": "form-control"}),
+    )
+    file = forms.FileField(
+        label="ファイル",
+        widget=forms.ClearableFileInput(
+            attrs={"class": "form-control", "accept": _ACCEPT_ATTR},
+        ),
+        help_text=f"PDF（.pdf）と Excel（.xlsx・.xls）。1件 {_MAX_MB}MB まで。",
+    )
+    memo = forms.CharField(
+        label="メモ", required=False,
+        widget=forms.Textarea(attrs={"rows": 2, "class": "form-control"}),
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["doc_type"].choices = EstimationDocument.DocType.choices
+        self.fields["doc_type"].initial = EstimationDocument.DocType.ANNOUNCEMENT
+
+    def clean_file(self):
+        """PDF・Excel であることと、大きさを確かめる。"""
+        from apps.core.documents import (
+            MAX_DOCUMENT_FILE_MB,
+            UnsupportedDocumentFile,
+            detect_file_kind,
+        )
+
+        uploaded = self.cleaned_data["file"]
+        limit = MAX_DOCUMENT_FILE_MB * 1024 * 1024
+        if uploaded.size > limit:
+            raise forms.ValidationError(
+                f"ファイルが大きすぎます（1件 {MAX_DOCUMENT_FILE_MB}MB まで）。",
+            )
+        try:
+            self._kind = detect_file_kind(uploaded)
+        except UnsupportedDocumentFile as exc:
+            raise forms.ValidationError(str(exc)) from exc
+        return uploaded
+
+    @property
+    def kind(self):
+        """clean_file が見分けた形式。保存するビューが使う。"""
+        return getattr(self, "_kind", EstimationDocument.Kind.PDF)

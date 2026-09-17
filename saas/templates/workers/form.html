@@ -64,18 +64,18 @@
       </div>
       {% endif %}
 
-      {% if is_admin and perm_form and form.instance.pk %}
+      {% if is_admin and access_labels is not None and form.instance.pk %}
+      {# 使える機能は「設定 > 権限管理 > 作業員 × 機能」の1か所で直す（ADR-0082）。
+         ここで直せるようにすると、後から直したほうが黙って勝つ。 #}
       <div style="margin-top:28px;padding-top:20px;border-top:1px solid var(--border-light);">
-        <h3 style="font-size:.95rem;font-weight:600;color:var(--brand);margin-bottom:12px;">アプリ権限</h3>
-        <p style="font-size:.82rem;color:var(--text-muted);margin-bottom:12px;">この作業員がアクセスできるアプリを選択してください。</p>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 24px;">
-          {% for checkbox in perm_form.apps %}
-          <label style="display:flex;align-items:center;gap:8px;font-size:.88rem;font-weight:500;cursor:pointer;">
-            {{ checkbox.tag }}
-            {{ checkbox.choice_label }}
-          </label>
-          {% endfor %}
-        </div>
+        <h3 style="font-size:.95rem;font-weight:600;color:var(--brand);margin-bottom:12px;">使える機能</h3>
+        <p style="font-size:.88rem;margin-bottom:8px;">
+          {% if access_labels %}{% for label in access_labels %}{{ label }}{% if not forloop.last %} / {% endif %}{% endfor %}
+          {% else %}<span style="color:var(--text-muted);">まだ設定していません。</span>{% endif %}
+        </p>
+        <p style="font-size:.82rem;color:var(--text-muted);">
+          直すのは <a href="{% url 'permissions:app_access' %}">設定 &gt; 権限管理 &gt; 作業員 × 機能</a> から。
+        </p>
       </div>
       {% endif %}
 

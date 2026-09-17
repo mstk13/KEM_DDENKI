@@ -147,3 +147,32 @@ def create_estimation_project_from_bid(bid_project, site=None, created_by=None):
         )
         import_phases_from_bid(project, bid_project, created_by=created_by)
         return project, True
+
+
+def resolve_or_create_orderer(company, raw_name, created_by=None):
+    """人が打った発注機関名から発注機関を引き当てる。未登録なら作って返す（ADR-0080）。
+
+    積算案件の編集画面は発注機関をプルダウンで選ばせていたが、
+    **公告を見ながら積算を始める時点でマスタに無い機関は珍しくない**。
+    選べないと「先に発注機関マスタへ登録してから案件を作る」という2画面の
+    往復が要り、積算そのものが止まる。現場の顧客欄（ADR で既出）と同じく、
+    打った名前で引き当て、無ければ作る。
+
+    引き当ては Orderer の一意キー（company, name）と同じ完全一致で行う。
+    顧客マスタのような表記ゆれの正規化は**しない**。発注機関名は
+    「厚木市」「厚木市教育委員会」のように似ていて別物のことがあり、
+    寄せると積算基準の取り違えにつながるため。
+    """
+    name = (raw_name or "").strip()
+    if not name:
+        return None
+    # unscoped: company を明示指定して引き当てるため
+    orderer, _created = Orderer.unscoped.get_or_create(
+        company=company,
+        name=name,
+        defaults={
+            "notes": "積算案件の登録時に作成。種別と積算体系を確認してください",
+            "created_by": created_by,
+        },
+    )
+    return orderer

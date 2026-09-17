@@ -128,11 +128,23 @@ MATERIALS_TABS = SectionTabs(
     ),
 )
 
+# 権限まわりは3画面ある。サイドバーは「権限管理」1項目のままにして、
+# 画面の上のタブで行き来する（ADR-0082）。
+PERMISSION_TABS = SectionTabs(
+    "権限管理",
+    (
+        NavItem("ロール権限", "permissions:matrix", ""),
+        NavItem("ユーザーロール", "permissions:user_roles", "", ("permissions:user_role*",)),
+        NavItem("作業員 × 機能", "permissions:app_access", ""),
+    ),
+)
+
 SECTION_TABS: tuple[SectionTabs, ...] = (
     BID_TABS,
     ESTIMATION_MASTER_TABS,
     VENDOR_DIRECTORY_TABS,
     MATERIALS_TABS,
+    PERMISSION_TABS,
 )
 
 
@@ -205,6 +217,7 @@ NAVIGATION: tuple[NavItem | NavGroup, ...] = (
                 ("workers:evaluations", "workers:eval_*"),
             ),
             NavItem("書類アラート", "workers:document_alerts", "⚠️"),
+            NavItem("資格証チェック", "workers:cert_checklist", "✅"),
             NavItem(
                 "人事評価一覧",
                 "evaluation:eval_list",
