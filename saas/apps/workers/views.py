@@ -55,6 +55,65 @@ def _has_role(user, role_code):
 
 
 @login_required
+def qualification_checklist(request):
+    """資格証の提出チェックリスト（ADR-0078）。
+
+    作業員（縦）×資格名（横）の表にして、証明書の画像が登録してあれば〇、
+    資格は登録してあるが証明書がまだなら△、その資格を持っていなければ空にする。
+    """
+    if not (_is_admin(request.user) or _has_role(request.user, "office_staff")):
+        raise PermissionDenied("この画面は事務員・管理者のみ閲覧できます。")
+
+    quals = (
+        WorkerQualification.objects.select_related("worker")
+        .order_by("name")
+    )
+    workers = sort_workers_by_code(
+        list(Worker.objects.filter(is_active=True))
+    )
+
+    # 横に並べる資格名。登録がある資格だけ出す（空の列を作らない）
+    names = sorted({q.name for q in quals})
+    by_worker = defaultdict(dict)
+    for qual in quals:
+        current = by_worker[qual.worker_id].get(qual.name)
+        # 同じ名前が複数あるときは、証明書のあるほうを表に出す
+        if current is None or (not current.certificate_image and qual.certificate_image):
+            by_worker[qual.worker_id][qual.name] = qual
+
+    rows = []
+    submitted_total = registered_total = 0
+    for worker in workers:
+        held = by_worker.get(worker.pk, {})
+        cells = []
+        for name in names:
+            qual = held.get(name)
+            cells.append({
+                "qual": qual,
+                "state": (
+                    "" if qual is None
+                    else ("yes" if qual.certificate_image else "no")
+                ),
+            })
+        submitted = sum(1 for c in cells if c["state"] == "yes")
+        registered = sum(1 for c in cells if c["state"])
+        submitted_total += submitted
+        registered_total += registered
+        rows.append({
+            "worker": worker, "cells": cells,
+            "submitted": submitted, "registered": registered,
+        })
+
+    return render(request, "workers/qualification_checklist.html", {
+        "names": names,
+        "rows": rows,
+        "submitted_total": submitted_total,
+        "registered_total": registered_total,
+        "missing_total": registered_total - submitted_total,
+    })
+
+
+@login_required
 def document_alert_dashboard(request):
     """事務員向け: 証明書・健診書類の未添付一覧。"""
     from apps.core.date_utils import add_months, add_years
