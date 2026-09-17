@@ -205,6 +205,7 @@ NAVIGATION: tuple[NavItem | NavGroup, ...] = (
                 ("workers:evaluations", "workers:eval_*"),
             ),
             NavItem("書類アラート", "workers:document_alerts", "⚠️"),
+            NavItem("資格証チェック", "workers:cert_checklist", "✅"),
             NavItem(
                 "人事評価一覧",
                 "evaluation:eval_list",

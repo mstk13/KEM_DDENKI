@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}資格証の提出チェックリスト — {{ APP_NAME }}{% endblock %}
+{% block topbar_title %}資格証の提出チェックリスト{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>資格証の提出チェックリスト</h1>
+  <div style="display:flex;gap:6px;flex-wrap:wrap;">
+    <a href="{% url 'workers:document_alerts' %}" class="btn btn-outline btn-sm">書類アラートへ</a>
+    <a href="{% url 'workers:list' %}" class="btn btn-outline btn-sm">作業員一覧へ</a>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <h2>提出状況（{{ submitted_total }} / {{ registered_total }}）</h2>
+    {% if missing_total %}
+    <span class="badge badge-red">未提出 {{ missing_total }} 件</span>
+    {% else %}
+    <span class="badge badge-green">すべて提出済み</span>
+    {% endif %}
+  </div>
+  <div class="card-body" style="padding-bottom:0;">
+    <p style="color:var(--text-secondary);font-size:.86rem;margin:0 0 8px;">
+      〇 … 資格証の画像が登録済み　△ … 資格は登録済みだが資格証がまだ　空欄 … その資格を持っていません。
+      △ を押すと、その資格の編集画面から資格証を登録できます。
+    </p>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th style="position:sticky;left:0;background:var(--surface, #fff);">作業員</th>
+          <th class="cert-check">提出</th>
+          {% for name in names %}<th class="cert-check">{{ name }}</th>{% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+        <tr>
+          <td style="white-space:nowrap;position:sticky;left:0;background:var(--surface, #fff);">
+            <a href="{% url 'workers:detail' row.worker.pk %}">{{ row.worker.name }}</a>
+          </td>
+          <td class="cert-check">{{ row.submitted }} / {{ row.registered }}</td>
+          {% for cell in row.cells %}
+          <td class="cert-check">
+            {% if cell.state == "yes" %}
+              <a href="{% url 'workers:qual_edit' cell.qual.pk %}" class="cert-check-yes" title="資格証を確認する">〇</a>
+            {% elif cell.state == "no" %}
+              <a href="{% url 'workers:qual_edit' cell.qual.pk %}" class="cert-check-no" title="資格証を登録する">△</a>
+            {% else %}
+              <span class="cert-check-none">-</span>
+            {% endif %}
+          </td>
+          {% endfor %}
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="{{ names|length|add:2 }}">
+            <div class="empty"><p>作業員が登録されていません</p></div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
