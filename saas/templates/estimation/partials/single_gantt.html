@@ -1,0 +1,16 @@
+{% comment %}
+この案件だけを1本で出すガント（ADR-0080）。詳細画面から使う。
+
+上にある「日程」のガントは工程を1本ずつ並べたもの（ADR-0076）で、
+1つの工程の長さを読むためのもの。こちらは段階の連なりを1行で読むためで、
+一覧（ADR-0078）と同じ見え方になる。
+
+コンテキスト: single_gantt … get_projects_gantt_data を1件に絞った結果
+{% endcomment %}
+<div class="card" style="margin-bottom:20px;">
+  <div class="card-body">
+    {% with gantt=single_gantt %}
+      {% include "estimation/partials/gantt_chart.html" %}
+    {% endwith %}
+  </div>
+</div>
