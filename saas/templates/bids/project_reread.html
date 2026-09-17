@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}AI で読み直す — {{ project.title }} — {{ APP_NAME }}{% endblock %}
+{% block topbar_title %}入札管理{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>AI で読み直した内容</h1>
+  <a href="{% url 'bids:project_detail' project.pk %}" class="btn btn-outline btn-sm">案件に戻る</a>
+</div>
+
+<div class="card">
+  <div class="card-body">
+    <p>
+      <b>{{ project.title }}</b> の公告を AI が読み直しました。
+      入れる項目にチェックを入れて「これで直す」を押してください。
+      押した項目だけが入り、公告を取り直しても書き換えません。
+    </p>
+    {% if used_url %}
+    <p style="font-size:.82rem;color:var(--text-secondary);">
+      読んだ文書：<a href="{{ used_url }}" target="_blank" rel="noopener">{{ used_url|truncatechars:80 }}</a>
+    </p>
+    {% endif %}
+  </div>
+</div>
+
+<form method="post" action="{% url 'bids:project_reread_apply' project.pk %}">
+  {% csrf_token %}
+  <input type="hidden" name="proposal" value="{{ proposal_json }}">
+
+  {% for row in rows %}
+  <div class="card" style="margin-top:16px;">
+    <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+      <h2>{{ row.label }}</h2>
+      <label style="display:flex;gap:6px;align-items:center;font-size:.9rem;">
+        <input type="checkbox" name="apply" value="{{ row.name }}" checked> この内容で直す
+      </label>
+    </div>
+    <div class="card-body">
+      <p style="font-size:.82rem;color:var(--text-secondary);margin-bottom:4px;">AI が読み取った内容</p>
+      <div style="white-space:pre-wrap;">{{ row.value }}</div>
+      {% if row.current %}
+      <p style="font-size:.82rem;color:var(--text-secondary);margin:12px 0 4px;">今入っている内容</p>
+      <div style="white-space:pre-wrap;color:var(--text-secondary);">{{ row.current|truncatechars:400 }}</div>
+      {% endif %}
+    </div>
+  </div>
+  {% empty %}
+  <div class="card" style="margin-top:16px;">
+    <div class="card-body"><p>読み取れた項目がありませんでした。</p></div>
+  </div>
+  {% endfor %}
+
+  <div class="form-actions" style="margin-top:16px;">
+    <button type="submit" class="btn btn-primary">これで直す</button>
+    <a href="{% url 'bids:project_detail' project.pk %}" class="btn btn-outline">やめる</a>
+  </div>
+  <p style="margin:10px 0 0;font-size:.82rem;color:var(--text-secondary);">
+    AI の読み取りは目安です。入れる前に公告の原本と見比べてください。
+  </p>
+</form>
+{% endblock %}

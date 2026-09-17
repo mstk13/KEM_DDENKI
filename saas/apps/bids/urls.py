@@ -10,6 +10,12 @@ urlpatterns = [
     path("<int:pk>/", views.project_detail, name="project_detail"),
     path("<int:pk>/edit/", views.project_edit, name="project_edit"),
     path("<int:pk>/delete/", views.project_delete, name="project_delete"),
+    # 公告を AI で読み直し、選んだ項目だけ入れる（ADR-0088）
+    path("<int:pk>/reread/", views.project_reread, name="project_reread"),
+    path(
+        "<int:pk>/reread/apply/",
+        views.project_reread_apply, name="project_reread_apply",
+    ),
     # ガントチャート上の手直し（案件ごと）と、その既定（会社共通）
     path("<int:pk>/schedule/", views.schedule_override, name="schedule_override"),
     # 原価情報の枠づくりと、競合の行の出し入れ（中身はタップして直す。ADR-0074）
