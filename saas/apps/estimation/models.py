@@ -4,11 +4,15 @@ Phase 1: EstimationItem, ItemAlias, Orderer, OrdererDataSource
 M2+S修正: LaborRate, EstimationStandard, WorkRate, OverheadRule, WageFloor
 """
 
+import uuid
 from decimal import Decimal
+from pathlib import Path
 
 from django.conf import settings
 from django.core.validators import MaxValueValidator, MinValueValidator
-from django.db import models
+from django.db import models, transaction
+from django.db.models.signals import post_delete
+from django.dispatch import receiver
 from simple_history.models import HistoricalRecords
 
 from apps.core.models import TenantModel
@@ -842,6 +846,19 @@ class EstimationProject(TenantModel):
     construction_period_days = models.IntegerField(
         "工期（日）", null=True, blank=True,
     )
+    # 工期の末日（ADR-0080）。日数だけだと「いつまでの工事か」が分からず、
+    # 公告に「令和9年6月30日まで」と書いてある値をそのまま置けなかった。
+    # 画面には必ず西暦で、日付まで出す（和暦は読み替えの手間と取り違えを生む）。
+    construction_end_date = models.DateField(
+        "工期末日", null=True, blank=True,
+        help_text="公告・契約書に書かれた工期の終わりの日",
+    )
+    # 積算の担当者（ADR-0080）。User の FK にしないのは、積算を外部に頼むことも、
+    # 入社前の担当者名を先に入れることもあるため。過去に入れた名前を候補に出す。
+    estimator_name = models.CharField(
+        "積算担当者", max_length=100, blank=True,
+        help_text="過去に入力した担当者は候補から選べます",
+    )
     bid_amount = models.DecimalField(
         "応札額", max_digits=14, decimal_places=0, null=True, blank=True,
     )
@@ -1246,3 +1263,97 @@ class EstimationPhase(TenantModel):
 
     def __str__(self):
         return f"{self.project.name} - {self.name}"
+
+
+def estimation_document_path(instance, filename):
+    """案件資料の保存先。会社ごとのフォルダに、推測できない乱数の名前で置く。
+
+    元の名前は original_filename に残し、開くときにその名前で返す
+    （自社書類 tenants.company_document_path と同じ方針）。
+    """
+    suffix = Path(filename).suffix.lower()[:10]
+    return f"estimation_documents/{instance.company_id}/{uuid.uuid4().hex}{suffix}"
+
+
+class EstimationDocument(TenantModel):
+    """積算案件にぶら下げる資料1件（ADR-0080）。
+
+    公告・仕様書・図面・参考見積など、積算の根拠になる書類を案件ごとに置く。
+
+    入札案件の公告は URL（BidProject.source_url）で参照しているが、
+    **発注機関のサイトは入札が終わると公開文書を消す**。積算が終わったあとに
+    「何を根拠に積んだか」を辿れなくなるので、手元にも置けるようにする。
+
+    bids.BidDocument とは別に持つ。あちらは入札に**提出する**書類、
+    こちらは積算で**読む**書類で、入札を経ない民間案件でも使う。
+    """
+
+    # 受け取れる形式は apps.core.documents と揃える（現場の提出書類・自社書類と同じ）
+    class Kind(models.TextChoices):
+        PDF = "pdf", "PDF"
+        EXCEL = "excel", "Excel"
+
+    class DocType(models.TextChoices):
+        ANNOUNCEMENT = "announcement", "公告"
+        SPEC = "spec", "仕様書"
+        DRAWING = "drawing", "図面"
+        BOQ = "boq", "数量書・内訳書"
+        QUOTE = "quote", "参考見積"
+        OTHER = "other", "その他"
+
+    project = models.ForeignKey(
+        EstimationProject,
+        on_delete=models.CASCADE,
+        related_name="documents",
+        verbose_name="積算案件",
+    )
+    name = models.CharField("資料名", max_length=200)
+    doc_type = models.CharField(
+        "種別", max_length=20, choices=DocType.choices, default=DocType.OTHER,
+    )
+    file = models.FileField(
+        "ファイル", upload_to=estimation_document_path, max_length=255,
+    )
+    kind = models.CharField("形式", max_length=10, choices=Kind.choices)
+    original_filename = models.CharField("元のファイル名", max_length=255)
+    size = models.PositiveBigIntegerField("大きさ（バイト）", default=0)
+    memo = models.TextField("メモ", blank=True)
+
+    # AI が読み取った日程。人が直した値ではないので、そのままでは工程にしない。
+    # 画面で確かめてから「工程に取り込む」を押す（ADR-0080）。
+    # [{"label": "入札書の受領期限", "datetime": "2026-10-27T17:00", "detail": ""}, ...]
+    # 形は bids.BidProject.bid_schedule と同じにしてある。読み取りの実装を
+    # bids.announcement と共有し、取り込み先（EstimationPhase）も同じにするため。
+    ai_schedule = models.JSONField("AI が読み取った日程", default=list, blank=True)
+    ai_summary = models.TextField("AI が読み取った要約", blank=True)
+    ai_checked_at = models.DateTimeField("AI で読み取った日時", null=True, blank=True)
+
+    history = HistoricalRecords()
+
+    class Meta:
+        verbose_name = "案件資料"
+        verbose_name_plural = "案件資料"
+        ordering = ["doc_type", "-created_at", "-pk"]
+        indexes = [
+            models.Index(fields=["company", "project"], name="est_doc_project_idx"),
+        ]
+
+    def __str__(self):
+        return f"{self.name}（{self.original_filename}）"
+
+    @property
+    def is_pdf(self):
+        return self.kind == self.Kind.PDF
+
+
+@receiver(post_delete, sender=EstimationDocument)
+def delete_estimation_document_file(sender, instance, **kwargs):
+    """資料を消したら、保存したファイルも消す。
+
+    発注機関の公開前資料が含まれることがあるので、レコードだけ消して
+    ファイルが残る状態にしない（自社書類と同じ方針）。
+    """
+    storage = instance.file.storage
+    name = instance.file.name
+    if name:
+        transaction.on_commit(lambda: storage.delete(name))
