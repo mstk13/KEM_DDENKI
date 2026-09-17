@@ -84,11 +84,58 @@ def _pct(day, origin, total_days):
     return round((day - origin).days * 100 / total_days, 4)
 
 
+# 目盛りの刻み。(期間の上限日数, 何日おき) を上から見て、最初に当てはまるものを使う。
+# 目盛りがだいたい10〜15本に収まるようにしてある。「9/17」のラベルは1本あたり
+# 30px ほど要るので、これより増やすと隣と重なって読めなくなる。
+_DAY_STEPS = ((14, 1), (28, 2), (45, 3), (100, 7), (200, 14), (400, 28))
+
+# ここより長い期間は日付を刻んでも読めないので、月の1日に戻す。
+_MONTH_TICK_FROM_DAYS = 400
+
+
+def _tick(label, day, origin, total_days):
+    """1本ぶんの目盛り。左右の端は寄せ方を変える。"""
+    left = _pct(day, origin, total_days)
+    # 端の目盛りは、中央そろえのままだと図からはみ出して切れる
+    align = "start" if left < 3 else ("end" if left > 97 else "center")
+    return {"label": label, "left_pct": left, "align": align}
+
+
+def _day_label(day, origin):
+    """日付の目盛りのラベル。年をまたぐときだけ年を足す。"""
+    if day.year != origin.year:
+        return f"{day.year}/{day.month}/{day.day}"
+    return f"{day.month}/{day.day}"
+
+
+def _ticks(origin, goal, total_days):
+    """目盛り。**日付で刻む**（ADR-0083）。
+
+    月の1日だけに線を引いていたときは、1〜2か月で終わる積算の日程で
+    目盛りが2〜3本しか出ず、帯の左右がいつなのかを図から読めなかった。
+    入札公告の日程（説明書の入手→参加申請→入札書提出→開札）は
+    たいてい1〜2か月に収まるので、月の目盛りでは粗すぎる。
+    """
+    if total_days > _MONTH_TICK_FROM_DAYS:
+        return _month_ticks(origin, goal, total_days)
+
+    step = next(days for limit, days in _DAY_STEPS if total_days <= limit)
+    ticks = []
+    day = origin
+    while day <= goal:
+        ticks.append(_tick(_day_label(day, origin), day, origin, total_days))
+        day += datetime.timedelta(days=step)
+    return ticks
+
+
 def _month_ticks(origin, goal, total_days):
-    """目盛り。月の1日に線を引く。期間が長いときは間引く。"""
+    """1年を大きく超える期間の目盛り。月の1日に線を引く。
+
+    この長さになると日付のラベルは隣と重なって読めないので、月に戻す。
+    """
     ticks = []
     # 期間が長いほど月ラベルが詰まるので、何か月かおきにする
-    step = 1 if total_days <= 200 else (2 if total_days <= 400 else 3)
+    step = 2 if total_days <= 800 else 3
     year, month = origin.year, origin.month
     index = 0
     while True:
@@ -96,10 +143,7 @@ def _month_ticks(origin, goal, total_days):
         if day > goal:
             break
         if day >= origin and index % step == 0:
-            ticks.append({
-                "label": f"{day.year}/{day.month:02d}",
-                "left_pct": _pct(day, origin, total_days),
-            })
+            ticks.append(_tick(f"{day.year}/{day.month:02d}", day, origin, total_days))
         index += 1
         year, month = (year + 1, 1) if month == 12 else (year, month + 1)
     return ticks
@@ -215,7 +259,7 @@ def get_projects_gantt_data(company, statuses=None, today=None, project_pks=None
 
     return {
         "rows": rows,
-        "ticks": _month_ticks(origin, goal, total_days),
+        "ticks": _ticks(origin, goal, total_days),
         "legend": [{"name": name, "color": color} for name, color in legend.items()],
         "start": origin,
         "end": goal,

@@ -278,7 +278,7 @@
   <div class="table-wrap">
     <table class="table">
       <thead>
-        <tr><th>資料名</th><th>種別</th><th>読み取り</th><th>メモ</th><th></th></tr>
+        <tr><th>資料名</th><th>種別</th><th>提供元</th><th>登録者</th><th>読み取り</th><th>メモ</th><th></th></tr>
       </thead>
       <tbody>
         {% for doc in documents %}
@@ -288,6 +288,8 @@
               <br><span style="color:var(--text-muted);font-size:.78rem;">{{ doc.original_filename }}</span>
             </td>
             <td>{{ doc.get_doc_type_display }}</td>
+            <td style="font-size:.85rem;">{{ doc.provided_by|default:"-" }}</td>
+            <td style="font-size:.85rem;">{{ doc.registered_by_name|default:"-" }}</td>
             <td style="font-size:.85rem;">
               {% if doc.ai_checked_at %}
                 日程 {{ doc.schedule_rows|length }} 件
@@ -315,7 +317,7 @@
           </tr>
           {% if doc.schedule_rows %}
             <tr>
-              <td colspan="5" style="background:var(--surface-hover);">
+              <td colspan="7" style="background:var(--surface-hover);">
                 <div style="font-size:.85rem;margin-bottom:6px;">
                   <strong>{{ doc.name }}</strong> から読み取った入札までの日程
                   <form method="post" action="{% url 'estimation:document_import_schedule' doc.pk %}" style="display:inline;margin-left:8px;">
@@ -342,7 +344,7 @@
             </tr>
           {% endif %}
         {% empty %}
-          <tr><td colspan="5" class="text-muted">資料はまだ登録されていません。</td></tr>
+          <tr><td colspan="7" class="text-muted">資料はまだ登録されていません。</td></tr>
         {% endfor %}
       </tbody>
     </table>
@@ -365,6 +367,26 @@
         {{ document_form.file }}
         <small class="text-muted" style="font-size:.78rem;">{{ document_form.file.help_text }}</small>
       </div>
+      {# 誰からもらい、社内の誰が登録したか（ADR-0084）。
+         候補は過去に入れた値そのもの。datalist なのでこの一覧に無い値も送れる #}
+      <div class="form-row">
+        <div class="form-group">
+          <label for="{{ document_form.provided_by.id_for_label }}">提供元</label>
+          {{ document_form.provided_by }}
+          <small class="text-muted" style="font-size:.78rem;">{{ document_form.provided_by.help_text }}</small>
+        </div>
+        <div class="form-group">
+          <label for="{{ document_form.registered_by_name.id_for_label }}">登録者</label>
+          {{ document_form.registered_by_name }}
+          <small class="text-muted" style="font-size:.78rem;">{{ document_form.registered_by_name.help_text }}</small>
+        </div>
+      </div>
+      <datalist id="doc-provided-by-options">
+        {% for name in document_form.provided_by_choices %}<option value="{{ name }}"></option>{% endfor %}
+      </datalist>
+      <datalist id="doc-registered-by-options">
+        {% for name in document_form.registered_by_choices %}<option value="{{ name }}"></option>{% endfor %}
+      </datalist>
       <div class="form-group">
         <label for="{{ document_form.memo.id_for_label }}">メモ</label>
         {{ document_form.memo }}
