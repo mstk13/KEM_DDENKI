@@ -73,11 +73,50 @@
   <h1>{% if form.instance.pk %}日報を編集{% else %}日報を書く{% endif %}</h1>
 </div>
 
+{% if my_missing_days %}
+{# 日報を書いていない日を赤字で知らせる（ADR-0080） #}
+<div class="report-missing">
+  {% for day in my_missing_days %}{% if not forloop.first %}、{% endif %}{{ day|date:"n月j日" }}{% endfor %} の日報を書いていません
+  <div class="report-missing-note">
+    出社予定が入っている日のうち、日報がまだ無い日です。
+  </div>
+</div>
+{% endif %}
+
 <div class="card">
   <div class="card-body">
     <form method="post">
       {% csrf_token %}
       {% if back_url %}<input type="hidden" name="next" value="{{ back_url }}">{% endif %}
+      {% if duplicates %}
+      {# 同じ日・同じ人の日報が既にある（ADR-0079）。どちらで登録するか選んでもらう #}
+      <div class="duplicate-warning">
+        <p class="duplicate-warning-title">重複があります</p>
+        {% for item in duplicates %}
+        <p style="margin:6px 0 2px;">
+          {{ item.worker.name }} さんは {{ form.cleaned_data.report_date|date:"n月j日" }} の日報が既にあります。
+        </p>
+        <ul style="margin:0 0 8px;padding-left:18px;">
+          {% for report in item.reports %}
+          <li>
+            <a href="{% url 'reports:detail' report.pk %}" target="_blank" rel="noopener">
+              {{ report.site.name }}／{{ report.work_type.name }}（{{ report.get_status_display }}）
+            </a>
+            {% if report.work_hours %} {{ report.work_hours }} 時間{% endif %}
+          </li>
+          {% endfor %}
+        </ul>
+        {% endfor %}
+        <p style="margin:8px 0 10px;font-size:.85rem;">
+          別の現場や工種の分であればこのまま登録できます。書き直す場合は、上の一覧から既にある日報を開いてください。
+        </p>
+        <input type="hidden" name="duplicate_action" value="{{ duplicate_action }}">
+        <button type="submit" name="confirm_duplicate" value="1" class="btn btn-primary">
+          このまま登録する
+        </button>
+        <a href="{% url 'reports:list' %}" class="btn btn-outline">やめる</a>
+      </div>
+      {% endif %}
       {% for field in form %}
       {% if field.name == "process_other" or field.name == "start_time" or field.name == "end_time" or field.name == "end_date" or field.name in form.side_field_names %}
       {# process の直後 / 開始日・終了日の行 / 作業員の行 でまとめて出す #}

@@ -1,0 +1,6 @@
+{# 現場名の入力候補（ADR-0077）。datalist なので、ここに無い名前も送信できる。
+   表記のゆれ（全角スペース・半角カナ・頭の注記）は datalist の前方一致では拾えないため、
+   似た名前は下の「似た現場」欄がサーバに問い合わせて出す。 #}
+<datalist id="site-name-options">
+  {% for name in form.site_name_choices %}<option value="{{ name }}"></option>{% endfor %}
+</datalist>

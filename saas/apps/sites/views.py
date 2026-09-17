@@ -14,6 +14,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.dateparse import parse_date
+from django.views.decorators.http import require_POST
 
 from apps.costs.models import BudgetItem
 from apps.costs.services import get_site_cost_summary
@@ -117,8 +118,10 @@ def site_detail(request, pk):
         "processes": processes,
         "can_view_costs": can_view_costs,
         "cost_summary": cost_summary,
-        "purchase_orders": site.purchase_orders.select_related("supplier").order_by(
-            "-order_date"
+        # 発注一覧（materials:po_list）と項目を揃えており、発注者も出すので引いておく。
+        "purchase_orders": (
+            site.purchase_orders.select_related("supplier", "ordered_by")
+            .order_by("-order_date")
         ),
         # 材料の受発注の見積行。自社発行の見積は supplier が空で、相手先は
         # customer 側に入っているため customer も引く。
@@ -160,6 +163,45 @@ def site_create(request):
     else:
         form = SiteForm(company=request.user.company)
     return render(request, "sites/form.html", {"form": form})
+
+
+@login_required
+def site_name_suggestions(request):
+    """入力中の現場名に似た、登録済みの現場を返す（ADR-0077）。
+
+    重複登録は名前そのものではなく表記のゆれで起きるので、
+    ブラウザの <datalist> の前方一致では拾いきれない。均してから比べる。
+    """
+    from django.http import JsonResponse
+
+    from apps.sites.name_match import find_similar_sites
+
+    name = request.GET.get("name", "").strip()
+    exclude_pk = request.GET.get("exclude")
+    matches = find_similar_sites(
+        request.user.company, name,
+        exclude_pk=int(exclude_pk) if (exclude_pk or "").isdigit() else None,
+    )
+    return JsonResponse({"sites": [
+        {
+            "pk": site.pk,
+            "name": site.name,
+            "code": site.code,
+            "status": site.get_status_display(),
+            "period": _site_period_label(site),
+            "url": reverse("sites:detail", args=[site.pk]),
+        }
+        for site, _score in matches
+    ]})
+
+
+def _site_period_label(site):
+    """候補に添える工期。どちらも空なら空文字。"""
+    start = site.start_date.strftime("%Y/%m") if site.start_date else ""
+    end = site.end_date.strftime("%Y/%m") if site.end_date else ""
+    if start and end:
+        return f"{start}〜{end}"
+    return start or end
 
 
 def _parse_uploaded_estimate(request, uploaded):
@@ -972,3 +1014,128 @@ def site_boq_export(request, pk):
     filename = f"boq_site_{site.code or site.pk}.xlsx"
     response["Content-Disposition"] = f'attachment; filename="{filename}"'
     return response
+
+
+# ---- 現場の名寄せ（ADR-0084） ----
+
+
+@login_required
+def site_merge_list(request):
+    """同じ現場が別名で登録されていないかの候補を出す。
+
+    統合するかどうかは人が決める。機械は候補を出すところまで。
+    """
+    from apps.sites.models import SiteMergeCandidate
+
+    candidates = (
+        SiteMergeCandidate.objects.filter(state=SiteMergeCandidate.State.PENDING)
+        .select_related("primary", "duplicate", "primary__customer", "duplicate__customer")
+    )
+    merged = (
+        SiteMergeCandidate.objects.filter(state=SiteMergeCandidate.State.MERGED)
+        .select_related("primary", "duplicate")
+        .order_by("-decided_at")[:20]
+    )
+    return render(request, "sites/merge_list.html", {
+        "candidates": [
+            {
+                "candidate": candidate,
+                "primary_rows": _site_row_count(candidate.primary),
+                "duplicate_rows": _site_row_count(candidate.duplicate),
+            }
+            for candidate in candidates
+        ],
+        "merged": merged,
+        "ignored_count": SiteMergeCandidate.objects.filter(
+            state=SiteMergeCandidate.State.IGNORED,
+        ).count(),
+    })
+
+
+def _site_row_count(site):
+    """その現場にぶら下がっている行の数。どちらを残すかの判断に使う。"""
+    from apps.sites.merge_candidates import _row_count
+
+    return _row_count(site)
+
+
+@login_required
+@require_POST
+def site_merge_scan(request):
+    """候補を調べ直す。ローカルAIが止まっていても文字と手がかりで拾う。"""
+    from apps.sites.merge_candidates import find_candidates
+
+    result = find_candidates(request.user.company)
+    found = len(result["created"]) + len(result["updated"])
+    if found:
+        messages.success(
+            request,
+            f"名寄せの候補を {found} 件見つけました"
+            f"（うち {result['judged']} 件はAIが判定しました）。",
+        )
+    else:
+        messages.success(request, "同じ現場らしい組は見つかりませんでした。")
+    return redirect("sites:merge_list")
+
+
+@login_required
+@require_POST
+def site_merge_apply(request, pk):
+    """候補を統合する。どちらを残すかは画面で選ぶ。"""
+    from apps.sites.merge import merge_sites
+    from apps.sites.models import SiteMergeCandidate
+
+    candidate = get_object_or_404(SiteMergeCandidate, pk=pk)
+    keep = request.POST.get("keep", "primary")
+    primary, duplicate = (
+        (candidate.primary, candidate.duplicate) if keep == "primary"
+        else (candidate.duplicate, candidate.primary)
+    )
+
+    result = merge_sites(
+        primary, duplicate, user=request.user, candidate=candidate,
+    )
+    moved = sum(result["moved"].values())
+    messages.success(
+        request,
+        f"「{duplicate.name}」を「{primary.name}」にまとめました（{moved} 件を付け替え）。",
+    )
+    for label, count in result["conflicts"]:
+        messages.warning(
+            request,
+            f"{label} の {count} 件は、同じ内容が既にあるため動かしていません。"
+            f"「{duplicate.name}」に残っています。",
+        )
+    return redirect("sites:merge_list")
+
+
+@login_required
+@require_POST
+def site_merge_ignore(request, pk):
+    """別の現場として、今後は候補に出さない。"""
+    from apps.sites.models import SiteMergeCandidate
+
+    candidate = get_object_or_404(SiteMergeCandidate, pk=pk)
+    candidate.state = SiteMergeCandidate.State.IGNORED
+    candidate.decided_by = request.user
+    candidate.decided_at = timezone.now()
+    candidate.save()
+    messages.success(request, "別の現場として覚えました。次からは候補に出しません。")
+    return redirect("sites:merge_list")
+
+
+@login_required
+@require_POST
+def site_merge_undo(request, pk):
+    """統合を取り消し、付け替えた行を元の現場へ戻す。"""
+    from apps.sites.merge import undo_merge
+    from apps.sites.models import SiteMergeCandidate
+
+    candidate = get_object_or_404(SiteMergeCandidate, pk=pk)
+    result = undo_merge(candidate, user=request.user)
+    restored = sum(result["restored"].values())
+    messages.success(
+        request,
+        f"統合を取り消しました（{restored} 件を「{candidate.duplicate.name}」に戻しました）。",
+    )
+    return redirect("sites:merge_list")

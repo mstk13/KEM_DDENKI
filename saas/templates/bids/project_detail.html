@@ -217,9 +217,15 @@
           {% for row in gantt.rows %}
           <tr>
             <td>{{ row.step }}</td>
-            <td>{{ row.stage }}</td>
             <td>
-              {{ row.label }}
+              <span class="schedule-edit" data-label="{{ row.label }}" data-key="stage"
+                    data-input="text" data-value="{{ row.stage }}" tabindex="0" role="button"
+                    title="タップすると直せます">{{ row.stage }}</span>
+            </td>
+            <td>
+              <span class="schedule-edit" data-label="{{ row.label }}" data-key="title"
+                    data-input="text" data-value="{{ row.title }}" tabindex="0" role="button"
+                    title="タップすると直せます">{{ row.title }}</span>
               {% if row.overridden %}
                 <span class="badge badge-orange" style="margin-left:4px;">手直し</span>
               {% endif %}
@@ -265,14 +271,26 @@
               </button>
               {% endif %}
             </td>
-            <td>{{ row.detail|default:"-" }}</td>
+            <td>
+              <span class="schedule-edit" data-label="{{ row.label }}" data-key="detail"
+                    data-input="text" data-value="{{ row.detail }}" tabindex="0" role="button"
+                    title="タップすると直せます">{{ row.detail|default:"-" }}</span>
+            </td>
           </tr>
           {% endfor %}
           {% for row in gantt.hidden %}
           <tr style="opacity:.55;">
             <td>-</td>
-            <td>{{ row.stage }}</td>
-            <td>{{ row.label }}</td>
+            <td>
+              <span class="schedule-edit" data-label="{{ row.label }}" data-key="stage"
+                    data-input="text" data-value="{{ row.stage }}" tabindex="0" role="button"
+                    title="タップすると直せます">{{ row.stage }}</span>
+            </td>
+            <td>
+              <span class="schedule-edit" data-label="{{ row.label }}" data-key="title"
+                    data-input="text" data-value="{{ row.title }}" tabindex="0" role="button"
+                    title="タップすると直せます">{{ row.title }}</span>
+            </td>
             <td>-</td>
             <td style="white-space:nowrap;">{{ row.end|date:"Y/m/d H:i" }}</td>
             <td><span class="badge badge-gray">非表示</span></td>
@@ -326,9 +344,9 @@
 
 <div class="card" style="margin-top:20px;">
   <div class="card-header">
-    <h2>工事概要{% if "work_outline" in corrected_fields %} <span class="badge badge-blue">手直しあり</span>{% endif %}</h2>
+    <h2>工事概要</h2>{% if "work_outline" in corrected_fields %}<span class="badge badge-blue" style="margin-right:auto;margin-left:8px;">手直しあり</span>{% endif %}
     <span style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
-      {# 公告PDFを AI に読み直させ、並べて見てから入れる（ADR-0075） #}
+      {# 公告PDFを AI に読み直させ、並べて見てから入れる（ADR-0088） #}
       <form method="post" action="{% url 'bids:project_reread' project.pk %}" style="display:inline;">
         {% csrf_token %}
         <button type="submit" class="btn btn-outline btn-xs">AI で読み直す</button>
@@ -349,7 +367,7 @@
 
 <div class="card" style="margin-top:20px;">
   <div class="card-header">
-    <h2>参加要件{% if "requirements" in corrected_fields %} <span class="badge badge-blue">手直しあり</span>{% endif %}</h2>
+    <h2>参加要件</h2>{% if "requirements" in corrected_fields %}<span class="badge badge-blue" style="margin-right:auto;margin-left:8px;">手直しあり</span>{% endif %}
     {% inline_edit project "requirements" text="この欄を直す" block=True reload=True %}
   </div>
   <div class="card-body">
@@ -449,6 +467,29 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 
+  // 公告の文字をそのまま属性に入れるので、引用符と山かっこだけ逃がす。
+  function attr(text) {
+    return String(text == null ? '' : text)
+      .replace(/&/g, '&amp;').replace(/"/g, '&quot;')
+      .replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  // バー（図）からも段階名を直せるようにする。表の「段階」と同じ保存先。
+  function renameStage(label, current) {
+    var next = window.prompt(
+      '段階名を入れてください。空にすると公告どおりに戻ります。', current || ''
+    );
+    if (next === null) return;
+    save({label: label, stage: next.trim()});
+  }
+
+  document.addEventListener('click', function(e) {
+    var btn = e.target.closest ? e.target.closest('.bid-stage-rename') : null;
+    if (!btn) return;
+    e.preventDefault();
+    renameStage(btn.dataset.label, btn.dataset.stage);
+  });
+
   // toISOString は UTC に寄るので日付がずれる。ローカルのまま組み立てる。
   function ymd(d) {
     return d.getFullYear() + '-'
@@ -466,7 +507,7 @@ document.addEventListener('DOMContentLoaded', function() {
     custom_popup_html: function(task) {
       return '<div class="details-container" style="padding:12px;min-width:220px;">'
         + '<h5 style="margin:0 0 6px;font-size:.95rem;">' + task.name + '</h5>'
-        + '<p style="margin:0;font-size:.82rem;color:#666;">' + task._label + '</p>'
+        + '<p style="margin:0;font-size:.82rem;color:#666;">' + (task._title || task._label) + '</p>'
         + '<p style="margin:6px 0 0;font-size:.85rem;">締切: ' + task._deadline + '</p>'
         + (task._detail
             ? '<p style="margin:4px 0 0;font-size:.8rem;color:#666;">' + task._detail + '</p>'
@@ -474,6 +515,9 @@ document.addEventListener('DOMContentLoaded', function() {
         + (task._edited
             ? '<p style="margin:4px 0 0;font-size:.8rem;color:#c2410c;">公告から手直し済み</p>'
             : '')
+        + '<button type="button" class="btn btn-outline btn-sm bid-stage-rename"'
+        + ' style="margin-top:8px;" data-label="' + attr(task._label) + '"'
+        + ' data-stage="' + attr(task.name) + '">段階名を直す</button>'
         + '</div>';
     }
   }) : null;
@@ -505,9 +549,11 @@ document.addEventListener('DOMContentLoaded', function() {
       if (span.dataset.editing === '1') return;
       span.dataset.editing = '1';
       var previous = span.textContent;
+      var isText = span.dataset.input === 'text';
       var input = document.createElement('input');
-      input.type = 'date';
+      input.type = isText ? 'text' : 'date';
       input.value = span.dataset.value || '';
+      if (isText) input.placeholder = '空にすると公告どおりに戻します';
       input.className = 'inline-edit-input form-control';
       span.textContent = '';
       span.appendChild(input);
@@ -516,8 +562,9 @@ document.addEventListener('DOMContentLoaded', function() {
       function finish(commit) {
         if (done) return;
         done = true;
-        var value = input.value;
-        if (!commit || !value || value === span.dataset.value) {
+        var value = isText ? input.value.trim() : input.value;
+        // 日付は空にできない。段階名・見出し・備考は空にすると公告どおりに戻す
+        if (!commit || (!value && !isText) || value === (span.dataset.value || '')) {
           span.textContent = previous;
           span.dataset.editing = '';
           return;

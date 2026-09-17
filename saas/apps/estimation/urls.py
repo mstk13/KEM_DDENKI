@@ -53,4 +53,40 @@ urlpatterns = [
     path("purchases/", views.purchase_list, name="purchase_list"),
     path("purchases/new/", views.purchase_create, name="purchase_create"),
     path("purchases/csv-import/", views.purchase_csv_import, name="purchase_csv_import"),
+    # ADR-0076: 結果（受注・失注）と日程
+    path("projects/<int:pk>/won/", views.project_mark_won, name="project_mark_won"),
+    path("projects/<int:pk>/lost/", views.project_mark_lost, name="project_mark_lost"),
+    path(
+        "projects/<int:project_pk>/competitors/new/",
+        views.competitor_create, name="competitor_create",
+    ),
+    path(
+        "competitors/<int:pk>/delete/",
+        views.competitor_delete, name="competitor_delete",
+    ),
+    path(
+        "projects/<int:project_pk>/phases/new/",
+        views.phase_create, name="phase_create",
+    ),
+    path("phases/<int:pk>/edit/", views.phase_edit, name="phase_edit"),
+    path("phases/<int:pk>/delete/", views.phase_delete, name="phase_delete"),
+    path(
+        "projects/<int:project_pk>/phases/import-from-bid/",
+        views.phase_import_from_bid, name="phase_import_from_bid",
+    ),
+    # ADR-0080: 案件資料（公告PDF・仕様書など）と、そこからの日程読み取り
+    path(
+        "projects/<int:project_pk>/documents/add/",
+        views.document_add, name="document_add",
+    ),
+    path("documents/<int:pk>/file/", views.document_file, name="document_file"),
+    path("documents/<int:pk>/delete/", views.document_delete, name="document_delete"),
+    path(
+        "documents/<int:pk>/read-schedule/",
+        views.document_read_schedule, name="document_read_schedule",
+    ),
+    path(
+        "documents/<int:pk>/import-schedule/",
+        views.document_import_schedule, name="document_import_schedule",
+    ),
 ]

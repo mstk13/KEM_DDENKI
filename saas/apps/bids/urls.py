@@ -10,7 +10,7 @@ urlpatterns = [
     path("<int:pk>/", views.project_detail, name="project_detail"),
     path("<int:pk>/edit/", views.project_edit, name="project_edit"),
     path("<int:pk>/delete/", views.project_delete, name="project_delete"),
-    # 公告を AI で読み直し、選んだ項目だけ入れる（ADR-0075）
+    # 公告を AI で読み直し、選んだ項目だけ入れる（ADR-0088）
     path("<int:pk>/reread/", views.project_reread, name="project_reread"),
     path(
         "<int:pk>/reread/apply/",

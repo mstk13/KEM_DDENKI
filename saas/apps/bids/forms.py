@@ -40,7 +40,7 @@ class BidProjectForm(forms.ModelForm):
                 field.widget.attrs.setdefault("class", "form-control")
 
 
-# 入札期限は日付だけでなく時刻も持つ（ADR-0075）。
+# 入札期限は日付だけでなく時刻も持つ（ADR-0088）。
 # <input type="date"> のままだと、公告から読んだ時刻（17時など）が編集画面で保存するたびに消える。
 # DateTimeLocalField はこのファイルの下のほうで定義しているので、最後に差し替える。
 def _use_datetime_local_for_deadline():
@@ -204,7 +204,7 @@ DATETIME_LOCAL_FORMATS = ("%Y-%m-%dT%H:%M", "%Y-%m-%d %H:%M", "%Y-%m-%d")
 
 
 class DateTimeLocalField(forms.DateTimeField):
-    """時刻まで入れられる日時の欄。公告から読んだ時刻（17時など）を落とさない（ADR-0075）。"""
+    """時刻まで入れられる日時の欄。公告から読んだ時刻（17時など）を落とさない（ADR-0088）。"""
 
     def __init__(self, **kwargs):
         kwargs.setdefault("required", False)

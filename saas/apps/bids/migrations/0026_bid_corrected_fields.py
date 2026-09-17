@@ -6,7 +6,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('bids', '0024_register_company_licenses'),
+        ('bids', '0025_alter_bidproject_status_and_more'),
     ]
 
     operations = [

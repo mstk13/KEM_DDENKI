@@ -1,0 +1,148 @@
+{% extends "base.html" %}
+{% block title %}作業員 × 機能 — {{ APP_NAME }}{% endblock %}
+{% block topbar_title %}設定{% endblock %}
+
+{% block content %}
+<style>
+/* 作業員 × 機能 のチェック表（ADR-0082）。
+   表そのものを縦にも横にもずらせるようにし、作業員の名前（左の列）と
+   機能の名前（上の行）は動かさない。どのマスを触っているのか分からなくなると
+   別の人の権限を開けてしまう。 */
+.access-scroll {
+  overflow: auto;
+  /* 画面の高さから、ヘッダー・見出し・保存ボタンの分を引いた残り。
+     ここに高さが無いと縦の sticky が効かない（ページごと動いてしまう）。 */
+  max-height: calc(100vh - 300px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  -webkit-overflow-scrolling: touch;
+}
+/* sticky なセルは collapse だと罫線が置き去りになる。separate にしてセル側に引く。 */
+.access-matrix { border-collapse: separate; border-spacing: 0; width: auto; min-width: 100%; }
+.access-matrix th,
+.access-matrix td {
+  border-right: 1px solid var(--border-light);
+  border-bottom: 1px solid var(--border-light);
+  background: var(--surface);
+  white-space: nowrap;
+  padding: 6px 8px;
+}
+.access-matrix thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--brand-light);
+  font-size: .78rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  text-align: center;
+  min-width: 84px;
+  vertical-align: bottom;
+}
+.access-matrix .worker-col {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  text-align: left;
+  font-weight: 600;
+  font-size: .86rem;
+  min-width: 160px;
+  box-shadow: 1px 0 0 var(--border);
+}
+/* 左上の角は縦にも横にも動かない。重なり順を一番上にしないと、
+   横にずらしたときに機能の名前がこの上に乗る。 */
+.access-matrix thead .corner { left: 0; z-index: 3; box-shadow: 1px 0 0 var(--border); }
+.access-matrix tbody tr:hover th,
+.access-matrix tbody tr:hover td { background: var(--surface-hover); }
+.access-matrix td { text-align: center; }
+.access-matrix input[type="checkbox"] { width: 18px; height: 18px; cursor: pointer; }
+.access-matrix .approve {
+  display: block;
+  margin-top: 2px;
+  font-size: .7rem;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.access-matrix .approve input[type="checkbox"] { width: 13px; height: 13px; vertical-align: -2px; }
+.access-matrix .worker-col small { display: block; font-weight: 400; color: var(--text-muted); font-size: .74rem; }
+.access-matrix thead th small { display: block; font-weight: 400; color: var(--text-muted); font-size: .68rem; }
+</style>
+
+<div class="page-header">
+  <h1>作業員 × 機能</h1>
+  <a href="{% url 'permissions:matrix' %}" class="btn btn-outline">ロール権限 →</a>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <h2>使える機能にチェックを付ける</h2>
+  </div>
+  <div style="padding:12px 16px 0;font-size:.84rem;color:var(--text-muted);line-height:1.7;">
+    <p style="margin:0;">
+      チェックの付いた機能だけを、その作業員が開けます。
+      社員番号が <strong>Y</strong> で始まる管理者は、チェックに関わらず全ての機能を開けます。
+    </p>
+    <p style="margin:6px 0 0;">
+      「承認」は日報・原価のように承認のある機能でのみ使います。
+    </p>
+    {% if unmirrored_labels %}
+    <p style="margin:6px 0 0;">
+      {% for label in unmirrored_labels %}{{ label }}{% if not forloop.last %}・{% endif %}{% endfor %}
+      は、チェックを記録しますが画面の開閉にはまだ反映されません
+      （URL 側の入口がこれから）。
+    </p>
+    {% endif %}
+  </div>
+
+  <form method="post">
+    {% csrf_token %}
+    <div style="padding:16px;">
+      <div class="access-scroll">
+        <table class="access-matrix">
+          <thead>
+            <tr>
+              <th class="corner worker-col">作業員</th>
+              {% for app in apps %}
+              <th>{{ app.label }}{% if app.approvable %}<small>承認あり</small>{% endif %}</th>
+              {% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in rows %}
+            <tr>
+              <th scope="row" class="worker-col">
+                {{ row.worker.name }}
+                <small>{{ row.worker.employee_code|default:"—" }}{% if row.worker.position %} / {{ row.worker.position.name }}{% endif %}</small>
+              </th>
+              {% for cell in row.cells %}
+              <td>
+                <label title="{{ row.worker.name }} — {{ cell.app.label }}">
+                  <input type="checkbox" name="{{ cell.name }}"
+                         aria-label="{{ row.worker.name }} {{ cell.app.label }}"
+                         {% if cell.checked %}checked{% endif %}>
+                </label>
+                {% if cell.app.approvable %}
+                <label class="approve" title="{{ row.worker.name }} — {{ cell.app.label }}の承認">
+                  <input type="checkbox" name="{{ cell.approve_name }}"
+                         aria-label="{{ row.worker.name }} {{ cell.app.label }} 承認"
+                         {% if cell.can_approve %}checked{% endif %}>承認
+                </label>
+                {% endif %}
+              </td>
+              {% endfor %}
+            </tr>
+            {% empty %}
+            <tr><td colspan="{{ apps|length|add:1 }}" style="padding:24px;text-align:center;color:var(--text-muted);">
+              在籍中の作業員がいません。
+            </td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div style="padding:0 16px 16px;text-align:right;">
+      <button type="submit" class="btn btn-primary">保存</button>
+    </div>
+  </form>
+</div>
+{% endblock %}

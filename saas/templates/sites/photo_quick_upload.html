@@ -12,7 +12,7 @@
   <div class="card-body">
     {% if not form.fields.site.queryset %}
     <div class="empty" style="padding:20px;">
-      <p>写真を撮れる現場がありません（施工中・受注済・見積中・完工の現場が出ます）。</p>
+      <p>写真を撮れる現場がありません（施工中・受注済・積算中・完工の現場が出ます）。</p>
     </div>
     {% else %}
     {# 圏外なら端末に保存し、電波が戻ったら送る（ADR-0048）。名前は現場を選ぶと入れ替える #}

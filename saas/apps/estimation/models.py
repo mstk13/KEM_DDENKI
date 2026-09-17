@@ -4,8 +4,15 @@ Phase 1: EstimationItem, ItemAlias, Orderer, OrdererDataSource
 M2+S修正: LaborRate, EstimationStandard, WorkRate, OverheadRule, WageFloor
 """
 
+import uuid
+from decimal import Decimal
+from pathlib import Path
+
 from django.conf import settings
-from django.db import models
+from django.core.validators import MaxValueValidator, MinValueValidator
+from django.db import models, transaction
+from django.db.models.signals import post_delete
+from django.dispatch import receiver
 from simple_history.models import HistoricalRecords
 
 from apps.core.models import TenantModel
@@ -788,6 +795,20 @@ class EstimationProject(TenantModel):
         MECHANICAL = "mechanical", "機械設備工事"
         ELEVATOR = "elevator", "昇降機設備工事"
 
+    class LostReason(models.TextChoices):
+        """失注の原因区分。
+
+        自由記述にすると集計できず「価格で負け続けている」ことに気づけない。
+        当てはまらないものは OTHER にして lost_note に書く。
+        """
+
+        PRICE = "price", "価格"
+        TECHNICAL = "technical", "技術点"
+        EXPERIENCE = "experience", "実績不足"
+        REQUIREMENT = "requirement", "参加要件"
+        CAPACITY = "capacity", "手が回らず辞退"
+        OTHER = "other", "その他"
+
     name = models.CharField("案件名", max_length=200)
     orderer = models.ForeignKey(
         Orderer, on_delete=models.PROTECT,
@@ -825,6 +846,19 @@ class EstimationProject(TenantModel):
     construction_period_days = models.IntegerField(
         "工期（日）", null=True, blank=True,
     )
+    # 工期の末日（ADR-0080）。日数だけだと「いつまでの工事か」が分からず、
+    # 公告に「令和9年6月30日まで」と書いてある値をそのまま置けなかった。
+    # 画面には必ず西暦で、日付まで出す（和暦は読み替えの手間と取り違えを生む）。
+    construction_end_date = models.DateField(
+        "工期末日", null=True, blank=True,
+        help_text="公告・契約書に書かれた工期の終わりの日",
+    )
+    # 積算の担当者（ADR-0080）。User の FK にしないのは、積算を外部に頼むことも、
+    # 入社前の担当者名を先に入れることもあるため。過去に入れた名前を候補に出す。
+    estimator_name = models.CharField(
+        "積算担当者", max_length=100, blank=True,
+        help_text="過去に入力した担当者は候補から選べます",
+    )
     bid_amount = models.DecimalField(
         "応札額", max_digits=14, decimal_places=0, null=True, blank=True,
     )
@@ -832,6 +866,23 @@ class EstimationProject(TenantModel):
         "落札額", max_digits=14, decimal_places=0, null=True, blank=True,
     )
     notes = models.TextField("備考", blank=True)
+
+    # --- 失注の記録（ADR-0076） ---
+    #
+    # 失注は「負けた」で終わらせると次に活きない。何円差で誰に負けたかを
+    # 競合ごとに残し（EstimationCompetitor）、原因の区分をここに持つ。
+    # 区分を自由記述にせず選択肢にするのは、後から「価格で負けた件」を数えるため。
+    lost_reason = models.CharField(
+        "失注原因", max_length=20, choices=LostReason.choices, blank=True,
+    )
+    lost_note = models.TextField(
+        "失注メモ", blank=True,
+        help_text="次に活かすための気づき。区分だけでは残らないことを書く",
+    )
+    decided_on = models.DateField(
+        "結果確定日", null=True, blank=True,
+        help_text="受注・失注が決まった日",
+    )
 
     history = HistoricalRecords()
 
@@ -841,6 +892,17 @@ class EstimationProject(TenantModel):
 
     def __str__(self):
         return self.name
+
+    @property
+    def winning_competitor(self):
+        """落札した competitor。記録されていなければ None。"""
+        return next((c for c in self.competitors.all() if c.is_winner), None)
+
+    @property
+    def lowest_competitor_amount(self):
+        """記録されている競合金額の最安値。1件も無ければ None。"""
+        amounts = [c.amount for c in self.competitors.all() if c.amount is not None]
+        return min(amounts) if amounts else None
 
 
 class BoqLine(TenantModel):
@@ -1089,3 +1151,226 @@ class CostComparison(TenantModel):
                     self.diff_amount * 100 / self.standard_price
                 )
         return self
+
+
+class EstimationCompetitor(TenantModel):
+    """積算案件の競合。失注したときに「誰にいくらで負けたか」を残す（ADR-0076）。
+
+    bids.BidCompetitor は入札案件にぶら下がる同趣旨のモデルだが、
+    あちらは公告段階で見込みの競合を並べるためのもので、
+    こちらは結果が出たあとに開札結果を書き写すためのもの。
+    入札を経ずに積算だけ行う民間案件でも使うため、積算案件側に持つ。
+    """
+
+    project = models.ForeignKey(
+        EstimationProject,
+        on_delete=models.CASCADE,
+        related_name="competitors",
+        verbose_name="積算案件",
+    )
+    name = models.CharField("競合名", max_length=200)
+    amount = models.DecimalField(
+        "競合金額", max_digits=14, decimal_places=0,
+        null=True, blank=True,
+        help_text="開札結果の金額。分からない場合は空のまま",
+    )
+    is_winner = models.BooleanField(
+        "落札者", default=False,
+        help_text="この competitor が落札した場合にチェック",
+    )
+    memo = models.TextField("メモ", blank=True)
+
+    history = HistoricalRecords()
+
+    class Meta:
+        verbose_name = "競合（積算）"
+        verbose_name_plural = "競合（積算）"
+        ordering = ["amount", "name"]
+
+    def __str__(self):
+        return f"{self.name} ({self.project.name})"
+
+    # --- 差額は保存せず、その都度計算する ---
+    #
+    # 自社の応札額は積算のやり直しで動く。差額を列として持つと、
+    # 応札額を直したときに competitor 側の更新を忘れて食い違う。
+    # 表示のたびに引き算するだけなので、持たない。
+
+    @property
+    def difference(self):
+        """自社応札額との差額。プラスなら自社のほうが高い（負けた側）。"""
+        own = self.project.bid_amount
+        if own is None or self.amount is None:
+            return None
+        return own - self.amount
+
+    @property
+    def difference_rate(self):
+        """自社応札額との差率（%）。競合金額を分母にする。"""
+        diff = self.difference
+        if diff is None or not self.amount:
+            return None
+        return (diff * 100 / self.amount).quantize(Decimal("0.01"))
+
+
+class EstimationPhase(TenantModel):
+    """積算案件の日程。ガントチャートで見る（ADR-0076）。
+
+    schedules.Phase は現場（施工）の工程で、site FK が必須。
+    積算段階では現場が無いこともあり、並べるものも施工の工種ではなく
+    「参加申請」「入札書提出」といった手続きなので、別モデルにする。
+    """
+
+    project = models.ForeignKey(
+        EstimationProject,
+        on_delete=models.CASCADE,
+        related_name="phases",
+        verbose_name="積算案件",
+    )
+    name = models.CharField("工程名", max_length=200)
+    start_date = models.DateField("開始日", null=True, blank=True)
+    end_date = models.DateField("終了日", null=True, blank=True)
+    progress = models.IntegerField(
+        "進捗(%)",
+        default=0,
+        validators=[MinValueValidator(0), MaxValueValidator(100)],
+    )
+    sort_order = models.IntegerField("表示順", default=0)
+    color = models.CharField("色", max_length=7, default="#3b82f6")
+    memo = models.TextField("メモ", blank=True)
+    # 公告から取り込んだ項目は、その項目名を入れておく。
+    # 公告を取り直したときに二重に足さないための目印で、手で足した工程は空。
+    source_label = models.CharField(
+        "取り込み元の項目名", max_length=200, blank=True,
+        help_text="入札公告から取り込んだ場合に、公告側の項目名が入る",
+    )
+
+    history = HistoricalRecords()
+
+    class Meta:
+        verbose_name = "積算工程"
+        verbose_name_plural = "積算工程"
+        ordering = ["sort_order", "start_date"]
+        constraints = [
+            # 同じ公告項目を二重に取り込まない。手で足した工程（source_label 空）は
+            # 名前が同じでも通すため、空文字は対象外にする。
+            models.UniqueConstraint(
+                fields=["project", "source_label"],
+                condition=~models.Q(source_label=""),
+                name="uniq_estimation_phase_source_label",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.project.name} - {self.name}"
+
+
+def estimation_document_path(instance, filename):
+    """案件資料の保存先。会社ごとのフォルダに、推測できない乱数の名前で置く。
+
+    元の名前は original_filename に残し、開くときにその名前で返す
+    （自社書類 tenants.company_document_path と同じ方針）。
+    """
+    suffix = Path(filename).suffix.lower()[:10]
+    return f"estimation_documents/{instance.company_id}/{uuid.uuid4().hex}{suffix}"
+
+
+class EstimationDocument(TenantModel):
+    """積算案件にぶら下げる資料1件（ADR-0080）。
+
+    公告・仕様書・図面・参考見積など、積算の根拠になる書類を案件ごとに置く。
+
+    入札案件の公告は URL（BidProject.source_url）で参照しているが、
+    **発注機関のサイトは入札が終わると公開文書を消す**。積算が終わったあとに
+    「何を根拠に積んだか」を辿れなくなるので、手元にも置けるようにする。
+
+    bids.BidDocument とは別に持つ。あちらは入札に**提出する**書類、
+    こちらは積算で**読む**書類で、入札を経ない民間案件でも使う。
+    """
+
+    # 受け取れる形式は apps.core.documents と揃える（現場の提出書類・自社書類と同じ）
+    class Kind(models.TextChoices):
+        PDF = "pdf", "PDF"
+        EXCEL = "excel", "Excel"
+
+    class DocType(models.TextChoices):
+        ANNOUNCEMENT = "announcement", "公告"
+        SPEC = "spec", "仕様書"
+        DRAWING = "drawing", "図面"
+        BOQ = "boq", "数量書・内訳書"
+        QUOTE = "quote", "参考見積"
+        OTHER = "other", "その他"
+
+    project = models.ForeignKey(
+        EstimationProject,
+        on_delete=models.CASCADE,
+        related_name="documents",
+        verbose_name="積算案件",
+    )
+    name = models.CharField("資料名", max_length=200)
+    doc_type = models.CharField(
+        "種別", max_length=20, choices=DocType.choices, default=DocType.OTHER,
+    )
+    file = models.FileField(
+        "ファイル", upload_to=estimation_document_path, max_length=255,
+    )
+    kind = models.CharField("形式", max_length=10, choices=Kind.choices)
+    original_filename = models.CharField("元のファイル名", max_length=255)
+    size = models.PositiveBigIntegerField("大きさ（バイト）", default=0)
+    memo = models.TextField("メモ", blank=True)
+
+    # 出どころと、社内で登録した人（ADR-0084）。
+    #
+    # 積算の途中で「この数量書は誰がくれたものか」を確かめたくなる。
+    # 発注機関の窓口・元請・メーカーの営業と、同じ案件でも出どころが混ざるため、
+    # ファイルを見ただけでは分からない。聞く相手が分からないと、確かめ直せない。
+    #
+    # created_by（ログインした利用者）とは別に持つ。事務員が代わりに登録することが
+    # あり、そのとき created_by は事務員になる。**資料の担当者はその人ではない。**
+    provided_by = models.CharField(
+        "提供元", max_length=100, blank=True,
+        help_text="この資料を誰からもらったか。発注機関の窓口・元請・メーカーなど",
+    )
+    registered_by_name = models.CharField(
+        "登録者", max_length=100, blank=True,
+        help_text="社内でこの資料を登録した人",
+    )
+
+    # AI が読み取った日程。人が直した値ではないので、そのままでは工程にしない。
+    # 画面で確かめてから「工程に取り込む」を押す（ADR-0080）。
+    # [{"label": "入札書の受領期限", "datetime": "2026-10-27T17:00", "detail": ""}, ...]
+    # 形は bids.BidProject.bid_schedule と同じにしてある。読み取りの実装を
+    # bids.announcement と共有し、取り込み先（EstimationPhase）も同じにするため。
+    ai_schedule = models.JSONField("AI が読み取った日程", default=list, blank=True)
+    ai_summary = models.TextField("AI が読み取った要約", blank=True)
+    ai_checked_at = models.DateTimeField("AI で読み取った日時", null=True, blank=True)
+
+    history = HistoricalRecords()
+
+    class Meta:
+        verbose_name = "案件資料"
+        verbose_name_plural = "案件資料"
+        ordering = ["doc_type", "-created_at", "-pk"]
+        indexes = [
+            models.Index(fields=["company", "project"], name="est_doc_project_idx"),
+        ]
+
+    def __str__(self):
+        return f"{self.name}（{self.original_filename}）"
+
+    @property
+    def is_pdf(self):
+        return self.kind == self.Kind.PDF
+
+
+@receiver(post_delete, sender=EstimationDocument)
+def delete_estimation_document_file(sender, instance, **kwargs):
+    """資料を消したら、保存したファイルも消す。
+
+    発注機関の公開前資料が含まれることがあるので、レコードだけ消して
+    ファイルが残る状態にしない（自社書類と同じ方針）。
+    """
+    storage = instance.file.storage
+    name = instance.file.name
+    if name:
+        transaction.on_commit(lambda: storage.delete(name))

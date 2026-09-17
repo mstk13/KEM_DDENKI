@@ -11,9 +11,13 @@ from django.utils import timezone
 
 from apps.estimation.forms import (
     BoqLineForm,
+    EstimationCompetitorForm,
     EstimationItemForm,
+    EstimationLostForm,
+    EstimationPhaseForm,
     EstimationProjectForm,
     EstimationStandardForm,
+    EstimationWonForm,
     ItemAliasReviewForm,
     LaborRateImportForm,
     OrdererDataSourceForm,
@@ -25,7 +29,10 @@ from apps.estimation.forms import (
 from apps.estimation.models import (
     BoqLine,
     CostComparison,
+    EstimationCompetitor,
+    EstimationDocument,
     EstimationItem,
+    EstimationPhase,
     EstimationProject,
     EstimationStandard,
     ItemAlias,
@@ -634,9 +641,11 @@ def workrate_edit(request, pk):
 @login_required
 def project_list(request):
     """積算案件の一覧。"""
+    # competitors は一覧の「結果」列（失注の差額）で毎行たどるので先に読む。
+    # prefetch しないと案件数ぶんクエリが出る。
     projects = EstimationProject.objects.select_related(
         "orderer", "standard",
-    ).order_by("-updated_at")
+    ).prefetch_related("competitors").order_by("-updated_at")
 
     status = request.GET.get("status", "")
     if status:
@@ -646,11 +655,17 @@ def project_list(request):
     if q:
         projects = projects.filter(name__icontains=q)
 
+    # 一覧の上に、進行中の案件の日程を1案件1本で出す（ADR-0078）。
+    # 表の絞り込みには連動させない。ここは「いま動いている案件の締切」を
+    # 常に置いておく場所で、絞り込むたびに消えると用をなさないため。
+    from apps.estimation.services.gantt import get_projects_gantt_data
+
     return render(request, "estimation/project_list.html", {
         "projects": projects,
         "status": status,
         "q": q,
         "statuses": EstimationProject.Status.choices,
+        "gantt": get_projects_gantt_data(request.user.company),
     })
 
 
@@ -658,7 +673,9 @@ def project_list(request):
 def project_create(request):
     """積算案件の新規作成。"""
     if request.method == "POST":
-        form = EstimationProjectForm(request.POST, company=request.user.company)
+        form = EstimationProjectForm(
+            request.POST, company=request.user.company, user=request.user,
+        )
         if form.is_valid():
             proj = form.save(commit=False)
             proj.company = request.user.company
@@ -666,7 +683,7 @@ def project_create(request):
             proj.save()
             return redirect("estimation:project_detail", pk=proj.pk)
     else:
-        form = EstimationProjectForm(company=request.user.company)
+        form = EstimationProjectForm(company=request.user.company, user=request.user)
     return render(request, "estimation/project_form.html", {
         "form": form, "is_new": True,
     })
@@ -691,6 +708,39 @@ def project_detail(request, pk):
     )
     total_diff = total_standard - total_own if total_standard and total_own else Decimal("0")
 
+    # 日程（ADR-0076）。現場管理と同じ frappe-gantt に渡す
+    from apps.core.json_utils import json_for_script
+    from apps.estimation.services.gantt import get_project_gantt_data
+
+    gantt_tasks = get_project_gantt_data(proj)
+    phases = proj.phases.all()
+    competitors = proj.competitors.all()
+
+    # 案件資料と、資料から読み取った日程（ADR-0080）
+    from apps.estimation.forms import EstimationDocumentForm
+    from apps.estimation.services.document_schedule import schedule_rows
+
+    documents = list(proj.documents.all())
+    for document in documents:
+        document.schedule_rows = schedule_rows(document)
+
+    # この案件だけを1本で出すガント（ADR-0078 と同じ描き方）。
+    # 工程を1本ずつ並べた上の図と違い、段階の連なりが1行で読める
+    from apps.estimation.services.gantt import get_projects_gantt_data
+
+    single_gantt = get_projects_gantt_data(
+        request.user.company, statuses=[proj.status], project_pks=[proj.pk],
+    )
+
+    # 引っ越し元の公告（ADR-0080）。document_urls は1行1URLで入っている
+    bid_document_urls = []
+    if proj.bid_project:
+        bid_document_urls = [
+            line.strip()
+            for line in (proj.bid_project.document_urls or "").splitlines()
+            if line.strip() and line.strip() != proj.bid_project.source_url
+        ]
+
     return render(request, "estimation/project_detail.html", {
         "project": proj,
         "boq_lines": boq_lines,
@@ -698,6 +748,20 @@ def project_detail(request, pk):
         "total_standard": total_standard,
         "total_own": total_own,
         "total_diff": total_diff,
+        "phases": phases,
+        "gantt_json": json_for_script(gantt_tasks),
+        "gantt_tasks_exist": len(gantt_tasks) > 0,
+        "competitors": competitors,
+        "competitor_form": EstimationCompetitorForm(),
+        "documents": documents,
+        "document_form": EstimationDocumentForm(
+            company=request.user.company, user=request.user,
+        ),
+        "single_gantt": single_gantt,
+        "bid_document_urls": bid_document_urls,
+        "is_settled": proj.status in (
+            EstimationProject.Status.WON, EstimationProject.Status.LOST,
+        ),
     })
 
 
@@ -707,13 +771,16 @@ def project_edit(request, pk):
     proj = get_object_or_404(EstimationProject, pk=pk)
     if request.method == "POST":
         form = EstimationProjectForm(
-            request.POST, instance=proj, company=request.user.company,
+            request.POST, instance=proj,
+            company=request.user.company, user=request.user,
         )
         if form.is_valid():
             form.save()
             return redirect("estimation:project_detail", pk=proj.pk)
     else:
-        form = EstimationProjectForm(instance=proj, company=request.user.company)
+        form = EstimationProjectForm(
+            instance=proj, company=request.user.company, user=request.user,
+        )
     return render(request, "estimation/project_form.html", {
         "form": form, "is_new": False, "project": proj,
     })
@@ -874,3 +941,316 @@ def purchase_csv_import(request):
     return render(request, "estimation/purchase_csv_import.html", {
         "form": form,
     })
+
+
+# ---------------------------------------------------------------------------
+# 積算案件の結果（受注・失注）と日程 — ADR-0076
+# ---------------------------------------------------------------------------
+
+
+@login_required
+def project_mark_won(request, pk):
+    """受注を確定し、現場管理へ渡す。"""
+    from apps.estimation.services.outcome import mark_won
+
+    proj = get_object_or_404(EstimationProject, pk=pk)
+    if request.method != "POST":
+        return render(request, "estimation/project_won_form.html", {
+            "project": proj,
+            "form": EstimationWonForm(initial={"award_amount": proj.bid_amount}),
+        })
+
+    form = EstimationWonForm(request.POST)
+    if not form.is_valid():
+        return render(request, "estimation/project_won_form.html", {
+            "project": proj, "form": form,
+        })
+
+    site, created = mark_won(
+        proj,
+        award_amount=form.cleaned_data.get("award_amount"),
+        decided_on=form.cleaned_data.get("decided_on"),
+        created_by=request.user,
+    )
+    if created:
+        messages.success(
+            request, f"受注しました。現場「{site.name}」を作成しました。",
+        )
+    else:
+        messages.success(
+            request, f"受注しました。現場「{site.name}」を受注済にしました。",
+        )
+    return redirect("sites:detail", pk=site.pk)
+
+
+@login_required
+def project_mark_lost(request, pk):
+    """失注を確定し、原因と競合を記録する。"""
+    from apps.estimation.services.outcome import mark_lost
+
+    proj = get_object_or_404(EstimationProject, pk=pk)
+    if request.method != "POST":
+        return render(request, "estimation/project_lost_form.html", {
+            "project": proj,
+            "form": EstimationLostForm(instance=proj),
+            "competitors": proj.competitors.all(),
+            "competitor_form": EstimationCompetitorForm(),
+        })
+
+    form = EstimationLostForm(request.POST, instance=proj)
+    if not form.is_valid():
+        return render(request, "estimation/project_lost_form.html", {
+            "project": proj, "form": form,
+            "competitors": proj.competitors.all(),
+            "competitor_form": EstimationCompetitorForm(),
+        })
+
+    mark_lost(
+        proj,
+        reason=form.cleaned_data["lost_reason"],
+        note=form.cleaned_data.get("lost_note", ""),
+        decided_on=form.cleaned_data.get("decided_on"),
+    )
+    messages.success(
+        request,
+        f"「{proj.name}」を失注として記録しました。"
+        "競合の金額はこの画面から足せます。",
+    )
+    return redirect("estimation:project_detail", pk=proj.pk)
+
+
+@login_required
+def competitor_create(request, project_pk):
+    """競合を1社足す。差額は表示のたびに計算するので保存しない。"""
+    proj = get_object_or_404(EstimationProject, pk=project_pk)
+    if request.method != "POST":
+        return redirect("estimation:project_detail", pk=proj.pk)
+
+    form = EstimationCompetitorForm(request.POST)
+    if form.is_valid():
+        competitor = form.save(commit=False)
+        competitor.company = request.user.company
+        competitor.project = proj
+        competitor.created_by = request.user
+        competitor.save()
+        messages.success(request, f"競合「{competitor.name}」を記録しました。")
+    else:
+        messages.error(request, "競合を記録できませんでした。入力を確認してください。")
+    return redirect("estimation:project_detail", pk=proj.pk)
+
+
+@login_required
+def competitor_delete(request, pk):
+    """競合を消す。"""
+    competitor = get_object_or_404(EstimationCompetitor, pk=pk)
+    project_pk = competitor.project_id
+    if request.method == "POST":
+        competitor.delete()
+        messages.success(request, "競合を削除しました。")
+    return redirect("estimation:project_detail", pk=project_pk)
+
+
+@login_required
+def phase_create(request, project_pk):
+    """積算工程を足す。現場管理の工程フェーズと同じ操作感にする。"""
+    proj = get_object_or_404(EstimationProject, pk=project_pk)
+    if request.method == "POST":
+        form = EstimationPhaseForm(request.POST)
+        if form.is_valid():
+            phase = form.save(commit=False)
+            phase.company = request.user.company
+            phase.project = proj
+            phase.created_by = request.user
+            phase.save()
+            messages.success(request, f"工程「{phase.name}」を追加しました。")
+            return redirect("estimation:project_detail", pk=proj.pk)
+    else:
+        # 末尾に足す。既存の最大値＋10 にして、間に差し込む余地を残す
+        last = proj.phases.order_by("-sort_order").first()
+        form = EstimationPhaseForm(initial={
+            "sort_order": (last.sort_order + 10) if last else 0,
+        })
+    return render(request, "estimation/phase_form.html", {
+        "form": form, "project": proj, "is_new": True,
+    })
+
+
+@login_required
+def phase_edit(request, pk):
+    """積算工程を直す。公告から取り込んだ工程もここで手直しする。"""
+    phase = get_object_or_404(EstimationPhase, pk=pk)
+    if request.method == "POST":
+        form = EstimationPhaseForm(request.POST, instance=phase)
+        if form.is_valid():
+            form.save()
+            messages.success(request, f"工程「{phase.name}」を更新しました。")
+            return redirect("estimation:project_detail", pk=phase.project_id)
+    else:
+        form = EstimationPhaseForm(instance=phase)
+    return render(request, "estimation/phase_form.html", {
+        "form": form, "project": phase.project, "phase": phase, "is_new": False,
+    })
+
+
+@login_required
+def phase_delete(request, pk):
+    """積算工程を消す。"""
+    phase = get_object_or_404(EstimationPhase, pk=pk)
+    project_pk = phase.project_id
+    if request.method == "POST":
+        phase.delete()
+        messages.success(request, "工程を削除しました。")
+    return redirect("estimation:project_detail", pk=project_pk)
+
+
+@login_required
+def phase_import_from_bid(request, project_pk):
+    """引っ越し元の入札公告から、手続きの期限を工程として取り込み直す。"""
+    from apps.estimation.services.from_bid import import_phases_from_bid
+
+    proj = get_object_or_404(EstimationProject, pk=project_pk)
+    if request.method != "POST":
+        return redirect("estimation:project_detail", pk=proj.pk)
+
+    if proj.bid_project is None:
+        messages.error(request, "この積算案件には入札案件が紐付いていません。")
+        return redirect("estimation:project_detail", pk=proj.pk)
+
+    count = import_phases_from_bid(proj, proj.bid_project, created_by=request.user)
+    if count:
+        messages.success(request, f"公告から日程を {count} 件取り込みました。")
+    else:
+        messages.info(request, "取り込む日程はありませんでした（すべて取り込み済みです）。")
+    return redirect("estimation:project_detail", pk=proj.pk)
+
+
+# ---------------------------------------------------------------------------
+# 案件資料（公告PDF・仕様書など）と、そこからの日程読み取り — ADR-0080
+# ---------------------------------------------------------------------------
+
+
+@login_required
+def document_add(request, project_pk):
+    """積算案件に資料を1件足す。"""
+    from pathlib import Path
+
+    from apps.estimation.forms import EstimationDocumentForm, registrant_name
+
+    proj = get_object_or_404(EstimationProject, pk=project_pk)
+    if request.method != "POST":
+        return redirect("estimation:project_detail", pk=proj.pk)
+
+    form = EstimationDocumentForm(
+        request.POST, request.FILES, company=request.user.company, user=request.user,
+    )
+    if not form.is_valid():
+        errors = "／".join(
+            str(message) for messages_ in form.errors.values() for message in messages_
+        )
+        messages.error(request, f"資料を登録できませんでした。{errors}")
+        return redirect("estimation:project_detail", pk=proj.pk)
+
+    uploaded = form.cleaned_data["file"]
+    name = form.cleaned_data.get("name") or Path(uploaded.name).stem
+    document = EstimationDocument(
+        company=request.user.company,
+        created_by=request.user,
+        project=proj,
+        name=name[:200],
+        doc_type=form.cleaned_data["doc_type"],
+        kind=form.kind,
+        original_filename=uploaded.name[:255],
+        size=uploaded.size,
+        memo=form.cleaned_data.get("memo", ""),
+        provided_by=form.cleaned_data.get("provided_by", ""),
+        # 空なら今ログインしている人。代理で登録するときだけ書き換える（ADR-0084）。
+        registered_by_name=(
+            form.cleaned_data.get("registered_by_name", "")
+            or registrant_name(request.user)
+        ),
+    )
+    document.file = uploaded
+    document.save()
+    messages.success(request, f"資料「{document.name}」を登録しました。")
+    return redirect("estimation:project_detail", pk=proj.pk)
+
+
+@login_required
+def document_file(request, pk):
+    """資料のファイルを返す。PDF は画面で開き、Excel はダウンロードにする。"""
+    from pathlib import Path
+
+    from django.http import FileResponse, Http404
+
+    from apps.core.documents import content_type_for
+
+    document = get_object_or_404(EstimationDocument, pk=pk)
+    field = document.file
+    try:
+        handle = field.storage.open(field.name, "rb")
+    except FileNotFoundError as exc:
+        raise Http404("ファイルが見つかりません。") from exc
+    response = FileResponse(
+        handle,
+        as_attachment=not document.is_pdf,
+        filename=document.original_filename or Path(field.name).name,
+        content_type=content_type_for(field.name),
+    )
+    # 公開前の公告や見積が含まれるので、共有のキャッシュには置かせない
+    response["Cache-Control"] = "private, no-cache"
+    return response
+
+
+@login_required
+def document_delete(request, pk):
+    """資料を消す。保存したファイルも消える。"""
+    document = get_object_or_404(EstimationDocument, pk=pk)
+    project_pk = document.project_id
+    if request.method == "POST":
+        name = document.name
+        document.delete()
+        messages.success(request, f"資料「{name}」を削除しました。")
+    return redirect("estimation:project_detail", pk=project_pk)
+
+
+@login_required
+def document_read_schedule(request, pk):
+    """資料の PDF を読んで、入札までの日程を取り出す。"""
+    from apps.estimation.services.document_schedule import ScheduleReadError, read_schedule
+
+    document = get_object_or_404(EstimationDocument, pk=pk)
+    if request.method != "POST":
+        return redirect("estimation:project_detail", pk=document.project_id)
+
+    try:
+        result = read_schedule(document, user=request.user)
+    except ScheduleReadError as exc:
+        messages.error(request, str(exc))
+        return redirect("estimation:project_detail", pk=document.project_id)
+
+    how = "AI" if result["source"] == "ai" else "文字の読み取り"
+    messages.success(
+        request,
+        f"{how}で日程を {len(result['schedule'])} 件読み取りました。"
+        "内容を確かめてから「工程に取り込む」を押してください。",
+    )
+    return redirect("estimation:project_detail", pk=document.project_id)
+
+
+@login_required
+def document_import_schedule(request, pk):
+    """読み取った日程を積算工程として取り込む。"""
+    from apps.estimation.services.document_schedule import import_as_phases
+
+    document = get_object_or_404(EstimationDocument, pk=pk)
+    if request.method != "POST":
+        return redirect("estimation:project_detail", pk=document.project_id)
+
+    count = import_as_phases(document, created_by=request.user)
+    if count:
+        messages.success(request, f"日程を {count} 件、工程として取り込みました。")
+    else:
+        messages.info(
+            request, "取り込む日程はありませんでした（すべて取り込み済みです）。",
+        )
+    return redirect("estimation:project_detail", pk=document.project_id)

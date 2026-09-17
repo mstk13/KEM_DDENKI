@@ -39,7 +39,7 @@ class Command(BaseCommand):
         projects = list(qs)
         if options["force"]:
             for project in projects:
-                # 人が直した項目は消さない（ADR-0075）。直した中身を取り直しで失わないため
+                # 人が直した項目は消さない（ADR-0088）。直した中身を取り直しで失わないため
                 if not project.is_corrected("work_outline"):
                     project.work_outline = ""
                 if not project.is_corrected("requirements"):

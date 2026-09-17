@@ -7,7 +7,15 @@ app_name = "sites"
 urlpatterns = [
     path("", views.site_list, name="list"),
     path("new/", views.site_create, name="create"),
+    # 現場名の重複に入力の途中で気づくための候補（ADR-0077）
+    path("name-suggestions/", views.site_name_suggestions, name="name_suggestions"),
     path("import/", views.site_import, name="import"),
+    # 現場の名寄せ（ADR-0084）。候補を出すところまでが機械の仕事
+    path("merge/", views.site_merge_list, name="merge_list"),
+    path("merge/scan/", views.site_merge_scan, name="merge_scan"),
+    path("merge/<int:pk>/apply/", views.site_merge_apply, name="merge_apply"),
+    path("merge/<int:pk>/ignore/", views.site_merge_ignore, name="merge_ignore"),
+    path("merge/<int:pk>/undo/", views.site_merge_undo, name="merge_undo"),
     path("<int:pk>/", views.site_detail, name="detail"),
     path("<int:pk>/estimate-import/", views.site_estimate_import, name="estimate_import"),
     # 内訳書・内訳明細書

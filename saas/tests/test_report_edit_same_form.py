@@ -158,9 +158,19 @@ class TestEditSave:
             work_description="先に書いた分",
         )
         client.force_login(user_a)
+
+        # まず「重複があります」で止まる（ADR-0079）
         res = client.post(
             reverse("reports:edit", args=[data["report"].pk]),
-            _post([data["me"], data["other"]]), follow=True,
+            _post([data["me"], data["other"]]),
+        )
+        assert "重複があります" in res.content.decode()
+
+        # このまま登録すると、既にある日報はそのまま残る
+        res = client.post(
+            reverse("reports:edit", args=[data["report"].pk]),
+            {**_post([data["me"], data["other"]]), "confirm_duplicate": "1"},
+            follow=True,
         )
         assert DailyReport.unscoped.filter(worker=data["other"]).count() == 1
         assert DailyReport.unscoped.get(worker=data["other"]).work_description == "先に書いた分"

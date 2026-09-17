@@ -32,7 +32,12 @@ from apps.bids.models import (
     UnitPrice,
 )
 from apps.bids.qualification import check_qualifications_for_projects
-from apps.bids.services import get_dashboard_stats, mark_as_won, start_estimation
+from apps.bids.services import (
+    get_dashboard_stats,
+    mark_as_won,
+    start_estimation,
+    sync_estimation_move,
+)
 from apps.core.json_utils import json_for_script
 
 
@@ -51,7 +56,14 @@ def _project_list_queryset(request, *, use_get=True):
     qs = BidProject.objects.order_by("-created_at")
 
     # 入札期限切れかつ未確定の案件を除外（確定済みは表示）
-    settled = [BidProject.Status.BID, BidProject.Status.WON, BidProject.Status.LOST]
+    # 積算中も残す。積算に着手した案件は、入札期限を過ぎても開札まで追うため
+    # （絞り込みで「積算中」を選んだときに消えていると探せない）。
+    settled = [
+        BidProject.Status.ESTIMATING,
+        BidProject.Status.BID,
+        BidProject.Status.WON,
+        BidProject.Status.LOST,
+    ]
     qs = qs.exclude(
         Q(deadline__lt=now) & ~Q(status__in=settled)
     )
@@ -81,8 +93,12 @@ def _project_list_queryset(request, *, use_get=True):
 
     if q:
         qs = qs.filter(Q(title__icontains=q) | Q(client__icontains=q))
-    if status:
-        qs = qs.filter(status=status)
+    # 絞り込みが無いときは、積算案件へ引っ越した案件を出さない（ADR-0076）。
+    # 消してはいないので、絞り込みで「積算中」を選べば入札側の経緯を追える。
+    qs = (
+        qs.filter(status=status) if status
+        else qs.exclude(status__in=BidProject.MOVED_STATUSES)
+    )
     if region:
         qs = qs.filter(region__icontains=region)
 
@@ -182,7 +198,7 @@ def project_detail(request, pk):
         "gantt_json": json_for_script(gantt["tasks"]),
         "kind_choices": BidScheduleRule.Kind.choices,
         "has_overrides": bool(project.schedule_overrides),
-        # 人が直した項目（ADR-0075）。「手直しあり」を出すのに使う
+        # 人が直した項目（ADR-0088）。「手直しあり」を出すのに使う
         "corrected_fields": project.corrected_fields or [],
     })
 
@@ -190,7 +206,7 @@ def project_detail(request, pk):
 @login_required
 @require_POST
 def project_reread(request, pk):
-    """公告PDFを AI に読み直させ、直す候補として画面に出す（ADR-0075）。
+    """公告PDFを AI に読み直させ、直す候補として画面に出す（ADR-0088）。
 
     ここでは保存しない。人が見て「これで直す」を押した項目だけを入れる。
     """
@@ -252,7 +268,7 @@ def project_reread(request, pk):
 @login_required
 @require_POST
 def project_reread_apply(request, pk):
-    """AI が読み直した内容のうち、選ばれた項目だけを入れる（ADR-0075）。"""
+    """AI が読み直した内容のうち、選ばれた項目だけを入れる（ADR-0088）。"""
     project = get_object_or_404(BidProject, pk=pk)
     try:
         proposal = json.loads(request.POST.get("proposal", "{}"))
@@ -313,6 +329,14 @@ def project_create(request):
             cost.company = request.user.company
             cost.created_by = request.user
             cost.save()
+            # 登録時に状態を「積算中」で入れたときも積算案件へ引っ越す（ADR-0076）
+            if sync_estimation_move(project, created_by=request.user):
+                est = project.estimation_projects.order_by("pk").first()
+                if est is not None:
+                    messages.success(
+                        request, f"「{project.title}」を積算案件として登録しました。",
+                    )
+                    return redirect("estimation:project_detail", pk=est.pk)
             return redirect("bids:project_detail", pk=project.pk)
     else:
         form = BidProjectForm()
@@ -332,7 +356,7 @@ def project_edit(request, pk):
         cost_form = BidCostForm(request.POST, prefix="cost", instance=cost)
         if form.is_valid() and cost_form.is_valid():
             saved = form.save()
-            # 編集画面で直した項目にも「人が直した」印を付ける（ADR-0075）
+            # 編集画面で直した項目にも「人が直した」印を付ける（ADR-0088）
             if saved.mark_corrected(form.changed_data):
                 saved.save(update_fields=["corrected_fields"])
             cost_obj = cost_form.save(commit=False)
@@ -341,6 +365,17 @@ def project_edit(request, pk):
             if not cost_obj.pk:
                 cost_obj.created_by = request.user
             cost_obj.save()
+            # 編集画面で状態を「積算中」にしたときも積算案件へ引っ越す（ADR-0076）
+            if sync_estimation_move(project, created_by=request.user):
+                est = project.estimation_projects.order_by("pk").first()
+                if est is not None:
+                    messages.success(
+                        request,
+                        f"「{project.title}」を積算案件に移しました。"
+                        "入札案件一覧からは見えなくなります"
+                        "（絞り込みで「積算中」を選ぶと出ます）。",
+                    )
+                    return redirect("estimation:project_detail", pk=est.pk)
             return redirect("bids:project_detail", pk=project.pk)
     else:
         form = BidProjectForm(instance=project)
@@ -363,6 +398,9 @@ def schedule_override(request, pk):
         label     … 公告の項目ラベル（設定のキー）
         kind      … deadline / period / hidden / auto（auto は既定に戻す）
         start,end … YYYY-MM-DD。ドラッグで動かした位置
+        stage     … 段階名（参加申請・見積提出など）。空なら公告からの自動判定に戻す
+        title     … 表に出す「公告の項目」の見出し。空なら公告どおりに戻す
+        detail    … 備考。空なら公告どおりに戻す
         reset     … その項目の手直しを消す
         reset_all … 案件の手直しを全部消す
     """
@@ -399,6 +437,17 @@ def schedule_override(request, pk):
                         {"ok": False, "error": f"{key} の日付が不正です"}, status=400,
                     )
                 entry[key] = value
+
+            # 段階名・公告の項目の見出し・備考の手直し（ADR-0075）。
+            # 空で送られたら、その手直しだけ取り消して公告どおりに戻す。
+            for key, limit in (("stage", 100), ("title", 300), ("detail", 500)):
+                if key not in request.POST:
+                    continue
+                value = request.POST.get(key, "").strip()[:limit]
+                if value:
+                    entry[key] = value
+                else:
+                    entry.pop(key, None)
 
             # 中身が空になったら項目ごと消す。「手直しあり」の印を残さないため。
             if entry:
@@ -452,17 +501,27 @@ def schedule_rule_list(request):
 
 @login_required
 def bid_start_estimation(request, pk):
-    """案件を検討中にし、見積中の現場を用意する（登録済みならそれを使う）。"""
+    """案件を積算中にし、積算案件へ引っ越す（ADR-0076）。"""
     if request.method != "POST":
         return redirect("bids:project_detail", pk=pk)
 
     project = get_object_or_404(BidProject, pk=pk)
-    site, created = start_estimation(project, created_by=request.user)
-    if created:
-        messages.success(request, f"現場「{site.name}」を見積中として登録しました。")
-    else:
-        messages.info(request, f"現場「{site.name}」は登録済みです。")
-    return redirect("bids:project_list")
+    start_estimation(project, created_by=request.user)
+
+    # 引っ越し先を開く。入札案件一覧に戻しても、この案件はもう既定では出ない。
+    est = project.estimation_projects.order_by("pk").first()
+    if est is None:
+        messages.error(
+            request, "積算案件を作れませんでした。発注機関マスタを確認してください。",
+        )
+        return redirect("bids:project_detail", pk=pk)
+
+    messages.success(
+        request,
+        f"「{project.title}」を積算案件に移しました。"
+        f"公告の日程 {est.phases.count()} 件を工程として取り込んでいます。",
+    )
+    return redirect("estimation:project_detail", pk=est.pk)
 
 
 @login_required

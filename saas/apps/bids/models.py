@@ -50,10 +50,20 @@ class BidProject(TenantModel):
     class Status(models.TextChoices):
         NEW = "new", "新着"
         CONSIDERING = "considering", "検討中"
+        # 積算を始めた案件。積算案件（estimation.EstimationProject）に引っ越し済みで、
+        # 入札案件一覧の既定の絞り込みからは外れる（ADR-0076）。
+        #
+        # 表示は「積算中」。入札案件・積算案件・現場の3つとも
+        # 同じ値 "estimating" と同じ表示「積算中」で揃えてある（ADR-0076）。
+        ESTIMATING = "estimating", "積算中"
         BID = "bid", "入札済"
         WON = "won", "落札"
         LOST = "lost", "失注"
         SKIPPED = "skipped", "見送り"
+
+    # 積算案件へ引っ越した後の状態。入札案件一覧の既定の絞り込みから外す対象で、
+    # 一覧・引っ越し判定の両方から参照する（ADR-0076）。
+    MOVED_STATUSES = (Status.ESTIMATING,)
 
     class SourceType(models.TextChoices):
         MANUAL = "manual", "手動登録"
@@ -181,7 +191,7 @@ class BidProject(TenantModel):
     # 時刻（正午必着など）は公告から読んだ値をそのまま使う。
     # bid_schedule を上書きせず別に持つのは、公告を取り直しても
     # 手直しが消えないようにするため。
-    # 人が画面で直した項目の名前（ADR-0075）。公告を取り直しても、ここに載っている項目は
+    # 人が画面で直した項目の名前（ADR-0088）。公告を取り直しても、ここに載っている項目は
     # 書き換えない。「読み取りが違っていたので直した」を、取り直しのたびに消さないため。
     corrected_fields = models.JSONField("手で直した項目", default=list, blank=True)
 
