@@ -25,7 +25,6 @@
 """
 
 import re
-from collections import Counter
 from pathlib import Path
 
 ADR_DIR = Path(__file__).resolve().parent.parent.parent / "docs" / "saas" / "adr"
@@ -34,12 +33,34 @@ ADR_DIR = Path(__file__).resolve().parent.parent.parent / "docs" / "saas" / "adr
 ADR_FILENAME = re.compile(r"^ADR-(\d{4})-[a-z0-9-]+\.md$")
 
 # 凍結した既知の重複。上の理由により振り直さない。
-# **ここに足して重複を通してはいけない。** 新しい ADR は空き番号を使う。
+#
+# **番号ではなくファイル名の集合で固定する。** 番号だけを許すと、同じ番号に
+# もう1つ足しても検出できない。実際 0084 は3つになった（うち1つはこの PR の分で、
+# ガードが落ちたので 0087 に振り直した）。
+#
+# **ここに足して自分の新しい ADR を通してはいけない。** 空き番号を使う。
+# ここに足してよいのは、このガードが入る前から base 側で重複していた分だけ。
 KNOWN_DUPLICATES = {
-    "0022",  # bid-schedule-gantt / position-based-app-access
-    "0070",  # attendance-office-task / date-inputs-rendered-by-widget
-    "0080",  # daily-report-missing-alerts / estimation-documents-and-inputs
-    "0082",  # certificate-pdf-import / worker-app-access-matrix
+    "0022": {
+        "ADR-0022-bid-schedule-gantt.md",
+        "ADR-0022-position-based-app-access.md",
+    },
+    "0070": {
+        "ADR-0070-attendance-office-task.md",
+        "ADR-0070-date-inputs-rendered-by-widget.md",
+    },
+    "0080": {
+        "ADR-0080-daily-report-missing-alerts.md",
+        "ADR-0080-estimation-documents-and-inputs.md",
+    },
+    "0082": {
+        "ADR-0082-certificate-pdf-import.md",
+        "ADR-0082-worker-app-access-matrix.md",
+    },
+    "0084": {
+        "ADR-0084-estimation-document-source.md",
+        "ADR-0084-site-merge-candidates.md",
+    },
 }
 
 
@@ -67,23 +88,39 @@ def test_ADRのファイル名が規則どおりである():
     )
 
 
+def _duplicate_groups():
+    """重複している番号 -> そのファイル名の集合。"""
+    groups = {}
+    for name in _adr_files():
+        if m := ADR_FILENAME.match(name):
+            groups.setdefault(m.group(1), set()).add(name)
+    return {n: names for n, names in groups.items() if len(names) > 1}
+
+
 def test_ADRの番号が重複していない():
-    """凍結した4つ以外に重複を増やさない。"""
+    """凍結した分以外に重複を増やさない。同じ番号に足すのも通さない。"""
     names = _adr_files()
     numbers = [m.group(1) for name in names if (m := ADR_FILENAME.match(name))]
-    duplicated = {n for n, count in Counter(numbers).items() if count > 1}
+    groups = _duplicate_groups()
 
-    new_duplicates = duplicated - KNOWN_DUPLICATES
-    assert not new_duplicates, (
-        "ADR の番号が重複しています: "
-        + ", ".join(sorted(new_duplicates))
-        + f"\n次に使う番号は {_next_free_number(numbers)} です。"
+    problems = []
+    for number, files in sorted(groups.items()):
+        frozen = KNOWN_DUPLICATES.get(number)
+        if frozen is None:
+            problems.append(
+                f"  {number}: 新しく重複しました\n    " + "\n    ".join(sorted(files))
+            )
+        elif files != frozen:
+            added = sorted(files - frozen)
+            problems.append(
+                f"  {number}: 凍結した2件に足されています\n    " + "\n    ".join(added)
+            )
+
+    assert not problems, (
+        "ADR の番号が重複しています。\n"
+        + "\n".join(problems)
+        + f"\n\n次に使う番号は {_next_free_number(numbers)} です。"
         "\nファイル名の番号を変えてください（KNOWN_DUPLICATES には足さないこと）。"
-        "\n重複しているファイル:\n  "
-        + "\n  ".join(
-            name for name in names
-            if (m := ADR_FILENAME.match(name)) and m.group(1) in new_duplicates
-        )
     )
 
 
@@ -93,13 +130,11 @@ def test_凍結した重複の一覧が実態と合っている():
     残しておくと「まだ重複している」という嘘の記録になり、次の人が
     振り直し済みの番号を避けてしまう。
     """
-    names = _adr_files()
-    numbers = [m.group(1) for name in names if (m := ADR_FILENAME.match(name))]
-    duplicated = {n for n, count in Counter(numbers).items() if count > 1}
+    groups = _duplicate_groups()
 
-    stale = KNOWN_DUPLICATES - duplicated
+    stale = sorted(set(KNOWN_DUPLICATES) - set(groups))
     assert not stale, (
         "KNOWN_DUPLICATES に、もう重複していない番号が残っています: "
-        + ", ".join(sorted(stale))
+        + ", ".join(stale)
         + "\nテストの KNOWN_DUPLICATES から消してください。"
     )
