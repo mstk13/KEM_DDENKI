@@ -1319,6 +1319,23 @@ class EstimationDocument(TenantModel):
     size = models.PositiveBigIntegerField("大きさ（バイト）", default=0)
     memo = models.TextField("メモ", blank=True)
 
+    # 出どころと、社内で登録した人（ADR-0089）。
+    #
+    # 積算の途中で「この数量書は誰がくれたものか」を確かめたくなる。
+    # 発注機関の窓口・元請・メーカーの営業と、同じ案件でも出どころが混ざるため、
+    # ファイルを見ただけでは分からない。聞く相手が分からないと、確かめ直せない。
+    #
+    # created_by（ログインした利用者）とは別に持つ。事務員が代わりに登録することが
+    # あり、そのとき created_by は事務員になる。**資料の担当者はその人ではない。**
+    provided_by = models.CharField(
+        "提供元", max_length=100, blank=True,
+        help_text="この資料を誰からもらったか。発注機関の窓口・元請・メーカーなど",
+    )
+    registered_by_name = models.CharField(
+        "登録者", max_length=100, blank=True,
+        help_text="社内でこの資料を登録した人",
+    )
+
     # AI が読み取った日程。人が直した値ではないので、そのままでは工程にしない。
     # 画面で確かめてから「工程に取り込む」を押す（ADR-0080）。
     # [{"label": "入札書の受領期限", "datetime": "2026-10-27T17:00", "detail": ""}, ...]

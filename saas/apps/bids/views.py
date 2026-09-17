@@ -198,7 +198,105 @@ def project_detail(request, pk):
         "gantt_json": json_for_script(gantt["tasks"]),
         "kind_choices": BidScheduleRule.Kind.choices,
         "has_overrides": bool(project.schedule_overrides),
+        # 人が直した項目（ADR-0088）。「手直しあり」を出すのに使う
+        "corrected_fields": project.corrected_fields or [],
     })
+
+
+@login_required
+@require_POST
+def project_reread(request, pk):
+    """公告PDFを AI に読み直させ、直す候補として画面に出す（ADR-0088）。
+
+    ここでは保存しない。人が見て「これで直す」を押した項目だけを入れる。
+    """
+    from apps.bids.announcement import fetch_document
+    from apps.bids.announcement_llm import extract_with_llm, is_available
+    from apps.bids.services import announcement_candidates
+
+    project = get_object_or_404(BidProject, pk=pk)
+    if not is_available():
+        messages.error(
+            request,
+            "AI での読み直しは今は使えません（API キーが未設定か、月の上限に達しています）。",
+        )
+        return redirect("bids:project_detail", pk=project.pk)
+
+    result = None
+    used_url = ""
+    for url in announcement_candidates(project):
+        data = fetch_document(url)
+        if not data:
+            continue
+        result = extract_with_llm(data, company=project.company, user=request.user)
+        if result and (result["work_outline"] or result["requirements"]):
+            used_url = url
+            break
+        result = None
+
+    if result is None:
+        messages.error(
+            request, "公告を読み直せませんでした（読める公開文書が見つかりませんでした）。",
+        )
+        return redirect("bids:project_detail", pk=project.pk)
+
+    labels = {
+        "work_outline": "工事概要",
+        "requirements": "参加要件",
+        "required_grades": "必要等級",
+        "required_score": "必要点数",
+    }
+    proposal = {name: result[name] for name in labels}
+    rows = [
+        {
+            "name": name,
+            "label": labels[name],
+            "value": value,
+            "current": getattr(project, name),
+        }
+        for name, value in proposal.items()
+        if value not in (None, "")
+    ]
+    return render(request, "bids/project_reread.html", {
+        "project": project,
+        "rows": rows,
+        "proposal_json": json.dumps(proposal, ensure_ascii=False),
+        "used_url": used_url,
+    })
+
+
+@login_required
+@require_POST
+def project_reread_apply(request, pk):
+    """AI が読み直した内容のうち、選ばれた項目だけを入れる（ADR-0088）。"""
+    project = get_object_or_404(BidProject, pk=pk)
+    try:
+        proposal = json.loads(request.POST.get("proposal", "{}"))
+    except ValueError:
+        proposal = {}
+    if not isinstance(proposal, dict):
+        proposal = {}
+
+    changed = []
+    for name in request.POST.getlist("apply"):
+        # 読み直しで出した項目だけを受け付ける（ほかの項目名を送られても入れない）
+        if name not in ("work_outline", "requirements", "required_grades", "required_score"):
+            continue
+        value = proposal.get(name)
+        if value in (None, ""):
+            continue
+        setattr(project, name, value)
+        changed.append(name)
+
+    if not changed:
+        messages.info(request, "入れる項目が選ばれていません。")
+        return redirect("bids:project_detail", pk=project.pk)
+
+    # 人が見て選んだ内容なので、手直しと同じ扱いにする（取り直しで書き換えない）
+    project.mark_corrected(changed)
+    project.save(update_fields=[*changed, "corrected_fields", "updated_at"])
+    messages.success(request, f"AI の読み直しから {len(changed)} 項目を入れました。")
+    return redirect("bids:project_detail", pk=project.pk)
 
 
 @login_required
@@ -257,7 +355,10 @@ def project_edit(request, pk):
         form = BidProjectForm(request.POST, instance=project)
         cost_form = BidCostForm(request.POST, prefix="cost", instance=cost)
         if form.is_valid() and cost_form.is_valid():
-            form.save()
+            saved = form.save()
+            # 編集画面で直した項目にも「人が直した」印を付ける（ADR-0088）
+            if saved.mark_corrected(form.changed_data):
+                saved.save(update_fields=["corrected_fields"])
             cost_obj = cost_form.save(commit=False)
             cost_obj.project = project
             cost_obj.company = request.user.company
