@@ -61,7 +61,7 @@ from apps.sites.services import (
 
 @login_required
 def site_list(request):
-    # 統合した現場は出さない（ADR-0086）。一覧に残ると、名前がばらばらのままに
+    # 統合した現場は出さない（ADR-0090）。一覧に残ると、名前がばらばらのままに
     # 見えてまとめた意味がなく、次の日報がまたそちらに付く。
     sites = (
         Site.objects.filter(merged_into__isnull=True)
@@ -1053,7 +1053,7 @@ def site_merge_list(request):
         "ignored_count": SiteMergeCandidate.objects.filter(
             state=SiteMergeCandidate.State.IGNORED,
         ).count(),
-        # 手で選んでまとめるための一覧（ADR-0086）
+        # 手で選んでまとめるための一覧（ADR-0090）
         "mergeable_sites": (
             Site.objects.filter(merged_into__isnull=True)
             .select_related("customer")
@@ -1122,7 +1122,7 @@ def site_merge_apply(request, pk):
 @login_required
 @require_POST
 def site_merge_manual(request):
-    """人が選んだ2つの現場をまとめる（ADR-0086）。
+    """人が選んだ2つの現場をまとめる（ADR-0090）。
 
     機械が拾うのは「名前が似ている」か「意味が近い」組だけなので、
     「厚木鮎まつり」と「あゆ祭り」のように字面も離れていて

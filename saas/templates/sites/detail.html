@@ -3,7 +3,7 @@
 {% block topbar_title %}現場詳細{% endblock %}
 
 {% block content %}
-{# 統合した現場は一覧に出ない（ADR-0086）。リンクや履歴から来たときに迷わないよう、
+{# 統合した現場は一覧に出ない（ADR-0090）。リンクや履歴から来たときに迷わないよう、
    どこへまとめたのかをここに出す #}
 {% if site.merged_into %}
 <div class="card" style="margin-bottom:20px;border-left:4px solid var(--warning,#dd6b20);">

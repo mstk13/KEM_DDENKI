@@ -13,7 +13,7 @@ urlpatterns = [
     # 現場の名寄せ（ADR-0084）。候補を出すところまでが機械の仕事
     path("merge/", views.site_merge_list, name="merge_list"),
     path("merge/scan/", views.site_merge_scan, name="merge_scan"),
-    # ADR-0086: 機械が拾えなかった組を、人が選んでまとめる
+    # ADR-0090: 機械が拾えなかった組を、人が選んでまとめる
     path("merge/manual/", views.site_merge_manual, name="merge_manual"),
     path("merge/<int:pk>/apply/", views.site_merge_apply, name="merge_apply"),
     path("merge/<int:pk>/ignore/", views.site_merge_ignore, name="merge_ignore"),
