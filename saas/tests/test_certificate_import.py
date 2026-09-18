@@ -482,17 +482,20 @@ class TestWorkerUpload:
             follow=True,
         )
 
-    def test_読み替え表の名前で振り分ける(self, client, user_a, worker):
+    def test_読み替え表で当てた資格に入れる(self, client, user_a, worker):
+        """当てた資格に入れ、名前はファイル名にそろえる（ADR-0097）。"""
         client.force_login(user_a)
 
         self._upload(client, worker, [
             "第二種電気工事士免状.pdf", "石綿作業主任者技能講習修了証.pdf",
         ])
 
-        second = WorkerQualification.unscoped.get(name="電気工事士　2種")
-        asbestos = WorkerQualification.unscoped.get(name="石綿作業主任者")
+        second = WorkerQualification.unscoped.get(name="第二種電気工事士免状")
+        asbestos = WorkerQualification.unscoped.get(name="石綿作業主任者技能講習修了証")
         assert second.certificate_image
         assert asbestos.certificate_image
+        # 資格の数は増えない（3件のまま）
+        assert WorkerQualification.unscoped.filter(worker=worker).count() == 3
 
     def test_資格名そのままのファイル名でも振り分ける(self, client, user_a, worker):
         client.force_login(user_a)
@@ -506,15 +509,38 @@ class TestWorkerUpload:
 
         self._upload(client, worker, ["電気工事士 2種.pdf"])
 
-        assert WorkerQualification.unscoped.get(name="電気工事士　2種").certificate_image
+        assert WorkerQualification.unscoped.get(name="電気工事士 2種").certificate_image
+        assert WorkerQualification.unscoped.filter(worker=worker).count() == 3
 
-    def test_分からないファイルは登録しない(self, client, user_a, worker):
+    def test_分からないファイルは新しい資格として登録する(self, client, user_a, worker):
         client.force_login(user_a)
 
         res = self._upload(client, worker, ["よく分からない証.pdf"])
 
-        assert not WorkerQualification.unscoped.exclude(certificate_image="").exists()
-        assert "どの保有資格か分かりませんでした" in res.content.decode()
+        created = WorkerQualification.unscoped.get(name="よく分からない証")
+        assert created.certificate_image
+        assert "新しく作りました" in res.content.decode()
+
+    def test_資格名をファイル名にそろえる(self, client, user_a, worker):
+        client.force_login(user_a)
+
+        res = self._upload(client, worker, ["第二種電気工事士免状.pdf"])
+
+        assert WorkerQualification.unscoped.filter(
+            worker=worker, name="第二種電気工事士免状",
+        ).exists()
+        assert not WorkerQualification.unscoped.filter(name="電気工事士　2種").exists()
+        assert "資格名を「電気工事士　2種」から" in res.content.decode()
+
+    def test_同じ名前の資格が既にあれば増やさない(self, client, user_a, worker):
+        client.force_login(user_a)
+
+        self._upload(client, worker, ["運転免許証.pdf"])
+        self._upload(client, worker, ["運転免許証.pdf"])
+
+        assert WorkerQualification.unscoped.filter(
+            worker=worker, name="運転免許証",
+        ).count() == 1
 
     def test_何件登録したかを知らせる(self, client, user_a, worker):
         client.force_login(user_a)
@@ -629,7 +655,9 @@ class TestUploadWithDates:
             )]},
         )
 
-        qualification = WorkerQualification.unscoped.get(name="高圧ケーブル工事")
+        qualification = WorkerQualification.unscoped.get(
+            name="高圧ケーブル工事技能認定証",
+        )
         assert qualification.acquired_date == datetime.date(2018, 11, 9)
         assert qualification.expiry_date == datetime.date(2029, 3, 31)
 
