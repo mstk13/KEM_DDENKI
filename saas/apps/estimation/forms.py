@@ -2,7 +2,7 @@
 
 from django import forms
 
-# 候補から選び、無ければその場でマスタに登録する（ADR-0097）
+# 候補から選び、無ければその場でマスタに登録する（ADR-0099）
 from apps.core.master_input import (
     name_choices,
     resolve_customer,
@@ -31,7 +31,7 @@ from apps.estimation.models import (
 class EstimationItemForm(forms.ModelForm):
     """積算品目の登録・編集。
 
-    材料と工種は**自由入力**にしている（ADR-0097）。候補に無いものを選ぼうとした
+    材料と工種は**自由入力**にしている（ADR-0099）。候補に無いものを選ぼうとした
     時点で「先に材料マスタへ登録してから戻る」という往復が要り、品目の登録が止まる。
     """
 
@@ -135,7 +135,7 @@ class ItemAliasReviewForm(forms.ModelForm):
 
 
 class OrdererForm(forms.ModelForm):
-    """発注機関の登録・編集。紐づく顧客は自由入力（ADR-0097）。"""
+    """発注機関の登録・編集。紐づく顧客は自由入力（ADR-0099）。"""
 
     customer_name = forms.CharField(
         label="顧客", required=False,
@@ -386,7 +386,7 @@ class EstimationProjectForm(forms.ModelForm):
             # unscoped: フォーム初期化時に会社を明示フィルタするため
             self.fields["standard"].queryset = EstimationStandard.unscoped.filter(company=company)
             self.fields["bid_project"].queryset = BidProject.unscoped.filter(company=company)
-            # 現場名の候補（ADR-0097）。既にある現場が打ちかけで出るので、
+            # 現場名の候補（ADR-0099）。既にある現場が打ちかけで出るので、
             # 同じ現場を別名で二重に作ってしまう手前で気づける（ADR-0077 と同じ考え方）
             self.site_choices = name_choices(Site.unscoped.filter(company=company))
             # 入力補助の候補。datalist なのでこの一覧に無い値も送信できる。
@@ -456,7 +456,7 @@ class EstimationProjectForm(forms.ModelForm):
 
 
 class BoqLineForm(forms.ModelForm):
-    """内訳書の明細。紐づく積算品目は自由入力（ADR-0097）。
+    """内訳書の明細。紐づく積算品目は自由入力（ADR-0099）。
 
     親明細・歩掛は自由入力に**しない**。どちらもマスタではなく、
     同じ内訳書の行と積算基準に属する計算データで、名前から作れるものではない。
@@ -541,7 +541,7 @@ class BoqLineForm(forms.ModelForm):
 
 
 class PurchaseRecordForm(forms.ModelForm):
-    """仕入実績の登録・編集。発注先は自由入力（ADR-0097）。"""
+    """仕入実績の登録・編集。発注先は自由入力（ADR-0099）。"""
 
     supplier_name = forms.CharField(
         label="発注先", required=False,

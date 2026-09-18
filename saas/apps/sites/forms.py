@@ -5,7 +5,7 @@ from django.db.models import Case, IntegerField, Value, When
 
 from apps.accounts.models import User
 
-# 候補から選び、無ければその場でマスタに登録する（ADR-0097）
+# 候補から選び、無ければその場でマスタに登録する（ADR-0099）
 from apps.core.master_input import name_choices, resolve_work_type
 from apps.masters.models import Customer, WorkType
 from apps.sites.models import Process, Site, SitePhoto
@@ -129,7 +129,7 @@ class EstimateUploadForm(forms.Form):
 class ProcessForm(forms.ModelForm):
     """現場の工程を手入力するためのフォーム。
 
-    工種は**自由入力**にしている（ADR-0097）。候補に無い工種を選ぼうとした時点で
+    工種は**自由入力**にしている（ADR-0099）。候補に無い工種を選ぼうとした時点で
     「先に工種マスタへ登録してから戻る」という往復が要り、工程の入力が止まる。
     """
 
