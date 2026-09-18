@@ -280,7 +280,7 @@ class TestProcessManualEntry:
             f"/sites/{site.pk}/processes/new/",
             {
                 "name": "幹線敷設",
-                "work_type": work_type.pk,
+                "work_type_name": work_type.name,
                 "planned_start": "2026-09-01",
                 "planned_end": "2026-09-30",
                 "actual_start": "",
@@ -301,7 +301,7 @@ class TestProcessManualEntry:
             f"/sites/{site.pk}/processes/new/",
             {
                 "name": "逆転工程",
-                "work_type": work_type.pk,
+                "work_type_name": work_type.name,
                 "planned_start": "2026-09-30",
                 "planned_end": "2026-09-01",
                 "actual_start": "",
@@ -325,7 +325,7 @@ class TestProcessManualEntry:
             f"/sites/processes/{process.pk}/edit/",
             {
                 "name": "仮設電気",
-                "work_type": work_type.pk,
+                "work_type_name": work_type.name,
                 "planned_start": "",
                 "planned_end": "",
                 "actual_start": "",

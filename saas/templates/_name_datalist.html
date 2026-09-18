@@ -1,0 +1,10 @@
+{% comment %}
+入力候補の一覧（ADR-0096）。datalist なので、**ここに無い値もそのまま送信できる**。
+候補は「選ばせる」ためではなく、既にあるものに気づいてもらうために出す。
+
+使い方:
+  {% include "_name_datalist.html" with list_id="work-type-name-options" names=form.work_type_choices %}
+{% endcomment %}
+<datalist id="{{ list_id }}">
+  {% for name in names %}<option value="{{ name }}"></option>{% endfor %}
+</datalist>

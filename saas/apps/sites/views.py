@@ -549,7 +549,7 @@ def process_create(request, site_pk):
     """工程を手入力で追加する。AI工程提案を使わない場合の入口。"""
     site = get_object_or_404(Site, pk=site_pk)
     if request.method == "POST":
-        form = ProcessForm(request.POST, company=request.user.company)
+        form = ProcessForm(request.POST, company=request.user.company, user=request.user)
         if form.is_valid():
             process = form.save(commit=False)
             process.site = site
@@ -573,7 +573,7 @@ def process_edit(request, pk):
     process = get_object_or_404(Process, pk=pk)
     if request.method == "POST":
         form = ProcessForm(
-            request.POST, instance=process, company=request.user.company,
+            request.POST, instance=process, company=request.user.company, user=request.user,
         )
         if form.is_valid():
             form.save()
