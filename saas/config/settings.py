@@ -199,6 +199,14 @@ AI_USD_TO_JPY_RATE = int(os.environ.get("AI_USD_TO_JPY_RATE", "152"))
 # Ollama はホストの Windows 側で稼働するため、コンテナからは
 # host.docker.internal で到達する。到達できない場合は各サービスが
 # 黙って Claude API へフォールバックするので、未設定でも動作する。
+# 資格証の OCR（ADR-0096）。tesseract が入っていない環境では自動で読み飛ばす。
+# 言語データは Docker イメージに tesseract-ocr-jpn を入れてある。
+CERTIFICATE_OCR_ENABLED = os.environ.get(
+    "CERTIFICATE_OCR_ENABLED", "True"
+).lower() in ("true", "1", "yes")
+TESSERACT_CMD = os.environ.get("TESSERACT_CMD", "")
+TESSERACT_LANG = os.environ.get("TESSERACT_LANG", "jpn")
+
 OLLAMA_BASE_URL = os.environ.get(
     "OLLAMA_BASE_URL", "http://host.docker.internal:11434"
 )

@@ -31,6 +31,7 @@ from difflib import SequenceMatcher
 
 from django.core.files import File
 
+from apps.workers.certificate_dates import read_dates_from_pdf
 from apps.workers.listed_qualifications import (
     CATEGORIES,
     EDUCATION,
@@ -199,29 +200,50 @@ def _compare_key(text):
 
 
 def attach_files(worker, files, *, company, WorkerQualification, dates=None):
-    """選ばれたファイルを、その作業員の保有資格に添付する（ADR-0094）。
+    """選ばれたファイルを、その作業員の保有資格に登録する（ADR-0094・ADR-0097）。
 
-    資格が見つからないファイルは添付しない。人が資格を作ってから選び直す。
+    資格名は**ファイル名**にそろえる。資格証に書かれている正式な名前を、
+    そのまま台帳の名前にするため（プロダクトオーナーの指示、2026-09-18）。
+
+    - ファイル名と同じ資格があれば、そこに入れる
+    - 読み替え表や近い名前で当たった資格は、名前をファイル名に直してから入れる
+    - どれにも当たらなければ、その名前で新しく資格を作る
+    - 取得日・有効期限は CSV → 証書の読み取り（ADR-0095・0096）の順で入れる
 
     Returns:
-        {"attached": [(資格名, ファイル名, 当て方)], "unmatched": [ファイル名]}
+        {
+          "attached": [(資格名, ファイル名, 当て方)],
+          "created":  [資格名],   … 新しく作った
+          "renamed":  [(前の名前, 後の名前)],
+        }
     """
     dates = dates or {}
     qualifications = list(
         WorkerQualification._base_manager.filter(company=company, worker=worker),
     )
-    report = {"attached": [], "unmatched": []}
+    report = {"attached": [], "created": [], "renamed": [], "unmatched": []}
 
     for uploaded in files:
         stem = pathlib.PurePath(uploaded.name).stem
         qualification, how = match_qualification(stem, qualifications)
+
         if qualification is None:
-            report["unmatched"].append(uploaded.name)
-            continue
+            qualification = WorkerQualification._base_manager.create(
+                company=company, worker=worker, name=stem, category=category_for(stem),
+            )
+            qualifications.append(qualification)
+            report["created"].append(stem)
+            how = "新しく登録"
+        elif qualification.name != stem:
+            report["renamed"].append((qualification.name, stem))
+            qualification.name = stem
 
         acquired, expiry = dates.get(
             (normalize_person_name(worker.name), uploaded.name), (None, None),
         )
+        if acquired is None and expiry is None:
+            # 証書に書かれている取得日・有効期限を読む（ADR-0095・0096）
+            acquired, expiry = read_dates_from_pdf(uploaded)
         qualification.certificate_image.save(uploaded.name, uploaded, save=False)
         if acquired:
             qualification.acquired_date = acquired
@@ -390,6 +412,8 @@ def import_certificates(root, company, Worker, WorkerQualification, *,
             .first()
         )
         acquired, expiry = dates.get((person_key, path.name), (None, None))
+        if acquired is None and expiry is None:
+            acquired, expiry = read_dates_from_pdf(path)
 
         if qualification is None:
             report["created"].append((person, name))

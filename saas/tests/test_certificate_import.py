@@ -7,6 +7,7 @@
 """
 
 import datetime
+import io
 
 import pytest
 from django.urls import reverse
@@ -481,17 +482,20 @@ class TestWorkerUpload:
             follow=True,
         )
 
-    def test_読み替え表の名前で振り分ける(self, client, user_a, worker):
+    def test_読み替え表で当てた資格に入れる(self, client, user_a, worker):
+        """当てた資格に入れ、名前はファイル名にそろえる（ADR-0097）。"""
         client.force_login(user_a)
 
         self._upload(client, worker, [
             "第二種電気工事士免状.pdf", "石綿作業主任者技能講習修了証.pdf",
         ])
 
-        second = WorkerQualification.unscoped.get(name="電気工事士　2種")
-        asbestos = WorkerQualification.unscoped.get(name="石綿作業主任者")
+        second = WorkerQualification.unscoped.get(name="第二種電気工事士免状")
+        asbestos = WorkerQualification.unscoped.get(name="石綿作業主任者技能講習修了証")
         assert second.certificate_image
         assert asbestos.certificate_image
+        # 資格の数は増えない（3件のまま）
+        assert WorkerQualification.unscoped.filter(worker=worker).count() == 3
 
     def test_資格名そのままのファイル名でも振り分ける(self, client, user_a, worker):
         client.force_login(user_a)
@@ -505,15 +509,38 @@ class TestWorkerUpload:
 
         self._upload(client, worker, ["電気工事士 2種.pdf"])
 
-        assert WorkerQualification.unscoped.get(name="電気工事士　2種").certificate_image
+        assert WorkerQualification.unscoped.get(name="電気工事士 2種").certificate_image
+        assert WorkerQualification.unscoped.filter(worker=worker).count() == 3
 
-    def test_分からないファイルは登録しない(self, client, user_a, worker):
+    def test_分からないファイルは新しい資格として登録する(self, client, user_a, worker):
         client.force_login(user_a)
 
         res = self._upload(client, worker, ["よく分からない証.pdf"])
 
-        assert not WorkerQualification.unscoped.exclude(certificate_image="").exists()
-        assert "どの保有資格か分かりませんでした" in res.content.decode()
+        created = WorkerQualification.unscoped.get(name="よく分からない証")
+        assert created.certificate_image
+        assert "新しく作りました" in res.content.decode()
+
+    def test_資格名をファイル名にそろえる(self, client, user_a, worker):
+        client.force_login(user_a)
+
+        res = self._upload(client, worker, ["第二種電気工事士免状.pdf"])
+
+        assert WorkerQualification.unscoped.filter(
+            worker=worker, name="第二種電気工事士免状",
+        ).exists()
+        assert not WorkerQualification.unscoped.filter(name="電気工事士　2種").exists()
+        assert "資格名を「電気工事士　2種」から" in res.content.decode()
+
+    def test_同じ名前の資格が既にあれば増やさない(self, client, user_a, worker):
+        client.force_login(user_a)
+
+        self._upload(client, worker, ["運転免許証.pdf"])
+        self._upload(client, worker, ["運転免許証.pdf"])
+
+        assert WorkerQualification.unscoped.filter(
+            worker=worker, name="運転免許証",
+        ).count() == 1
 
     def test_何件登録したかを知らせる(self, client, user_a, worker):
         client.force_login(user_a)
@@ -538,3 +565,180 @@ class TestWorkerUpload:
         )
 
         assert "ファイルが選ばれていません" in res.content.decode()
+
+
+def _text_pdf(lines):
+    """文字が入っている PDF を作る（読み取りの確認用）。"""
+    import io
+
+    from reportlab.pdfbase import pdfmetrics
+    from reportlab.pdfbase.cidfonts import UnicodeCIDFont
+    from reportlab.pdfgen import canvas
+
+    pdfmetrics.registerFont(UnicodeCIDFont("HeiseiKakuGo-W5"))
+    buffer = io.BytesIO()
+    page = canvas.Canvas(buffer)
+    page.setFont("HeiseiKakuGo-W5", 12)
+    for index, line in enumerate(lines):
+        page.drawString(50, 700 - index * 20, line)
+    page.save()
+    return buffer.getvalue()
+
+
+class TestReadDates:
+    """資格証の文面から取得日・有効期限を読む（ADR-0095）。"""
+
+    @pytest.mark.parametrize(("text", "acquired", "expiry"), [
+        (
+            "氏名 杉本和幸 生年月日 昭和51年3月9日 交付 令和07年02月10日 "
+            "2030年（令和12年）04月09日まで有効",
+            datetime.date(2025, 2, 10), datetime.date(2030, 4, 9),
+        ),
+        (
+            "生年月日 1973年2月9日 交付年月日 2018年11月9日 有効期限 2029年3月31日",
+            datetime.date(2018, 11, 9), datetime.date(2029, 3, 31),
+        ),
+        (
+            "監理技術者資格者証 初回交付 令和3年8月24日 交付 令和8年7月30日 "
+            "令和13年8月23日まで有効",
+            datetime.date(2026, 7, 30), datetime.date(2031, 8, 23),
+        ),
+        # 日が書かれていない有効期限は月末にする
+        ("3M工法修得認定証 有効期限 2028年7月", None, datetime.date(2028, 7, 31)),
+        # 期限の無い修了証
+        ("技能講習修了証 修了年月日 平成21年03月14日", datetime.date(2009, 3, 14), None),
+        # 日付の無い台紙
+        ("資格書チェックリスト 確認日 年 月 日", None, None),
+    ])
+    def test_文面から読み取る(self, text, acquired, expiry):
+        from apps.workers.certificate_dates import parse_dates_from_text
+
+        assert parse_dates_from_text(text) == (acquired, expiry)
+
+    def test_生年月日は取得日にしない(self):
+        from apps.workers.certificate_dates import parse_dates_from_text
+
+        acquired, _expiry = parse_dates_from_text("生年月日 昭和51年3月9日")
+
+        assert acquired is None
+
+    def test_画像だけのPDFは読み取らない(self):
+        from apps.workers.certificate_dates import read_dates_from_pdf
+
+        assert read_dates_from_pdf(io.BytesIO(PDF)) == (None, None)
+
+
+@pytest.mark.django_db
+class TestUploadWithDates:
+    """取り込んだ資格証に日付が書いてあれば、そのまま登録する（ADR-0095）。"""
+
+    def test_作業員の画面から取り込むと日付も入る(self, client, company_a, user_a):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        worker = Worker.unscoped.create(company=company_a, name="杉本　和幸")
+        WorkerQualification.unscoped.create(
+            company=company_a, worker=worker, name="高圧ケーブル工事",
+        )
+        client.force_login(user_a)
+
+        client.post(
+            reverse("workers:worker_certificate_upload", args=[worker.pk]),
+            {"certificates": [SimpleUploadedFile(
+                "高圧ケーブル工事技能認定証.pdf",
+                _text_pdf([
+                    "高圧ケーブル工事技能認定証",
+                    "生年月日 1973年2月9日",
+                    "交付年月日 2018年11月9日",
+                    "有効期限 2029年3月31日",
+                ]),
+                content_type="application/pdf",
+            )]},
+        )
+
+        qualification = WorkerQualification.unscoped.get(
+            name="高圧ケーブル工事技能認定証",
+        )
+        assert qualification.acquired_date == datetime.date(2018, 11, 9)
+        assert qualification.expiry_date == datetime.date(2029, 3, 31)
+
+    def test_CSVの日付を優先する(self, company_a, tmp_path):
+        from apps.workers.certificate_import import import_certificates
+
+        worker = Worker.unscoped.create(company=company_a, name="杉本　和幸")
+        WorkerQualification.unscoped.create(
+            company=company_a, worker=worker, name="高圧ケーブル工事",
+        )
+        person_dir = tmp_path / "杉本　和幸"
+        person_dir.mkdir()
+        (person_dir / "高圧ケーブル工事技能認定証.pdf").write_bytes(
+            _text_pdf(["交付年月日 2018年11月9日", "有効期限 2029年3月31日"]),
+        )
+
+        import_certificates(
+            tmp_path, company_a, Worker, WorkerQualification,
+            dates={("杉本和幸", "高圧ケーブル工事技能認定証.pdf"): (
+                datetime.date(2018, 11, 9), datetime.date(2030, 3, 31),
+            )},
+            apply=True,
+        )
+
+        assert WorkerQualification.unscoped.get().expiry_date == datetime.date(2030, 3, 31)
+
+
+class TestOcr:
+    """画像の資格証は OCR で読む（ADR-0096）。
+
+    tesseract が入っていない環境（CI など）でも落ちないことを確かめる。
+    """
+
+    def test_読み方が割れたら採らない(self):
+        from apps.workers.certificate_dates import _agree
+
+        assert _agree([datetime.date(2028, 7, 31), datetime.date(2026, 7, 31)]) is None
+
+    def test_多いほうを採る(self):
+        from apps.workers.certificate_dates import _agree
+
+        values = [
+            datetime.date(2028, 7, 31),
+            datetime.date(2028, 7, 31),
+            datetime.date(2026, 7, 31),
+        ]
+
+        assert _agree(values) == datetime.date(2028, 7, 31)
+
+    def test_ひとつも読めなければNone(self):
+        from apps.workers.certificate_dates import _agree
+
+        assert _agree([None, None]) is None
+
+    def test_OCRの文字から日付を読む(self, monkeypatch):
+        from apps.workers import certificate_dates
+
+        monkeypatch.setattr(
+            certificate_dates, "ocr_texts",
+            lambda source: [
+                "有効期限 2029年 3月31日 交付年月日 2018年11月 9",
+                "有効期限 2029年3月31日 交付年月日 2018年11月9日",
+                "",
+            ],
+        )
+
+        acquired, expiry = certificate_dates.read_dates_from_pdf(io.BytesIO(PDF))
+
+        assert acquired == datetime.date(2018, 11, 9)
+        assert expiry == datetime.date(2029, 3, 31)
+
+    def test_OCRを止めていても落ちない(self, settings):
+        from apps.workers.certificate_dates import ocr_texts
+
+        settings.CERTIFICATE_OCR_ENABLED = False
+
+        assert ocr_texts(io.BytesIO(PDF)) == []
+
+    def test_tesseractが無くても落ちない(self, settings):
+        from apps.workers.certificate_dates import read_dates_from_pdf
+
+        settings.TESSERACT_CMD = "存在しないコマンド"
+
+        assert read_dates_from_pdf(io.BytesIO(PDF)) == (None, None)
