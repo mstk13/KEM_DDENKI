@@ -7,6 +7,7 @@ from django.core.exceptions import PermissionDenied
 from django.db import models
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.views.decorators.http import require_POST
 
 from apps.offline.decorators import offline_resendable
 from apps.permissions.access_matrix import accessible_app_labels
@@ -132,6 +133,40 @@ def qualification_checklist(request):
         "registered_total": registered_total,
         "missing_total": registered_total - submitted_total,
     })
+
+
+@login_required
+@require_POST
+def worker_certificate_upload(request, pk):
+    """作業員の画面で選んだ資格証を、保有資格にまとめて添付する（ADR-0094）。
+
+    ファイル名から資格を当てる。当てられなかったファイルは添付せず、そのまま知らせる。
+    """
+    from apps.workers.certificate_import import attach_files
+
+    worker = get_object_or_404(Worker, pk=pk)
+    files = request.FILES.getlist("certificates")
+    if not files:
+        messages.warning(request, "ファイルが選ばれていません。")
+        return redirect("workers:edit", pk=worker.pk)
+
+    report = attach_files(
+        worker, files,
+        company=request.user.company, WorkerQualification=WorkerQualification,
+    )
+    if report["attached"]:
+        names = "、".join(name for name, _f, _how in report["attached"])
+        messages.success(
+            request,
+            f"{len(report['attached'])} 件の資格証を登録しました（{names}）。",
+        )
+    for file_name in report["unmatched"]:
+        messages.warning(
+            request,
+            f"「{file_name}」は、どの保有資格か分かりませんでした。"
+            "資格を追加してから選び直すか、その資格の編集画面から登録してください。",
+        )
+    return redirect("workers:edit", pk=worker.pk)
 
 
 @login_required

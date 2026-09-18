@@ -25,7 +25,9 @@ import datetime
 import pathlib
 import re
 import shutil
+import unicodedata
 import zipfile
+from difflib import SequenceMatcher
 
 from django.core.files import File
 
@@ -40,6 +42,9 @@ from apps.workers.listed_qualifications import (
 
 # 台紙（資格の一覧表）。添付の対象にしない
 CHECKLIST_MARK = "チェックリスト"
+
+# 作業員の画面でファイルを選んだとき、資格名とこれ以上似ていれば同じとみなす（ADR-0094）
+NAME_SIMILARITY = 0.8
 
 # 同じ人の別の書き方。フォルダ名が漢字で、作業員がローマ字で登録されている場合に使う。
 # 「釼持雅崇」は Masataka Kemmochi として登録されている（プロダクトオーナー、2026-09-17）。
@@ -65,6 +70,7 @@ FILE_TO_QUALIFICATION = {
     "3M工法修得認定証": ("3M工法取得認定（高圧端末 常温収縮）", 1),
     "建築物石綿含有建材調査者講習修了証明書": ("一般建築物石綿含有建材調査者", 1),
     "石綿作業主任者技能講習修了証": ("石綿作業主任者", 1),
+    "足場の組立て等作業主任者技能講習修了証": ("足場の組立て等作業主任者", 1),
     "石綿(アスベスト)取扱作業従事者特別教育修了証": ("石綿取扱作業従事者", 1),
     "玉掛技能講習修了証": ("玉掛け・吊上げ荷重1ｔ以上", 1),
     "高所作業車運転技能講習修了証": ("高所作業車・作業床高⒑ｍ以上", 1),
@@ -90,6 +96,10 @@ FILE_TO_QUALIFICATION = {
         "電気取扱業務（特別高圧・高圧）特別教育", 2,
     ),
     "酸素欠乏・硫化水素危険作業特別教育修了証": ("酸素欠乏・硫化水素危険作業特別教育", 1),
+    "第二種酸素欠乏危険作業特別教育修了証": ("第二種酸素欠乏危険作業特別教育", 1),
+    "ガス可とう管接続工事監督者講習修了証": ("ガス可とう管接続工事監督者", 1),
+    "外壁貫通シーリング研修修了証": ("外壁貫通シーリング研修", 1),
+    "職種別研修(設備編)修了証": ("職種別研修（設備編）", 1),
     "産業廃棄物処理業許可申請講習会(更新・収集運搬課程)修了証": (
         "産業廃棄物処理業許可申請講習会（更新・収集運搬課程）", 1,
     ),
@@ -147,6 +157,80 @@ def category_for(qualification_name: str) -> str:
         if word in qualification_name:
             return category
     return OTHER
+
+
+def match_qualification(file_stem, qualifications):
+    """ファイル名から、その作業員の保有資格を当てる（ADR-0094）。
+
+    作業員の画面から資格証をまとめて選んだときに使う。次の順で見る。
+
+    1. 読み替え表（FILE_TO_QUALIFICATION）にある資格名と同じもの
+    2. 資格名がそのままファイル名になっているもの（「電気工事士　1種.pdf」）
+    3. 記号・空白を落として比べて、いちばん近いもの（8割以上似ていれば）
+
+    Returns:
+        (WorkerQualification, 当て方) / 見つからなければ (None, "")
+    """
+    mapped = FILE_TO_QUALIFICATION.get(file_stem)
+    if mapped:
+        for qualification in qualifications:
+            if qualification.name == mapped[0]:
+                return qualification, "読み替え表"
+
+    for qualification in qualifications:
+        if qualification.name == file_stem:
+            return qualification, "資格名と同じ"
+
+    target = _compare_key(file_stem)
+    best, best_score = None, 0.0
+    for qualification in qualifications:
+        score = SequenceMatcher(None, target, _compare_key(qualification.name)).ratio()
+        if score > best_score:
+            best, best_score = qualification, score
+    if best is not None and best_score >= NAME_SIMILARITY:
+        return best, f"名前が近い（{best_score:.2f}）"
+    return None, ""
+
+
+def _compare_key(text):
+    """比べるための形。全角半角・記号・空白の違いを無くす。"""
+    normalized = unicodedata.normalize("NFKC", text or "").lower()
+    return re.sub(r"[\s　・（）()\[\]【】・,、.。/／_-]+", "", normalized)
+
+
+def attach_files(worker, files, *, company, WorkerQualification, dates=None):
+    """選ばれたファイルを、その作業員の保有資格に添付する（ADR-0094）。
+
+    資格が見つからないファイルは添付しない。人が資格を作ってから選び直す。
+
+    Returns:
+        {"attached": [(資格名, ファイル名, 当て方)], "unmatched": [ファイル名]}
+    """
+    dates = dates or {}
+    qualifications = list(
+        WorkerQualification._base_manager.filter(company=company, worker=worker),
+    )
+    report = {"attached": [], "unmatched": []}
+
+    for uploaded in files:
+        stem = pathlib.PurePath(uploaded.name).stem
+        qualification, how = match_qualification(stem, qualifications)
+        if qualification is None:
+            report["unmatched"].append(uploaded.name)
+            continue
+
+        acquired, expiry = dates.get(
+            (normalize_person_name(worker.name), uploaded.name), (None, None),
+        )
+        qualification.certificate_image.save(uploaded.name, uploaded, save=False)
+        if acquired:
+            qualification.acquired_date = acquired
+        if expiry:
+            qualification.expiry_date = expiry
+        qualification.save()
+        report["attached"].append((qualification.name, uploaded.name, how))
+
+    return report
 
 
 def extract_archive(archive, destination):

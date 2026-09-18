@@ -92,7 +92,17 @@
 <div class="card" style="margin-top:24px;">
   <div class="card-header">
     <h2>保有資格（証明書管理）</h2>
-    <a href="{% url 'workers:qual_create' worker.pk %}" class="btn btn-primary btn-sm">資格を追加</a>
+    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+      {# 資格証をまとめて選んで、ファイル名から資格に振り分ける（ADR-0094） #}
+      <form method="post" action="{% url 'workers:worker_certificate_upload' worker.pk %}"
+            enctype="multipart/form-data" style="display:flex;gap:6px;align-items:center;">
+        {% csrf_token %}
+        <input type="file" name="certificates" multiple accept=".pdf,image/*"
+               class="form-control" style="max-width:260px;padding:4px 8px;font-size:.82rem;">
+        <button type="submit" class="btn btn-outline btn-sm">資格書を取り込む</button>
+      </form>
+      <a href="{% url 'workers:qual_create' worker.pk %}" class="btn btn-primary btn-sm">資格を追加</a>
+    </div>
   </div>
   <div class="card-body">
     {% if cert_qualifications %}
