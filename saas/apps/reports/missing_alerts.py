@@ -19,6 +19,11 @@ from apps.notifications.services import notify
 # 何日前までさかのぼって調べるか。月末にまとめて書く人がいるので少し長めに取る。
 LOOKBACK_DAYS = 14
 
+# この日より前は調べない（プロダクトオーナーの指示、2026-09-18）。
+# 出社予定を入れ始める前の日まで催促すると、書きようのない日を指すことになる。
+# 運用が進んで日付を動かしたくなったら、設定 DAILY_REPORT_CHECK_START で変えられる。
+DEFAULT_START_DATE = datetime.date(2026, 9, 14)
+
 REFERENCE_PREFIX = "reports.missing"
 ADMIN_ROLES = ("president", "executive", "manager")
 
@@ -27,12 +32,22 @@ def _reference_type(day):
     return f"{REFERENCE_PREFIX}:{day.isoformat()}"
 
 
+def start_date():
+    """これより前の日は調べない。"""
+    from django.conf import settings
+
+    return getattr(settings, "DAILY_REPORT_CHECK_START", DEFAULT_START_DATE)
+
+
 def target_days(today=None):
-    """調べる日の並び。古い日から。今日は入れない。"""
+    """調べる日の並び。古い日から。今日と、始まりの日より前は入れない。"""
     today = today or timezone.localdate()
+    first = start_date()
     return [
-        today - datetime.timedelta(days=n)
-        for n in range(LOOKBACK_DAYS, 0, -1)
+        day for day in (
+            today - datetime.timedelta(days=n) for n in range(LOOKBACK_DAYS, 0, -1)
+        )
+        if day >= first
     ]
 
 
