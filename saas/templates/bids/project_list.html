@@ -43,6 +43,7 @@
     <table>
       <thead>
         <tr>
+          {% include "core/_bulk_delete_head.html" %}
           <th>案件名</th><th>発注者</th><th>地域</th>
           <th><a href="?sort={% if sort == 'category' %}-category{% else %}category{% endif %}&q={{ q }}&status={{ status }}&region={{ region }}" style="color:#fff;text-decoration:underline;">工事区分{% if sort == 'category' %} ▲{% elif sort == '-category' %} ▼{% endif %}</a></th>
           <th>状態</th><th>資格判定</th>
@@ -56,6 +57,10 @@
       <tbody>
         {% for p in projects %}
         <tr>
+          <td class="bulk-cell">
+            <input type="checkbox" class="bulk-check" name="ids" value="{{ p.pk }}"
+                   form="bulk-delete-form">
+          </td>
           <td><a href="{% url 'bids:project_detail' p.pk %}">{{ p.title }}</a></td>
           <td>{% inline_edit p "client" %}</td>
           <td>{% inline_edit p "region" %}</td>
@@ -86,10 +91,11 @@
           </td>
         </tr>
         {% empty %}
-        <tr><td colspan="11"><div class="empty"><div class="empty-icon">&#x1f4cb;</div><p>入札案件が登録されていません</p></div></td></tr>
+        <tr><td colspan="12"><div class="empty"><div class="empty-icon">&#x1f4cb;</div><p>入札案件が登録されていません</p></div></td></tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
+  {% include "core/_bulk_delete.html" with bulk_key="bids.project" bulk_label="入札案件" %}
 </div>
 {% endblock %}

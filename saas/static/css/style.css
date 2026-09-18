@@ -1208,3 +1208,10 @@ textarea.inline-edit-input { width: 100%; min-width: 260px; }
 .cert-check-yes { color: #15803d; font-weight: 700; }
 .cert-check-no { color: var(--danger, #dc2626); font-weight: 700; }
 .cert-check-none { color: var(--text-muted, #9ca3af); }
+
+/* 一覧からまとめて削除する（ADR-0098） */
+.bulk-cell { width: 34px; text-align: center; }
+.bulk-delete-bar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding: 10px 24px; border-top: 1px solid var(--border-light, #e5e7eb); }
+.bulk-delete-count { font-size: .84rem; color: var(--text-muted, #6b7280); }
+.bulk-delete-bar.has-selection .bulk-delete-count { color: var(--danger, #dc2626); font-weight: 700; }
+.bulk-delete-bar.has-selection .bulk-delete-button { color: var(--danger, #dc2626); border-color: var(--danger, #dc2626); }

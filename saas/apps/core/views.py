@@ -4,6 +4,7 @@ from django.apps import apps
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import render
 from django.utils import timezone
+from django.views.decorators.http import require_POST
 
 from apps.attendance.plans import parse_date
 from apps.core.json_utils import json_for_script
@@ -149,3 +150,63 @@ def audit_log(request):
         "total_pages": total_pages,
         "total": total,
     })
+
+
+@login_required
+@require_POST
+def bulk_delete(request):
+    """一覧で選んだものをまとめて消す（ADR-0098）。
+
+    消せる対象は apps/core/bulk_delete.py の DELETABLE に書いた分だけ。
+    会社で絞ったマネージャで引くので、他社の行は選んでも消えない。
+    """
+    from django.contrib import messages
+    from django.db.models import ProtectedError
+    from django.shortcuts import redirect
+    from django.utils.http import url_has_allowed_host_and_scheme
+
+    from apps.core.bulk_delete import DELETABLE
+
+    spec = DELETABLE.get(request.POST.get("key", ""))
+    back = request.POST.get("next", "")
+    if not (back and url_has_allowed_host_and_scheme(
+        back, allowed_hosts={request.get_host()}, require_https=request.is_secure(),
+    )):
+        back = ""
+
+    if spec is None:
+        messages.error(request, "この画面ではまとめて削除できません。")
+        return redirect(back or "dashboard")
+
+    # 画面によっては元から別名のチェックボックスがある（日報の一括承認など）
+    raw = request.POST.getlist("ids") or request.POST.getlist("report_ids")
+    ids = [pk for pk in raw if pk.isdigit()]
+    if not ids:
+        messages.warning(request, "削除するものが選ばれていません。")
+        return redirect(back or spec.redirect)
+
+    deleted, skipped, protected = 0, [], []
+    for obj in spec.model().objects.filter(pk__in=ids):
+        name = spec.name_of(obj)
+        if spec.can_delete and not spec.can_delete(request.user, obj):
+            skipped.append(name)
+            continue
+        try:
+            obj.delete()
+        except ProtectedError:
+            protected.append(name)
+            continue
+        deleted += 1
+
+    if deleted:
+        messages.success(request, f"{spec.label}を {deleted} 件削除しました。")
+    if skipped:
+        messages.warning(
+            request, "削除できないため残しました: " + "、".join(skipped[:10]),
+        )
+    if protected:
+        messages.warning(
+            request,
+            "ほかから使われているため削除できませんでした: " + "、".join(protected[:10]),
+        )
+    return redirect(back or spec.redirect)

@@ -4,7 +4,7 @@ from django.http import JsonResponse
 from django.urls import include, path, re_path
 
 from apps.core.media_views import serve_media
-from apps.core.views import audit_log, dashboard
+from apps.core.views import audit_log, bulk_delete, dashboard
 from apps.offline.views import service_worker
 
 
@@ -72,6 +72,8 @@ urlpatterns = [
     path("ai/", include("apps.ai.urls")),
     path("estimation/", include("apps.estimation.urls")),
     path("audit-log/", audit_log, name="audit_log"),
+    # 一覧で選んだものをまとめて消す（ADR-0098）
+    path("bulk-delete/", bulk_delete, name="bulk_delete"),
 ]
 
 # アップロードしたファイル（資格証・健診報告書など）は、本番でも配信する。

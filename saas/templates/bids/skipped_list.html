@@ -62,12 +62,17 @@ tr.skipped-reason td { background: var(--bg-secondary, #f7f8fa); padding-top: 12
     <table>
       <thead>
         <tr>
+          {% include "core/_bulk_delete_head.html" %}
           <th>判定</th><th>案件名</th><th>発注機関</th><th>公告が求める資格</th><th style="white-space:nowrap;">入札期限</th><th style="white-space:nowrap;">最終確認</th><th style="width:1%;"></th>
         </tr>
       </thead>
       <tbody>
         {% for s in skipped %}
         <tr id="skipped-{{ s.pk }}">
+          <td class="bulk-cell">
+            <input type="checkbox" class="bulk-check" name="ids" value="{{ s.pk }}"
+                   form="bulk-delete-form">
+          </td>
           <td style="white-space:nowrap;">
             {% if s.verdict == "ineligible" %}<span class="badge badge-red">資格不足</span>
             {% else %}<span class="badge badge-gray">判定不能</span>{% endif %}
@@ -96,7 +101,7 @@ tr.skipped-reason td { background: var(--bg-secondary, #f7f8fa); padding-top: 12
           </td>
         </tr>
         <tr class="skipped-reason" id="reason-{{ s.pk }}" hidden>
-          <td colspan="7">
+          <td colspan="8">
             <dl class="reason-box">
               <dt>判定の理由</dt>
               <dd>{{ s.reason|default:"-"|linebreaksbr }}</dd>
@@ -152,11 +157,12 @@ tr.skipped-reason td { background: var(--bg-secondary, #f7f8fa); padding-top: 12
           </td>
         </tr>
         {% empty %}
-        <tr><td colspan="7"><div class="empty"><div class="empty-icon">&#x2705;</div><p>見送った案件はありません</p></div></td></tr>
+        <tr><td colspan="8"><div class="empty"><div class="empty-icon">&#x2705;</div><p>見送った案件はありません</p></div></td></tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
+  {% include "core/_bulk_delete.html" with bulk_key="bids.skipped" bulk_label="見送り案件" %}
 </div>
 <script>
 document.querySelectorAll('[data-reason-toggle]').forEach(function (btn) {
