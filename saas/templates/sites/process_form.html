@@ -20,6 +20,7 @@
         {{ field.errors }}
       </div>
       {% endfor %}
+      {% include "_name_datalist.html" with list_id="work-type-name-options" names=form.work_type_choices %}
       <div class="form-actions">
         <button type="submit" class="btn btn-primary">保存</button>
         <a href="{% url 'sites:detail' site.pk %}" class="btn btn-outline">キャンセル</a>

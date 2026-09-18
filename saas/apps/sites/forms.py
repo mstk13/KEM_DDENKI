@@ -4,6 +4,9 @@ from django import forms
 from django.db.models import Case, IntegerField, Value, When
 
 from apps.accounts.models import User
+
+# 候補から選び、無ければその場でマスタに登録する（ADR-0097）
+from apps.core.master_input import name_choices, resolve_work_type
 from apps.masters.models import Customer, WorkType
 from apps.sites.models import Process, Site, SitePhoto
 from apps.sites.services import resolve_or_create_customer
@@ -124,12 +127,23 @@ class EstimateUploadForm(forms.Form):
 
 
 class ProcessForm(forms.ModelForm):
-    """現場の工程を手入力するためのフォーム。"""
+    """現場の工程を手入力するためのフォーム。
+
+    工種は**自由入力**にしている（ADR-0097）。候補に無い工種を選ぼうとした時点で
+    「先に工種マスタへ登録してから戻る」という往復が要り、工程の入力が止まる。
+    """
+
+    # Process.work_type は必須なので、この欄も必須にする。
+    # 自由入力にしたからといって、空のまま保存できるようにはしない。
+    work_type_name = forms.CharField(
+        label="工種",
+        help_text="登録済みの工種は候補から選べます。候補に無い名前を入力すると工種マスタにも登録されます。",
+    )
 
     class Meta:
         model = Process
         fields = [
-            "name", "work_type", "planned_start", "planned_end",
+            "name", "planned_start", "planned_end",
             "actual_start", "actual_end", "status", "display_order",
         ]
         widgets = {
@@ -139,14 +153,36 @@ class ProcessForm(forms.ModelForm):
             "actual_end": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
         }
 
-    def __init__(self, *args, company=None, **kwargs):
+    def __init__(self, *args, company=None, user=None, **kwargs):
         super().__init__(*args, **kwargs)
+        self._company = company
+        self._user = user
         for _name, field in self.fields.items():
             field.widget.attrs.setdefault("class", "form-control")
         if company:
-            self.fields["work_type"].queryset = WorkType.unscoped.filter(
-                company=company, is_active=True,
+            # 入力補助の候補。datalist なのでこの一覧に無い値も送信できる
+            # unscoped: フォーム初期化時に会社を明示フィルタするため
+            self.work_type_choices = name_choices(
+                WorkType.unscoped.filter(company=company, is_active=True),
             )
+        else:
+            self.work_type_choices = []
+
+        self.fields["work_type_name"].widget.attrs["list"] = "work-type-name-options"
+        if self.instance.pk and self.instance.work_type_id:
+            self.fields["work_type_name"].initial = self.instance.work_type.name
+
+    def save(self, commit=True):
+        process = super().save(commit=False)
+        company = self._company or (process.company if process.company_id else None)
+        if company is not None:
+            process.work_type = resolve_work_type(
+                company, self.cleaned_data.get("work_type_name", ""), created_by=self._user,
+            )
+        if commit:
+            process.save()
+            self.save_m2m()
+        return process
 
     def clean(self):
         cleaned = super().clean()

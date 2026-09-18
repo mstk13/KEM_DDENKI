@@ -43,13 +43,17 @@
       <div class="form-row">
         <div class="form-group">
           <label for="id_work_type">工種</label>
-          {{ form.work_type }}
-          {{ form.work_type.errors }}
+          {{ form.work_type_name }}
+          {{ form.work_type_name.errors }}
+          <small class="text-muted" style="font-size:.78rem;">{{ form.work_type_name.help_text }}</small>
         </div>
         <div class="form-group">
           <label for="id_material">社内材料マスタ</label>
-          {{ form.material }}
-          {{ form.material.errors }}
+          {{ form.material_name }}
+          {{ form.material_name.errors }}
+          <small class="text-muted" style="font-size:.78rem;">{{ form.material_name.help_text }}</small>
+          {% include "_name_datalist.html" with list_id="work-type-name-options" names=form.work_type_choices %}
+          {% include "_name_datalist.html" with list_id="material-name-options" names=form.material_choices %}
         </div>
       </div>
       <div class="form-group">

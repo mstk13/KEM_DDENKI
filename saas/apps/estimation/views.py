@@ -80,7 +80,7 @@ def item_list(request):
 def item_create(request):
     """積算品目の新規作成。"""
     if request.method == "POST":
-        form = EstimationItemForm(request.POST, company=request.user.company)
+        form = EstimationItemForm(request.POST, company=request.user.company, user=request.user)
         if form.is_valid():
             item = form.save(commit=False)
             item.company = request.user.company
@@ -112,7 +112,7 @@ def item_edit(request, pk):
     item = get_object_or_404(EstimationItem, pk=pk)
     if request.method == "POST":
         form = EstimationItemForm(
-            request.POST, instance=item, company=request.user.company,
+            request.POST, instance=item, company=request.user.company, user=request.user,
         )
         if form.is_valid():
             form.save()
@@ -234,7 +234,7 @@ def orderer_list(request):
 def orderer_create(request):
     """発注機関の新規作成。"""
     if request.method == "POST":
-        form = OrdererForm(request.POST, company=request.user.company)
+        form = OrdererForm(request.POST, company=request.user.company, user=request.user)
         if form.is_valid():
             orderer = form.save(commit=False)
             orderer.company = request.user.company
@@ -255,7 +255,7 @@ def orderer_edit(request, pk):
     orderer = get_object_or_404(Orderer, pk=pk)
     if request.method == "POST":
         form = OrdererForm(
-            request.POST, instance=orderer, company=request.user.company,
+            request.POST, instance=orderer, company=request.user.company, user=request.user,
         )
         if form.is_valid():
             form.save()
@@ -808,7 +808,9 @@ def boqline_create(request, project_pk):
     """内訳書明細の追加。"""
     proj = get_object_or_404(EstimationProject, pk=project_pk)
     if request.method == "POST":
-        form = BoqLineForm(request.POST, company=request.user.company, project=proj)
+        form = BoqLineForm(
+            request.POST, company=request.user.company, project=proj, user=request.user,
+        )
         if form.is_valid():
             line = form.save(commit=False)
             line.project = proj
@@ -837,7 +839,7 @@ def boqline_edit(request, pk):
     if request.method == "POST":
         form = BoqLineForm(
             request.POST, instance=line,
-            company=request.user.company, project=line.project,
+            company=request.user.company, project=line.project, user=request.user,
         )
         if form.is_valid():
             line = form.save(commit=False)
@@ -894,7 +896,7 @@ def purchase_list(request):
 def purchase_create(request):
     """仕入実績の手入力。"""
     if request.method == "POST":
-        form = PurchaseRecordForm(request.POST, company=request.user.company)
+        form = PurchaseRecordForm(request.POST, company=request.user.company, user=request.user)
         if form.is_valid():
             rec = form.save(commit=False)
             rec.company = request.user.company
