@@ -54,6 +54,27 @@ def _has_role(user, role_code):
     return UserRole.unscoped.filter(user=user, role__code=role_code).exists()
 
 
+# 職種名にこの語が入っていれば、書類まわりの画面を開ける（ADR-0092）。
+# 「ITインフラ」のように前後が付く書き方があるので、含まれるかで見る。
+IT_JOB_TITLE_WORD = "IT"
+
+
+def _is_it_staff(user):
+    """職種が IT の人か。アプリの世話をするのが仕事なので、書類の画面も開ける。"""
+    profile = getattr(user, "worker_profile", None)
+    if profile is None or profile.job_title is None:
+        return False
+    return IT_JOB_TITLE_WORD in (profile.job_title.name or "").upper()
+
+
+def can_manage_documents(user):
+    """証明書・健診など、書類まわりの画面を開ける人（ADR-0092）。
+
+    管理者（社員番号 Y 始まり・superuser）・事務員ロール・職種が IT の人。
+    """
+    return _is_admin(user) or _has_role(user, "office_staff") or _is_it_staff(user)
+
+
 @login_required
 def qualification_checklist(request):
     """資格証の提出チェックリスト（ADR-0081）。
@@ -61,8 +82,8 @@ def qualification_checklist(request):
     作業員（縦）×資格名（横）の表にして、証明書の画像が登録してあれば〇、
     資格は登録してあるが証明書がまだなら△、その資格を持っていなければ空にする。
     """
-    if not (_is_admin(request.user) or _has_role(request.user, "office_staff")):
-        raise PermissionDenied("この画面は事務員・管理者のみ閲覧できます。")
+    if not can_manage_documents(request.user):
+        raise PermissionDenied("この画面は事務員・管理者・IT の人のみ閲覧できます。")
 
     quals = (
         WorkerQualification.objects.select_related("worker")
@@ -130,8 +151,8 @@ def certificate_import(request):
     )
     from apps.workers.forms import CertificateZipForm
 
-    if not (_is_admin(request.user) or _has_role(request.user, "office_staff")):
-        raise PermissionDenied("この画面は事務員・管理者のみ使えます。")
+    if not can_manage_documents(request.user):
+        raise PermissionDenied("この画面は事務員・管理者・IT の人のみ使えます。")
 
     report = None
     applied = False
@@ -168,8 +189,8 @@ def document_alert_dashboard(request):
     """事務員向け: 証明書・健診書類の未添付一覧。"""
     from apps.core.date_utils import add_months, add_years
 
-    if not (_is_admin(request.user) or _has_role(request.user, "office_staff")):
-        raise PermissionDenied("この画面は事務員・管理者のみ閲覧できます。")
+    if not can_manage_documents(request.user):
+        raise PermissionDenied("この画面は事務員・管理者・IT の人のみ閲覧できます。")
 
     today = date.today()
     due_threshold = add_months(today, 2)

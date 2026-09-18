@@ -84,3 +84,54 @@ class TestChecklist:
 
         assert "他社だけの資格" not in html
         assert "他社太郎" not in html
+
+
+@pytest.mark.django_db
+class TestItJobTitle:
+    """職種が IT の人も、書類まわりの画面を開ける（ADR-0092）。"""
+
+    @pytest.fixture
+    def it_user(self, company_a, user_a):
+        from apps.workers.models import JobTitle
+
+        job_title = JobTitle.unscoped.create(company=company_a, name="ITインフラ")
+        Worker.unscoped.create(
+            company=company_a, name="情報太郎", employee_code="E09",
+            job_title=job_title, user=user_a,
+        )
+        return user_a
+
+    def test_資格証チェックを開ける(self, client, it_user):
+        client.force_login(it_user)
+
+        assert client.get(reverse("workers:cert_checklist")).status_code == 200
+
+    def test_資格証の取り込みを開ける(self, client, it_user):
+        client.force_login(it_user)
+
+        assert client.get(reverse("workers:certificate_import")).status_code == 200
+
+    def test_書類アラートを開ける(self, client, it_user):
+        client.force_login(it_user)
+
+        assert client.get(reverse("workers:document_alerts")).status_code == 200
+
+    def test_職種がITでない人は開けない(self, client, company_a, user_a):
+        from apps.workers.models import JobTitle
+
+        job_title = JobTitle.unscoped.create(company=company_a, name="電工")
+        Worker.unscoped.create(
+            company=company_a, name="電工太郎", employee_code="E01",
+            job_title=job_title, user=user_a,
+        )
+        client.force_login(user_a)
+
+        assert client.get(reverse("workers:cert_checklist")).status_code == 403
+
+    def test_職種が未設定でも落ちない(self, client, company_a, user_a):
+        Worker.unscoped.create(
+            company=company_a, name="電工次郎", employee_code="E02", user=user_a,
+        )
+        client.force_login(user_a)
+
+        assert client.get(reverse("workers:cert_checklist")).status_code == 403
