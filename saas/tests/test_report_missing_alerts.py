@@ -139,3 +139,41 @@ class TestScreen:
 
         assert missing_days_for_worker(worker, today=TODAY) == []
         assert missing_days_for_worker(other, today=TODAY) == [YESTERDAY]
+
+
+@pytest.mark.django_db
+class TestStartDate:
+    """9/14 より前の日は催促しない（ADR-0080 改訂）。"""
+
+    def test_始まりの日より前は調べない(self, company_a, setup):
+        from apps.workers.models import Worker as W  # noqa: F401
+
+        _site, _wt, worker = setup
+        # 9/13（始まりの日の前日）と 9/15 に予定を入れる
+        _plan(company_a, worker, datetime.date(2026, 9, 13))
+        _plan(company_a, worker, datetime.date(2026, 9, 15))
+
+        found = missing_reports(company_a, today=datetime.date(2026, 9, 20))
+
+        assert found == [(worker, datetime.date(2026, 9, 15))]
+
+    def test_始まりの日そのものは調べる(self, company_a, setup):
+        _site, _wt, worker = setup
+        _plan(company_a, worker, datetime.date(2026, 9, 14))
+
+        found = missing_reports(company_a, today=datetime.date(2026, 9, 20))
+
+        assert found == [(worker, datetime.date(2026, 9, 14))]
+
+    def test_設定で始まりの日を変えられる(self, company_a, setup, settings):
+        _site, _wt, worker = setup
+        settings.DAILY_REPORT_CHECK_START = datetime.date(2026, 9, 16)
+        _plan(company_a, worker, datetime.date(2026, 9, 15))
+
+        assert missing_reports(company_a, today=datetime.date(2026, 9, 20)) == []
+
+    def test_画面の赤字も同じ範囲になる(self, company_a, setup):
+        _site, _wt, worker = setup
+        _plan(company_a, worker, datetime.date(2026, 9, 13))
+
+        assert missing_days_for_worker(worker, today=datetime.date(2026, 9, 20)) == []
