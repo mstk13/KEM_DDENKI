@@ -5,7 +5,11 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 
 from apps.permissions.services import can_approve_report, can_delete_report
-from apps.reports.duplicates import find_duplicate_reports
+from apps.reports.duplicates import (
+    day_breakdown,
+    find_duplicate_reports,
+    needs_confirmation,
+)
 from apps.reports.forms import DailyReportForm
 from apps.reports.missing_alerts import missing_days_for_worker
 from apps.reports.models import DailyReport, SafetyRecord
@@ -386,12 +390,15 @@ def report_create(request):
         )
         if form.is_valid():
             # 同じ日・同じ人の日報が既にあれば、いったん止めて選んでもらう（ADR-0079）
+            # 同じ現場の日報が既にあれば、いったん止めて選んでもらう（ADR-0079）。
+            # 別の現場だけなら止めない。1日2現場は普通にある（ADR-0100）
             duplicates = find_duplicate_reports(
                 request.user.company,
                 list(form.cleaned_data.get("workers") or []),
                 form.cleaned_data.get("report_date"),
+                site_name=form.cleaned_data.get("site", ""),
             )
-            if duplicates and request.POST.get("confirm_duplicate") != "1":
+            if needs_confirmation(duplicates) and request.POST.get("confirm_duplicate") != "1":
                 return render(request, "reports/form.html", {
                     "form": form,
                     "duplicates": duplicates,
@@ -407,6 +414,10 @@ def report_create(request):
                 company=request.user.company, user=request.user, status=status,
             )
             messages.success(request, f"{len(saved)}件の日報を保存しました。")
+            # 1日を現場ごとに分けて入れたときは、その日の内訳を出す（ADR-0100）。
+            # 分けた結果がそのとおり入ったかを、一覧を開かずに確かめられるように
+            for line in day_breakdown(request.user.company, saved):
+                messages.info(request, line)
             if skipped:
                 names = "、".join(str(w) for w in skipped)
                 messages.warning(
@@ -453,9 +464,10 @@ def report_edit(request, pk):
                 request.user.company,
                 list(form.cleaned_data.get("workers") or []),
                 form.cleaned_data.get("report_date"),
+                site_name=form.cleaned_data.get("site", ""),
                 exclude_pk=report.pk,
             )
-            if duplicates and request.POST.get("confirm_duplicate") != "1":
+            if needs_confirmation(duplicates) and request.POST.get("confirm_duplicate") != "1":
                 return render(request, "reports/form.html", {
                     "form": form,
                     "duplicates": duplicates,
