@@ -398,3 +398,29 @@ class TestZipUpload:
         client.force_login(user_a)
 
         assert client.get(reverse("workers:certificate_import")).status_code == 403
+
+
+class TestYokoFiles:
+    """陽子さんの4件の読み替え（ADR-0082）。
+
+    あとから足された資格証で、名前が資格保有一覧の見出しと違うもの。
+    """
+
+    @pytest.mark.parametrize(("file_stem", "expected"), [
+        ("運転免許証", "運転免許証"),
+        ("1級電気工事施工管理技士 技術検定合格証明書", "電気工事施工監理技士　１級"),
+        ("安全衛生責任者教育修了証", "職長・安全衛生責任者教育"),
+        ("3M工法修得認定証", "3M工法取得認定（高圧端末 常温収縮）"),
+    ])
+    def test_資格名に読み替える(self, file_stem, expected):
+        from apps.workers.certificate_import import FILE_TO_QUALIFICATION
+
+        assert FILE_TO_QUALIFICATION[file_stem][0] == expected
+
+    def test_職長の修了証は内容の広いものを優先する(self):
+        from apps.workers.certificate_import import FILE_TO_QUALIFICATION
+
+        full = FILE_TO_QUALIFICATION["職長・安全衛生責任者教育修了証"][1]
+        partial = FILE_TO_QUALIFICATION["安全衛生責任者教育修了証"][1]
+
+        assert full > partial
