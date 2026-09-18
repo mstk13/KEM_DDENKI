@@ -424,3 +424,31 @@ class TestYokoFiles:
         partial = FILE_TO_QUALIFICATION["安全衛生責任者教育修了証"][1]
 
         assert full > partial
+
+
+class TestSugimotoFiles:
+    """杉本和幸の資格証の読み替え（ADR-0082）。
+
+    ZIP で渡された10件のうち、資格保有一覧に見出しが無いものは
+    その作業員の保有資格として新しく作る。
+    """
+
+    @pytest.mark.parametrize(("file_stem", "expected"), [
+        ("第二種電気工事士免状", "電気工事士　2種"),
+        ("足場の組立て等作業主任者技能講習修了証", "足場の組立て等作業主任者"),
+        ("第二種酸素欠乏危険作業特別教育修了証", "第二種酸素欠乏危険作業特別教育"),
+        ("ガス可とう管接続工事監督者講習修了証", "ガス可とう管接続工事監督者"),
+        ("外壁貫通シーリング研修修了証", "外壁貫通シーリング研修"),
+        ("職種別研修(設備編)修了証", "職種別研修（設備編）"),
+    ])
+    def test_資格名に読み替える(self, file_stem, expected):
+        from apps.workers.certificate_import import FILE_TO_QUALIFICATION
+
+        assert FILE_TO_QUALIFICATION[file_stem][0] == expected
+
+    def test_区分は名前から決める(self):
+        from apps.workers.certificate_import import category_for
+
+        assert category_for("足場の組立て等作業主任者") == "skill_course"
+        assert category_for("第二種酸素欠乏危険作業特別教育") == "education"
+        assert category_for("外壁貫通シーリング研修") == "other"
