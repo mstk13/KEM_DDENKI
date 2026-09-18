@@ -73,11 +73,15 @@
   <div class="table-wrap">
     <table>
       <thead>
-        <tr><th>プロジェクト名</th><th>ステータス</th><th>責任者</th><th>期間</th><th>進捗</th><th>未解決バグ</th><th></th></tr>
+        <tr>{% include "core/_bulk_delete_head.html" %}<th>プロジェクト名</th><th>ステータス</th><th>責任者</th><th>期間</th><th>進捗</th><th>未解決バグ</th><th></th></tr>
       </thead>
       <tbody>
         {% for p in projects %}
         <tr>
+          <td class="bulk-cell">
+            <input type="checkbox" class="bulk-check" name="ids" value="{{ p.pk }}"
+                   form="bulk-devproject">
+          </td>
           <td><a href="{% url 'devkanri:project_detail' p.pk %}">{{ p.name }}</a></td>
           <td>
             {% if p.status == 'in_progress' %}<span class="badge badge-blue">進行中</span>
@@ -118,6 +122,7 @@
       </tbody>
     </table>
   </div>
+  {% include "core/_bulk_delete.html" with bulk_key="devkanri.project" bulk_label="開発プロジェクト" bulk_form="bulk-devproject" %}
 </div>
 
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/frappe-gantt@0.6.1/dist/frappe-gantt.min.css">

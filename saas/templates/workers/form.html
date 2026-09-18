@@ -110,6 +110,7 @@
       <table>
         <thead>
           <tr>
+            {% include "core/_bulk_delete_head.html" %}
             <th>資格名</th>
             <th>区分</th>
             <th>取得日</th>
@@ -121,6 +122,10 @@
         <tbody>
           {% for q in cert_qualifications %}
           <tr>
+            <td class="bulk-cell">
+              <input type="checkbox" class="bulk-check" name="ids" value="{{ q.pk }}"
+                     form="bulk-qualification">
+            </td>
             <td>{{ q.name }}</td>
             <td><span class="badge {% if q.category == 'license' %}badge-blue{% elif q.category == 'skill_course' %}badge-green{% elif q.category == 'education' %}badge-gray{% else %}badge-orange{% endif %}">{{ q.get_category_display }}</span></td>
             <td>{{ q.acquired_date|default:"-" }}</td>
@@ -135,6 +140,7 @@
         </tbody>
       </table>
     </div>
+    {% include "core/_bulk_delete.html" with bulk_key="workers.qualification" bulk_label="保有資格" bulk_form="bulk-qualification" %}
     {% else %}
     <p style="color:var(--text-muted);">登録された資格はありません</p>
     {% endif %}
@@ -153,6 +159,7 @@
       <table>
         <thead>
           <tr>
+            {% include "core/_bulk_delete_head.html" %}
             <th>受診日</th>
             <th>判定</th>
             {% if can_view_private %}<th>視力</th><th>血圧</th>{% endif %}
@@ -165,6 +172,10 @@
         <tbody>
           {% for h in health_checkups %}
           <tr>
+            <td class="bulk-cell">
+              <input type="checkbox" class="bulk-check" name="ids" value="{{ h.pk }}"
+                     form="bulk-health">
+            </td>
             <td>{{ h.checkup_date }}</td>
             <td><span class="badge {% if h.result == 'normal' %}badge-green{% elif h.result == 'observation' %}badge-orange{% else %}badge-red{% endif %}">{{ h.get_result_display }}</span></td>
             {% if can_view_private %}<td>{{ h.vision_label|default:"-" }}</td><td>{{ h.blood_pressure_label|default:"-" }}</td>{% endif %}
@@ -180,6 +191,7 @@
         </tbody>
       </table>
     </div>
+    {% include "core/_bulk_delete.html" with bulk_key="workers.health" bulk_label="健診の記録" bulk_form="bulk-health" %}
     {% else %}
     <p style="color:var(--text-muted);">登録された健康診断記録はありません</p>
     {% endif %}

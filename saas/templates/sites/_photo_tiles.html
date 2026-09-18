@@ -23,6 +23,11 @@ photo_days（views._group_photos_by_day）と site を渡す。show_actions が�
         {% if photo.note %}<span class="photo-tile-note">{{ photo.note }}</span>{% endif %}
         {% if show_actions %}
         <span class="photo-tile-actions">
+          {# まとめて削除のための選択（ADR-0098） #}
+          <label class="photo-tile-select">
+            <input type="checkbox" class="bulk-check" name="ids" value="{{ photo.pk }}"
+                   form="bulk-photo"> 選ぶ
+          </label>
           <a href="{% url 'sites:photo_edit' photo.pk %}" class="btn btn-outline btn-sm">編集</a>
         </span>
         {% endif %}

@@ -47,11 +47,15 @@
   <div class="table-wrap">
     <table>
       <thead>
-        <tr><th>会社名</th><th>業種</th><th>担当者</th><th>状態</th><th>訪問日</th><th>電話</th><th></th></tr>
+        <tr>{% include "core/_bulk_delete_head.html" %}<th>会社名</th><th>業種</th><th>担当者</th><th>状態</th><th>訪問日</th><th>電話</th><th></th></tr>
       </thead>
       <tbody>
         {% for v in visits %}
         <tr>
+          <td class="bulk-cell">
+            <input type="checkbox" class="bulk-check" name="ids" value="{{ v.pk }}"
+                   form="bulk-visit">
+          </td>
           <td><a href="{% url 'sales:visit_detail' v.pk %}">{{ v.company_name }}</a></td>
           <td>{{ v.get_industry_display }}</td>
           <td>{{ v.rep_name|default:"-" }}</td>
@@ -73,5 +77,6 @@
       </tbody>
     </table>
   </div>
+  {% include "core/_bulk_delete.html" with bulk_key="sales.visit" bulk_label="訪問記録" bulk_form="bulk-visit" %}
 </div>
 {% endblock %}

@@ -21,10 +21,14 @@
     {% if participants %}
     <div class="table-wrap">
       <table>
-        <thead><tr><th>氏名</th><th>サイン</th><th>健康状態</th><th>検電器</th><th>記入</th><th></th></tr></thead>
+        <thead><tr>{% include "core/_bulk_delete_head.html" %}<th>氏名</th><th>サイン</th><th>健康状態</th><th>検電器</th><th>記入</th><th></th></tr></thead>
         <tbody>
           {% for p in participants %}
           <tr>
+            <td class="bulk-cell">
+              <input type="checkbox" class="bulk-check" name="ids" value="{{ p.pk }}"
+                     form="bulk-ky-participant">
+            </td>
             <td>{{ p.worker.name }}</td>
             <td><img src="{{ p.signature }}" alt="{{ p.worker.name }}のサイン" style="height:36px;max-width:140px;background:#fff;"></td>
             <td>{{ p.health_mark }}{% if p.health_note %} {{ p.health_note }}{% endif %}</td>
@@ -43,6 +47,7 @@
         </tbody>
       </table>
     </div>
+    {% include "core/_bulk_delete.html" with bulk_key="safety.ky_participant" bulk_label="参加者" bulk_form="bulk-ky-participant" %}
     {% else %}
     <p style="color:var(--text-muted);">まだ誰も書いていません。</p>
     {% endif %}

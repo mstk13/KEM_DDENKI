@@ -5,6 +5,7 @@
 <table class="table">
   <thead>
     <tr>
+      {% include "core/_bulk_delete_head.html" %}
       <th>競合名</th>
       <th class="text-right">金額</th>
       <th class="text-right">自社との差額</th>
@@ -17,6 +18,10 @@
   <tbody>
     {% for c in competitors %}
       <tr>
+        <td class="bulk-cell">
+          <input type="checkbox" class="bulk-check" name="ids" value="{{ c.pk }}"
+                 form="bulk-est-competitor">
+        </td>
         <td>{{ c.name }}</td>
         <td class="text-right mono">
           {% if c.amount %}{{ c.amount|floatformat:0 }} 円{% else %}—{% endif %}
@@ -52,6 +57,7 @@
     {% endfor %}
   </tbody>
 </table>
+{% include "core/_bulk_delete.html" with bulk_key="estimation.competitor" bulk_label="競合" bulk_form="bulk-est-competitor" %}
 
 <form method="post" action="{% url 'estimation:competitor_create' project.pk %}">
   {% csrf_token %}
