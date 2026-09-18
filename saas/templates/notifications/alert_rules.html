@@ -12,11 +12,15 @@
   <div class="table-wrap">
     <table>
       <thead>
-        <tr><th>ルール名</th><th>種別</th><th>閾値</th><th>レベル</th><th>有効</th><th></th></tr>
+        <tr>{% include "core/_bulk_delete_head.html" %}<th>ルール名</th><th>種別</th><th>閾値</th><th>レベル</th><th>有効</th><th></th></tr>
       </thead>
       <tbody>
         {% for rule in rules %}
         <tr>
+          <td class="bulk-cell">
+            <input type="checkbox" class="bulk-check" name="ids" value="{{ rule.pk }}"
+                   form="bulk-delete-form">
+          </td>
           <td>{{ rule.name }}</td>
           <td><span class="badge badge-gray">{{ rule.get_alert_type_display }}</span></td>
           <td>{{ rule.threshold_value|default:"—" }}</td>
@@ -28,10 +32,11 @@
           </td>
         </tr>
         {% empty %}
-        <tr><td colspan="6"><div class="empty"><p>アラートルールがありません</p></div></td></tr>
+        <tr><td colspan="7"><div class="empty"><p>アラートルールがありません</p></div></td></tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
+  {% include "core/_bulk_delete.html" with bulk_key="notifications.alert_rule" bulk_label="アラートルール" %}
 </div>
 {% endblock %}

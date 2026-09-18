@@ -114,3 +114,51 @@ function localizeGanttMonths(container) {
     el.textContent = m[1] ? MONTHS[m[2]] + '/' + parseInt(m[1], 10) : MONTHS[m[2]] + '月';
   });
 }
+
+// 一覧から選んだものをまとめて消す（ADR-0098）。
+// 行のチェックボックスは form 属性で下のバーの form につながっている。
+// ここでは「全部選ぶ」と、選んだ件数の表示・確認だけを受け持つ。
+(function () {
+  function bar() { return document.querySelector('.bulk-delete-bar'); }
+  function boxes() { return Array.prototype.slice.call(document.querySelectorAll('.bulk-check')); }
+
+  function refresh() {
+    var wrapper = bar();
+    if (!wrapper) return;
+    var checked = boxes().filter(function (box) { return box.checked; });
+    var count = wrapper.querySelector('.bulk-delete-count');
+    var button = wrapper.querySelector('.bulk-delete-button');
+    var label = button ? button.dataset.label : '';
+    wrapper.classList.toggle('has-selection', checked.length > 0);
+    if (button) button.disabled = checked.length === 0;
+    if (count) {
+      count.textContent = checked.length
+        ? checked.length + ' 件の' + label + 'を選んでいます'
+        : count.dataset.empty;
+    }
+  }
+
+  document.addEventListener('change', function (e) {
+    if (e.target.classList.contains('bulk-check-all')) {
+      // 「全部選ぶ」は、その表の中だけに効かせる（作業員一覧のように表が2つある画面がある）
+      var table = e.target.closest('table') || document;
+      Array.prototype.slice.call(table.querySelectorAll('.bulk-check')).forEach(
+        function (box) { box.checked = e.target.checked; }
+      );
+      refresh();
+      return;
+    }
+    if (e.target.classList.contains('bulk-check')) refresh();
+  });
+
+  document.addEventListener('submit', function (e) {
+    if (e.target.id !== 'bulk-delete-form') return;
+    var checked = boxes().filter(function (box) { return box.checked; });
+    var button = e.target.querySelector('.bulk-delete-button');
+    var label = button ? button.dataset.label : '';
+    var message = checked.length + ' 件の' + label + 'を削除します。\nこの操作は元に戻せません。よろしいですか？';
+    if (!window.confirm(message)) e.preventDefault();
+  });
+
+  document.addEventListener('DOMContentLoaded', refresh);
+})();
