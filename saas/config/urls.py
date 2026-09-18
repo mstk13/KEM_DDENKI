@@ -1,9 +1,9 @@
 from django.conf import settings
-from django.conf.urls.static import static
 from django.contrib import admin
 from django.http import JsonResponse
-from django.urls import include, path
+from django.urls import include, path, re_path
 
+from apps.core.media_views import serve_media
 from apps.core.views import audit_log, dashboard
 from apps.offline.views import service_worker
 
@@ -74,5 +74,12 @@ urlpatterns = [
     path("audit-log/", audit_log, name="audit_log"),
 ]
 
-if settings.DEBUG:
-    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+# アップロードしたファイル（資格証・健診報告書など）は、本番でも配信する。
+# 個人の書類なので、ログインを通った人にだけ返す（ADR-0093）。
+urlpatterns += [
+    re_path(
+        rf"^{settings.MEDIA_URL.lstrip('/')}(?P<path>.*)$",
+        serve_media,
+        name="media",
+    ),
+]
