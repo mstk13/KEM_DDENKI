@@ -31,6 +31,7 @@ from difflib import SequenceMatcher
 
 from django.core.files import File
 
+from apps.workers.certificate_dates import read_dates_from_pdf
 from apps.workers.listed_qualifications import (
     CATEGORIES,
     EDUCATION,
@@ -222,6 +223,9 @@ def attach_files(worker, files, *, company, WorkerQualification, dates=None):
         acquired, expiry = dates.get(
             (normalize_person_name(worker.name), uploaded.name), (None, None),
         )
+        if acquired is None and expiry is None:
+            # 文字が入っている PDF なら、証書から取得日・有効期限を読む（ADR-0095）
+            acquired, expiry = read_dates_from_pdf(uploaded)
         qualification.certificate_image.save(uploaded.name, uploaded, save=False)
         if acquired:
             qualification.acquired_date = acquired
@@ -390,6 +394,8 @@ def import_certificates(root, company, Worker, WorkerQualification, *,
             .first()
         )
         acquired, expiry = dates.get((person_key, path.name), (None, None))
+        if acquired is None and expiry is None:
+            acquired, expiry = read_dates_from_pdf(path)
 
         if qualification is None:
             report["created"].append((person, name))
