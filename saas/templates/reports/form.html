@@ -88,6 +88,16 @@
     <form method="post">
       {% csrf_token %}
       {% if back_url %}<input type="hidden" name="next" value="{{ back_url }}">{% endif %}
+      {# 欄に結びつかないエラー（1日の作業時間の合計、使用材料の行など）。
+         ここが無いと、画面が戻るだけで理由が出ず「エラー」としか分からない（ADR-0100） #}
+      {% if form.non_field_errors %}
+      <div class="duplicate-warning">
+        <p class="duplicate-warning-title">入力を確かめてください</p>
+        <ul style="margin:0;padding-left:18px;">
+          {% for error in form.non_field_errors %}<li>{{ error }}</li>{% endfor %}
+        </ul>
+      </div>
+      {% endif %}
       {% if duplicates %}
       {# 同じ日・同じ人の日報が既にある（ADR-0079）。どちらで登録するか選んでもらう #}
       <div class="duplicate-warning">
