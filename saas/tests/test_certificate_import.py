@@ -452,3 +452,89 @@ class TestSugimotoFiles:
         assert category_for("足場の組立て等作業主任者") == "skill_course"
         assert category_for("第二種酸素欠乏危険作業特別教育") == "education"
         assert category_for("外壁貫通シーリング研修") == "other"
+
+
+@pytest.mark.django_db
+class TestWorkerUpload:
+    """作業員の画面から、資格証をまとめて選んで登録する（ADR-0094）。"""
+
+    @pytest.fixture
+    def worker(self, company_a):
+        from apps.workers.models import Worker as W
+
+        worker = W.unscoped.create(company=company_a, name="杉本　和幸")
+        for name in ("電気工事士　2種", "運転免許証", "石綿作業主任者"):
+            WorkerQualification.unscoped.create(
+                company=company_a, worker=worker, name=name,
+            )
+        return worker
+
+    def _upload(self, client, worker, names):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        return client.post(
+            reverse("workers:worker_certificate_upload", args=[worker.pk]),
+            {"certificates": [
+                SimpleUploadedFile(name, PDF, content_type="application/pdf")
+                for name in names
+            ]},
+            follow=True,
+        )
+
+    def test_読み替え表の名前で振り分ける(self, client, user_a, worker):
+        client.force_login(user_a)
+
+        self._upload(client, worker, [
+            "第二種電気工事士免状.pdf", "石綿作業主任者技能講習修了証.pdf",
+        ])
+
+        second = WorkerQualification.unscoped.get(name="電気工事士　2種")
+        asbestos = WorkerQualification.unscoped.get(name="石綿作業主任者")
+        assert second.certificate_image
+        assert asbestos.certificate_image
+
+    def test_資格名そのままのファイル名でも振り分ける(self, client, user_a, worker):
+        client.force_login(user_a)
+
+        self._upload(client, worker, ["運転免許証.pdf"])
+
+        assert WorkerQualification.unscoped.get(name="運転免許証").certificate_image
+
+    def test_記号や全角半角が違っても振り分ける(self, client, user_a, worker):
+        client.force_login(user_a)
+
+        self._upload(client, worker, ["電気工事士 2種.pdf"])
+
+        assert WorkerQualification.unscoped.get(name="電気工事士　2種").certificate_image
+
+    def test_分からないファイルは登録しない(self, client, user_a, worker):
+        client.force_login(user_a)
+
+        res = self._upload(client, worker, ["よく分からない証.pdf"])
+
+        assert not WorkerQualification.unscoped.exclude(certificate_image="").exists()
+        assert "どの保有資格か分かりませんでした" in res.content.decode()
+
+    def test_何件登録したかを知らせる(self, client, user_a, worker):
+        client.force_login(user_a)
+
+        res = self._upload(client, worker, ["運転免許証.pdf", "第二種電気工事士免状.pdf"])
+
+        assert "2 件の資格証を登録しました" in res.content.decode()
+
+    def test_他社の作業員には登録できない(self, client, user_b, worker):
+        client.force_login(user_b)
+
+        res = self._upload(client, worker, ["運転免許証.pdf"])
+
+        assert res.status_code == 404
+        assert not WorkerQualification.unscoped.exclude(certificate_image="").exists()
+
+    def test_ファイルを選ばずに押しても落ちない(self, client, user_a, worker):
+        client.force_login(user_a)
+
+        res = client.post(
+            reverse("workers:worker_certificate_upload", args=[worker.pk]), follow=True,
+        )
+
+        assert "ファイルが選ばれていません" in res.content.decode()
