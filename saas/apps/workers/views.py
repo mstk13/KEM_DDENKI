@@ -174,12 +174,14 @@ def worker_certificate_upload(request, pk):
                 request,
                 f"{name}: " + ("／".join(dates) if dates else "日付は読み取れませんでした"),
             )
-    for file_name in report["unmatched"]:
-        messages.warning(
+    if report["created"]:
+        messages.info(
             request,
-            f"「{file_name}」は、どの保有資格か分かりませんでした。"
-            "資格を追加してから選び直すか、その資格の編集画面から登録してください。",
+            "登録が無かった資格を新しく作りました（"
+            + "、".join(report["created"]) + "）。",
         )
+    for before, after in report["renamed"]:
+        messages.info(request, f"資格名を「{before}」から「{after}」に直しました。")
     return redirect("workers:edit", pk=worker.pk)
 
 
