@@ -5,8 +5,12 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
+# tesseract-ocr は資格証の読み取り（ADR-0096）で使う。
+# 台紙ごとスキャンした PDF は文字を持たないため、画像から日付を読む。
+# 日本語データ（tesseract-ocr-jpn）まで入れないと、和暦も西暦も読めない。
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq-dev gcc \
+    tesseract-ocr tesseract-ocr-jpn \
     && rm -rf /var/lib/apt/lists/*
 
 COPY pyproject.toml ./

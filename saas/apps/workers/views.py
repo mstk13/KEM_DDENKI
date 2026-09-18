@@ -155,11 +155,25 @@ def worker_certificate_upload(request, pk):
         company=request.user.company, WorkerQualification=WorkerQualification,
     )
     if report["attached"]:
-        names = "、".join(name for name, _f, _how in report["attached"])
         messages.success(
-            request,
-            f"{len(report['attached'])} 件の資格証を登録しました（{names}）。",
+            request, f"{len(report['attached'])} 件の資格証を登録しました。",
         )
+        # 読み取った日付は人が確かめられるよう、資格ごとに出す（ADR-0096）
+        for name, _file_name, _how in report["attached"]:
+            qualification = WorkerQualification.objects.filter(
+                worker=worker, name=name,
+            ).first()
+            if qualification is None:
+                continue
+            dates = []
+            if qualification.acquired_date:
+                dates.append(f"取得日 {qualification.acquired_date:%Y/%m/%d}")
+            if qualification.expiry_date:
+                dates.append(f"有効期限 {qualification.expiry_date:%Y/%m/%d}")
+            messages.info(
+                request,
+                f"{name}: " + ("／".join(dates) if dates else "日付は読み取れませんでした"),
+            )
     for file_name in report["unmatched"]:
         messages.warning(
             request,
