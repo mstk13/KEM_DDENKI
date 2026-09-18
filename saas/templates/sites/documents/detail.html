@@ -16,6 +16,7 @@
       <table>
         <thead>
           <tr>
+            {% include "core/_bulk_delete_head.html" %}
             <th>ファイル</th>
             <th>メモ</th>
             <th style="width:140px;">登録</th>
@@ -25,6 +26,10 @@
         <tbody>
           {% for item in files %}
           <tr>
+            <td class="bulk-cell">
+              <input type="checkbox" class="bulk-check" name="ids" value="{{ item.pk }}"
+                     form="bulk-document-file">
+            </td>
             <td>
               <span class="badge {% if item.kind == 'pdf' %}badge-red{% else %}badge-green{% endif %}">{{ item.get_kind_display }}</span>
               <a href="{% url 'sites:document_file' item.pk %}"{% if item.kind == "pdf" %} target="_blank" rel="noopener"{% endif %}>{{ item.original_filename }}</a>
@@ -42,6 +47,7 @@
         </tbody>
       </table>
     </div>
+    {% include "core/_bulk_delete.html" with bulk_key="sites.document_file" bulk_label="書類のファイル" bulk_form="bulk-document-file" %}
     {% else %}
     <p>まだファイルがありません。</p>
     {% endif %}

@@ -200,6 +200,7 @@
     <table class="table">
       <thead>
         <tr>
+          {% include "core/_bulk_delete_head.html" %}
           <th>工程名</th>
           <th>開始日</th>
           <th>終了日</th>
@@ -211,6 +212,10 @@
       <tbody>
         {% for p in phases %}
           <tr>
+            <td class="bulk-cell">
+              <input type="checkbox" class="bulk-check" name="ids" value="{{ p.pk }}"
+                     form="bulk-est-phase">
+            </td>
             <td>
               <span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:{{ p.color }};"></span>
               {{ p.name }}
@@ -240,6 +245,7 @@
       </tbody>
     </table>
   </div>
+  {% include "core/_bulk_delete.html" with bulk_key="estimation.phase" bulk_label="工程" bulk_form="bulk-est-phase" %}
 </div>
 
 {# --- 結果（ADR-0076） --- #}
@@ -278,11 +284,15 @@
   <div class="table-wrap">
     <table class="table">
       <thead>
-        <tr><th>資料名</th><th>種別</th><th>提供元</th><th>登録者</th><th>読み取り</th><th>メモ</th><th></th></tr>
+        <tr>{% include "core/_bulk_delete_head.html" %}<th>資料名</th><th>種別</th><th>提供元</th><th>登録者</th><th>読み取り</th><th>メモ</th><th></th></tr>
       </thead>
       <tbody>
         {% for doc in documents %}
           <tr>
+            <td class="bulk-cell">
+              <input type="checkbox" class="bulk-check" name="ids" value="{{ doc.pk }}"
+                     form="bulk-est-document">
+            </td>
             <td>
               <a href="{% url 'estimation:document_file' doc.pk %}" target="_blank" rel="noopener">{{ doc.name }}</a>
               <br><span style="color:var(--text-muted);font-size:.78rem;">{{ doc.original_filename }}</span>
@@ -349,6 +359,7 @@
       </tbody>
     </table>
   </div>
+  {% include "core/_bulk_delete.html" with bulk_key="estimation.document" bulk_label="案件資料" bulk_form="bulk-est-document" %}
   <div class="card-body">
     <form method="post" action="{% url 'estimation:document_add' project.pk %}" enctype="multipart/form-data">
       {% csrf_token %}

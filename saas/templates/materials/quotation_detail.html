@@ -52,6 +52,7 @@
     <table>
       <thead>
         <tr>
+          {% include "core/_bulk_delete_head.html" %}
           <th>材料</th>
           <th style="text-align:right;">数量</th>
           <th style="text-align:right;">単価</th>
@@ -62,6 +63,10 @@
       <tbody>
         {% for item in items %}
         <tr>
+          <td class="bulk-cell">
+            <input type="checkbox" class="bulk-check" name="ids" value="{{ item.pk }}"
+                   form="bulk-quotation-item">
+          </td>
           <td>{% if item.material %}{{ item.material }}{% else %}{{ item.material_name }}{% endif %}</td>
           <td style="text-align:right;">{{ item.quantity }}</td>
           <td style="text-align:right;">¥{{ item.unit_price|floatformat:0 }}</td>
@@ -82,7 +87,7 @@
       {% if items %}
       <tfoot>
         <tr>
-          <td colspan="3" style="text-align:right;font-weight:600;">合計</td>
+          <td colspan="4" style="text-align:right;font-weight:600;">合計</td>
           <td style="text-align:right;font-weight:600;">¥{{ quotation.total_amount|floatformat:0 }}</td>
           <td></td>
         </tr>
@@ -90,5 +95,6 @@
       {% endif %}
     </table>
   </div>
+  {% include "core/_bulk_delete.html" with bulk_key="materials.quotation_item" bulk_label="見積明細" bulk_form="bulk-quotation-item" %}
 </div>
 {% endblock %}

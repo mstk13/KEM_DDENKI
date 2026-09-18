@@ -10,10 +10,14 @@
   3. 表の近くでこの部品を読み込む:
      {% include "core/_bulk_delete.html" with bulk_key="reports.daily" bulk_label="日報" %}
 
+  1つの画面に表が複数あるときは bulk_form で form の id を分ける:
+     行:   form="bulk-license"
+     部品: {% include "core/_bulk_delete.html" with bulk_key="bids.license" bulk_label="建設業許可" bulk_form="bulk-license" %}
+
 form 属性で外の form につなぐので、表そのものを form で囲まなくてよい
 （囲むと、行の中にある個別の削除ボタンの form と入れ子になって壊れる）。
 {% endcomment %}
-<form method="post" action="{% url 'bulk_delete' %}" id="bulk-delete-form" class="bulk-delete-bar">
+<form method="post" action="{% url 'bulk_delete' %}" id="{{ bulk_form|default:'bulk-delete-form' }}" class="bulk-delete-bar">
   {% csrf_token %}
   <input type="hidden" name="key" value="{{ bulk_key }}">
   <input type="hidden" name="next" value="{{ request.get_full_path }}">

@@ -1215,3 +1215,4 @@ textarea.inline-edit-input { width: 100%; min-width: 260px; }
 .bulk-delete-count { font-size: .84rem; color: var(--text-muted, #6b7280); }
 .bulk-delete-bar.has-selection .bulk-delete-count { color: var(--danger, #dc2626); font-weight: 700; }
 .bulk-delete-bar.has-selection .bulk-delete-button { color: var(--danger, #dc2626); border-color: var(--danger, #dc2626); }
+.photo-tile-select { font-size: .78rem; color: var(--text-muted, #6b7280); display: inline-flex; align-items: center; gap: 4px; }

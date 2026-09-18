@@ -75,4 +75,50 @@ DELETABLE = {
     "notifications.alert_rule": Deletable(
         "notifications.AlertRule", "アラートルール", "alert_rule_list",
     ),
+    # 現場まわり
+    "sites.document": Deletable("sites.SiteDocument", "提出書類", "sites:list"),
+    "sites.document_file": Deletable(
+        "sites.SiteDocumentFile", "書類のファイル", "sites:list",
+    ),
+    "sites.photo": Deletable("sites.SitePhoto", "現場写真", "sites:list"),
+    "sites.process": Deletable("sites.Process", "工程", "sites:list"),
+    # 工期管理
+    "schedules.phase": Deletable("schedules.Phase", "工程", "schedules:list"),
+    "schedules.milestone": Deletable(
+        "schedules.Milestone", "マイルストーン", "schedules:list",
+    ),
+    "schedules.assignment": Deletable("schedules.Assignment", "配置", "schedules:list"),
+    # 材料・発注
+    "materials.po_item": Deletable(
+        "materials.PurchaseOrderItem", "発注明細", "materials:po_list",
+    ),
+    "materials.quotation_item": Deletable(
+        "materials.QuotationItem", "見積明細", "materials:quotation_list",
+    ),
+    # 積算
+    "estimation.document": Deletable(
+        "estimation.EstimationDocument", "案件資料", "estimation:project_list",
+    ),
+    "estimation.competitor": Deletable(
+        "estimation.EstimationCompetitor", "競合", "estimation:project_list",
+    ),
+    "estimation.phase": Deletable(
+        "estimation.EstimationPhase", "工程", "estimation:project_list",
+    ),
+    # 安全書類・開発管理・人事評価・営業・自社書類・健診
+    "safety.ky_participant": Deletable(
+        "safety.KyParticipant", "参加者", "sites:list",
+    ),
+    "devkanri.project": Deletable(
+        "devkanri.DevProject", "開発プロジェクト", "devkanri:project_list",
+    ),
+    "devkanri.task": Deletable("devkanri.DevTask", "タスク", "devkanri:project_list"),
+    "evaluation.assignment": Deletable(
+        "evaluation.EvaluatorTarget", "評価の割当", "evaluation:assignment_list",
+    ),
+    "sales.visit": Deletable("sales.SalesVisit", "訪問記録", "sales:visit_list"),
+    "tenants.company_document": Deletable(
+        "tenants.CompanyDocument", "自社書類", "tenants:company_document_list",
+    ),
+    "workers.health": Deletable("workers.HealthCheckup", "健診の記録", "workers:list"),
 }

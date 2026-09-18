@@ -58,11 +58,15 @@
     <div class="table-wrap">
       <table>
         <thead>
-          <tr><th>工程名</th><th>開始日</th><th>終了日</th><th>進捗</th><th>色</th><th></th></tr>
+          <tr>{% include "core/_bulk_delete_head.html" %}<th>工程名</th><th>開始日</th><th>終了日</th><th>進捗</th><th>色</th><th></th></tr>
         </thead>
         <tbody>
           {% for p in phases %}
           <tr>
+            <td class="bulk-cell">
+              <input type="checkbox" class="bulk-check" name="ids" value="{{ p.pk }}"
+                     form="bulk-phase">
+            </td>
             <td>{{ p.name }}</td>
             <td>{{ p.start_date|default:"-" }}</td>
             <td>{{ p.end_date|default:"-" }}</td>
@@ -89,6 +93,7 @@
         </tbody>
       </table>
     </div>
+    {% include "core/_bulk_delete.html" with bulk_key="schedules.phase" bulk_label="工程" bulk_form="bulk-phase" %}
   </div>
 </div>
 
@@ -102,11 +107,15 @@
     <div class="table-wrap">
       <table>
         <thead>
-          <tr><th>名称</th><th>目標日</th><th>完了</th><th>メモ</th><th></th></tr>
+          <tr>{% include "core/_bulk_delete_head.html" %}<th>名称</th><th>目標日</th><th>完了</th><th>メモ</th><th></th></tr>
         </thead>
         <tbody>
           {% for m in milestones %}
           <tr>
+            <td class="bulk-cell">
+              <input type="checkbox" class="bulk-check" name="ids" value="{{ m.pk }}"
+                     form="bulk-milestone">
+            </td>
             <td>{{ m.name }}</td>
             <td>{{ m.target_date|default:"-" }}</td>
             <td>{% if m.completed %}<span class="badge badge-green">完了</span>{% else %}<span class="badge badge-gray">未完了</span>{% endif %}</td>
@@ -125,6 +134,7 @@
         </tbody>
       </table>
     </div>
+    {% include "core/_bulk_delete.html" with bulk_key="schedules.milestone" bulk_label="マイルストーン" bulk_form="bulk-milestone" %}
   </div>
 </div>
 
@@ -138,11 +148,15 @@
     <div class="table-wrap">
       <table>
         <thead>
-          <tr><th>作業員</th><th>開始日</th><th>終了日</th><th>メモ</th><th></th></tr>
+          <tr>{% include "core/_bulk_delete_head.html" %}<th>作業員</th><th>開始日</th><th>終了日</th><th>メモ</th><th></th></tr>
         </thead>
         <tbody>
           {% for a in assignments %}
           <tr>
+            <td class="bulk-cell">
+              <input type="checkbox" class="bulk-check" name="ids" value="{{ a.pk }}"
+                     form="bulk-assignment">
+            </td>
             <td>{{ a.worker }}</td>
             <td>{{ a.start_date }}</td>
             <td>{{ a.end_date|default:"無期限" }}</td>
@@ -160,6 +174,7 @@
         </tbody>
       </table>
     </div>
+    {% include "core/_bulk_delete.html" with bulk_key="schedules.assignment" bulk_label="配置" bulk_form="bulk-assignment" %}
   </div>
 </div>
 

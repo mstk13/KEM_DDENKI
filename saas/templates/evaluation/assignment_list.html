@@ -35,11 +35,15 @@
     <div class="table-wrap">
       <table>
         <thead>
-          <tr><th>評価者</th><th>被評価者</th><th></th></tr>
+          <tr>{% include "core/_bulk_delete_head.html" %}<th>評価者</th><th>被評価者</th><th></th></tr>
         </thead>
         <tbody>
           {% for a in assignments %}
           <tr>
+            <td class="bulk-cell">
+              <input type="checkbox" class="bulk-check" name="ids" value="{{ a.pk }}"
+                     form="bulk-evalassign">
+            </td>
             <td>{{ a.evaluator_name }}</td>
             <td>{{ a.target_name }}</td>
             <td>
@@ -55,6 +59,7 @@
         </tbody>
       </table>
     </div>
+    {% include "core/_bulk_delete.html" with bulk_key="evaluation.assignment" bulk_label="評価の割当" bulk_form="bulk-evalassign" %}
   </div>
 </div>
 {% endblock %}

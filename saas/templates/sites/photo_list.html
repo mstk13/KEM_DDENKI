@@ -48,6 +48,7 @@
       {{ page.paginator.count }} 枚{% if page.paginator.num_pages > 1 %}（{{ page.number }} / {{ page.paginator.num_pages }} ページ）{% endif %}
     </p>
     {% include "sites/_photo_tiles.html" with photo_days=photo_days show_actions=True %}
+    {% include "core/_bulk_delete.html" with bulk_key="sites.photo" bulk_label="現場写真" bulk_form="bulk-photo" %}
     {% if page.paginator.num_pages > 1 %}
     <div class="photo-pager">
       {% if page.has_previous %}

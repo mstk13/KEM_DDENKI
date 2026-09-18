@@ -84,10 +84,14 @@
   <div class="card-header"><h2>発注明細</h2></div>
   <div class="table-wrap">
     <table>
-      <thead><tr><th>摘要</th><th>工種</th><th style="text-align:right;">数量</th><th>単位</th><th style="text-align:right;">単価</th><th style="text-align:right;">税率</th><th style="text-align:right;">金額</th><th></th></tr></thead>
+      <thead><tr>{% include "core/_bulk_delete_head.html" %}<th>摘要</th><th>工種</th><th style="text-align:right;">数量</th><th>単位</th><th style="text-align:right;">単価</th><th style="text-align:right;">税率</th><th style="text-align:right;">金額</th><th></th></tr></thead>
       <tbody>
         {% for item in items %}
         <tr>
+          <td class="bulk-cell">
+            <input type="checkbox" class="bulk-check" name="ids" value="{{ item.pk }}"
+                   form="bulk-po-item">
+          </td>
           <td>{{ item.display_name }}</td>
           <td>{{ item.work_type|default:"—" }}</td>
           <td style="text-align:right;">{{ item.quantity }}</td>
@@ -111,6 +115,7 @@
       </tbody>
     </table>
   </div>
+  {% include "core/_bulk_delete.html" with bulk_key="materials.po_item" bulk_label="発注明細" bulk_form="bulk-po-item" %}
 </div>
 
 {# 明細追加フォーム (下書き時のみ) #}

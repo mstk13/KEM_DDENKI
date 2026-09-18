@@ -38,11 +38,15 @@ tr.qual-red:hover { background: #ffebeb; }
   <div class="table-wrap">
     <table>
       <thead>
-        <tr><th>建設業の種類</th><th>区分</th><th>許可番号</th><th>有効期間</th><th>更新書類の提出期限</th><th></th></tr>
+        <tr>{% include "core/_bulk_delete_head.html" %}<th>建設業の種類</th><th>区分</th><th>許可番号</th><th>有効期間</th><th>更新書類の提出期限</th><th></th></tr>
       </thead>
       <tbody>
         {% for lic in licenses %}
         <tr class="{% if lic.renewed %}qual-green{% else %}{{ lic.alert_class }}{% endif %}">
+          <td class="bulk-cell">
+            <input type="checkbox" class="bulk-check" name="ids" value="{{ lic.pk }}"
+                   form="bulk-license">
+          </td>
           <td>{% inline_edit lic "trade" %}</td>
           <td><span class="badge {% if lic.license_class == 'special' %}badge-blue{% else %}badge-gray{% endif %}">{{ lic.get_license_class_display }}</span></td>
           <td style="white-space:nowrap;">{% inline_edit lic "authority" %} {% inline_edit lic "license_number" %}</td>
@@ -61,11 +65,12 @@ tr.qual-red:hover { background: #ffebeb; }
           </td>
         </tr>
         {% empty %}
-        <tr><td colspan="6"><div class="empty"><p>建設業許可が登録されていません</p></div></td></tr>
+        <tr><td colspan="7"><div class="empty"><p>建設業許可が登録されていません</p></div></td></tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
+  {% include "core/_bulk_delete.html" with bulk_key="bids.license" bulk_label="建設業許可" bulk_form="bulk-license" %}
 </div>
 
 {# ---- 発注機関ごとの入札参加資格 ---- #}
@@ -81,11 +86,15 @@ tr.qual-red:hover { background: #ffebeb; }
   <div class="table-wrap">
     <table>
       <thead>
-        <tr><th>発注機関</th><th>業種区分</th><th>等級</th><th>経審点</th><th>有効期限</th><th></th></tr>
+        <tr>{% include "core/_bulk_delete_head.html" %}<th>発注機関</th><th>業種区分</th><th>等級</th><th>経審点</th><th>有効期限</th><th></th></tr>
       </thead>
       <tbody>
         {% for q in qualifications %}
         <tr class="{% if q.renewed %}qual-green{% elif q.valid_until and q.valid_until <= alert_2week %}qual-red{% elif q.valid_until and q.valid_until <= alert_1month %}qual-yellow{% elif q.valid_until and q.valid_until <= alert_2month %}qual-orange{% endif %}">
+          <td class="bulk-cell">
+            <input type="checkbox" class="bulk-check" name="ids" value="{{ q.pk }}"
+                   form="bulk-qualification">
+          </td>
           <td class="issuer-cell">{% inline_edit q "issuer" %}</td>
           <td>{% inline_edit q "category" %}</td>
           <td>{% inline_edit q "grade" %}</td>
@@ -100,11 +109,12 @@ tr.qual-red:hover { background: #ffebeb; }
           </td>
         </tr>
         {% empty %}
-        <tr><td colspan="6"><div class="empty"><p>入札参加資格が登録されていません</p></div></td></tr>
+        <tr><td colspan="7"><div class="empty"><p>入札参加資格が登録されていません</p></div></td></tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
+  {% include "core/_bulk_delete.html" with bulk_key="bids.qualification" bulk_label="入札参加資格" bulk_form="bulk-qualification" %}
 </div>
 {# ---- 全省庁統一資格 省庁別許可内容一覧 ---- #}
 <div class="page-header" style="margin-top:32px;">
@@ -139,6 +149,10 @@ tr.qual-red:hover { background: #ffebeb; }
       <tbody>
         {% for u in unified_qualifications %}
         <tr>
+          <td class="bulk-cell">
+            <input type="checkbox" class="bulk-check" name="ids" value="{{ u.pk }}"
+                   form="bulk-unified">
+          </td>
           <td style="white-space:nowrap;">{% inline_edit u "agency" %}</td>
           <td style="text-align:center;">{% inline_edit u "goods_sales_grade" %}</td>
           <td style="text-align:center;">{% inline_edit u "goods_sales_score" %}</td>
@@ -162,6 +176,7 @@ tr.qual-red:hover { background: #ffebeb; }
       </tbody>
     </table>
   </div>
+  {% include "core/_bulk_delete.html" with bulk_key="bids.unified_qualification" bulk_label="全省庁統一資格" bulk_form="bulk-unified" %}
 </div>
 <script>
 document.querySelectorAll('.issuer-cell').forEach(function(td) {
