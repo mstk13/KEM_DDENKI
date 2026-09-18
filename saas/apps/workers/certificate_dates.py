@@ -1,14 +1,15 @@
-"""資格証の PDF から、取得日と有効期限を読み取る（ADR-0095）。
+"""資格証から、取得日と有効期限を読み取る（ADR-0095・ADR-0096）。
 
-資格証には「交付年月日」「修了年月日」「有効期限」が書かれている。
-PDF に文字が入っていれば、そこから日付を拾って保有資格に入れる。
+資格証には「交付年月日」「修了年月日」「有効期限」が書かれている。読み方は2段。
 
-読み取れるのは**文字が入っている PDF** だけである。台紙ごとスキャンした
-画像の PDF（今ある資格書一覧のほとんど）は文字を持たないので読み取れない。
-その場合は日付を空のままにし、これまでどおり CSV（有効期限.csv）で渡すか、
-画面から手で入れる。
+1. PDF に入っている文字を読む（文字で作られた証明書）
+2. 文字が無ければ画像にして OCR で読む（台紙ごとスキャンした証明書。ADR-0096）
 
-生年月日を取得日と取り違えないよう、日付は**見出しの直後にあるもの**だけを拾う。
+間違った日付を入れないことを優先する。
+
+- 生年月日は取得日にしない（資格証は生年月日と交付日が近くに並ぶ）
+- OCR は読み方を変えて3通り試し、**多数決**で決める。割れたら「読めなかった」とする
+- どちらでも読めなければ空のままにし、CSV（有効期限.csv）か画面から人が入れる
 """
 
 from __future__ import annotations
@@ -18,6 +19,7 @@ import datetime
 import logging
 import re
 import unicodedata
+from collections import Counter
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +28,8 @@ ACQUIRED_LABELS = (
     "交付年月日", "交付日", "交付", "修了年月日", "修了日",
     "認定年月日", "取得年月日", "取得日", "合格年月日",
 )
-EXPIRY_LABELS = ("有効期限", "有効期間", "まで有効")
+# 「期限」だけでも拾う。OCR は「有効期限」を「交効期限」のように崩すことがある
+EXPIRY_LABELS = ("有効期限", "有効期間", "まで有効", "期限")
 
 # 取り違えると困る見出し。この後ろの日付は取得日にしない
 _IGNORE_LABELS = ("生年月日", "生 年 月 日")
@@ -34,20 +37,32 @@ _IGNORE_LABELS = ("生年月日", "生 年 月 日")
 # 元号と、その元年に当たる西暦
 _ERAS = {"令和": 2018, "平成": 1988, "昭和": 1925}
 
-# 「令和8年7月30日」「平成23年7月25日」
+# 「令和8年7月30日」「平成23年7月25日」。
+# OCR は「日」を落とすことがあるので、月の直後の数字は日として読む
 _WAREKI = re.compile(
-    r"(令和|平成|昭和)\s*(\d{1,2})\s*年\s*(\d{1,2})\s*月(?:\s*(\d{1,2})\s*日)?",
+    r"(令和|平成|昭和)\s*(\d{1,2})\s*年\s*(\d{1,2})\s*月\s{0,2}(?:(\d{1,2})\s*日?)?",
 )
 # 「2029年3月31日」「2029年7月」。運転免許証の「2030年(令和12年)04月09日」のように、
 # 年と月の間に元号の言い換えが挟まる書き方も読む
 _SEIREKI_KANJI = re.compile(
-    r"(\d{4})\s*年\s*(?:[(（][^)）]{0,12}[)）]\s*)?(\d{1,2})\s*月(?:\s*(\d{1,2})\s*日)?",
+    r"(\d{4})\s*年\s*(?:[(（][^)）]{0,12}[)）]\s*)?(\d{1,2})\s*月\s{0,2}"
+    r"(?:(\d{1,2})\s*日?)?",
 )
 # 「2031.03.31」「2031/03/31」「2031-03-31」
 _SEIREKI_MARK = re.compile(r"(\d{4})[./-](\d{1,2})(?:[./-](\d{1,2}))?")
 
 # 見出しから何文字先までを見るか。カードは項目が近くに並んでいる
 _WINDOW = 30
+
+# 何ページ目まで見るか。資格証は表・裏の2枚で足りる
+_MAX_PAGES = 2
+# OCR の読み方。カードの作りによって当たり外れがあるので何通りか試す。
+# (画像の細かさ, 拡大率, tesseract のページ解析モード)
+_OCR_VARIANTS = (
+    (400, 1.5, "--psm 6"),
+    (400, 1.5, "--psm 4"),
+    (300, 1.0, ""),
+)
 
 # 生年月日の見出しと、その直後の日付
 _BIRTHDAY = re.compile(
@@ -179,26 +194,132 @@ def parse_dates_from_text(text: str):
 
 
 def read_dates_from_pdf(source):
-    """PDF から (取得日, 有効期限) を読み取る。文字が無ければ (None, None)。
+    """資格証から (取得日, 有効期限) を読み取る。
+
+    まず PDF に入っている文字を読む。台紙ごとスキャンした資格証は文字を持たないので、
+    画像にして OCR で読む（ADR-0096）。どちらでも読めなければ (None, None)。
 
     Args:
         source: パス、またはファイルのように読めるもの
     """
+    acquired, expiry = parse_dates_from_text(_pdf_text(source))
+    if acquired or expiry:
+        return acquired, expiry
+    return _ocr_dates(source)
+
+
+def _ocr_dates(source):
+    """OCR で読む。読み方を変えて何度か試し、**食い違ったら採らない**。
+
+    OCR は数字を1文字読み違えることがある（2028 を 2026 と読むなど）。
+    間違った期限が入ると、期限切れの警告が狂って気づけなくなる。
+    そこで、読めた値がすべて同じときだけ採用する。
+    """
+    results = [parse_dates_from_text(text) for text in ocr_texts(source)]
+    return _agree([r[0] for r in results]), _agree([r[1] for r in results])
+
+
+def _agree(values):
+    """読めた値のうち、いちばん多かったものを返す。
+
+    同数で割れたときは None（読めなかった扱い）。OCR は1文字読み違えることがあるので、
+    1つの読み方だけを信じない。
+    """
+    found = [value for value in values if value is not None]
+    if not found:
+        return None
+    counts = Counter(found).most_common()
+    if len(counts) > 1 and counts[0][1] == counts[1][1]:
+        return None
+    return counts[0][0]
+
+
+def _pdf_text(source) -> str:
+    """PDF に入っている文字。画像だけの PDF では空になる。"""
+    if not _is_pdf(source):
+        return ""
     try:
         import pdfplumber
     except ImportError:  # pragma: no cover - 依存が入っていない環境向け
-        return None, None
+        return ""
 
     try:
         if hasattr(source, "seek"):
             source.seek(0)
         with pdfplumber.open(source) as pdf:
-            text = "\n".join(page.extract_text() or "" for page in pdf.pages[:3])
+            return "\n".join(
+                page.extract_text() or "" for page in pdf.pages[:_MAX_PAGES]
+            )
     except Exception:
         logger.info("資格証の PDF を読めませんでした", exc_info=True)
-        return None, None
+        return ""
     finally:
         if hasattr(source, "seek"):
             source.seek(0)
 
-    return parse_dates_from_text(text)
+
+def _is_pdf(source) -> bool:
+    name = getattr(source, "name", None) or str(source)
+    return str(name).lower().endswith(".pdf")
+
+
+def ocr_texts(source):
+    """画像の資格証を文字にする。読み方を変えた分だけ返す（ADR-0096）。
+
+    tesseract が入っていない環境では空の並びを返す。OCR が無くても取り込みは動く。
+    """
+    from django.conf import settings
+
+    if not getattr(settings, "CERTIFICATE_OCR_ENABLED", True):
+        return []
+
+    try:
+        import pytesseract
+        from PIL import Image, ImageOps
+    except ImportError:  # pragma: no cover - 依存が入っていない環境向け
+        return []
+
+    command = getattr(settings, "TESSERACT_CMD", "")
+    if command:
+        pytesseract.pytesseract.tesseract_cmd = command
+    language = getattr(settings, "TESSERACT_LANG", "jpn")
+
+    found = []
+    for resolution, scale, config in _OCR_VARIANTS:
+        try:
+            if hasattr(source, "seek"):
+                source.seek(0)
+            images = (
+                _pdf_images(source, resolution) if _is_pdf(source)
+                else [Image.open(source)]
+            )
+
+            text = []
+            for image in images:
+                prepared = ImageOps.autocontrast(ImageOps.grayscale(image))
+                if scale != 1.0:
+                    prepared = prepared.resize(
+                        (int(prepared.width * scale), int(prepared.height * scale)),
+                        Image.LANCZOS,
+                    )
+                text.append(
+                    pytesseract.image_to_string(prepared, lang=language, config=config),
+                )
+            found.append("\n".join(text))
+        except Exception:
+            logger.info("資格証を OCR で読めませんでした", exc_info=True)
+        finally:
+            if hasattr(source, "seek"):
+                source.seek(0)
+    return found
+
+
+def _pdf_images(source, resolution):
+    """PDF のページを画像にする。カードの文字は小さいので細かめに描く。"""
+    import pdfplumber
+
+    with pdfplumber.open(source) as pdf:
+        return [
+            page.to_image(resolution=resolution).original
+            for page in pdf.pages[:_MAX_PAGES]
+        ]

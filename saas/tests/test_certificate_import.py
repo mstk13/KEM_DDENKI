@@ -655,3 +655,62 @@ class TestUploadWithDates:
         )
 
         assert WorkerQualification.unscoped.get().expiry_date == datetime.date(2030, 3, 31)
+
+
+class TestOcr:
+    """画像の資格証は OCR で読む（ADR-0096）。
+
+    tesseract が入っていない環境（CI など）でも落ちないことを確かめる。
+    """
+
+    def test_読み方が割れたら採らない(self):
+        from apps.workers.certificate_dates import _agree
+
+        assert _agree([datetime.date(2028, 7, 31), datetime.date(2026, 7, 31)]) is None
+
+    def test_多いほうを採る(self):
+        from apps.workers.certificate_dates import _agree
+
+        values = [
+            datetime.date(2028, 7, 31),
+            datetime.date(2028, 7, 31),
+            datetime.date(2026, 7, 31),
+        ]
+
+        assert _agree(values) == datetime.date(2028, 7, 31)
+
+    def test_ひとつも読めなければNone(self):
+        from apps.workers.certificate_dates import _agree
+
+        assert _agree([None, None]) is None
+
+    def test_OCRの文字から日付を読む(self, monkeypatch):
+        from apps.workers import certificate_dates
+
+        monkeypatch.setattr(
+            certificate_dates, "ocr_texts",
+            lambda source: [
+                "有効期限 2029年 3月31日 交付年月日 2018年11月 9",
+                "有効期限 2029年3月31日 交付年月日 2018年11月9日",
+                "",
+            ],
+        )
+
+        acquired, expiry = certificate_dates.read_dates_from_pdf(io.BytesIO(PDF))
+
+        assert acquired == datetime.date(2018, 11, 9)
+        assert expiry == datetime.date(2029, 3, 31)
+
+    def test_OCRを止めていても落ちない(self, settings):
+        from apps.workers.certificate_dates import ocr_texts
+
+        settings.CERTIFICATE_OCR_ENABLED = False
+
+        assert ocr_texts(io.BytesIO(PDF)) == []
+
+    def test_tesseractが無くても落ちない(self, settings):
+        from apps.workers.certificate_dates import read_dates_from_pdf
+
+        settings.TESSERACT_CMD = "存在しないコマンド"
+
+        assert read_dates_from_pdf(io.BytesIO(PDF)) == (None, None)
