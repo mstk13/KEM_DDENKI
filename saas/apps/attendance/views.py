@@ -5,6 +5,7 @@ from itertools import zip_longest
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.core.exceptions import PermissionDenied
 from django.db import transaction
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -37,6 +38,7 @@ from apps.attendance.plans import (
     work_note_suggestions,
 )
 from apps.core.json_utils import json_for_script
+from apps.permissions.services import can_edit_attendance_of
 from apps.workers.models import Worker
 
 
@@ -154,6 +156,15 @@ def _worker_and_date(request):
         error = JsonResponse({"ok": False, "error": "作業員が指定されていません"}, status=400)
         return None, None, error
     worker = get_object_or_404(Worker, pk=int(worker_id))
+
+    # 他人の予定を直せるのは社長・IT・事務員だけ（ADR-0102）。
+    # 以前はログインしていれば誰でも他人の勤怠を書き換えられた。
+    if not can_edit_attendance_of(request.user, worker):
+        error = JsonResponse(
+            {"ok": False, "error": "他人の予定を直せるのは社長・IT・事務員のみです"},
+            status=403,
+        )
+        return None, None, error
 
     try:
         plan_date = datetime.date.fromisoformat(request.POST.get("date", ""))
@@ -387,6 +398,10 @@ def plan_clear_day(request):
     month_str = f"{year}-{month:02d}"
     back = f"{reverse('attendance:plan_board')}?month={month_str}"
 
+    # 全員ぶんを消すので、必ず他人を含む（ADR-0102）。
+    if not can_edit_attendance_of(request.user, None):
+        raise PermissionDenied("全員の予定を消せるのは社長・IT・事務員のみです。")
+
     try:
         plan_date = datetime.date.fromisoformat(request.POST.get("date", ""))
     except ValueError:
@@ -433,6 +448,12 @@ def plan_fill(request):
     else:
         workers = list(Worker.objects.filter(is_active=True))
         who = "全員"
+
+    # 自分ひとりを埋めるだけなら本人でもよい。他人を含むなら社長・IT・事務員だけ
+    # （worker が空＝全員のときも含む。ADR-0102）。
+    fill_target_worker = workers[0] if worker_id else None
+    if not can_edit_attendance_of(request.user, fill_target_worker):
+        raise PermissionDenied("他人の予定をまとめて埋められるのは社長・IT・事務員のみです。")
 
     target = request.POST.get("target", "weekday").strip()
     days = fill_days(year, month, target)

@@ -4,7 +4,7 @@ from django.core.exceptions import PermissionDenied
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 
-from apps.permissions.services import can_approve_report, can_delete_report
+from apps.permissions.services import can_approve_report, can_delete_report, can_edit_report
 from apps.reports.duplicates import (
     day_breakdown,
     find_duplicate_reports,
@@ -454,6 +454,10 @@ def _back_url(request):
 @login_required
 def report_edit(request, pk):
     report = get_object_or_404(DailyReport, pk=pk)
+    # 他人の日報を直せるのは社長・IT・事務員だけ（ADR-0102）。
+    # 以前は pk さえ分かれば誰でも他人の日報を直せた。
+    if not can_edit_report(request.user, report):
+        raise PermissionDenied("他人の日報を直せるのは社長・IT・事務員のみです。")
     back_url = _back_url(request)
     if request.method == "POST":
         form = DailyReportForm(
@@ -522,14 +526,17 @@ def report_edit(request, pk):
 def report_delete(request, pk):
     """日報を削除する。GET は確認画面、POST で削除する。
 
-    ログインしていれば誰でも削除できる。
-    承認済の日報は労務費を計上済みのため削除できない。
+    自分の日報は消せる。他人の日報は社長・IT・事務員だけ（ADR-0102）。
+    承認済の日報は労務費を計上済みのため、誰であっても削除できない。
     """
     report = get_object_or_404(
         DailyReport.objects.select_related("worker", "site", "work_type"), pk=pk,
     )
     if not can_delete_report(request.user, report):
-        raise PermissionDenied("承認済の日報は削除できません。")
+        # 断られる理由は2つある。どちらで止まったのかが分かる文面にする。
+        if report.status == DailyReport.Status.APPROVED:
+            raise PermissionDenied("承認済の日報は削除できません。")
+        raise PermissionDenied("他人の日報を消せるのは社長・IT・事務員のみです。")
 
     if request.method == "POST":
         label = f"{report.report_date} {report.worker} の日報"

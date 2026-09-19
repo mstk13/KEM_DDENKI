@@ -44,3 +44,33 @@ def module_permission_required(module: str, level: str = "read"):
         return _wrapped
 
     return decorator
+
+
+def settings_admin_required(view_func):
+    """権限管理の画面を開ける人だけ通す（ADR-0102）。
+
+    settings の admin 権限に加えて、**社長と IT** を明示的に通す。
+    ロールだけで見ていたため IT が開けなかった（developer ロールは本番で0件。
+    ADR-0039 に同じ問題が日報承認で起きたことが書いてある）。
+    アクセス権限を IT が管理できるようにする、というのが今回の指示。
+    """
+
+    @wraps(view_func)
+    def _wrapped(request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            from django.shortcuts import redirect
+
+            return redirect("login")
+
+        from apps.permissions.services import is_it_staff, is_president
+
+        if (
+            is_president(request.user)
+            or is_it_staff(request.user)
+            or has_module_permission(request.user, "settings", "admin")
+        ):
+            return view_func(request, *args, **kwargs)
+
+        raise PermissionDenied("権限管理の画面は社長と IT のみが開けます。")
+
+    return _wrapped
