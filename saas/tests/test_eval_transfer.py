@@ -283,3 +283,50 @@ class TestTemplateTransfer:
         client.force_login(user_a)
 
         assert client.get(reverse("workers:eval_template_export")).status_code == 403
+
+
+@pytest.mark.django_db
+class TestTemplateAccess:
+    """評価テンプレートを開ける人（ADR-0103）。"""
+
+    @pytest.fixture
+    def template(self, company_a):
+        from apps.workers.models import EvaluationTemplate
+
+        return EvaluationTemplate.unscoped.create(
+            company=company_a, name="人材評価", sections=[], survey_items=[],
+            scale=[], overall=[],
+        )
+
+    def _worker(self, company, user, *, code="E01", position=None, job_title=None):
+        from apps.workers.models import JobTitle, Position, Worker
+
+        return Worker.unscoped.create(
+            company=company, name="担当者", employee_code=code, user=user,
+            position=(
+                Position.unscoped.create(company=company, name=position)
+                if position else None
+            ),
+            job_title=(
+                JobTitle.unscoped.create(company=company, name=job_title)
+                if job_title else None
+            ),
+        )
+
+    @pytest.mark.parametrize(("code", "position", "job_title"), [
+        ("Y01", None, None),          # 社員番号 Y 始まりの管理者
+        ("E01", None, "ITインフラ"),   # 職種が IT
+        ("E02", "社長", None),         # 社長
+        ("E03", "役員", None),         # 役員
+    ])
+    def test_開ける人(self, client, company_a, user_a, template, code, position, job_title):
+        self._worker(company_a, user_a, code=code, position=position, job_title=job_title)
+        client.force_login(user_a)
+
+        assert client.get(reverse("workers:eval_template_edit")).status_code == 200
+
+    def test_ふつうの作業員は開けない(self, client, company_a, user_a, template):
+        self._worker(company_a, user_a, code="E09", position="正社員", job_title="電工")
+        client.force_login(user_a)
+
+        assert client.get(reverse("workers:eval_template_edit")).status_code == 403
