@@ -340,3 +340,120 @@ class SafetyRecord(TenantModel):
     def __str__(self):
         status = "✅" if self.completed else "⚠"
         return f"{status} {self.worker.name} - {self.template.name} ({self.record_date})"
+
+
+# ---------------------------------------------------------------------------
+# 作業日報集計（ADR-0104）
+# 紙の「作業日報集計フォーマット」と同じ形で、作業員ごと・月ごとに 1 日 1 行を並べる。
+# 行は承認済の日報から作る。人が直した日だけ WorkTallyEntry に残す。
+# ---------------------------------------------------------------------------
+
+
+def _clock(hour, minute=0):
+    from datetime import time
+
+    return time(hour, minute)
+
+
+class WorkTallySettings(TenantModel):
+    """作業日報集計の時間の区切り。会社に 1 件。Excel の「設定」シートと同じ項目。
+
+    所定は「所定開始～所定終了」から、重なった休憩を引いた時間。
+    早出は所定開始より前、残業は所定終了～深夜開始、深夜は深夜開始より後に働いた時間。
+    """
+
+    regular_start = models.TimeField("所定開始時刻", default=_clock(8))
+    regular_end = models.TimeField("所定終了時刻", default=_clock(17))
+    night_start = models.TimeField("深夜開始時刻", default=_clock(22))
+    break1_start = models.TimeField("休憩① 開始", null=True, blank=True, default=_clock(10))
+    break1_end = models.TimeField("休憩① 終了", null=True, blank=True, default=_clock(10, 30))
+    break2_start = models.TimeField("休憩②（昼） 開始", null=True, blank=True, default=_clock(12))
+    break2_end = models.TimeField("休憩②（昼） 終了", null=True, blank=True, default=_clock(13))
+    break3_start = models.TimeField("休憩③ 開始", null=True, blank=True, default=_clock(15))
+    break3_end = models.TimeField("休憩③ 終了", null=True, blank=True, default=_clock(15, 30))
+
+    history = HistoricalRecords()
+
+    class Meta:
+        verbose_name = "作業日報集計の設定"
+        verbose_name_plural = "作業日報集計の設定"
+        constraints = [
+            models.UniqueConstraint(fields=["company"], name="uniq_work_tally_settings_company"),
+        ]
+
+    def __str__(self):
+        return f"作業日報集計の設定（{self.company}）"
+
+    def breaks(self):
+        """開始・終了の両方が入っている休憩だけを (開始, 終了) で返す。"""
+        pairs = (
+            (self.break1_start, self.break1_end),
+            (self.break2_start, self.break2_end),
+            (self.break3_start, self.break3_end),
+        )
+        return [(start, end) for start, end in pairs if start and end]
+
+
+class WorkTallyEntry(TenantModel):
+    """作業日報集計の、人が直した 1 日分。
+
+    この行がある日は日報から作った行の代わりにこちらを出す。日報をあとから直しても
+    書き換えない（手で直した内容を守る）。excluded の日は集計表から外す。
+    """
+
+    worker = models.ForeignKey(
+        "workers.Worker", on_delete=models.CASCADE,
+        related_name="work_tally_entries", verbose_name="作業員",
+    )
+    work_date = models.DateField("年月日")
+    start_time = models.TimeField("始業", null=True, blank=True)
+    end_time = models.TimeField("終業", null=True, blank=True)
+    work_description = models.TextField("作業内容", blank=True)
+    materials = models.TextField("使用材料", blank=True)
+    vehicle = models.CharField("車両", max_length=100, blank=True)
+    site_names = models.CharField("現場名", max_length=300, blank=True)
+    excluded = models.BooleanField("集計から外す", default=False)
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="+", verbose_name="直した人",
+    )
+
+    history = HistoricalRecords()
+
+    class Meta:
+        verbose_name = "作業日報集計の手直し"
+        verbose_name_plural = "作業日報集計の手直し"
+        ordering = ["worker", "work_date"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["worker", "work_date"], name="uniq_work_tally_entry_worker_date",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.worker} {self.work_date}"
+
+
+class WorkTallyEditor(TenantModel):
+    """作業日報集計を直せる人。社長・管理者が付けたり外したりする。
+
+    社長・管理者（社員番号 Y）はこの行が無くても直せる。
+    """
+
+    worker = models.OneToOneField(
+        "workers.Worker", on_delete=models.CASCADE,
+        related_name="work_tally_editor", verbose_name="作業員",
+    )
+    granted_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="+", verbose_name="付けた人",
+    )
+
+    history = HistoricalRecords()
+
+    class Meta:
+        verbose_name = "作業日報集計を直せる人"
+        verbose_name_plural = "作業日報集計を直せる人"
+
+    def __str__(self):
+        return f"集計表を直せる人: {self.worker}"

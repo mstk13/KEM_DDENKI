@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}集計表を直せる人 — {{ APP_NAME }}{% endblock %}
+{% block topbar_title %}作業日報集計{% endblock %}
+
+{% block content %}
+<div class="page-header" style="flex-wrap:wrap;gap:8px;">
+  <h1>集計表を直せる人</h1>
+  <a href="{% url 'reports:monthly_summary' %}" class="btn btn-outline">← 月次サマリ</a>
+</div>
+
+<div class="card" style="margin-bottom:16px;padding:12px 16px;font-size:.85rem;color:var(--text-muted);">
+  作業日報集計を直せるのは、社長・管理者（社員番号 Y）と、ここで「付ける」にした人です。付けた人は全員分の集計表を直せます。
+  見ることと PDF を出すことは、月次サマリを開ける人なら誰でもできます。
+</div>
+
+<div class="card">
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th style="white-space:nowrap;">社員番号</th>
+          <th>氏名</th>
+          <th>直す権限</th>
+          <th style="white-space:nowrap;">付けた人</th>
+          <th style="width:1%;"></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+        <tr>
+          <td>{{ row.worker.employee_code|default:"-" }}</td>
+          <td style="font-weight:600;">{{ row.worker.name }}</td>
+          <td>
+            {% if row.always %}
+              <span class="badge badge-blue">社長・管理者（いつも直せる）</span>
+            {% elif row.grant %}
+              <span class="badge badge-green">直せる</span>
+            {% else %}
+              <span class="badge badge-gray">見るだけ</span>
+            {% endif %}
+          </td>
+          <td style="white-space:nowrap;">
+            {% if row.grant %}{{ row.grant.granted_by.first_name|default:row.grant.granted_by|default:"—" }}{% endif %}
+          </td>
+          <td style="white-space:nowrap;">
+            {% if not row.always %}
+              {% if row.grant %}
+              <form method="post" action="{% url 'reports:tally_editor_revoke' row.worker.pk %}"
+                    onsubmit="return confirm('{{ row.worker.name|escapejs }}さんの直す権限を外しますか？');">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-outline btn-sm" style="color:#dc2626;">外す</button>
+              </form>
+              {% else %}
+              <form method="post" action="{% url 'reports:tally_editor_grant' row.worker.pk %}">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-primary btn-sm">付ける</button>
+              </form>
+              {% endif %}
+            {% endif %}
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="5"><small>作業員が登録されていません</small></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

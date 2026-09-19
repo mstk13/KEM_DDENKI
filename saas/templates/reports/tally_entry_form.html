@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block title %}集計表を直す — {{ APP_NAME }}{% endblock %}
+{% block topbar_title %}作業日報集計{% endblock %}
+
+{% block content %}
+<div class="page-header" style="flex-wrap:wrap;gap:8px;">
+  <h1>{{ worker.name }}　{{ work_date|date:"Y年n月j日" }}（{{ weekday }}）を直す</h1>
+  <a href="{{ sheet_url }}" class="btn btn-outline">← 集計表に戻る</a>
+</div>
+
+<div class="card" style="margin-bottom:16px;padding:12px 16px;font-size:.85rem;">
+  {% if entry %}
+    <span class="badge badge-orange">手直し</span>
+    この日は直してあります。日報をあとから直しても、この内容は書き換わりません。
+  {% else %}
+    今は日報から作った内容です。保存すると、この日は直した内容で出します（日報そのものは変わりません）。
+  {% endif %}
+  <div style="margin-top:6px;color:var(--text-muted);">
+    日報から作った内容:
+    {% if from_reports.has_times %}{{ from_reports.start|time:"G:i" }}～{{ from_reports.end|time:"G:i" }}{% else %}時刻なし{% endif %}
+    {% if from_reports.site_names %}／{{ from_reports.site_names }}{% endif %}
+    {% if not from_reports.site_names and not from_reports.has_times %}（この日の承認済の日報はありません）{% endif %}
+  </div>
+</div>
+
+<div class="card" style="padding:20px;max-width:720px;">
+  <form method="post">
+    {% csrf_token %}
+    {% if form.non_field_errors %}
+      <div class="message message-error" style="margin-bottom:12px;">{{ form.non_field_errors|join:" " }}</div>
+    {% endif %}
+    <div style="display:flex;gap:16px;flex-wrap:wrap;">
+      <div class="form-group" style="flex:1;min-width:140px;">
+        <label class="form-label" for="{{ form.start_time.id_for_label }}">{{ form.start_time.label }}</label>
+        {{ form.start_time }}
+        {{ form.start_time.errors }}
+      </div>
+      <div class="form-group" style="flex:1;min-width:140px;">
+        <label class="form-label" for="{{ form.end_time.id_for_label }}">{{ form.end_time.label }}</label>
+        {{ form.end_time }}
+        {{ form.end_time.errors }}
+      </div>
+    </div>
+    <small style="display:block;margin:-4px 0 12px;color:var(--text-muted);">{{ form.end_time.help_text }}</small>
+
+    {% for field in form %}
+      {% if field.name != "start_time" and field.name != "end_time" %}
+      <div class="form-group" style="margin-bottom:12px;">
+        <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+        {{ field }}
+        {{ field.errors }}
+      </div>
+      {% endif %}
+    {% endfor %}
+    <datalist id="tally-vehicles">
+      {% for v in vehicles %}<option value="{{ v }}">{% endfor %}
+    </datalist>
+
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:16px;">
+      <button type="submit" class="btn btn-primary">保存</button>
+      <a href="{{ sheet_url }}" class="btn btn-outline">やめる</a>
+    </div>
+  </form>
+</div>
+
+<div class="card" style="padding:16px 20px;margin-top:16px;max-width:720px;">
+  <div style="display:flex;gap:8px;flex-wrap:wrap;">
+    {% if entry %}
+    <form method="post" action="{% url 'reports:tally_entry_reset' worker.pk work_date.year work_date.month work_date.day %}"
+          onsubmit="return confirm('この日の手直しを消して、日報の内容に戻します。よろしいですか？');">
+      {% csrf_token %}
+      <button type="submit" class="btn btn-outline">日報の内容に戻す</button>
+    </form>
+    {% endif %}
+    <form method="post" action="{% url 'reports:tally_entry_exclude' worker.pk work_date.year work_date.month work_date.day %}"
+          onsubmit="return confirm('この日を集計表から外します（PDF と合計に入れません）。よろしいですか？');">
+      {% csrf_token %}
+      <button type="submit" class="btn btn-outline" style="color:#dc2626;">この日を集計から外す</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

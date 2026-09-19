@@ -22,8 +22,17 @@
   .ms-report a:hover { text-decoration: underline; }
 </style>
 
-<div class="page-header">
+<div class="page-header" style="flex-wrap:wrap;gap:8px;">
   <h1>月次サマリ</h1>
+  {# 作業日報集計（ADR-0104）: 全員分の PDF と、社長・管理者向けの設定 #}
+  <div style="display:flex;gap:8px;flex-wrap:wrap;">
+    <a href="{% url 'reports:tally_pdf_all' %}?year={{ year }}&month={{ month }}" class="btn btn-primary"
+       target="_blank" rel="noopener">作業日報集計 PDF（全員分）</a>
+    {% if can_manage_tally %}
+    <a href="{% url 'reports:tally_editors' %}" class="btn btn-outline">集計表を直せる人</a>
+    <a href="{% url 'reports:tally_settings' %}" class="btn btn-outline">時間の区切り</a>
+    {% endif %}
+  </div>
 </div>
 
 <!-- 月選択 -->
@@ -60,6 +69,7 @@
           <th style="white-space:nowrap;">残業時間</th>
           <th style="white-space:nowrap;">合計時間</th>
           <th style="white-space:nowrap;">日報</th>
+          <th style="white-space:nowrap;">作業日報集計</th>
         </tr>
       </thead>
       <tbody>
@@ -76,9 +86,14 @@
           <td>{{ row.total_overtime|default:"0" }}h</td>
           <td style="font-weight:600;">{{ row.total_hours|default:"—" }}h</td>
           <td>{{ row.report_count }}件</td>
+          <td style="white-space:nowrap;">
+            <a href="{% url 'reports:tally_sheet' row.worker.pk %}?year={{ year }}&month={{ month }}" class="btn btn-outline btn-sm">集計表</a>
+            <a href="{% url 'reports:tally_pdf' row.worker.pk %}?year={{ year }}&month={{ month }}" class="btn btn-outline btn-sm"
+               target="_blank" rel="noopener">PDF</a>
+          </td>
         </tr>
         <tr class="ms-detail" id="worker-{{ row.worker.pk }}-reports" hidden>
-          <td colspan="8">
+          <td colspan="9">
             <div class="table-wrap">
               <table>
                 <thead>
@@ -111,7 +126,7 @@
         </tr>
         {% empty %}
         <tr>
-          <td colspan="8">
+          <td colspan="9">
             <div class="empty">
               <div class="empty-icon">📊</div>
               <p>承認済の日報がありません</p>
@@ -138,7 +153,9 @@
   }
 
   document.querySelectorAll("[data-worker-toggle]").forEach(function (row) {
-    row.addEventListener("click", function () {
+    row.addEventListener("click", function (e) {
+      // 集計表・PDF のボタンを押したときは開閉しない
+      if (e.target.closest("a")) return;
       setOpen(row, row.getAttribute("aria-expanded") !== "true");
     });
     row.addEventListener("keydown", function (e) {

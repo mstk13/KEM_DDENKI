@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}集計表の時間の区切り — {{ APP_NAME }}{% endblock %}
+{% block topbar_title %}作業日報集計{% endblock %}
+
+{% block content %}
+<div class="page-header" style="flex-wrap:wrap;gap:8px;">
+  <h1>集計表の時間の区切り</h1>
+  <a href="{% url 'reports:monthly_summary' %}" class="btn btn-outline">← 月次サマリ</a>
+</div>
+
+<div class="card" style="margin-bottom:16px;padding:12px 16px;font-size:.85rem;color:var(--text-muted);">
+  <ul style="margin:0;padding-left:1.2em;">
+    <li>所定: 所定開始～所定終了の中で働いた時間から、働いた時間と重なった休憩の分だけ引きます（一部だけ重なればその分だけ）</li>
+    <li>早出: 所定開始より前に働いた時間／残業: 所定終了～深夜開始／深夜: 深夜開始より後</li>
+    <li>終業が始業より早い時刻なら、翌日にまたがる勤務として計算します</li>
+    <li>休憩を使わないときは、開始・終了の両方を空けてください</li>
+  </ul>
+</div>
+
+<div class="card" style="padding:20px;max-width:640px;">
+  <form method="post">
+    {% csrf_token %}
+    {% if form.non_field_errors %}
+      <div class="message message-error" style="margin-bottom:12px;">{{ form.non_field_errors|join:" " }}</div>
+    {% endif %}
+    <table>
+      <tbody>
+        <tr>
+          <th style="width:40%;">所定開始時刻</th>
+          <td>{{ form.regular_start }}{{ form.regular_start.errors }}</td>
+          <td></td>
+        </tr>
+        <tr>
+          <th>所定終了時刻</th>
+          <td>{{ form.regular_end }}{{ form.regular_end.errors }}</td>
+          <td></td>
+        </tr>
+        <tr>
+          <th>深夜開始時刻</th>
+          <td>{{ form.night_start }}{{ form.night_start.errors }}</td>
+          <td></td>
+        </tr>
+        <tr><th colspan="3" style="padding-top:16px;">休憩（開始 ～ 終了）</th></tr>
+        <tr>
+          <th>休憩①</th>
+          <td>{{ form.break1_start }}{{ form.break1_start.errors }}</td>
+          <td>{{ form.break1_end }}{{ form.break1_end.errors }}</td>
+        </tr>
+        <tr>
+          <th>休憩②（昼）</th>
+          <td>{{ form.break2_start }}{{ form.break2_start.errors }}</td>
+          <td>{{ form.break2_end }}{{ form.break2_end.errors }}</td>
+        </tr>
+        <tr>
+          <th>休憩③</th>
+          <td>{{ form.break3_start }}{{ form.break3_start.errors }}</td>
+          <td>{{ form.break3_end }}{{ form.break3_end.errors }}</td>
+        </tr>
+      </tbody>
+    </table>
+    <div style="margin-top:16px;">
+      <button type="submit" class="btn btn-primary">保存</button>
+    </div>
+  </form>
+</div>
+{% endblock %}
