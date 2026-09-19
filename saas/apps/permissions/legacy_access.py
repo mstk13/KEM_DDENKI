@@ -41,7 +41,7 @@ from apps.permissions.services import (
 )
 
 # ビューの入口で、ミドルウェアとは別に機能ごと絞っている判定。値は has_module_permission の引数。
-# settings はここに入れない。社長と IT も開けるようになり（ADR-0103）、
+# settings はここに入れない。社長と IT も開けるようになり（ADR-0104）、
 # has_module_permission だけでは足りなくなったため、_passes_view_gate で
 # can_open_settings_admin をそのまま呼ぶ。
 _MODULE_GATES = {
@@ -97,7 +97,7 @@ def _passes_view_gate(worker, user, app_key: str) -> bool:
         return user is not None and has_module_permission(user, *gate)
     if app_key == "settings":
         # 権限管理（/settings/permissions/）・変更ログ（/audit-log/）。
-        # decorators.settings_admin_required と同じ関数を呼ぶ（ADR-0103）。
+        # decorators.settings_admin_required と同じ関数を呼ぶ（ADR-0104）。
         return user is not None and can_open_settings_admin(user)
     if app_key == "document_alerts":
         # workers.views.document_alert_dashboard と同じ: 社員番号 Y 始まり・superuser・事務員ロール

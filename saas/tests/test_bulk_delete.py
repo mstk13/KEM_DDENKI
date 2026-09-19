@@ -24,7 +24,7 @@ def _site(company, code="S001", name="A現場"):
 
 @pytest.fixture(autouse=True)
 def _as_office_staff(user_a_is_office_staff):
-    """まとめて削除は事務員・管理者が使う画面として動かす（ADR-0103）。詳細は conftest。"""
+    """まとめて削除は事務員・管理者が使う画面として動かす（ADR-0104）。詳細は conftest。"""
 
 @pytest.mark.django_db
 class TestBulkDelete:

@@ -1,4 +1,4 @@
-"""日報の変更履歴を、誰が・いつ・何を直したかまで出す（ADR-0103 改訂）。
+"""日報の変更履歴を、誰が・いつ・何を直したかまで出す（ADR-0104 改訂）。
 
 現場ごとに複数人ぶんをまとめて登録・修正する使い方（ADR-0056）を残したいので、
 **他人の日報も直せるままにした。** その代わり、**抑止は権限ではなくログで行う。**
@@ -57,7 +57,7 @@ def data(company_a, user_a, django_user_model):
 
 @pytest.mark.django_db
 class TestOthersReportStaysEditable:
-    """まとめて修正を残すため、他人の日報も直せること（ADR-0103 改訂）。"""
+    """まとめて修正を残すため、他人の日報も直せること（ADR-0104 改訂）。"""
 
     def test_他人の日報の編集画面を開ける(self, client, data):
         client.force_login(data["user_a"])

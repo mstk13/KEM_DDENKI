@@ -47,7 +47,7 @@ def module_permission_required(module: str, level: str = "read"):
 
 
 def settings_admin_required(view_func):
-    """権限管理の画面を開ける人だけ通す（ADR-0103）。
+    """権限管理の画面を開ける人だけ通す（ADR-0104）。
 
     settings の admin 権限に加えて、**社長と IT** を明示的に通す。
     ロールだけで見ていたため IT が開けなかった（developer ロールは本番で0件。
