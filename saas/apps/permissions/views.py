@@ -6,13 +6,13 @@ from django.shortcuts import get_object_or_404, redirect, render
 
 from apps.accounts.models import User
 from apps.permissions.access_matrix import build_matrix, ensure_seeded, save_matrix
-from apps.permissions.decorators import module_permission_required
+from apps.permissions.decorators import settings_admin_required
 from apps.permissions.models import ModulePermission, Role, UserRole
 from apps.permissions.services import get_permission_matrix, setup_default_roles
 
 
 @login_required
-@module_permission_required("settings", "admin")
+@settings_admin_required
 def permission_matrix(request):
     """ロール × モジュール 権限マトリクス画面。"""
     company = request.user.company
@@ -48,7 +48,7 @@ def permission_matrix(request):
 
 
 @login_required
-@module_permission_required("settings", "admin")
+@settings_admin_required
 def user_role_list(request):
     """ユーザー × ロール 管理画面。"""
     company = request.user.company
@@ -69,7 +69,7 @@ def user_role_list(request):
 
 
 @login_required
-@module_permission_required("settings", "admin")
+@settings_admin_required
 def user_role_update(request, user_id):
     """ユーザーのロールを更新する。"""
     if request.method != "POST":
@@ -96,7 +96,7 @@ def user_role_update(request, user_id):
 
 
 @login_required
-@module_permission_required("settings", "admin")
+@settings_admin_required
 def app_access_matrix(request):
     """作業員 × 機能 のチェック表（ADR-0082）。
 

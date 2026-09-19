@@ -199,6 +199,14 @@ AI_USD_TO_JPY_RATE = int(os.environ.get("AI_USD_TO_JPY_RATE", "152"))
 # Ollama はホストの Windows 側で稼働するため、コンテナからは
 # host.docker.internal で到達する。到達できない場合は各サービスが
 # 黙って Claude API へフォールバックするので、未設定でも動作する。
+# 日報の未提出を調べ始める日（ADR-0080 改訂）。これより前の日は催促しない。
+# 形は "2026-09-14"。空なら apps/reports/missing_alerts.py の既定を使う。
+_report_check_start = os.environ.get("DAILY_REPORT_CHECK_START", "")
+if _report_check_start:
+    import datetime as _datetime
+
+    DAILY_REPORT_CHECK_START = _datetime.date.fromisoformat(_report_check_start)
+
 # 資格証の OCR（ADR-0096）。tesseract が入っていない環境では自動で読み飛ばす。
 # 言語データは Docker イメージに tesseract-ocr-jpn を入れてある。
 CERTIFICATE_OCR_ENABLED = os.environ.get(

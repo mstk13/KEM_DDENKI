@@ -29,6 +29,15 @@ urlpatterns = [
     path("evaluations/<int:pk>/", views.evaluation_detail, name="eval_detail"),
     path("evaluations/template/", views.eval_template_edit, name="eval_template_edit"),
     path("evaluations/template/pdf/", views.eval_template_pdf, name="eval_template_pdf"),
+    # 評価テンプレートの書き出しと読み込み（ADR-0102）
+    path(
+        "evaluations/template/export/",
+        views.eval_template_export, name="eval_template_export",
+    ),
+    path(
+        "evaluations/template/import/",
+        views.eval_template_import, name="eval_template_import",
+    ),
     path("evaluations/comparison-pdf/", views.eval_comparison_pdf, name="eval_comparison_pdf"),
     path("evaluations/survey-pdf/", views.eval_survey_pdf, name="eval_survey_pdf"),
     path("evaluations/role-sheet-pdf/", views.eval_role_sheet_pdf, name="eval_role_sheet_pdf"),

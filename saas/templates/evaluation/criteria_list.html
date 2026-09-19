@@ -5,7 +5,19 @@
 {% block content %}
 <div class="page-header">
   <h1>評価基準一覧</h1>
-  <a href="{% url 'evaluation:criteria_create' %}" class="btn btn-primary">+ 項目を追加</a>
+  <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+    {# 別の環境へ移すための書き出し・読み込み（ADR-0102） #}
+    <a href="{% url 'evaluation:criteria_export' %}" class="btn btn-outline btn-sm">書き出す</a>
+    <form method="post" action="{% url 'evaluation:criteria_import' %}"
+          enctype="multipart/form-data" style="display:flex;gap:6px;align-items:center;">
+      {% csrf_token %}
+      <input type="file" name="payload" accept=".json"
+             class="form-control" style="max-width:220px;padding:4px 8px;font-size:.82rem;">
+      <button type="submit" class="btn btn-outline btn-sm">確認</button>
+      <button type="submit" name="apply" value="1" class="btn btn-outline btn-sm">読み込む</button>
+    </form>
+    <a href="{% url 'evaluation:criteria_create' %}" class="btn btn-primary">+ 項目を追加</a>
+  </div>
 </div>
 
 <div class="card" style="margin-bottom:20px;">

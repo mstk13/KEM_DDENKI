@@ -122,7 +122,17 @@
     <h1>{{ template.name }}</h1>
     <div class="meta">{{ template.company }} ｜ テンプレートを編集して保存</div>
   </div>
-  <div style="display:flex;gap:8px;">
+  <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+    {# 別の環境へ移すための書き出し・読み込み（ADR-0102） #}
+    <a href="{% url 'workers:eval_template_export' %}" class="btn btn-outline btn-sm" style="color:var(--white);border-color:rgba(255,255,255,.3);">書き出す</a>
+    <form method="post" action="{% url 'workers:eval_template_import' %}"
+          enctype="multipart/form-data" style="display:flex;gap:6px;align-items:center;">
+      {% csrf_token %}
+      <input type="file" name="payload" accept=".json"
+             style="max-width:200px;font-size:.78rem;color:var(--white);">
+      <button type="submit" class="btn btn-outline btn-sm" style="color:var(--white);border-color:rgba(255,255,255,.3);">確認</button>
+      <button type="submit" name="apply" value="1" class="btn btn-outline btn-sm" style="color:var(--white);border-color:rgba(255,255,255,.3);">読み込む</button>
+    </form>
     <a href="{% url 'workers:eval_template_pdf' %}" class="btn btn-outline btn-sm" style="color:var(--white);border-color:rgba(255,255,255,.3);">PDF出力</a>
     <a href="{% url 'workers:evaluations' %}" class="btn btn-outline btn-sm" style="color:var(--white);border-color:rgba(255,255,255,.3);">戻る</a>
   </div>
