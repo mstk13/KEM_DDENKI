@@ -6,7 +6,7 @@
 <div class="page-header">
   <h1>人材評価</h1>
   <div style="display:flex;gap:8px;">
-    {% if user.is_superuser or user.groups.all|length %}
+    {% if can_edit_template %}
     <a href="{% url 'workers:eval_template_edit' %}" class="btn btn-outline btn-sm">テンプレート編集</a>
     {% endif %}
     <a href="{% url 'workers:eval_create' %}" class="btn btn-primary">+ 新しい評価を作成</a>
