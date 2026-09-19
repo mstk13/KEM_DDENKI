@@ -556,7 +556,8 @@ KEM_DDENKI/
 │   ├── git_workflow.md         Git運用ルール
 │   ├── branch_protection_setup.md  main保護（PM承認の強制）
 │   ├── geps_setup.md           GEPSメール連携
-│   └── tailscale_setup.md      外部アクセス（VPN）
+│   ├── tailscale_setup.md      外部アクセス（VPN）
+│   └── remote_control_setup.md  Claude Code をスマホから操作
 │
 └── saas/                       Django SaaS版（本体）
     ├── config/                 Django設定（settings / urls / wsgi）
@@ -724,5 +725,6 @@ KEM_DDENKI/
 | [docs/git_workflow.md](docs/git_workflow.md) | Git運用ルール・ブランチ戦略 |
 | [docs/branch_protection_setup.md](docs/branch_protection_setup.md) | main ブランチ保護（PM承認の強制）— リポジトリ管理者向け |
 | [docs/tailscale_setup.md](docs/tailscale_setup.md) | 社外アクセス（Tailscale VPN）セットアップ |
+| [docs/remote_control_setup.md](docs/remote_control_setup.md) | Claude Code をスマホ・ブラウザから操作（Remote Control）|
 | [docs/geps_setup.md](docs/geps_setup.md) | GEPSメール連携セットアップ |
 | [saas/CLAUDE.md](saas/CLAUDE.md) | 実装時の開発規律（絶対ルール9項目）|
