@@ -809,20 +809,21 @@ def _get_eval_items_with_max_score(data):
     return result
 
 
-# 評価テンプレートを直せる役職（ADR-0104）。人事の決めごとに関わる人に限る。
-EVAL_ADMIN_POSITIONS = ("社長", "役員", "Developer")
+# 評価テンプレートを直せる役職（ADR-0107）。人事の決めごとそのものなので社長だけ。
+EVAL_ADMIN_POSITIONS = ("社長",)
 
 
 def _is_eval_admin(user):
-    """評価テンプレートを直せるか（ADR-0104）。
+    """評価テンプレートを直せるか（ADR-0107）。
 
-    これまでは admin グループと superuser だけだった。アプリの世話をする IT と
-    社員番号 Y 始まりの管理者、社長・役員も開けるようにする
-    （プロダクトオーナーの指示、2026-09-19）。
+    職種が IT の人と社長だけ（プロダクトオーナーの指示、2026-09-19）。
+    役員・Developer・社員番号 Y 始まりの管理者・admin グループ・superuser は外した。
+    評価の物差しそのものなので、開ける人を最小にする。
+
+    `_is_president` は使わない。あちらは superuser も社長として通すため、
+    ここで使うと外したはずの superuser が戻ってきてしまう。
     """
-    if user.is_superuser or user.groups.filter(name="admin").exists():
-        return True
-    if _is_admin(user) or _is_it_staff(user):
+    if _is_it_staff(user):
         return True
     profile = getattr(user, "worker_profile", None)
     if profile is None or profile.position is None:
@@ -832,9 +833,9 @@ def _is_eval_admin(user):
 
 @login_required
 def eval_template_edit(request):
-    """評価テンプレートの編集。admin グループのユーザーのみ。"""
+    """評価テンプレートの編集。職種が IT の人と社長だけ（ADR-0107）。"""
     if not _is_eval_admin(request.user):
-        raise PermissionDenied("この操作にはadmin権限が必要です。")
+        raise PermissionDenied("この画面は職種が IT の人と社長のみ開けます。")
 
     company = request.user.company
     template = EvaluationTemplate.unscoped.filter(
@@ -1321,7 +1322,7 @@ def eval_template_export(request):
     from django.http import HttpResponse
 
     if not _is_eval_admin(request.user):
-        raise PermissionDenied("この操作にはadmin権限が必要です。")
+        raise PermissionDenied("この画面は職種が IT の人と社長のみ開けます。")
 
     template = EvaluationTemplate.unscoped.filter(
         company=request.user.company, is_active=True,
@@ -1356,7 +1357,7 @@ def eval_template_import(request):
     import json
 
     if not _is_eval_admin(request.user):
-        raise PermissionDenied("この操作にはadmin権限が必要です。")
+        raise PermissionDenied("この画面は職種が IT の人と社長のみ開けます。")
 
     uploaded = request.FILES.get("payload")
     if uploaded is None:

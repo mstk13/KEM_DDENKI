@@ -485,6 +485,14 @@ tbody tr:last-child td { border-bottom: none; }
 .btn-success:hover { box-shadow: 0 4px 8px rgba(56,161,105,.3); color: var(--white); }
 .btn-danger { background: linear-gradient(135deg, #e53e3e, #fc8181); color: var(--white); }
 .btn-sm { padding: 6px 14px; font-size: .78rem; }
+/* 濃い色の帯の上に置くボタン。.btn-outline は背景が白なので、
+   白文字を重ねると字が消える（2026-09-19 に評価テンプレートの画面で起きた） */
+.btn-on-dark {
+  background: rgba(255,255,255,.12);
+  color: var(--white);
+  border: 1px solid rgba(255,255,255,.45);
+}
+.btn-on-dark:hover { background: rgba(255,255,255,.24); color: var(--white); }
 
 /* ---- Forms ---- */
 .form-group { margin-bottom: 20px; }

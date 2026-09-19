@@ -212,10 +212,14 @@ class TestTemplateTransfer:
 
     @pytest.fixture
     def admin_user(self, company_a, user_a):
-        from django.contrib.auth.models import Group
+        """テンプレートを扱えるのは職種 IT の人と社長だけ（ADR-0107）。"""
+        from apps.workers.models import Position, Worker
 
-        group, _created = Group.objects.get_or_create(name="admin")
-        user_a.groups.add(group)
+        position = Position.unscoped.create(company=company_a, name="社長")
+        Worker.unscoped.create(
+            company=company_a, name="社長 太郎", employee_code="E00",
+            position=position, user=user_a,
+        )
         return user_a
 
     @pytest.fixture
@@ -299,7 +303,7 @@ class TestTemplateTransfer:
 
         assert "評価基準 から読み込んで" in res.content.decode()
 
-    def test_admin以外は使えない(self, client, company_a, user_a, template):
+    def test_社長とIT以外は使えない(self, client, company_a, user_a, template):
         client.force_login(user_a)
 
         assert client.get(reverse("workers:eval_template_export")).status_code == 403
@@ -307,7 +311,7 @@ class TestTemplateTransfer:
 
 @pytest.mark.django_db
 class TestTemplateAccess:
-    """評価テンプレートを開ける人（ADR-0104）。"""
+    """評価テンプレートを開ける人（ADR-0107）。"""
 
     @pytest.fixture
     def template(self, company_a):
@@ -332,12 +336,9 @@ class TestTemplateAccess:
                 if job_title else None
             ),
         )
-
     @pytest.mark.parametrize(("code", "position", "job_title"), [
-        ("Y01", None, None),          # 社員番号 Y 始まりの管理者
         ("E01", None, "ITインフラ"),   # 職種が IT
         ("E02", "社長", None),         # 社長
-        ("E03", "役員", None),         # 役員
     ])
     def test_開ける人(self, client, company_a, user_a, template, code, position, job_title):
         self._worker(company_a, user_a, code=code, position=position, job_title=job_title)
@@ -346,10 +347,29 @@ class TestTemplateAccess:
         assert client.get(reverse("workers:eval_template_edit")).status_code == 200
 
     @pytest.mark.parametrize(("code", "position", "job_title"), [
-        ("E02", "社長", None),         # 社長
-        ("E01", None, "ITインフラ"),   # 職種が IT
-        ("E03", "役員", None),         # 役員
-        ("Y01", None, None),          # 社員番号 Y 始まりの管理者
+        ("E09", "正社員", "電工"),     # ふつうの作業員
+        ("E03", "役員", None),         # 役員。ADR-0107 で外した
+        ("E04", "Developer", None),   # Developer。同上
+        ("Y01", None, None),          # 社員番号 Y 始まりの管理者。同上
+    ])
+    def test_開けない人(self, client, company_a, user_a, template, code, position, job_title):
+        """評価の物差しそのものなので、社長と IT 以外は見られない（ADR-0107）。"""
+        self._worker(company_a, user_a, code=code, position=position, job_title=job_title)
+        client.force_login(user_a)
+
+        assert client.get(reverse("workers:eval_template_edit")).status_code == 403
+
+    def test_superuserでも開けない(self, client, company_a, user_a, template):
+        """superuser を通すと、外したはずの人が戻ってくる（ADR-0107）。"""
+        user_a.is_superuser = True
+        user_a.save(update_fields=["is_superuser"])
+        client.force_login(user_a)
+
+        assert client.get(reverse("workers:eval_template_edit")).status_code == 403
+
+    @pytest.mark.parametrize(("code", "position", "job_title"), [
+        ("E02", "社長", None),
+        ("E01", None, "ITインフラ"),
     ])
     def test_開ける人には人材評価にボタンが出る(
         self, client, company_a, user_a, template, code, position, job_title,
@@ -362,16 +382,17 @@ class TestTemplateAccess:
 
         assert "テンプレート編集" in res.content.decode()
 
-    def test_開けない人にはボタンを出さない(self, client, company_a, user_a, template):
-        self._worker(company_a, user_a, code="E09", position="正社員", job_title="電工")
+    @pytest.mark.parametrize(("code", "position", "job_title"), [
+        ("E09", "正社員", "電工"),
+        ("E03", "役員", None),
+        ("Y01", None, None),
+    ])
+    def test_開けない人にはボタンを出さない(
+        self, client, company_a, user_a, template, code, position, job_title,
+    ):
+        self._worker(company_a, user_a, code=code, position=position, job_title=job_title)
         client.force_login(user_a)
 
         res = client.get(reverse("workers:evaluations"))
 
         assert "テンプレート編集" not in res.content.decode()
-
-    def test_ふつうの作業員は開けない(self, client, company_a, user_a, template):
-        self._worker(company_a, user_a, code="E09", position="正社員", job_title="電工")
-        client.force_login(user_a)
-
-        assert client.get(reverse("workers:eval_template_edit")).status_code == 403
