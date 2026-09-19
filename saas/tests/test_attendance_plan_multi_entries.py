@@ -114,6 +114,10 @@ class TestValidateEntries:
 # 保存（その日の予定を置き換える）
 # ---------------------------------------------------------------------------
 
+@pytest.fixture(autouse=True)
+def _as_office_staff(user_a_is_office_staff):
+    """この画面は事務員が全員ぶんを扱う前提で動かす（ADR-0102）。詳細は conftest。"""
+
 @pytest.mark.django_db
 class TestSaveDayEntries:
     def test_同じ人の同じ日に複数件持てる(self, company_a):

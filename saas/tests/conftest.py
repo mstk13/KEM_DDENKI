@@ -85,3 +85,23 @@ def tenant_context_b(company_b):
     set_current_company(company_b)
     yield company_b
     set_current_company(None)
+
+
+@pytest.fixture
+def user_a_is_office_staff(company_a, user_a):
+    """user_a に事務員ロールを付ける（ADR-0102）。
+
+    他人の日報・勤怠を直せるのは社長・IT・事務員だけになった。勤怠の予定表や
+    日報の編集画面は**事務員が全員ぶんを入力する**前提の画面なので、
+    それらのテストはこのフィクスチャを autouse で使い、事務員として動かす。
+
+    権限そのもの（誰が通って誰が 403 か）は
+    tests/test_others_work_records_permission.py で見る。
+    """
+    from apps.permissions.models import Role, UserRole
+
+    role, _ = Role.unscoped.get_or_create(
+        company=company_a, code="office_staff", defaults={"name": "事務員"},
+    )
+    UserRole.unscoped.get_or_create(company=company_a, user=user_a, role=role)
+    return user_a

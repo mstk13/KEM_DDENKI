@@ -28,6 +28,10 @@ from apps.sites.models import Process, Site
 from apps.workers.models import Worker
 
 
+@pytest.fixture(autouse=True)
+def _as_office_staff(user_a_is_office_staff):
+    """この画面は事務員が全員ぶんを扱う前提で動かす（ADR-0102）。詳細は conftest。"""
+
 @pytest.fixture
 def data(company_a):
     customer = Customer.unscoped.create(company=company_a, code="C001", name="山陽建設株式会社")
