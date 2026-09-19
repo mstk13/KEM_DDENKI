@@ -1288,3 +1288,101 @@ def health_checkup_delete(request, pk):
     return render(request, "workers/health_checkup_confirm_delete.html", {
         "checkup": checkup, "worker": checkup.worker,
     })
+
+
+@login_required
+def eval_template_export(request):
+    """評価テンプレートを書き出す（ADR-0102 の続き）。
+
+    人材評価のテンプレート（評価項目・質問・スケール・総合所見）は画面から直せる
+    データなので、開発環境で直しても本番には出ない。環境をまたいで運ぶために使う。
+    """
+    import json
+
+    from django.http import HttpResponse
+
+    if not _is_eval_admin(request.user):
+        raise PermissionDenied("この操作にはadmin権限が必要です。")
+
+    template = EvaluationTemplate.unscoped.filter(
+        company=request.user.company, is_active=True,
+    ).order_by("-created_at").first()
+    if template is None:
+        messages.error(request, "評価テンプレートがありません。")
+        return redirect("workers:evaluations")
+
+    payload = {
+        "format": "kem-eval-template",
+        "version": 1,
+        "name": template.name,
+        "sections": template.sections,
+        "survey_items": template.survey_items,
+        "scale": template.scale,
+        "overall": template.overall,
+    }
+    body = json.dumps(payload, ensure_ascii=False, indent=2)
+    response = HttpResponse(body, content_type="application/json; charset=utf-8")
+    response["Content-Disposition"] = 'attachment; filename="eval_template.json"'
+    return response
+
+
+@login_required
+@require_POST
+def eval_template_import(request):
+    """書き出した評価テンプレートを読み込む（ADR-0102 の続き）。
+
+    今あるテンプレートの中身を、ファイルの内容で置き換える。
+    置き換える前の中身は履歴（simple-history）に残る。
+    """
+    import json
+
+    if not _is_eval_admin(request.user):
+        raise PermissionDenied("この操作にはadmin権限が必要です。")
+
+    uploaded = request.FILES.get("payload")
+    if uploaded is None:
+        messages.warning(request, "ファイルが選ばれていません。")
+        return redirect("workers:eval_template_edit")
+
+    try:
+        payload = json.loads(uploaded.read().decode("utf-8-sig"))
+    except (ValueError, UnicodeDecodeError):
+        messages.error(request, "ファイルを読めませんでした。書き出したJSONを選んでください。")
+        return redirect("workers:eval_template_edit")
+
+    if not isinstance(payload, dict) or payload.get("format") != "kem-eval-template":
+        messages.error(request, "評価テンプレートの書き出しファイルではありません。")
+        return redirect("workers:eval_template_edit")
+
+    template = EvaluationTemplate.unscoped.filter(
+        company=request.user.company, is_active=True,
+    ).order_by("-created_at").first()
+    if template is None:
+        template = EvaluationTemplate.unscoped.create(
+            company=request.user.company,
+            created_by=request.user,
+            name=payload.get("name") or "評価テンプレート",
+        )
+
+    counts = {
+        "評価項目": len(payload.get("sections") or []),
+        "質問": len(payload.get("survey_items") or []),
+        "スケール": len(payload.get("scale") or []),
+        "総合所見": len(payload.get("overall") or []),
+    }
+    if request.POST.get("apply") != "1":
+        summary = "／".join(f"{name} {count} 件" for name, count in counts.items())
+        messages.info(request, f"このまま読み込むと、こうなります（{summary}）。")
+        return redirect("workers:eval_template_edit")
+
+    template.sections = payload.get("sections") or []
+    template.survey_items = payload.get("survey_items") or []
+    template.scale = payload.get("scale") or []
+    template.overall = payload.get("overall") or []
+    if payload.get("name"):
+        template.name = payload["name"]
+    template.save()
+
+    summary = "／".join(f"{name} {count} 件" for name, count in counts.items())
+    messages.success(request, f"評価テンプレートを読み込みました（{summary}）。")
+    return redirect("workers:eval_template_edit")
