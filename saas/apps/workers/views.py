@@ -806,9 +806,25 @@ def _get_eval_items_with_max_score(data):
     return result
 
 
+# 評価テンプレートを直せる役職（ADR-0103）。人事の決めごとに関わる人に限る。
+EVAL_ADMIN_POSITIONS = ("社長", "役員", "Developer")
+
+
 def _is_eval_admin(user):
-    """評価テンプレート編集権限を持つか（admin グループ or superuser）。"""
-    return user.is_superuser or user.groups.filter(name="admin").exists()
+    """評価テンプレートを直せるか（ADR-0103）。
+
+    これまでは admin グループと superuser だけだった。アプリの世話をする IT と
+    社員番号 Y 始まりの管理者、社長・役員も開けるようにする
+    （プロダクトオーナーの指示、2026-09-19）。
+    """
+    if user.is_superuser or user.groups.filter(name="admin").exists():
+        return True
+    if _is_admin(user) or _is_it_staff(user):
+        return True
+    profile = getattr(user, "worker_profile", None)
+    if profile is None or profile.position is None:
+        return False
+    return profile.position.name in EVAL_ADMIN_POSITIONS
 
 
 @login_required
