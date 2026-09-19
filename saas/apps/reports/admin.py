@@ -1,7 +1,13 @@
 from django.contrib import admin
 from simple_history.admin import SimpleHistoryAdmin
 
-from apps.reports.models import DailyReport, DailyReportMaterial
+from apps.reports.models import (
+    DailyReport,
+    DailyReportMaterial,
+    WorkTallyEditor,
+    WorkTallyEntry,
+    WorkTallySettings,
+)
 
 
 class DailyReportMaterialInline(admin.TabularInline):
@@ -23,3 +29,20 @@ class DailyReportAdmin(SimpleHistoryAdmin):
 @admin.register(DailyReportMaterial)
 class DailyReportMaterialAdmin(SimpleHistoryAdmin):
     list_display = ("daily_report", "material", "quantity_used")
+
+
+@admin.register(WorkTallySettings)
+class WorkTallySettingsAdmin(SimpleHistoryAdmin):
+    list_display = ("company", "regular_start", "regular_end", "night_start")
+
+
+@admin.register(WorkTallyEntry)
+class WorkTallyEntryAdmin(SimpleHistoryAdmin):
+    list_display = ("work_date", "worker", "start_time", "end_time", "vehicle", "excluded")
+    list_filter = ("excluded", "company")
+    search_fields = ("worker__name", "site_names", "work_description")
+
+
+@admin.register(WorkTallyEditor)
+class WorkTallyEditorAdmin(SimpleHistoryAdmin):
+    list_display = ("worker", "granted_by", "created_at", "company")

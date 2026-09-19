@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+{% block title %}作業日報集計 {{ worker.name }} — {{ APP_NAME }}{% endblock %}
+{% block topbar_title %}作業日報集計{% endblock %}
+
+{% block content %}
+{# 紙の「作業日報集計フォーマット」と同じ列（ADR-0104） #}
+<style>
+  .tally th, .tally td { font-size: .82rem; vertical-align: top; }
+  .tally thead th { background: #D9E1F2; color: #1a2744; text-align: center; vertical-align: middle; }
+  .tally .num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .tally .nowrap { white-space: nowrap; }
+  .tally .text { min-width: 12em; white-space: pre-line; }
+  .tally tr.is-excluded td { color: var(--text-muted); text-decoration: line-through; }
+  .tally tr.is-excluded td.actions { text-decoration: none; }
+  .tally tfoot td { background: #F1F5F9; font-weight: 600; }
+  .tally .sat { color: #2563eb; }
+  .tally .sun { color: #dc2626; }
+</style>
+
+<div class="page-header" style="flex-wrap:wrap;gap:8px;">
+  <h1>作業日報集計　{{ month_label }}　{{ worker.name }}</h1>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;">
+    <a href="{{ back_url }}" class="btn btn-outline">← 月次サマリ</a>
+    <a href="{% url 'reports:tally_pdf' worker.pk %}?year={{ year }}&month={{ month }}"
+       class="btn btn-primary" target="_blank" rel="noopener">PDF</a>
+  </div>
+</div>
+
+<div class="card" style="margin-bottom:16px;padding:12px 16px;">
+  <p style="margin:0;color:var(--text-muted);font-size:.85rem;">
+    承認済の日報から 1 日 1 行で作っています。1 日に現場が複数あるときは、始業は一番早い開始・終業は一番遅い終了にまとめます。
+    {% if can_edit %}
+      行の「直す」で直した日は <span class="badge badge-orange">手直し</span> が付き、日報をあとから直しても書き換わりません。
+    {% endif %}
+  </p>
+</div>
+
+<div class="card">
+  <div class="table-wrap">
+    <table class="tally">
+      <thead>
+        <tr>
+          <th rowspan="2">年月日</th>
+          <th rowspan="2">曜日</th>
+          <th rowspan="2">始業</th>
+          <th rowspan="2">終業</th>
+          <th colspan="4">労働時間（実労働時間）</th>
+          <th rowspan="2">作業内容</th>
+          <th rowspan="2">使用材料</th>
+          <th rowspan="2">車両</th>
+          <th rowspan="2">現場名</th>
+          {% if can_edit %}<th rowspan="2"></th>{% endif %}
+        </tr>
+        <tr>
+          <th>{{ sheet.labels.regular }}</th>
+          <th>{{ sheet.labels.early }}</th>
+          <th>{{ sheet.labels.overtime }}</th>
+          <th>{{ sheet.labels.night }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in sheet.rows %}
+        <tr class="{% if row.excluded %}is-excluded{% endif %}">
+          <td class="nowrap">
+            {{ row.day|date:"n/j" }}
+            {% if row.excluded %}<span class="badge badge-gray">外した日</span>
+            {% elif row.edited %}<span class="badge badge-orange">手直し</span>{% endif %}
+          </td>
+          <td class="nowrap {% if row.weekday == '土' %}sat{% elif row.weekday == '日' %}sun{% endif %}">{{ row.weekday }}</td>
+          <td class="nowrap">{{ row.start|time:"G:i"|default:"—" }}</td>
+          <td class="nowrap">{{ row.end|time:"G:i"|default:"—" }}</td>
+          <td class="num">{{ row.regular_hm }}</td>
+          <td class="num">{{ row.early_hm }}</td>
+          <td class="num">{{ row.overtime_hm }}</td>
+          <td class="num">{{ row.night_hm }}</td>
+          <td class="text">{{ row.work_description }}</td>
+          <td class="text">{{ row.materials }}</td>
+          <td class="nowrap">{{ row.vehicle }}</td>
+          <td class="text">{{ row.site_names }}</td>
+          {% if can_edit %}
+          <td class="actions nowrap">
+            {% if row.excluded %}
+              <form method="post" action="{% url 'reports:tally_entry_reset' worker.pk row.day.year row.day.month row.day.day %}" style="display:inline;">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-outline btn-sm">戻す</button>
+              </form>
+            {% else %}
+              <a href="{% url 'reports:tally_entry_edit' worker.pk row.day.year row.day.month row.day.day %}" class="btn btn-outline btn-sm">直す</a>
+            {% endif %}
+          </td>
+          {% endif %}
+        </tr>
+        {% if not row.has_times and not row.excluded %}
+        <tr>
+          <td colspan="{% if can_edit %}13{% else %}12{% endif %}" style="font-size:.78rem;color:#b45309;border-top:none;padding-top:0;">
+            ↑ 日報に始業・終業の時刻が無いため、時間を出せません。{% if can_edit %}「直す」から時刻を入れてください。{% endif %}
+          </td>
+        </tr>
+        {% endif %}
+        {% empty %}
+        <tr>
+          <td colspan="{% if can_edit %}13{% else %}12{% endif %}">
+            <div class="empty"><div class="empty-icon">📄</div><p>この月の承認済の日報はありません</p></div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+      <tfoot>
+        <tr>
+          <td colspan="4" style="text-align:right;">合計</td>
+          <td class="num">{{ sheet.totals_hm.regular }}</td>
+          <td class="num">{{ sheet.totals_hm.early }}</td>
+          <td class="num">{{ sheet.totals_hm.overtime }}</td>
+          <td class="num">{{ sheet.totals_hm.night }}</td>
+          <td colspan="{% if can_edit %}5{% else %}4{% endif %}">実労働時間 計 {{ sheet.total_all_hm }}</td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+</div>
+
+{% if can_edit %}
+<div class="card" style="margin-top:16px;padding:16px;">
+  <form method="get" action="{% url 'reports:tally_add_day' worker.pk %}" style="display:flex;gap:12px;align-items:end;flex-wrap:wrap;">
+    <input type="hidden" name="year" value="{{ year }}">
+    <input type="hidden" name="month" value="{{ month }}">
+    <div>
+      <label class="form-label" for="tally-add-date">日報の無い日を足す</label>
+      <input type="date" id="tally-add-date" name="date" class="form-control" required>
+    </div>
+    <button type="submit" class="btn btn-outline">この日を入れる</button>
+  </form>
+</div>
+{% endif %}
+{% endblock %}
