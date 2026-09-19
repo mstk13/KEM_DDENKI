@@ -190,7 +190,11 @@ NAVIGATION: tuple[NavItem | NavGroup, ...] = (
             ),
             # 実績は日報（reports）に一本化した。月次サマリは日報側の
             # 月別集計をそのまま指す。ADR-0024。
-            NavItem("月次サマリ", "reports:monthly_summary", "📊"),
+            # 作業日報集計（ADR-0104）の画面も月次サマリの中として光らせる
+            NavItem(
+                "月次サマリ", "reports:monthly_summary", "📊",
+                ("reports:monthly_summary", "reports:tally_*"),
+            ),
         ),
     ),
     NavGroup(
