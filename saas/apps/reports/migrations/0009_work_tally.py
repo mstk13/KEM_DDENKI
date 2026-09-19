@@ -12,7 +12,8 @@ class Migration(migrations.Migration):
     dependencies = [
         ('reports', '0008_dailyreportmaterial_maker_model_note'),
         ('tenants', '0002_company_documents'),
-        ('workers', '0023_license_dates'),
+        # 作業員の表（Worker）があればよい。本番に 0023 がまだ無いので、本番にある最新に合わせる（ADR-0104）
+        ('workers', '0022_masataka_kemmochi_qualification'),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 
