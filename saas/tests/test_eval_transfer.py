@@ -129,6 +129,11 @@ class TestImport:
         with pytest.raises(BadFile):
             load_payload("これはJSONではありません")
 
+    def test_テンプレートのファイルなら行き先を教える(self):
+        """実際に取り違えが起きたので、どっちの画面か書く（2026-09-19）。"""
+        with pytest.raises(BadFile, match="評価テンプレートの編集"):
+            load_payload('{"format": "kem-eval-template", "sections": []}')
+
 
 @pytest.fixture
 def officer(company_a, user_a):
@@ -278,6 +283,21 @@ class TestTemplateTransfer:
         template.refresh_from_db()
         assert template.sections[0]["name"] == "報連相"
         assert "こうなります" in res.content.decode()
+
+    def test_評価項目のファイルなら行き先を教える(self, client, admin_user, template):
+        """テンプレートの画面に評価項目のファイルを入れたとき（2026-09-19）。"""
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        client.force_login(admin_user)
+        body = json.dumps({"format": "kem-eval-items", "items": []}).encode()
+
+        res = client.post(reverse("workers:eval_template_import"), {
+            "payload": SimpleUploadedFile(
+                "eval_items.json", body, content_type="application/json",
+            ),
+        }, follow=True)
+
+        assert "評価基準 から読み込んで" in res.content.decode()
 
     def test_admin以外は使えない(self, client, company_a, user_a, template):
         client.force_login(user_a)

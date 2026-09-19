@@ -16,6 +16,8 @@
 import json
 
 FORMAT = "kem-eval-items"
+# 別の画面が扱う形。取り違えたときの案内に使う
+TEMPLATE_FORMAT = "kem-eval-template"
 VERSION = 1
 
 ITEM_FIELDS = (
@@ -60,6 +62,12 @@ def load_payload(raw):
         raise BadFile("ファイルを読めませんでした。書き出したJSONを選んでください。") from error
 
     if not isinstance(payload, dict) or payload.get("format") != FORMAT:
+        # 取り違えが実際に起きた（2026-09-19）。どっちの画面へ行けばよいか書く
+        if isinstance(payload, dict) and payload.get("format") == TEMPLATE_FORMAT:
+            raise BadFile(
+                "これは評価テンプレートのファイルです。"
+                "人材評価 → 評価テンプレートの編集 から読み込んでください。",
+            )
         raise BadFile("評価項目の書き出しファイルではありません。")
     items = payload.get("items")
     if not isinstance(items, list):

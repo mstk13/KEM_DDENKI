@@ -1367,7 +1367,14 @@ def eval_template_import(request):
         return redirect("workers:eval_template_edit")
 
     if not isinstance(payload, dict) or payload.get("format") != "kem-eval-template":
-        messages.error(request, "評価テンプレートの書き出しファイルではありません。")
+        # 取り違えが実際に起きた（2026-09-19）。どっちの画面へ行けばよいか書く
+        if isinstance(payload, dict) and payload.get("format") == "kem-eval-items":
+            messages.error(
+                request,
+                "これは評価項目のファイルです。人材評価 → 評価基準 から読み込んでください。",
+            )
+        else:
+            messages.error(request, "評価テンプレートの書き出しファイルではありません。")
         return redirect("workers:eval_template_edit")
 
     template = EvaluationTemplate.unscoped.filter(
