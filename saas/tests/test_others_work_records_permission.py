@@ -1,4 +1,4 @@
-"""他人の日報・勤怠を直せるのは社長・IT・事務員だけ（ADR-0105）。
+"""他人の日報・勤怠を直せるのは社長・IT・事務員だけ（ADR-0104）。
 
 プロダクトオーナーの指示（2026-09-19）:
 「日報および勤務時間の管理で、他人の日報や勤務時間などは社長および IT の人のみが
@@ -203,7 +203,7 @@ class TestAttendanceWrite:
 
 @pytest.mark.django_db
 class TestPermissionScreenOpensForIt:
-    """IT が権限画面を開けること（ADR-0105）。
+    """IT が権限画面を開けること（ADR-0104）。
 
     ガードが settings の admin ロールだけを見ていたため、developer ロールが
     本番で0件の IT は開けなかった（ADR-0039 と同じ問題）。
