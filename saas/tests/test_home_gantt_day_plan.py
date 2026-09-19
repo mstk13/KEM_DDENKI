@@ -486,4 +486,4 @@ class TestHomeGantt:
 
         body = home_client.get(reverse("dashboard")).content.decode()
 
-        assert "escapeHtml(task.name)" in body
+        assert "escapeHtml(task.title || task.name)" in body

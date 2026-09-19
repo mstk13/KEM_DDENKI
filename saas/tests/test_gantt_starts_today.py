@@ -78,7 +78,8 @@ class TestScreens:
 
         res = client.get("/")
 
-        tasks = {t["name"]: t for t in json.loads(res.context["gantt_json"])}
+        # バーの文字には期間も入るようになったので、工程名は title で引く（ADR-0106）
+        tasks = {t["title"]: t for t in json.loads(res.context["gantt_json"])}
         assert tasks["続いている現場"]["start"] == timezone.localdate().isoformat()
         assert tasks["続いている現場"]["real_start"] == _days(-10).isoformat()
         # 終わった現場は日付そのまま（目盛りの左端が当日なので画面には出ない）
@@ -91,7 +92,8 @@ class TestScreens:
 
         res = client.get(reverse("schedules:list"))
 
-        tasks = {t["name"]: t for t in json.loads(res.context["gantt_json"])}
+        # バーの文字には期間も入るようになったので、工程名は title で引く（ADR-0106）
+        tasks = {t["title"]: t for t in json.loads(res.context["gantt_json"])}
         assert tasks["続いている現場"]["start"] == timezone.localdate().isoformat()
         legend = {row["name"]: row for row in res.context["legend"]}
         assert legend["続いている現場"]["start"] == site.start_date
@@ -131,7 +133,8 @@ class TestScreens:
 
         res = client.get(reverse("schedules:detail", args=[site.pk]))
 
-        tasks = {t["name"]: t for t in json.loads(res.context["gantt_json"])}
+        # バーの文字には期間も入るようになったので、工程名は title で引く（ADR-0106）
+        tasks = {t["title"]: t for t in json.loads(res.context["gantt_json"])}
         assert tasks["続いている工程"]["start"] == timezone.localdate().isoformat()
         assert tasks["続いている工程"]["real_start"] == _days(-5).isoformat()
         assert tasks["終わった工程"]["start"] == _days(-20).isoformat()
