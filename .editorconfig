@@ -1,0 +1,30 @@
+# エディタ側の設定。lint / 改行の決まりをエディタにも効かせるためのもの。
+#
+# 改行は .gitattributes が git の側で LF に固定しているが、エディタが CRLF で
+# 保存すると「3行の修正が全行変更の差分」になる（.gitattributes のコメント参照）。
+# 行長 99 は ruff.toml と同じ値。両方を手で書き写している箇所なので、
+# どちらかを変えるときは必ずもう一方も直す（ADR-0098）。
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+[*.py]
+indent_style = space
+indent_size = 4
+max_line_length = 99
+
+[*.{html,css,js,json,yml,yaml,toml,webmanifest}]
+indent_style = space
+indent_size = 2
+
+[*.{sh,bat}]
+indent_style = space
+indent_size = 4
+
+[*.md]
+# Markdown は行末の半角空白2つが改行の意味を持つので、消さない。
+trim_trailing_whitespace = false

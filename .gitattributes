@@ -14,3 +14,8 @@ docker-compose*.yml text eol=lf
 *.css text eol=lf
 *.js text eol=lf
 *.md text eol=lf
+# 設定ファイルも同じ理由で LF に固定する。Windows のエディタが CRLF で保存すると
+# 1行の変更が「全行変更」の差分になる（ADR-0098）。
+*.toml text eol=lf
+*.yml text eol=lf
+.editorconfig text eol=lf

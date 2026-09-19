@@ -1,0 +1,34 @@
+# リポジトリ全体の ruff 設定。lint のルールはこのファイル1か所だけに置く。
+#
+# 以前は saas/pyproject.toml の [tool.ruff] にしか無かった。そのため
+# saas/ の外（api/, tools/ 以下のスクリプト）はどの設定にも当たらず、
+# リポジトリのルートで `ruff check .` を流すと ruff の既定値
+# （line-length 88 / 既定のルールだけ）が使われて CI と結果が食い違っていた。
+# 実際 api/main.py の未使用 import は、CI にもローカルにも1年以上拾われていない。
+# 設定を1か所に寄せ、どのディレクトリから流しても同じ結果になるようにする（ADR-0098）。
+
+target-version = "py312"
+line-length = 99
+
+# 自作モジュールの探索先。isort（I）が「自分のコードか外部パッケージか」を
+# これで判断する。saas/ を入れないと apps/... config/... が外部パッケージ扱いに
+# なり、saas/ の中で流したときだけ import 順が 101 箇所ずれて落ちる。
+src = [".", "saas", "api"]
+
+# マイグレーションは自動生成物なので見ない。
+extend-exclude = ["**/migrations/**"]
+
+[lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[lint.per-file-ignores]
+# パターンは必ず `**/` から書く。`apps/...` のような相対パターンは
+# 「どのディレクトリで ruff を起動したか」で解釈が変わり、saas/ の中と外で
+# 結果が変わってしまう（実際に saas/ の外から流すと E501 が復活した）。
+#
+# 発注書PDFに刷り込む約款の条文。原文どおり1行で持つ。
+# 折り返すと出力される文面が変わりかねないので行長は見ない。
+"**/apps/materials/services.py" = ["E501"]
+# LLM に渡すプロンプトの本文。折り返すと改行が増えて指示が変わるため同上。
+"**/apps/estimation/services/labor_pdf.py" = ["E501"]
+"**/apps/bids/announcement_llm.py" = ["E501"]

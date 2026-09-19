@@ -101,6 +101,12 @@ services:
       - "${WEB_PORT:-8000}:8000"
     volumes:
       - .:/app
+      # lint の設定はリポジトリのルートの ruff.toml 1か所だけに置いている（ADR-0098）。
+      # コンテナに入るのは saas/ の中身だけなので、そのままでは
+      # `ruff check .` が ruff の既定値（line-length 88・既定ルールのみ）で走り、
+      # CI と結果が食い違う。読み取り専用で見せて CI と揃える。
+      # アプリの実行時には使わない設定ファイルなので、本番でも無害。
+      - ../ruff.toml:/app/ruff.toml:ro
       - media_data:/app/media
     command: ["gunicorn", "config.wsgi:application", "--bind", "0.0.0.0:8000", "--workers", "4", "--threads", "2"]
 

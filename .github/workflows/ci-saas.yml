@@ -30,8 +30,8 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
 
-      - name: Lint (ruff)
-        run: ruff check .
+      # lint は Lint ワークフロー（.github/workflows/ci-lint.yml）が
+      # リポジトリ全体に流す。ここで二重に流さない（ADR-0098）。
 
       - name: Check migrations
         run: |

@@ -1,0 +1,38 @@
+# リポジトリ全体の lint。設定は ruff.toml 1か所（ADR-0098）。
+#
+# CI (SaaS) は paths: ['saas/**'] で絞っているため、api/ や tools/ の
+# Python は今まで一度も検査されていなかった（api/main.py の未使用 import が
+# 残っていた）。こちらは paths を付けず、全ての push / PR で流す。
+name: Lint
+
+on:
+  push:
+    branches: [main, developer]
+  pull_request:
+    branches: [main, developer]
+
+jobs:
+  ruff:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # ruff のバージョンは saas/pyproject.toml の dev extra だけで宣言する。
+      # ここに書き写すと、片方だけ上げたときに CI と手元で結果が変わる。
+      - name: Install ruff
+        run: |
+          python -m pip install --upgrade pip
+          REQ=$(python -c 'import tomllib, pathlib; deps = tomllib.loads(pathlib.Path("saas/pyproject.toml").read_text(encoding="utf-8"))["project"]["optional-dependencies"]["dev"]; print(next(d for d in deps if d.startswith("ruff")))')
+          echo "ruff requirement: $REQ"
+          pip install "$REQ"
+
+      # リポジトリのルートで流す。ruff.toml の src に saas を入れてあるので、
+      # saas/ の中で流したときと同じ結果になる。
+      - name: Lint (ruff)
+        run: ruff check .

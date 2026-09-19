@@ -535,7 +535,10 @@ LEGACY_DB_URL="postgresql://kem:kem@localhost:5433/kem_main" \
 KEM_DDENKI/
 ├── README.md
 ├── index.html                  開発者マップ（全体像を図10枚で / ブラウザで開く）
-├── .github/workflows/          CI/CD（テスト自動実行・リリース）
+├── ruff.toml                   lint設定（リポジトリ全体でここ1か所。ADR-0098）
+├── .editorconfig               エディタ設定（改行LF・行長99）
+├── .github/workflows/          CI/CD（Lint / テスト自動実行 / リリース）
+├── api/                        外部アプリ連携のREST API（FastAPI・ポート8002）
 ├── tools/autodeploy/           自動デプロイスクリプトの正本
 ├── docs/
 │   ├── design/                 設計資料（8点）

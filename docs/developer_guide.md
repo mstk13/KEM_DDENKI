@@ -110,6 +110,12 @@ docker compose run --rm --entrypoint sh web -c "\
 - `collectstatic` を先に流さないと、テンプレートを描画するテストが
   「Missing staticfiles manifest entry」で落ちます（CI も同じ順番で流しています）。
 - 全体で2分ほどかかります。
+- `ruff check .` の設定は**リポジトリのルートの `ruff.toml`** 1か所です（ADR-0098）。
+  コンテナに入るのは `saas/` の中身だけなので、`docker-compose.yml` が
+  `../ruff.toml` を `/app/ruff.toml` として読み取り専用で見せています。
+  これが無いと ruff は既定値（行長88・既定ルールのみ）で走り、CI と結果が食い違います。
+- 上のコマンドが見るのは `saas/` の中だけです。`api/` まで含めて見るときは、
+  **リポジトリのルート**で `ruff check .` を流してください（CI の Lint と同じ）。
 
 ### 3-4. 開発環境に反映する
 
@@ -158,7 +164,8 @@ gh pr create --base main --head developer --fill
 
 または GitHub の画面から `developer` → `main` の Pull Request を作成します。
 
-1. **CI が緑になるのを待つ**（ruff / マイグレーション整合性 / テスト）
+1. **CI が緑になるのを待つ**（`Lint` = ruff、`CI (SaaS)` = マイグレーション整合性 / テスト。
+   ワークフローは2つあるので両方見る）
 2. **PM にレビューを依頼**する
 3. PM が **Approve** する
 4. PM が **Merge** する

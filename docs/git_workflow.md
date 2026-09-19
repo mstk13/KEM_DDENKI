@@ -47,7 +47,8 @@ gh pr create --base main --head release/2026-08-20
 1. `developer` で開発環境の動作を確認する
 2. `developer` から `release/YYYY-MM-DD` を切って push する
 3. `release/YYYY-MM-DD` → `main` の Pull Request を作る
-4. CI（ruff / マイグレーション整合性 / テスト）が緑になるのを待つ
+4. CI（`Lint` = ruff、`CI (SaaS)` = マイグレーション整合性 / テスト）が
+   **2つとも**緑になるのを待つ
 5. **PM が Approve する**
 6. PM がマージする → 本番に自動反映（リリースブランチは自動削除される）
 

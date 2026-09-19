@@ -43,22 +43,13 @@ build-backend = "setuptools.build_meta"
 [tool.setuptools]
 py-modules = []
 
-[tool.ruff]
-target-version = "py312"
-line-length = 99
-extend-exclude = ["*/migrations/*"]
+# lint（ruff）の設定はリポジトリのルートの ruff.toml に置いている。
+# saas/ の中にも設定を置くと二重になり、`ruff check .` の結果が
+# 起動したディレクトリで変わる。ここには書かない（ADR-0098）。
 
-[tool.ruff.lint]
-select = ["E", "F", "I", "UP", "B", "SIM"]
-
-[tool.ruff.lint.per-file-ignores]
-# 発注書PDFに刷り込む約款の条文。原文どおり1行で持つ。
-# 折り返すと出力される文面が変わりかねないので行長は見ない。
-"apps/materials/services.py" = ["E501"]
-# LLM に渡すプロンプトの本文。折り返すと改行が増えて指示が変わるため同上。
-"apps/estimation/services/labor_pdf.py" = ["E501"]
-"apps/bids/announcement_llm.py" = ["E501"]
-
+# mypy は設定だけ置いてあり、CI では流していない。strict のまま全体に流すと
+# 現状は大量に落ちるため、入れるなら段階的に範囲を絞る必要がある（ADR-0098）。
+# 設定があるのに誰も流していない状態を、知らずに信用しないための注記。
 [tool.mypy]
 python_version = "3.12"
 plugins = ["mypy_django_plugin.main"]
@@ -69,6 +60,9 @@ django_settings_module = "config.settings"
 
 [tool.pytest.ini_options]
 DJANGO_SETTINGS_MODULE = "config.settings"
+# テストは saas/tests/ にしか置かない。これが無いと引数なしの `pytest` が
+# apps/ 以下まで収集し、CI の `pytest tests/` と結果が変わる（ADR-0098）。
+testpaths = ["tests"]
 python_files = ["tests.py", "test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]

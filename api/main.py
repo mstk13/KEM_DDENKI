@@ -10,7 +10,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -145,6 +145,11 @@ def sync_expenses(batch: ExpenseSyncBatch):
 
         # プロジェクトIDがある場合、bid_managerの原価を更新
         if expense.project_id and expense.amount and BID_DB.exists():
+            # 原価の memo に残す1行。UPDATE と INSERT で同じ文面を使う。
+            memo_entry = (
+                f"[KEIHI #{expense.keihi_expense_id}] "
+                f"{expense.store_name or ''} ¥{expense.amount}"
+            )
             with get_conn(BID_DB) as conn:
                 # 既存の原価レコードを確認
                 cost_row = conn.execute(
@@ -164,7 +169,7 @@ def sync_expenses(batch: ExpenseSyncBatch):
                         "memo = COALESCE(memo, '') || ?, updated_at = ? WHERE project_id = ?",
                         (
                             new_actual, profit, round(profit_rate, 2),
-                            f"\n[KEIHI #{expense.keihi_expense_id}] {expense.store_name or ''} ¥{expense.amount}",
+                            f"\n{memo_entry}",
                             datetime.now().isoformat(timespec="seconds"),
                             expense.project_id,
                         ),
@@ -175,11 +180,12 @@ def sync_expenses(batch: ExpenseSyncBatch):
                 else:
                     # 原価レコードが無ければ新規作成
                     conn.execute(
-                        "INSERT INTO costs (project_id, estimate_amount, actual_cost, profit, profit_rate, memo, updated_at) "
+                        "INSERT INTO costs (project_id, estimate_amount, actual_cost, "
+                        "profit, profit_rate, memo, updated_at) "
                         "VALUES (?, 0, ?, ?, ?, ?, ?)",
                         (
                             expense.project_id, expense.amount, -expense.amount, 0,
-                            f"[KEIHI #{expense.keihi_expense_id}] {expense.store_name or ''} ¥{expense.amount}",
+                            memo_entry,
                             datetime.now().isoformat(timespec="seconds"),
                         ),
                     )
