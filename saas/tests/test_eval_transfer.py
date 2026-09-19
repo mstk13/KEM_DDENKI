@@ -199,3 +199,87 @@ class TestScreen:
         res = client.post(reverse("evaluation:criteria_import"), follow=True)
 
         assert "ファイルが選ばれていません" in res.content.decode()
+
+
+@pytest.mark.django_db
+class TestTemplateTransfer:
+    """人材評価のテンプレートの書き出し・読み込み（ADR-0102）。"""
+
+    @pytest.fixture
+    def admin_user(self, company_a, user_a):
+        from django.contrib.auth.models import Group
+
+        group, _created = Group.objects.get_or_create(name="admin")
+        user_a.groups.add(group)
+        return user_a
+
+    @pytest.fixture
+    def template(self, company_a):
+        from apps.workers.models import EvaluationTemplate
+
+        return EvaluationTemplate.unscoped.create(
+            company=company_a, name="人材評価",
+            sections=[{"section": "共通", "num": 1, "name": "報連相"}],
+            survey_items=[{"section": "共通", "num": 1, "questions": [{"qnum": "1-1"}]}],
+            scale=[{"value": 5, "label": "とても良い"}],
+            overall=[{"qnum": "総1", "text": "良かった点"}],
+        )
+
+    def test_書き出すとテンプレートが落ちてくる(self, client, admin_user, template):
+        client.force_login(admin_user)
+
+        res = client.get(reverse("workers:eval_template_export"))
+
+        assert res.status_code == 200
+        payload = json.loads(res.content.decode())
+        assert payload["format"] == "kem-eval-template"
+        assert payload["sections"][0]["name"] == "報連相"
+        assert payload["scale"][0]["label"] == "とても良い"
+
+    def test_読み込むと中身が入れ替わる(self, client, admin_user, template):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        from apps.workers.models import EvaluationTemplate
+
+        client.force_login(admin_user)
+        body = json.dumps({
+            "format": "kem-eval-template", "version": 1, "name": "人材評価",
+            "sections": [{"section": "共通", "num": 1, "name": "直した項目"}],
+            "survey_items": [], "scale": [], "overall": [],
+        }, ensure_ascii=False).encode()
+
+        res = client.post(reverse("workers:eval_template_import"), {
+            "payload": SimpleUploadedFile(
+                "eval_template.json", body, content_type="application/json",
+            ),
+            "apply": "1",
+        }, follow=True)
+
+        template.refresh_from_db()
+        assert template.sections[0]["name"] == "直した項目"
+        assert "読み込みました" in res.content.decode()
+        assert EvaluationTemplate.unscoped.count() == 1
+
+    def test_確認だけでは入れ替えない(self, client, admin_user, template):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        client.force_login(admin_user)
+        body = json.dumps({
+            "format": "kem-eval-template", "version": 1,
+            "sections": [{"section": "共通", "num": 1, "name": "直した項目"}],
+        }, ensure_ascii=False).encode()
+
+        res = client.post(reverse("workers:eval_template_import"), {
+            "payload": SimpleUploadedFile(
+                "eval_template.json", body, content_type="application/json",
+            ),
+        }, follow=True)
+
+        template.refresh_from_db()
+        assert template.sections[0]["name"] == "報連相"
+        assert "こうなります" in res.content.decode()
+
+    def test_admin以外は使えない(self, client, company_a, user_a, template):
+        client.force_login(user_a)
+
+        assert client.get(reverse("workers:eval_template_export")).status_code == 403
