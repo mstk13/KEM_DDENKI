@@ -12,53 +12,26 @@
     <form method="post">
       {% csrf_token %}
       <div class="form-row">
-        <div class="form-group">
-          <label for="id_code">コード</label>
-          {{ form.code }}
-          {{ form.code.errors }}
-        </div>
-        <div class="form-group">
-          <label for="id_name">発注機関名</label>
-          {{ form.name }}
-          {{ form.name.errors }}
-        </div>
+        {% with field=form.code %}{% include "core/_field.html" %}{% endwith %}
+        {% with field=form.name %}{% include "core/_field.html" %}{% endwith %}
       </div>
       <div class="form-row">
-        <div class="form-group">
-          <label for="id_kind">機関種別</label>
-          {{ form.kind }}
-          {{ form.kind.errors }}
-        </div>
-        <div class="form-group">
-          <label for="id_system_type">積算体系</label>
-          {{ form.system_type }}
-          {{ form.system_type.errors }}
-        </div>
+        {% with field=form.kind %}{% include "core/_field.html" %}{% endwith %}
+        {% with field=form.system_type %}{% include "core/_field.html" %}{% endwith %}
       </div>
       <div class="form-row">
+        {% with field=form.prefecture %}{% include "core/_field.html" %}{% endwith %}
+        {# 顧客だけは候補リスト（datalist）を後ろに足すため、共通パーシャルに寄せていない #}
         <div class="form-group">
-          <label for="id_prefecture">都道府県</label>
-          {{ form.prefecture }}
-          {{ form.prefecture.errors }}
-        </div>
-        <div class="form-group">
-          <label for="id_customer">顧客マスタ</label>
+          <label for="{{ form.customer_name.id_for_label }}">{{ form.customer_name.label }}</label>
           {{ form.customer_name }}
           {{ form.customer_name.errors }}
           <small class="text-muted" style="font-size:.78rem;">{{ form.customer_name.help_text }}</small>
           {% include "_name_datalist.html" with list_id="customer-name-options" names=form.customer_choices %}
         </div>
       </div>
-      <div class="form-group">
-        <label for="id_standard_url">積算基準URL</label>
-        {{ form.standard_url }}
-        {{ form.standard_url.errors }}
-      </div>
-      <div class="form-group">
-        <label for="id_notes">備考</label>
-        {{ form.notes }}
-        {{ form.notes.errors }}
-      </div>
+      {% with field=form.standard_url %}{% include "core/_field.html" %}{% endwith %}
+      {% with field=form.notes %}{% include "core/_field.html" %}{% endwith %}
       <div class="form-actions">
         <button type="submit" class="btn btn-primary">保存</button>
         <a href="{% url 'estimation:orderer_list' %}" class="btn btn-outline">キャンセル</a>

@@ -137,8 +137,11 @@ class ItemAliasReviewForm(forms.ModelForm):
 class OrdererForm(forms.ModelForm):
     """発注機関の登録・編集。紐づく顧客は自由入力（ADR-0099）。"""
 
+    # ラベルは画面に出ている文言に合わせる。テンプレートに "顧客マスタ" と
+    # 手書きされ、ここの label="顧客" と食い違っていた。検証エラーの文面だけ
+    # 「顧客」になる状態だったので、見えている側に寄せた。
     customer_name = forms.CharField(
-        label="顧客", required=False,
+        label="顧客マスタ", required=False,
         help_text="登録済みの顧客は候補から選べます。候補に無い名前を入力すると顧客マスタにも登録されます。",
     )
 
