@@ -43,7 +43,7 @@ _PATH_TO_APP = {
     "/notifications/": "notifications",
     "/settings/": "settings",
     # 変更ログ。app_registry では前から settings に属していたのに、ここに無いため
-    # allowed_apps の制限を素通りしていた（ADR-0104）。ビュー側のガードが
+    # allowed_apps の制限を素通りしていた（ADR-0105）。ビュー側のガードが
     # 偶然塞いでいて表に出ていなかった。/settings/ と同じ扱いに揃える。
     "/audit-log/": "settings",
     # 人事評価。/workers/evaluations/ の「人材評価」とは別アプリなので

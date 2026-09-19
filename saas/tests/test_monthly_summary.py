@@ -20,7 +20,7 @@ DRAFT = DailyReport.Status.DRAFT
 
 @pytest.fixture(autouse=True)
 def _as_office_staff(user_a_is_office_staff):
-    """この画面は事務員が全員ぶんを扱う前提で動かす（ADR-0104）。詳細は conftest。"""
+    """この画面は事務員が全員ぶんを扱う前提で動かす（ADR-0105）。詳細は conftest。"""
 
 @pytest.fixture
 def site_a(company_a):

@@ -76,7 +76,7 @@ class TestAppRegistry:
             "/sales/",
             "/notifications/",
             "/settings/permissions/",
-            # 変更ログ。allowed_apps を素通りしていたので経路表に足した（ADR-0104）
+            # 変更ログ。allowed_apps を素通りしていたので経路表に足した（ADR-0105）
             "/audit-log/",
             "/evaluation/",
             "/evaluation/assignments/",

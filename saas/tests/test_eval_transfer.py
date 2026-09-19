@@ -287,7 +287,7 @@ class TestTemplateTransfer:
 
 @pytest.mark.django_db
 class TestTemplateAccess:
-    """評価テンプレートを開ける人（ADR-0104）。"""
+    """評価テンプレートを開ける人（ADR-0105）。"""
 
     @pytest.fixture
     def template(self, company_a):
