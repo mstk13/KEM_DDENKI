@@ -34,17 +34,19 @@ from apps.permissions.services import (
     POSITION_RESTRICTED_APPS,
     REPORT_APPROVER_POSITIONS,
     can_approve_report,
+    can_open_settings_admin,
     can_use_app,
     has_module_permission,
     has_role,
 )
 
 # ビューの入口で、ミドルウェアとは別に機能ごと絞っている判定。値は has_module_permission の引数。
+# settings はここに入れない。社長と IT も開けるようになり（ADR-0104）、
+# has_module_permission だけでは足りなくなったため、_passes_view_gate で
+# can_open_settings_admin をそのまま呼ぶ。
 _MODULE_GATES = {
     # apps/costs/views.py
     "costs": ("costs", "read"),
-    # 権限管理（/settings/permissions/）・変更ログ（/audit-log/）
-    "settings": ("settings", "admin"),
 }
 
 # is_president が社長とみなす役職。ログインのない作業員の承認の判定に使う。
@@ -93,6 +95,10 @@ def _passes_view_gate(worker, user, app_key: str) -> bool:
     gate = _MODULE_GATES.get(app_key)
     if gate is not None:
         return user is not None and has_module_permission(user, *gate)
+    if app_key == "settings":
+        # 権限管理（/settings/permissions/）・変更ログ（/audit-log/）。
+        # decorators.settings_admin_required と同じ関数を呼ぶ（ADR-0104）。
+        return user is not None and can_open_settings_admin(user)
     if app_key == "document_alerts":
         # workers.views.document_alert_dashboard と同じ: 社員番号 Y 始まり・superuser・事務員ロール
         if _is_y_admin(worker):

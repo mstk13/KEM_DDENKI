@@ -142,6 +142,112 @@ def is_president(user) -> bool:
     return bool(profile and profile.position and profile.position.name == "社長")
 
 
+# IT 担当を表す印。判定が2か所に分かれて食い違っていたので、ここに集める（ADR-0104）。
+#   * developer ロール … ADR-0039。本番では0件なので、これだけでは当たらない
+#   * 役職（Position）が「Developer」 … ADR-0039 が日報承認で使っている
+#   * 職種（JobTitle）に「IT」を含む … ADR-0092 が書類の画面で使っている
+#     （「ITインフラ」のように前後が付く書き方があるため、含まれるかで見る）
+IT_POSITION_NAMES = ("Developer",)
+IT_JOB_TITLE_WORD = "IT"
+
+
+def is_it_staff(user) -> bool:
+    """IT 担当かどうか。
+
+    **3つの印のどれかが立っていれば IT とみなす。** 判定が役職と職種の2か所に
+    分かれており、片方だけを見ると実際の担当者を締め出すため、和集合で見る。
+
+    既存の can_approve_report（ADR-0039）と can_manage_documents（ADR-0092）は
+    それぞれ別の印を見たままにしてある。承認できる人が黙って増えるのを避けるため、
+    そちらの判定はこの関数に寄せていない（揃えるかは別途決める）。
+    """
+    if not user.is_authenticated:
+        return False
+    if has_role(user, "developer"):
+        return True
+    profile = getattr(user, "worker_profile", None)
+    if profile is None:
+        return False
+    if profile.position and profile.position.name in IT_POSITION_NAMES:
+        return True
+    job_title = getattr(profile, "job_title", None)
+    return bool(job_title and IT_JOB_TITLE_WORD in (job_title.name or "").upper())
+
+
+def can_open_settings_admin(user) -> bool:
+    """権限管理・変更ログの画面を開けるか（ADR-0104）。
+
+    settings の admin 権限に加えて、**社長と IT** を通す。ロールだけで見ていたため
+    IT が開けなかった（developer ロールは本番で0件。ADR-0039 に同じ問題が
+    日報承認で起きたと書いてある）。
+
+    **legacy_access からも呼ぶ。** あちらは「今の実効権限」を書き下した案を作る
+    ところで、規則を写すと食い違うため既存の関数をそのまま呼ぶ決まりになっている
+    （ADR-0045）。実際この関数を作る前に、画面だけ直して案を直さず食い違わせた。
+    """
+    if not user.is_authenticated:
+        return False
+    return (
+        is_president(user)
+        or is_it_staff(user)
+        or has_module_permission(user, "settings", "admin")
+    )
+
+
+def can_manage_others_work_records(user) -> bool:
+    """**他人の**日報・勤怠を直したり消したりできるか（ADR-0104）。
+
+    プロダクトオーナーの指示（2026-09-19）で、他人の分を触れるのは次の3者だけ。
+
+      * 社長 … is_president（superuser・president ロール・役職「社長」）
+      * IT   … is_it_staff
+      * 事務員 … office_staff ロール（日報の取りまとめ・打ち直しをするため）
+
+    **閲覧はここでは制限しない。** 現場担当が現場の日報を見る、事務員が集計する、
+    原価・月次集計・PDF が読む、といった経路が全部止まるため、今回は
+    「直す・消す」だけを絞る（同日の指示）。
+
+    自分の分は誰でも直せる。本人かどうかは can_edit_report など呼ぶ側で見る。
+    """
+    if not user.is_authenticated:
+        return False
+    return is_president(user) or is_it_staff(user) or has_role(user, "office_staff")
+
+
+def _own_worker_pk(user):
+    """ログインユーザーに紐づく作業員の PK。紐づいていなければ None。"""
+    profile = getattr(user, "worker_profile", None)
+    return profile.pk if profile is not None else None
+
+
+# 日報の「修正」は他人の分も誰でもできる（ADR-0104 改訂、2026-09-19）。
+#
+# 現場ごとに複数人ぶんをまとめて登録・修正する使い方（ADR-0056）を残したいため。
+# 現場担当が現場の全員ぶんを直せないと、まとめて直す意味がなくなる。
+#
+# **抑止は権限ではなくログで行う。** 日報は simple-history 付きで、
+# HistoryRequestMiddleware により変更者が毎回記録される。誰がいつ何を直したかは
+# 日報の詳細画面の「変更履歴」と /audit-log/ で追える。
+#
+# 「消す」は戻せない操作なので所有者の判定を残す（can_delete_report）。
+
+
+def can_edit_attendance_of(user, worker) -> bool:
+    """その作業員の勤怠（出社予定）を直せるか（ADR-0104）。
+
+    worker が None は「全員ぶん」を意味する。まとめて消す・埋める操作がこれで、
+    他人を必ず含むため can_manage_others_work_records の人だけに許す。
+    """
+    if not user.is_authenticated:
+        return False
+    if worker is None:
+        return can_manage_others_work_records(user)
+    own_pk = _own_worker_pk(user)
+    if own_pk is not None and worker.pk == own_pk:
+        return True
+    return can_manage_others_work_records(user)
+
+
 # 日報を承認できる役職（社長は is_president で見る）。IT 担当の役職は「Developer」。
 # developer ロールは本番で0件のため、ロールだけで判定すると IT が承認できない（ADR-0039）。
 REPORT_APPROVER_POSITIONS = ("Developer",)
@@ -204,12 +310,23 @@ def can_view_company_documents(user) -> bool:
 def can_delete_report(user, report) -> bool:
     """日報を削除できるかどうかを判定する。
 
-    ログインしていれば誰でも削除できる。ただし承認済の日報は削除できない
-    （承認時に労務費を計上済みで、消すと原価との整合が崩れるため）。
+    2つを両方満たすときだけ消せる。
+
+    1. **自分の日報であること。** 他人の日報は can_manage_others_work_records の
+       人（社長・IT・事務員）だけが消せる（ADR-0104）。
+       以前はログインしていれば誰でも他人の日報を消せた。
+       **「直す」は誰でもできる**（まとめて修正を残すため）が、「消す」は
+       戻せないのでここだけ残している
+    2. 承認済でないこと。承認時に労務費を計上済みで、消すと原価との整合が崩れる
     """
     from apps.reports.models import DailyReport
 
-    return report.status != DailyReport.Status.APPROVED
+    if report.status == DailyReport.Status.APPROVED:
+        return False
+    own_pk = _own_worker_pk(user)
+    if own_pk is not None and report.worker_id == own_pk:
+        return True
+    return can_manage_others_work_records(user)
 
 
 def has_module_permission(user, module: str, level: str = "read") -> bool:

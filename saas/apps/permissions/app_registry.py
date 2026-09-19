@@ -79,7 +79,7 @@ def app_key_for_path(path: str) -> str | None:
     """URL パスが属する機能のキーを返す。どこにも属さなければ None。
 
     AppPermissionMiddleware の今の解決方法に合わせてある。違いは、
-    ミドルウェアに無い前置き（/attendance/ /estimation/ /ai/ /audit-log/）も
+    ミドルウェアに無い前置き（/attendance/ /estimation/ /ai/）も
     解決することと、書類アラートを workers から分けることの2点。
     ミドルウェアはまだこの関数を使っていない。
     """

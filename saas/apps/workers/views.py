@@ -806,12 +806,12 @@ def _get_eval_items_with_max_score(data):
     return result
 
 
-# 評価テンプレートを直せる役職（ADR-0103）。人事の決めごとに関わる人に限る。
+# 評価テンプレートを直せる役職（ADR-0104）。人事の決めごとに関わる人に限る。
 EVAL_ADMIN_POSITIONS = ("社長", "役員", "Developer")
 
 
 def _is_eval_admin(user):
-    """評価テンプレートを直せるか（ADR-0103）。
+    """評価テンプレートを直せるか（ADR-0104）。
 
     これまでは admin グループと superuser だけだった。アプリの世話をする IT と
     社員番号 Y 始まりの管理者、社長・役員も開けるようにする

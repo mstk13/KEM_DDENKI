@@ -90,6 +90,10 @@ class TestFormatTimeRange:
         assert format_time_range(None, None) == ""
 
 
+@pytest.fixture(autouse=True)
+def _as_office_staff(user_a_is_office_staff):
+    """この画面は事務員が全員ぶんを扱う前提で動かす（ADR-0104）。詳細は conftest。"""
+
 @pytest.mark.django_db
 class TestBuildPlanBoard:
     def _worker(self, company, name="田中太郎", code="E001", is_active=True):
