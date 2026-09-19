@@ -597,6 +597,9 @@ def evaluation_list(request):
     return render(request, "workers/evaluations.html", {
         "evaluations": evaluations,
         "sheet_roles": get_available_roles(request.user.company),
+        # テンプレート編集を開ける人と同じ条件でボタンを出す（ADR-0103）。
+        # 画面側で条件を書き直すと、権限を広げたときにボタンだけ古いまま残る
+        "can_edit_template": _is_eval_admin(request.user),
     })
 
 

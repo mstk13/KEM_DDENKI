@@ -345,6 +345,31 @@ class TestTemplateAccess:
 
         assert client.get(reverse("workers:eval_template_edit")).status_code == 200
 
+    @pytest.mark.parametrize(("code", "position", "job_title"), [
+        ("E02", "社長", None),         # 社長
+        ("E01", None, "ITインフラ"),   # 職種が IT
+        ("E03", "役員", None),         # 役員
+        ("Y01", None, None),          # 社員番号 Y 始まりの管理者
+    ])
+    def test_開ける人には人材評価にボタンが出る(
+        self, client, company_a, user_a, template, code, position, job_title,
+    ):
+        """開けるのにボタンが無い、が起きた（2026-09-19）。条件を画面と揃える。"""
+        self._worker(company_a, user_a, code=code, position=position, job_title=job_title)
+        client.force_login(user_a)
+
+        res = client.get(reverse("workers:evaluations"))
+
+        assert "テンプレート編集" in res.content.decode()
+
+    def test_開けない人にはボタンを出さない(self, client, company_a, user_a, template):
+        self._worker(company_a, user_a, code="E09", position="正社員", job_title="電工")
+        client.force_login(user_a)
+
+        res = client.get(reverse("workers:evaluations"))
+
+        assert "テンプレート編集" not in res.content.decode()
+
     def test_ふつうの作業員は開けない(self, client, company_a, user_a, template):
         self._worker(company_a, user_a, code="E09", position="正社員", job_title="電工")
         client.force_login(user_a)
