@@ -89,7 +89,7 @@ def tenant_context_b(company_b):
 
 @pytest.fixture
 def user_a_is_office_staff(company_a, user_a):
-    """user_a に事務員ロールを付ける（ADR-0102）。
+    """user_a に事務員ロールを付ける（ADR-0103）。
 
     他人の日報・勤怠を直せるのは社長・IT・事務員だけになった。勤怠の予定表や
     日報の編集画面は**事務員が全員ぶんを入力する**前提の画面なので、

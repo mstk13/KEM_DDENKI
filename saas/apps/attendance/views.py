@@ -157,7 +157,7 @@ def _worker_and_date(request):
         return None, None, error
     worker = get_object_or_404(Worker, pk=int(worker_id))
 
-    # 他人の予定を直せるのは社長・IT・事務員だけ（ADR-0102）。
+    # 他人の予定を直せるのは社長・IT・事務員だけ（ADR-0103）。
     # 以前はログインしていれば誰でも他人の勤怠を書き換えられた。
     if not can_edit_attendance_of(request.user, worker):
         error = JsonResponse(
@@ -398,7 +398,7 @@ def plan_clear_day(request):
     month_str = f"{year}-{month:02d}"
     back = f"{reverse('attendance:plan_board')}?month={month_str}"
 
-    # 全員ぶんを消すので、必ず他人を含む（ADR-0102）。
+    # 全員ぶんを消すので、必ず他人を含む（ADR-0103）。
     if not can_edit_attendance_of(request.user, None):
         raise PermissionDenied("全員の予定を消せるのは社長・IT・事務員のみです。")
 
@@ -450,7 +450,7 @@ def plan_fill(request):
         who = "全員"
 
     # 自分ひとりを埋めるだけなら本人でもよい。他人を含むなら社長・IT・事務員だけ
-    # （worker が空＝全員のときも含む。ADR-0102）。
+    # （worker が空＝全員のときも含む。ADR-0103）。
     fill_target_worker = workers[0] if worker_id else None
     if not can_edit_attendance_of(request.user, fill_target_worker):
         raise PermissionDenied("他人の予定をまとめて埋められるのは社長・IT・事務員のみです。")

@@ -76,6 +76,8 @@ class TestAppRegistry:
             "/sales/",
             "/notifications/",
             "/settings/permissions/",
+            # 変更ログ。allowed_apps を素通りしていたので経路表に足した（ADR-0103）
+            "/audit-log/",
             "/evaluation/",
             "/evaluation/assignments/",
         ],
@@ -90,7 +92,6 @@ class TestAppRegistry:
             ("/attendance/plans/", "attendance"),
             ("/estimation/projects/", "estimation"),
             ("/ai/", "ai"),
-            ("/audit-log/", "settings"),
         ],
     )
     def test_ミドルウェアに無い前置きも解決する(self, path, key):

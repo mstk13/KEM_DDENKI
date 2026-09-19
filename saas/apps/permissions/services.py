@@ -142,7 +142,7 @@ def is_president(user) -> bool:
     return bool(profile and profile.position and profile.position.name == "社長")
 
 
-# IT 担当を表す印。判定が2か所に分かれて食い違っていたので、ここに集める（ADR-0102）。
+# IT 担当を表す印。判定が2か所に分かれて食い違っていたので、ここに集める（ADR-0103）。
 #   * developer ロール … ADR-0039。本番では0件なので、これだけでは当たらない
 #   * 役職（Position）が「Developer」 … ADR-0039 が日報承認で使っている
 #   * 職種（JobTitle）に「IT」を含む … ADR-0092 が書類の画面で使っている
@@ -175,7 +175,7 @@ def is_it_staff(user) -> bool:
 
 
 def can_open_settings_admin(user) -> bool:
-    """権限管理・変更ログの画面を開けるか（ADR-0102）。
+    """権限管理・変更ログの画面を開けるか（ADR-0103）。
 
     settings の admin 権限に加えて、**社長と IT** を通す。ロールだけで見ていたため
     IT が開けなかった（developer ロールは本番で0件。ADR-0039 に同じ問題が
@@ -195,7 +195,7 @@ def can_open_settings_admin(user) -> bool:
 
 
 def can_manage_others_work_records(user) -> bool:
-    """**他人の**日報・勤怠を直したり消したりできるか（ADR-0102）。
+    """**他人の**日報・勤怠を直したり消したりできるか（ADR-0103）。
 
     プロダクトオーナーの指示（2026-09-19）で、他人の分を触れるのは次の3者だけ。
 
@@ -220,7 +220,7 @@ def _own_worker_pk(user):
     return profile.pk if profile is not None else None
 
 
-# 日報の「修正」は他人の分も誰でもできる（ADR-0102 改訂、2026-09-19）。
+# 日報の「修正」は他人の分も誰でもできる（ADR-0103 改訂、2026-09-19）。
 #
 # 現場ごとに複数人ぶんをまとめて登録・修正する使い方（ADR-0056）を残したいため。
 # 現場担当が現場の全員ぶんを直せないと、まとめて直す意味がなくなる。
@@ -233,7 +233,7 @@ def _own_worker_pk(user):
 
 
 def can_edit_attendance_of(user, worker) -> bool:
-    """その作業員の勤怠（出社予定）を直せるか（ADR-0102）。
+    """その作業員の勤怠（出社予定）を直せるか（ADR-0103）。
 
     worker が None は「全員ぶん」を意味する。まとめて消す・埋める操作がこれで、
     他人を必ず含むため can_manage_others_work_records の人だけに許す。
@@ -313,7 +313,7 @@ def can_delete_report(user, report) -> bool:
     2つを両方満たすときだけ消せる。
 
     1. **自分の日報であること。** 他人の日報は can_manage_others_work_records の
-       人（社長・IT・事務員）だけが消せる（ADR-0102）。
+       人（社長・IT・事務員）だけが消せる（ADR-0103）。
        以前はログインしていれば誰でも他人の日報を消せた。
        **「直す」は誰でもできる**（まとめて修正を残すため）が、「消す」は
        戻せないのでここだけ残している

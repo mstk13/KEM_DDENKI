@@ -359,7 +359,7 @@ def report_detail(request, pk):
     back_url = _back_url(request)
     return render(request, "reports/detail.html", {
         "report": report,
-        # 誰がいつ何を直したか（ADR-0102 改訂）。他人の日報も直せるようにした代わりに、
+        # 誰がいつ何を直したか（ADR-0103 改訂）。他人の日報も直せるようにした代わりに、
         # この画面で履歴を読めるようにしている
         "change_log": build_change_log(report),
         "work_hours": _hours(work),
@@ -526,7 +526,7 @@ def report_edit(request, pk):
 def report_delete(request, pk):
     """日報を削除する。GET は確認画面、POST で削除する。
 
-    自分の日報は消せる。他人の日報は社長・IT・事務員だけ（ADR-0102）。
+    自分の日報は消せる。他人の日報は社長・IT・事務員だけ（ADR-0103）。
     承認済の日報は労務費を計上済みのため、誰であっても削除できない。
     """
     report = get_object_or_404(
