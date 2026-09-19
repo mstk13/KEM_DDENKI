@@ -69,7 +69,7 @@ class TestCanDeleteReport:
     def test_other_persons_report(
         self, company_a, user_a, user2, site_a, worker_a2, work_type_a,
     ):
-        """他人の日報は消せない（ADR-0105）。
+        """他人の日報は消せない（ADR-0104）。
 
         以前は「ログインしていれば誰でも削除できる」だった。
         """
@@ -79,7 +79,7 @@ class TestCanDeleteReport:
     def test_other_persons_report_by_office_staff(
         self, company_a, user_a_is_office_staff, user2, site_a, worker_a2, work_type_a,
     ):
-        """事務員は他人の日報を消せる（ADR-0105）。"""
+        """事務員は他人の日報を消せる（ADR-0104）。"""
         report = _make_report(company_a, site_a, worker_a2, work_type_a, created_by=user2)
         assert can_delete_report(user_a_is_office_staff, report) is True
 
@@ -131,7 +131,7 @@ class TestReportDeleteView:
     def test_post_does_not_delete_other_persons_report(
         self, client, company_a, user_a, user2, site_a, worker_a2, work_type_a,
     ):
-        """他人の日報は POST しても消えない（ADR-0105）。"""
+        """他人の日報は POST しても消えない（ADR-0104）。"""
         report = _make_report(company_a, site_a, worker_a2, work_type_a, created_by=user2)
         client.force_login(user_a)
         response = client.post(f"/reports/{report.pk}/delete/")
@@ -142,7 +142,7 @@ class TestReportDeleteView:
         self, client, company_a, user_a_is_office_staff, user2, site_a, worker_a2,
         work_type_a,
     ):
-        """事務員なら他人の日報も消せる（ADR-0105）。"""
+        """事務員なら他人の日報も消せる（ADR-0104）。"""
         report = _make_report(company_a, site_a, worker_a2, work_type_a, created_by=user2)
         client.force_login(user_a_is_office_staff)
         response = client.post(f"/reports/{report.pk}/delete/")
@@ -183,7 +183,7 @@ class TestReportDeleteView:
     def test_list_shows_delete_only_for_own_unapproved(
         self, client, company_a, user_a, user2, site_a, worker_a, worker_a2, work_type_a,
     ):
-        """一覧の削除ボタンは、自分の未承認の日報にだけ出る（ADR-0105）。
+        """一覧の削除ボタンは、自分の未承認の日報にだけ出る（ADR-0104）。
 
         承認済（労務費を計上済み）と、他人の日報には出ない。
         """
