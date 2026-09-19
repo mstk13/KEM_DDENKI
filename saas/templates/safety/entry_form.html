@@ -22,15 +22,15 @@
         作業員の登録内容から入れてあります。違っていたらここで直してください（登録は変わりません）。
       </p>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:0 16px;">
-        {% with field=form.entry_date %}{% include "workers/_form_field.html" %}{% endwith %}
-        {% with field=form.name_kana %}{% include "workers/_form_field.html" %}{% endwith %}
-        {% with field=form.birth_date %}{% include "workers/_form_field.html" %}{% endwith %}
-        {% with field=form.foreman_name %}{% include "workers/_form_field.html" %}{% endwith %}
-        {% with field=form.transport %}{% include "workers/_form_field.html" %}{% endwith %}
-        {% with field=form.partner_company_1 %}{% include "workers/_form_field.html" %}{% endwith %}
-        {% with field=form.partner_company_2 %}{% include "workers/_form_field.html" %}{% endwith %}
-        {% with field=form.partner_company_n_tier %}{% include "workers/_form_field.html" %}{% endwith %}
-        {% with field=form.partner_company_n %}{% include "workers/_form_field.html" %}{% endwith %}
+        {% with field=form.entry_date %}{% include "core/_field.html" %}{% endwith %}
+        {% with field=form.name_kana %}{% include "core/_field.html" %}{% endwith %}
+        {% with field=form.birth_date %}{% include "core/_field.html" %}{% endwith %}
+        {% with field=form.foreman_name %}{% include "core/_field.html" %}{% endwith %}
+        {% with field=form.transport %}{% include "core/_field.html" %}{% endwith %}
+        {% with field=form.partner_company_1 %}{% include "core/_field.html" %}{% endwith %}
+        {% with field=form.partner_company_2 %}{% include "core/_field.html" %}{% endwith %}
+        {% with field=form.partner_company_n_tier %}{% include "core/_field.html" %}{% endwith %}
+        {% with field=form.partner_company_n %}{% include "core/_field.html" %}{% endwith %}
       </div>
     </div>
   </div>
@@ -39,18 +39,18 @@
     <div class="card-header"><h2>住所・緊急連絡先・健康</h2></div>
     <div class="card-body">
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:0 16px;">
-        {% with field=form.address %}{% include "workers/_form_field.html" %}{% endwith %}
-        {% with field=form.phone %}{% include "workers/_form_field.html" %}{% endwith %}
-        {% with field=form.emergency_contact_name %}{% include "workers/_form_field.html" %}{% endwith %}
-        {% with field=form.emergency_contact_address %}{% include "workers/_form_field.html" %}{% endwith %}
-        {% with field=form.emergency_contact_phone %}{% include "workers/_form_field.html" %}{% endwith %}
-        {% with field=form.experience_years %}{% include "workers/_form_field.html" %}{% endwith %}
-        {% with field=form.experience_months %}{% include "workers/_form_field.html" %}{% endwith %}
-        {% with field=form.blood_type %}{% include "workers/_form_field.html" %}{% endwith %}
-        {% with field=form.blood_pressure_high %}{% include "workers/_form_field.html" %}{% endwith %}
-        {% with field=form.blood_pressure_low %}{% include "workers/_form_field.html" %}{% endwith %}
-        {% with field=form.vision_right %}{% include "workers/_form_field.html" %}{% endwith %}
-        {% with field=form.vision_left %}{% include "workers/_form_field.html" %}{% endwith %}
+        {% with field=form.address %}{% include "core/_field.html" %}{% endwith %}
+        {% with field=form.phone %}{% include "core/_field.html" %}{% endwith %}
+        {% with field=form.emergency_contact_name %}{% include "core/_field.html" %}{% endwith %}
+        {% with field=form.emergency_contact_address %}{% include "core/_field.html" %}{% endwith %}
+        {% with field=form.emergency_contact_phone %}{% include "core/_field.html" %}{% endwith %}
+        {% with field=form.experience_years %}{% include "core/_field.html" %}{% endwith %}
+        {% with field=form.experience_months %}{% include "core/_field.html" %}{% endwith %}
+        {% with field=form.blood_type %}{% include "core/_field.html" %}{% endwith %}
+        {% with field=form.blood_pressure_high %}{% include "core/_field.html" %}{% endwith %}
+        {% with field=form.blood_pressure_low %}{% include "core/_field.html" %}{% endwith %}
+        {% with field=form.vision_right %}{% include "core/_field.html" %}{% endwith %}
+        {% with field=form.vision_left %}{% include "core/_field.html" %}{% endwith %}
       </div>
     </div>
   </div>
@@ -82,7 +82,7 @@
         {{ form.has_illness }}
         {{ form.has_illness.errors }}
       </div>
-      {% with field=form.illness_detail %}{% include "workers/_form_field.html" %}{% endwith %}
+      {% with field=form.illness_detail %}{% include "core/_field.html" %}{% endwith %}
       {% for field in form %}
       {% if field.name == "business_type" or field.name == "received_employment_document" or field.name == "received_safety_education" or field.name == "special_accident_insurance" or field.name == "has_retirement_system" or field.name == "has_kentaikyo_book" %}
       <div class="form-group">
@@ -91,7 +91,7 @@
         {{ field.errors }}
       </div>
       {% elif field.name == "paying_company" %}
-      {% include "workers/_form_field.html" %}
+      {% include "core/_field.html" %}
       {% endif %}
       {% endfor %}
     </div>

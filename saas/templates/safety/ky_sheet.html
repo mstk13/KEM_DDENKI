@@ -69,22 +69,22 @@
     <div class="card-header"><h2>安全作業指示（作業責任者が書く）</h2></div>
     <div class="card-body">
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:0 16px;">
-        {% with field=form.crew_name %}{% include "workers/_form_field.html" %}{% endwith %}
-        {% with field=form.leader_name %}{% include "workers/_form_field.html" %}{% endwith %}
-        {% with field=form.planned_headcount %}{% include "workers/_form_field.html" %}{% endwith %}
-        {% with field=form.work_start %}{% include "workers/_form_field.html" %}{% endwith %}
-        {% with field=form.work_end %}{% include "workers/_form_field.html" %}{% endwith %}
+        {% with field=form.crew_name %}{% include "core/_field.html" %}{% endwith %}
+        {% with field=form.leader_name %}{% include "core/_field.html" %}{% endwith %}
+        {% with field=form.planned_headcount %}{% include "core/_field.html" %}{% endwith %}
+        {% with field=form.work_start %}{% include "core/_field.html" %}{% endwith %}
+        {% with field=form.work_end %}{% include "core/_field.html" %}{% endwith %}
       </div>
-      {% with field=form.work_content %}{% include "workers/_form_field.html" %}{% endwith %}
-      {% with field=form.safety_instructions %}{% include "workers/_form_field.html" %}{% endwith %}
+      {% with field=form.work_content %}{% include "core/_field.html" %}{% endwith %}
+      {% with field=form.safety_instructions %}{% include "core/_field.html" %}{% endwith %}
       <div style="margin-top:8px;padding:10px 12px;background:var(--bg);border-radius:8px;">
         <div style="font-weight:600;margin-bottom:6px;">作成時の注意ポイント</div>
         <ul style="margin:0 0 8px 18px;font-size:.88rem;">
           {% for point in check_points %}<li>{{ point }}</li>{% endfor %}
         </ul>
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:0 16px;">
-          {% with field=form.extra_check_7 %}{% include "workers/_form_field.html" %}{% endwith %}
-          {% with field=form.extra_check_8 %}{% include "workers/_form_field.html" %}{% endwith %}
+          {% with field=form.extra_check_7 %}{% include "core/_field.html" %}{% endwith %}
+          {% with field=form.extra_check_8 %}{% include "core/_field.html" %}{% endwith %}
         </div>
       </div>
     </div>
@@ -126,7 +126,7 @@
         </div>
       </div>
       {% endfor %}
-      {% with field=form.remarks %}{% include "workers/_form_field.html" %}{% endwith %}
+      {% with field=form.remarks %}{% include "core/_field.html" %}{% endwith %}
     </div>
   </div>
 

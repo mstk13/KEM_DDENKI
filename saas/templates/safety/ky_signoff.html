@@ -15,7 +15,7 @@
     <form method="post">
       {% csrf_token %}
       {{ form.non_field_errors }}
-      {% if form.text %}{% with field=form.text %}{% include "workers/_form_field.html" %}{% endwith %}{% endif %}
+      {% if form.text %}{% with field=form.text %}{% include "core/_field.html" %}{% endwith %}{% endif %}
       {% with field=form.signature %}{% include "safety/_signature_pad.html" %}{% endwith %}
       <div class="form-actions">
         <button type="submit" class="btn btn-primary">サインする</button>

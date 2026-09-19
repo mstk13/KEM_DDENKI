@@ -16,13 +16,13 @@
           data-offline-label="KY用紙の記入（{{ site.name }} {{ day|date:'n/j' }}）">
       {% csrf_token %}
       {{ form.non_field_errors }}
-      {% with field=form.worker %}{% include "workers/_form_field.html" %}{% endwith %}
+      {% with field=form.worker %}{% include "core/_field.html" %}{% endwith %}
       <div class="form-group">
         <label>{{ form.health.label }}</label>
         {{ form.health }}
         {{ form.health.errors }}
       </div>
-      {% with field=form.health_note %}{% include "workers/_form_field.html" %}{% endwith %}
+      {% with field=form.health_note %}{% include "core/_field.html" %}{% endwith %}
       <div class="form-group">
         <label>{{ form.tester.label }}</label>
         {{ form.tester }}

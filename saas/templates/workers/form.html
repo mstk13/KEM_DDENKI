@@ -31,18 +31,18 @@
         </p>
 
         <h3 style="font-size:.95rem;font-weight:600;color:var(--brand);margin-bottom:12px;">現住所</h3>
-        {% for field in address_fields %}{% include "workers/_form_field.html" %}{% endfor %}
+        {% for field in address_fields %}{% include "core/_field.html" %}{% endfor %}
 
         <h3 style="font-size:.95rem;font-weight:600;color:var(--brand);margin:20px 0 12px;">緊急連絡先</h3>
-        {% for field in emergency_fields %}{% include "workers/_form_field.html" %}{% endfor %}
+        {% for field in emergency_fields %}{% include "core/_field.html" %}{% endfor %}
 
         {# 社会保険（ADR-0059）。番号の欄は、雇用保険で「加入」を選んだときだけ出す #}
         <h3 style="font-size:.95rem;font-weight:600;color:var(--brand);margin:20px 0 12px;">社会保険</h3>
         {% for field in insurance_fields %}
         {% if field.name == "employment_insurance_number_last4" %}
-        <div id="employment-insurance-number">{% include "workers/_form_field.html" %}</div>
+        <div id="employment-insurance-number">{% include "core/_field.html" %}</div>
         {% else %}
-        {% include "workers/_form_field.html" %}
+        {% include "core/_field.html" %}
         {% endif %}
         {% endfor %}
         <script>
@@ -57,7 +57,7 @@
         </script>
 
         <h3 style="font-size:.95rem;font-weight:600;color:var(--brand);margin:20px 0 12px;">健康</h3>
-        {% for field in health_fields %}{% include "workers/_form_field.html" %}{% endfor %}
+        {% for field in health_fields %}{% include "core/_field.html" %}{% endfor %}
         <p style="font-size:.82rem;color:var(--text-muted);">
           視力・血圧は、{% if form.instance.pk %}下の{% else %}登録後に{% endif %}「健康診断」の記録ごとに入れます。
         </p>
