@@ -169,8 +169,7 @@ function localizeGanttMonths(container) {
     var bar = button.closest('.bulk-delete-bar');
     var checked = boxesFor(bar).filter(function (box) { return box.checked; });
     var message = checked.length + ' 件の' + button.dataset.label
-      + 'を削除します。
-この操作は元に戻せません。よろしいですか？';
+      + 'を削除します。\nこの操作は元に戻せません。よろしいですか？';
     if (!window.confirm(message)) e.preventDefault();
   });
 
