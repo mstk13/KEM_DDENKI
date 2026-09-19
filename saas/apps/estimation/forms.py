@@ -36,7 +36,9 @@ class EstimationItemForm(forms.ModelForm):
     """
 
     material_name = forms.CharField(
-        label="材料", required=False,
+        # ラベルは画面に出ている文言に合わせる（ADR-0108）。テンプレートに
+        # "社内材料マスタ" と手書きされ、ここの label="材料" と食い違っていた。
+        label="社内材料マスタ", required=False,
         help_text="登録済みの材料は候補から選べます。候補に無い名前を入力すると材料マスタにも登録されます。",
     )
     work_type_name = forms.CharField(
@@ -56,6 +58,15 @@ class EstimationItemForm(forms.ModelForm):
             "status",
             "notes",
         ]
+        # 画面に出ている文言に合わせる（ADR-0108）。モデルの verbose_name は
+        # "参考単価" / "仕様" だが、テンプレートには単位と書式を添えた
+        # "参考単価（円）" / "仕様（JSON）" が手書きされていた。単位や書式は
+        # 入力欄に添える案内なので、モデルではなくフォーム側に置く。
+        # （モデルの verbose_name を変えるとマイグレーションが出る）
+        labels = {
+            "standard_price": "参考単価（円）",
+            "spec": "仕様（JSON）",
+        }
         widgets = {
             "spec": forms.Textarea(attrs={"class": "form-control", "rows": 3}),
             "notes": forms.Textarea(attrs={"class": "form-control", "rows": 3}),

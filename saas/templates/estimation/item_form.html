@@ -12,43 +12,24 @@
     <form method="post">
       {% csrf_token %}
       <div class="form-row">
-        <div class="form-group">
-          <label for="id_code">品目コード</label>
-          {{ form.code }}
-          {{ form.code.errors }}
-        </div>
-        <div class="form-group">
-          <label for="id_category">区分</label>
-          {{ form.category }}
-          {{ form.category.errors }}
-        </div>
+        {% with field=form.code %}{% include "core/_field.html" %}{% endwith %}
+        {% with field=form.category %}{% include "core/_field.html" %}{% endwith %}
       </div>
-      <div class="form-group">
-        <label for="id_canonical_name">正規名称</label>
-        {{ form.canonical_name }}
-        {{ form.canonical_name.errors }}
+      {% with field=form.canonical_name %}{% include "core/_field.html" %}{% endwith %}
+      <div class="form-row">
+        {% with field=form.unit %}{% include "core/_field.html" %}{% endwith %}
+        {% with field=form.standard_price %}{% include "core/_field.html" %}{% endwith %}
       </div>
+      {# 工種・材料は候補リスト（datalist）を足すため、共通パーシャルに寄せていない #}
       <div class="form-row">
         <div class="form-group">
-          <label for="id_unit">単位</label>
-          {{ form.unit }}
-          {{ form.unit.errors }}
-        </div>
-        <div class="form-group">
-          <label for="id_standard_price">参考単価（円）</label>
-          {{ form.standard_price }}
-          {{ form.standard_price.errors }}
-        </div>
-      </div>
-      <div class="form-row">
-        <div class="form-group">
-          <label for="id_work_type">工種</label>
+          <label for="{{ form.work_type_name.id_for_label }}">{{ form.work_type_name.label }}</label>
           {{ form.work_type_name }}
           {{ form.work_type_name.errors }}
           <small class="text-muted" style="font-size:.78rem;">{{ form.work_type_name.help_text }}</small>
         </div>
         <div class="form-group">
-          <label for="id_material">社内材料マスタ</label>
+          <label for="{{ form.material_name.id_for_label }}">{{ form.material_name.label }}</label>
           {{ form.material_name }}
           {{ form.material_name.errors }}
           <small class="text-muted" style="font-size:.78rem;">{{ form.material_name.help_text }}</small>
@@ -56,24 +37,17 @@
           {% include "_name_datalist.html" with list_id="material-name-options" names=form.material_choices %}
         </div>
       </div>
+      {# 仕様は書き方の例を添えるため、共通パーシャルに寄せていない #}
       <div class="form-group">
-        <label for="id_spec">仕様（JSON）</label>
+        <label for="{{ form.spec.id_for_label }}">{{ form.spec.label }}</label>
         {{ form.spec }}
         {{ form.spec.errors }}
         <small>例: {"voltage":"600V","type":"CV","cores":3,"size":"38sq"}</small>
       </div>
       <div class="form-row">
-        <div class="form-group">
-          <label for="id_status">状態</label>
-          {{ form.status }}
-          {{ form.status.errors }}
-        </div>
+        {% with field=form.status %}{% include "core/_field.html" %}{% endwith %}
       </div>
-      <div class="form-group">
-        <label for="id_notes">備考</label>
-        {{ form.notes }}
-        {{ form.notes.errors }}
-      </div>
+      {% with field=form.notes %}{% include "core/_field.html" %}{% endwith %}
       <div class="form-actions">
         <button type="submit" class="btn btn-primary">保存</button>
         <a href="{% url 'estimation:item_list' %}" class="btn btn-outline">キャンセル</a>
