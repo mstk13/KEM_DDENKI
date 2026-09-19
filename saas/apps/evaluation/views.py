@@ -276,3 +276,61 @@ def employee_summary(request, pk):
         "trend_data": trend_data,
         "category_scores": category_scores,
     })
+
+
+@login_required
+def criteria_export(request):
+    """評価項目と設問を書き出す（ADR-0102）。
+
+    開発環境で直した内容を本番へ移すために使う。
+    """
+    from django.http import HttpResponse
+
+    from apps.evaluation.transfer import export_json
+
+    body = export_json(request.user.company, EvalItem)
+    response = HttpResponse(body, content_type="application/json; charset=utf-8")
+    response["Content-Disposition"] = 'attachment; filename="eval_items.json"'
+    return response
+
+
+@login_required
+def criteria_import(request):
+    """書き出した評価項目を読み込む（ADR-0102）。
+
+    足すか直すだけで、ファイルに無い項目は消さない。
+    """
+    from apps.evaluation.models import SurveyQuestion
+    from apps.evaluation.transfer import BadFile, import_items, load_payload
+
+    if request.method != "POST":
+        return redirect("evaluation:criteria_list")
+
+    uploaded = request.FILES.get("payload")
+    if uploaded is None:
+        messages.warning(request, "ファイルが選ばれていません。")
+        return redirect("evaluation:criteria_list")
+
+    try:
+        items = load_payload(uploaded.read().decode("utf-8-sig"))
+    except (BadFile, UnicodeDecodeError) as error:
+        messages.error(request, str(error) or "ファイルを読めませんでした。")
+        return redirect("evaluation:criteria_list")
+
+    apply = request.POST.get("apply") == "1"
+    report = import_items(
+        request.user.company, EvalItem, SurveyQuestion, items, apply=apply,
+    )
+
+    summary = (
+        f"項目 追加 {len(report['created'])} 件 / 直し {len(report['updated'])} 件 / "
+        f"そのまま {report['unchanged']} 件、"
+        f"設問 追加 {report['questions_created']} 件 / 直し {report['questions_updated']} 件"
+    )
+    if apply:
+        messages.success(request, f"読み込みました（{summary}）。")
+    else:
+        messages.info(request, f"このまま読み込むと、こうなります（{summary}）。")
+    for section, num, name in (report["created"] + report["updated"])[:20]:
+        messages.info(request, f"[{section}] {num}. {name}")
+    return redirect("evaluation:criteria_list")
