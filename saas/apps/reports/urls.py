@@ -17,7 +17,7 @@ urlpatterns = [
     path("safety/", views.safety_check, name="safety_check"),
     path("safety/<int:pk>/complete/", views.safety_complete, name="safety_complete"),
     path("monthly/", views.monthly_summary, name="monthly_summary"),
-    # 作業日報集計（ADR-0104）
+    # 作業日報集計（ADR-0105）
     path("monthly/pdf/", tally_views.tally_pdf_all, name="tally_pdf_all"),
     path("monthly/settings/", tally_views.tally_settings, name="tally_settings"),
     path("monthly/editors/", tally_views.tally_editors, name="tally_editors"),
