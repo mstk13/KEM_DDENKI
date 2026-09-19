@@ -9,11 +9,22 @@
    読む、という経路が全部止まる
 2. **事務員も直せる。** 日報の取りまとめや打ち直しをしているため
 
+**同日に改訂。** 日報の「修正」は誰でもできるように戻した。現場ごとに複数人ぶんを
+まとめて修正する使い方（ADR-0056）と両立しないため。抑止はログに移してあり、
+そちらは tests/test_report_change_log.py で見る。
+
+このファイルに残しているのは、**改訂後も権限で止めているもの**だけ。
+
+| 対象 | 残っている理由 |
+|---|---|
+| 日報の**削除** | 戻せない操作のため |
+| **勤怠**の書き換え | 今回の指示の対象外。全員の予定の一括削除は特に危険 |
+| 権限管理の画面 | 社長と IT が開けること |
+
 塞ぐ前は次の状態だった。
 
 | 経路 | 塞ぐ前 |
 |---|---|
-| 日報の編集 | pk が分かれば誰でも他人の日報を直せた |
 | 日報の削除 | 「ログインしていれば誰でも削除できる」（承認済のみ不可） |
 | 勤怠のマス塗り・ダイアログ保存 | 本人確認なし。他人の予定を書き換えられた |
 | 勤怠の一括埋め | 同上。worker を空にすると在籍中の全員が対象 |
@@ -90,34 +101,6 @@ def data(company_a, django_user_model):
 
 
 # ---------------------------------------------------------------- 日報
-
-
-@pytest.mark.django_db
-class TestReportEdit:
-    def test_自分の日報は直せる(self, client, data):
-        report = data["report_for"](data["ippan"])
-        client.force_login(data["ippan_u"])
-
-        res = client.get(reverse("reports:edit", args=[report.pk]))
-
-        assert res.status_code == 200
-
-    def test_他人の日報は一般の人には直せない(self, client, data):
-        report = data["report_for"](data["other"])
-        client.force_login(data["ippan_u"])
-
-        res = client.get(reverse("reports:edit", args=[report.pk]))
-
-        assert res.status_code == 403
-
-    @pytest.mark.parametrize("who", ["shacho_u", "it_u", "jimu_u"])
-    def test_社長とITと事務員は他人の日報を直せる(self, client, data, who):
-        report = data["report_for"](data["other"])
-        client.force_login(data[who])
-
-        res = client.get(reverse("reports:edit", args=[report.pk]))
-
-        assert res.status_code == 200
 
 
 @pytest.mark.django_db

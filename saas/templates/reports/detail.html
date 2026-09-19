@@ -84,6 +84,41 @@
   </div>
 </div>
 
+{# 誰がいつ何を直したか（ADR-0102 改訂）。他人の日報も直せる代わりに、ここで追えるようにする #}
+<div class="card" style="margin-top:20px;">
+  <div class="card-header"><h2>変更履歴</h2></div>
+  <div class="card-body">
+    {% if change_log %}
+    <ul style="list-style:none;padding:0;margin:0;">
+      {% for entry in change_log %}
+      <li style="padding:10px 0;border-bottom:1px solid var(--line, #e5e7eb);">
+        <div style="display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;">
+          <span class="badge badge-gray">{{ entry.kind }}</span>
+          <strong>{{ entry.who }}</strong>
+          <span style="color:var(--text-muted);font-size:.85rem;">{{ entry.at|date:"Y-m-d H:i" }}</span>
+        </div>
+        {% if entry.is_first %}
+        <div style="color:var(--text-muted);font-size:.85rem;margin-top:4px;">最初の登録</div>
+        {% elif entry.changes %}
+        <ul style="margin:6px 0 0;padding-left:18px;font-size:.9rem;">
+          {% for change in entry.changes %}
+          <li>{{ change.label }}: {{ change.old }} → <strong>{{ change.new }}</strong></li>
+          {% endfor %}
+        </ul>
+        {% else %}
+        <div style="color:var(--text-muted);font-size:.85rem;margin-top:4px;">
+          内容の変化はありません
+        </div>
+        {% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p style="color:var(--text-muted);">変更履歴はまだありません。</p>
+    {% endif %}
+  </div>
+</div>
+
 <div class="form-actions">
   {% if back_url %}
   <a href="{{ back_url }}" class="btn btn-outline">{{ back_label }}</a>

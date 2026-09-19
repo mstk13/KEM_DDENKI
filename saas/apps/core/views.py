@@ -8,7 +8,7 @@ from django.views.decorators.http import require_POST
 
 from apps.attendance.plans import parse_date
 from apps.core.json_utils import json_for_script
-from apps.permissions.decorators import module_permission_required
+from apps.permissions.decorators import settings_admin_required
 from apps.permissions.services import has_module_permission
 from apps.reports.models import DailyReport
 from apps.schedules.services import (
@@ -80,7 +80,7 @@ def dashboard(request):
 
 
 @login_required
-@module_permission_required("settings", "admin")
+@settings_admin_required
 def audit_log(request):
     """全データの変更ログを閲覧する。simple_historyの全Historicalモデルを横断検索。"""
     # 検索パラメータ

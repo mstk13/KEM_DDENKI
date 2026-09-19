@@ -4,7 +4,8 @@ from django.core.exceptions import PermissionDenied
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 
-from apps.permissions.services import can_approve_report, can_delete_report, can_edit_report
+from apps.core.change_log import build_change_log
+from apps.permissions.services import can_approve_report, can_delete_report
 from apps.reports.duplicates import (
     day_breakdown,
     find_duplicate_reports,
@@ -358,6 +359,9 @@ def report_detail(request, pk):
     back_url = _back_url(request)
     return render(request, "reports/detail.html", {
         "report": report,
+        # 誰がいつ何を直したか（ADR-0102 改訂）。他人の日報も直せるようにした代わりに、
+        # この画面で履歴を読めるようにしている
+        "change_log": build_change_log(report),
         "work_hours": _hours(work),
         "regular_hours": _hours(regular),
         "overtime_hours": _hours(overtime),
@@ -454,10 +458,6 @@ def _back_url(request):
 @login_required
 def report_edit(request, pk):
     report = get_object_or_404(DailyReport, pk=pk)
-    # 他人の日報を直せるのは社長・IT・事務員だけ（ADR-0102）。
-    # 以前は pk さえ分かれば誰でも他人の日報を直せた。
-    if not can_edit_report(request.user, report):
-        raise PermissionDenied("他人の日報を直せるのは社長・IT・事務員のみです。")
     back_url = _back_url(request)
     if request.method == "POST":
         form = DailyReportForm(

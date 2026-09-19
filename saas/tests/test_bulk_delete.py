@@ -22,6 +22,10 @@ def _site(company, code="S001", name="A現場"):
     return Site.unscoped.create(company=company, code=code, name=name)
 
 
+@pytest.fixture(autouse=True)
+def _as_office_staff(user_a_is_office_staff):
+    """まとめて削除は事務員・管理者が使う画面として動かす（ADR-0102）。詳細は conftest。"""
+
 @pytest.mark.django_db
 class TestBulkDelete:
     def test_選んだ現場をまとめて消す(self, client, company_a, user_a):

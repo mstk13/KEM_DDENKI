@@ -62,13 +62,9 @@ def settings_admin_required(view_func):
 
             return redirect("login")
 
-        from apps.permissions.services import is_it_staff, is_president
+        from apps.permissions.services import can_open_settings_admin
 
-        if (
-            is_president(request.user)
-            or is_it_staff(request.user)
-            or has_module_permission(request.user, "settings", "admin")
-        ):
+        if can_open_settings_admin(request.user):
             return view_func(request, *args, **kwargs)
 
         raise PermissionDenied("権限管理の画面は社長と IT のみが開けます。")
