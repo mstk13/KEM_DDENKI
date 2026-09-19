@@ -102,6 +102,71 @@ function showFirstGanttLabel(container) {
   upper.parentNode.insertBefore(label, upper);
 }
 
+// 現場の1本のバーを工程で区切って見せる（ADR-0101）。
+// frappe-gantt は1タスク1バーで、1本を塗り分ける仕組みを持たない。
+// そこで描画のあとから、バーの上に工程の境目の線と日数を重ねる。
+//
+// 位置はバーの左右を task.start〜task.end に対応させた比で出す。
+// 目盛りは時間に比例して並ぶので、この比がそのまま画面の位置になる。
+// 当日より前から始まる予定はバーが当日に詰められている（ADR-0072）ため、
+// その外に出る工程は端で止める。
+function drawGanttPhaseDividers(container, tasks) {
+  var DAY = 86400000;
+  container.querySelectorAll('.gantt-phase-mark').forEach(function (el) { el.remove(); });
+  if (!tasks) return;
+
+  tasks.forEach(function (task) {
+    if (!task.segments || task.segments.length < 1) return;
+    var wrapper = container.querySelector('.bar-wrapper[data-id="' + task.id + '"]');
+    var bar = wrapper && wrapper.querySelector('.bar');
+    if (!bar) return;
+
+    var x = parseFloat(bar.getAttribute('x'));
+    var y = parseFloat(bar.getAttribute('y'));
+    var w = parseFloat(bar.getAttribute('width'));
+    var h = parseFloat(bar.getAttribute('height'));
+    var from = Date.parse(task.start);
+    var to = Date.parse(task.end) + DAY;   // 終了日の当日も工期に含める
+    if (!(w > 0) || !(to > from)) return;
+
+    var toX = function (ms) {
+      var ratio = (ms - from) / (to - from);
+      return x + w * Math.min(Math.max(ratio, 0), 1);
+    };
+    var add = function (el) {
+      el.classList.add('gantt-phase-mark');
+      wrapper.appendChild(el);
+    };
+    var drawn = [];
+
+    task.segments.forEach(function (seg) {
+      var left = toX(Date.parse(seg.start));
+      var right = toX(Date.parse(seg.end) + DAY);
+      if (!(right - left > 0.5)) return;   // 画面の外に出た工程
+
+      // 区切りの線。バーの端と重なるものと、既に引いた線は引かない
+      [left, right].forEach(function (at) {
+        if (at - x < 1 || x + w - at < 1) return;
+        if (drawn.some(function (d) { return Math.abs(d - at) < 1; })) return;
+        drawn.push(at);
+        var line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        line.setAttribute('x1', at); line.setAttribute('x2', at);
+        line.setAttribute('y1', y); line.setAttribute('y2', y + h);
+        add(line);
+      });
+
+      // 何日かを書く。狭いところに書くと重なって読めないので幅で出し分ける
+      var width = right - left;
+      if (width < 26) return;
+      var text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      text.setAttribute('x', (left + right) / 2);
+      text.setAttribute('y', y + h / 2);
+      text.textContent = width >= 76 ? seg.name + ' ' + seg.days + '日' : seg.days + '日';
+      add(text);
+    });
+  });
+}
+
 function localizeGanttMonths(container) {
   var MONTHS = {
     January: 1, February: 2, March: 3, April: 4, May: 5, June: 6,

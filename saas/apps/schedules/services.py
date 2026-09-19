@@ -92,6 +92,20 @@ def get_gantt_data(company):
     return tasks
 
 
+def _days_between(start, end) -> int:
+    """工期日数。開始日・終了日の両端を含めて数える（1日工事なら1日）。"""
+    return (end - start).days + 1
+
+
+def _span_label(start, end) -> str:
+    """バーに出す期間の書き方。「9/1〜9/30（30日）」。
+
+    年は出さない。同じ年の工事がほとんどで、年まで出すとバーの横に入らない。
+    """
+    days = _days_between(start, end)
+    return f"{start.month}/{start.day}〜{end.month}/{end.day}（{days}日）"
+
+
 def clip_gantt_tasks_to_today(tasks, today=None):
     """ガントのバーを当日から先だけにする（ADR-0072）。
 
@@ -165,10 +179,15 @@ def get_comparison_gantt_data(company, site_ids=None, mode="site"):
             tasks.append({
                 "id": f"site-{site.pk}",
                 "name": site.name,
+                "title": site.name,
+                "days": _days_between(start, end),
                 "start": start.isoformat(),
                 "end": end.isoformat(),
                 "progress": _average_progress(phases),
                 "custom_class": f"{color_class} gantt-row-site",
+                # 現場の1本の中を工程で区切って見せるための区間（ADR-0101）。
+                # 画面側がバーの上に線を引き、何日かを書く
+                "segments": _phase_segments(phases),
             })
 
         if mode != "phase":
@@ -190,6 +209,27 @@ def get_comparison_gantt_data(company, site_ids=None, mode="site"):
     return {"tasks": tasks, "legend": legend}
 
 
+def _phase_segments(phases):
+    """現場の1本のバーを工程で区切るための区間（ADR-0101）。
+
+    日付の入っていない工程は区切れないので外す。並びは開始日順にする。
+    **同じ工程が2本に分かれることはない**ので、重なりはそのまま渡す
+    （重なった工程は画面で線が近づくだけで、消すと工程が1つ消えたように見える）。
+    """
+    dated = [p for p in phases if p.start_date and p.end_date]
+    dated.sort(key=lambda p: (p.start_date, p.sort_order, p.pk))
+    return [
+        {
+            "name": phase.name,
+            "start": phase.start_date.isoformat(),
+            "end": phase.end_date.isoformat(),
+            "days": _days_between(phase.start_date, phase.end_date),
+            "color": phase.color,
+        }
+        for phase in dated
+    ]
+
+
 def get_site_gantt_data(site):
     """現場内の工程別ガントチャートデータ（frappe-gantt用JSON）。"""
     phases = Phase.unscoped.filter(site=site).order_by("sort_order")
@@ -201,7 +241,12 @@ def get_site_gantt_data(site):
             continue
         tasks.append({
             "id": f"phase-{phase.pk}",
-            "name": phase.name,
+            # バーに出す文字。**工程名だけでなく期間も出す**（ADR-0101）。
+            # 押さないと日付が分からないと、図を見ただけでは予定を読めない
+            "name": f"{phase.name}  {_span_label(phase.start_date, phase.end_date)}",
+            "title": phase.name,
+            "days": _days_between(phase.start_date, phase.end_date),
+            "memo": phase.memo,
             "start": phase.start_date.isoformat(),
             "end": phase.end_date.isoformat(),
             "progress": phase.progress,
@@ -213,7 +258,11 @@ def get_site_gantt_data(site):
             continue
         tasks.append({
             "id": f"ms-{ms.pk}",
-            "name": f"◆ {ms.name}",
+            # 期日が1日だけのものに「〜」を付けると、かえって読みにくい
+            "name": f"◆ {ms.name}（{ms.target_date.month}/{ms.target_date.day}）",
+            "title": ms.name,
+            "days": 1,
+            "memo": ms.memo,
             "start": ms.target_date.isoformat(),
             "end": ms.target_date.isoformat(),
             "progress": 100 if ms.completed else 0,

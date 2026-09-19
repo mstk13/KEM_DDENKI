@@ -203,12 +203,20 @@ document.addEventListener('DOMContentLoaded', function() {
     custom_popup_html: function(task) {
       // 当日より前から始まっている予定は当日から描いている（real_start が実際の開始日）
       var realStart = task.real_start ? new Date(task.real_start) : task.start;
+      var days = Math.round((task.end - realStart) / 86400000) + 1;
+      // 工程名はバーに期間ごと書いてあるので、ここでは名前だけを見出しにする（ADR-0101）
+      var escape = function(text) {
+        var el = document.createElement('span');
+        el.textContent = text || '';
+        return el.innerHTML;
+      };
       return '<div class="details-container" style="padding:12px;min-width:200px;">'
-        + '<h5 style="margin:0 0 6px;font-size:.95rem;">' + task.name + '</h5>'
+        + '<h5 style="margin:0 0 6px;font-size:.95rem;">' + escape(task.title || task.name) + '</h5>'
         + '<p style="margin:0;font-size:.82rem;color:#666;">'
         + realStart.toLocaleDateString('ja-JP') + ' ～ ' + task.end.toLocaleDateString('ja-JP')
-        + '</p>'
+        + '（' + days + '日）</p>'
         + '<p style="margin:4px 0 0;font-size:.82rem;">進捗: ' + task.progress + '%</p>'
+        + (task.memo ? '<p style="margin:4px 0 0;font-size:.82rem;">' + escape(task.memo) + '</p>' : '')
         + '</div>';
     }
   });
