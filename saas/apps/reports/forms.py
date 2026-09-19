@@ -652,7 +652,7 @@ class DailyReportForm(forms.ModelForm):
             if total > MAX_DAILY_HOURS:
                 self.add_error(
                     None,
-                    f"{worker.name} の {report_date:%-m月%-d日} の作業時間が "
+                    f"{worker.name} の {report_date.month}月{report_date.day}日 の作業時間が "
                     f"合計 {format_hours(total)} 時間になります"
                     f"（1日 {MAX_DAILY_HOURS} 時間まで）。"
                     "既に登録されている日報の時間を確かめてください。",

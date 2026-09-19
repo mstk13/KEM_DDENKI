@@ -148,8 +148,9 @@ def day_breakdown(company, reports):
         detail = " / ".join(
             f"{r.site.name} {format_hours(r.work_hours)}" for r in same_day
         )
+        day = report.report_date
         lines.append(
-            f"{report.worker.name} さんの {report.report_date:%-m月%-d日} は"
+            f"{report.worker.name} さんの {day.month}月{day.day}日 は"
             f"合計 {format_hours(total)} 時間（{detail}）",
         )
     return lines
