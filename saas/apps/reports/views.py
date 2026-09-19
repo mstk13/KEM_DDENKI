@@ -680,6 +680,6 @@ def monthly_summary(request):
         "summary": summary,
         "year": year,
         "month": month,
-        # 作業日報集計の「直せる人」「時間の区切り」は社長・管理者だけに出す（ADR-0104）
+        # 作業日報集計の「直せる人」「時間の区切り」は社長・管理者だけに出す（ADR-0105）
         "can_manage_tally": can_manage_tally_editors(request.user),
     })
