@@ -45,10 +45,14 @@
   <div class="card-header"><h2>有効な作業員（{{ active_workers|length }}名）</h2></div>
   <div class="table-wrap">
     <table>
-      <thead><tr><th>社員番号</th><th>氏名</th><th>よみがな</th><th>職種</th><th>役職</th>{% if is_president %}<th>時間単価</th>{% endif %}<th></th></tr></thead>
+      <thead><tr>{% include "core/_bulk_delete_head.html" %}<th>社員番号</th><th>氏名</th><th>よみがな</th><th>職種</th><th>役職</th>{% if is_president %}<th>時間単価</th>{% endif %}<th></th></tr></thead>
       <tbody>
         {% for w in active_workers %}
         <tr>
+          <td class="bulk-cell">
+            <input type="checkbox" class="bulk-check" name="ids" value="{{ w.pk }}"
+                   form="bulk-delete-form">
+          </td>
           <td>{{ w.employee_code|default:"-" }}</td>
           <td><a href="{% url 'workers:detail' w.pk %}">{{ w.name }}</a></td>
           <td style="color:var(--text-muted);font-size:.82rem;">{{ w.name_kana|default:"-" }}</td>
@@ -70,10 +74,14 @@
   <div class="card-header"><h2 style="color:var(--text-muted);">退職者（{{ inactive_workers|length }}名）</h2></div>
   <div class="table-wrap">
     <table>
-      <thead><tr><th>社員番号</th><th>氏名</th><th>よみがな</th><th>職種</th><th>役職</th>{% if is_president %}<th>時間単価</th>{% endif %}<th></th></tr></thead>
+      <thead><tr>{% include "core/_bulk_delete_head.html" %}<th>社員番号</th><th>氏名</th><th>よみがな</th><th>職種</th><th>役職</th>{% if is_president %}<th>時間単価</th>{% endif %}<th></th></tr></thead>
       <tbody>
         {% for w in inactive_workers %}
         <tr style="color:var(--text-muted);">
+          <td class="bulk-cell">
+            <input type="checkbox" class="bulk-check" name="ids" value="{{ w.pk }}"
+                   form="bulk-delete-form">
+          </td>
           <td>{{ w.employee_code|default:"-" }}</td>
           <td><a href="{% url 'workers:detail' w.pk %}" style="color:var(--text-muted);">{{ w.name }}</a></td>
           <td style="font-size:.82rem;">{{ w.name_kana|default:"-" }}</td>
@@ -88,5 +96,7 @@
   </div>
 </div>
 {% endif %}
+
+{% include "core/_bulk_delete.html" with bulk_key="workers.worker" bulk_label="作業員" %}
 
 {% endblock %}

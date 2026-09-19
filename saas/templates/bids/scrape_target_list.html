@@ -42,6 +42,10 @@
       <tbody>
         {% for t in targets %}
         <tr{% if not t.is_active %} style="opacity:0.5;"{% endif %}>
+          <td class="bulk-cell">
+            <input type="checkbox" class="bulk-check" name="ids" value="{{ t.pk }}"
+                   form="bulk-delete-form">
+          </td>
           <td>
             <a href="{% url 'bids:scrape_target_edit' t.pk %}">{{ t.name }}</a>
             <div style="font-size:12px;color:var(--text-secondary);">{% inline_edit t "url" %}</div>
@@ -67,11 +71,12 @@
           </td>
         </tr>
         {% empty %}
-        <tr><td colspan="7"><div class="empty"><div class="empty-icon">&#x1f310;</div><p>スクレイピング対象が登録されていません。<a href="{% url 'bids:scrape_target_create' %}">追加</a>してください。</p></div></td></tr>
+        <tr><td colspan="8"><div class="empty"><div class="empty-icon">&#x1f310;</div><p>スクレイピング対象が登録されていません。<a href="{% url 'bids:scrape_target_create' %}">追加</a>してください。</p></div></td></tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
+  {% include "core/_bulk_delete.html" with bulk_key="bids.scrape_target" bulk_label="案件取得先" %}
 </div>
 
 {% if targets %}

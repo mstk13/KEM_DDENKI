@@ -1,0 +1,31 @@
+{% comment %}
+一覧から選んだものをまとめて消すための部品（ADR-0098）。
+
+使い方:
+  1. 表の見出しに {% include "core/_bulk_delete_head.html" %} を入れる
+  2. 各行の先頭に
+     <td class="bulk-cell">
+       <input type="checkbox" class="bulk-check" name="ids" value="{{ obj.pk }}" form="bulk-delete-form">
+     </td>
+  3. 表の近くでこの部品を読み込む:
+     {% include "core/_bulk_delete.html" with bulk_key="reports.daily" bulk_label="日報" %}
+
+  1つの画面に表が複数あるときは bulk_form で form の id を分ける:
+     行:   form="bulk-license"
+     部品: {% include "core/_bulk_delete.html" with bulk_key="bids.license" bulk_label="建設業許可" bulk_form="bulk-license" %}
+
+form 属性で外の form につなぐので、表そのものを form で囲まなくてよい
+（囲むと、行の中にある個別の削除ボタンの form と入れ子になって壊れる）。
+{% endcomment %}
+<form method="post" action="{% url 'bulk_delete' %}" id="{{ bulk_form|default:'bulk-delete-form' }}" class="bulk-delete-bar">
+  {% csrf_token %}
+  <input type="hidden" name="key" value="{{ bulk_key }}">
+  <input type="hidden" name="next" value="{{ request.get_full_path }}">
+  <span class="bulk-delete-count" data-empty="選んだ{{ bulk_label }}をまとめて削除できます">
+    選んだ{{ bulk_label }}をまとめて削除できます
+  </span>
+  <button type="submit" class="btn btn-outline btn-sm bulk-delete-button" disabled
+          data-label="{{ bulk_label }}">
+    選んだ{{ bulk_label }}を削除
+  </button>
+</form>

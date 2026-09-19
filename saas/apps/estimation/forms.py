@@ -2,6 +2,16 @@
 
 from django import forms
 
+# 候補から選び、無ければその場でマスタに登録する（ADR-0099）
+from apps.core.master_input import (
+    name_choices,
+    resolve_customer,
+    resolve_estimation_item,
+    resolve_material,
+    resolve_site,
+    resolve_supplier,
+    resolve_work_type,
+)
 from apps.estimation.models import (
     BoqLine,
     EstimationCompetitor,
@@ -19,6 +29,21 @@ from apps.estimation.models import (
 
 
 class EstimationItemForm(forms.ModelForm):
+    """積算品目の登録・編集。
+
+    材料と工種は**自由入力**にしている（ADR-0099）。候補に無いものを選ぼうとした
+    時点で「先に材料マスタへ登録してから戻る」という往復が要り、品目の登録が止まる。
+    """
+
+    material_name = forms.CharField(
+        label="材料", required=False,
+        help_text="登録済みの材料は候補から選べます。候補に無い名前を入力すると材料マスタにも登録されます。",
+    )
+    work_type_name = forms.CharField(
+        label="工種", required=False,
+        help_text="登録済みの工種は候補から選べます。候補に無い名前を入力すると工種マスタにも登録されます。",
+    )
+
     class Meta:
         model = EstimationItem
         fields = [
@@ -28,8 +53,6 @@ class EstimationItemForm(forms.ModelForm):
             "unit",
             "spec",
             "standard_price",
-            "material",
-            "work_type",
             "status",
             "notes",
         ]
@@ -38,22 +61,55 @@ class EstimationItemForm(forms.ModelForm):
             "notes": forms.Textarea(attrs={"class": "form-control", "rows": 3}),
         }
 
-    def __init__(self, *args, company=None, **kwargs):
+    def __init__(self, *args, company=None, user=None, **kwargs):
         super().__init__(*args, **kwargs)
+        self._company = company
+        self._user = user
         if company:
             from apps.masters.models import WorkType
             from apps.materials.models import Material
 
+            # 入力補助の候補。datalist なのでこの一覧に無い値も送信できる
             # unscoped: フォーム初期化時に会社を明示フィルタするため
-            self.fields["material"].queryset = Material.unscoped.filter(
-                company=company, is_active=True,
+            self.material_choices = name_choices(
+                Material.unscoped.filter(company=company, is_active=True),
             )
-            self.fields["work_type"].queryset = WorkType.unscoped.filter(
-                company=company, is_active=True,
+            self.work_type_choices = name_choices(
+                WorkType.unscoped.filter(company=company, is_active=True),
             )
+        else:
+            self.material_choices = []
+            self.work_type_choices = []
+
+        self.fields["material_name"].widget.attrs["list"] = "material-name-options"
+        self.fields["work_type_name"].widget.attrs["list"] = "work-type-name-options"
+        if self.instance.pk:
+            if self.instance.material_id:
+                self.fields["material_name"].initial = self.instance.material.name
+            if self.instance.work_type_id:
+                self.fields["work_type_name"].initial = self.instance.work_type.name
+
         for _name, field in self.fields.items():
             if not isinstance(field.widget, forms.Textarea):
                 field.widget.attrs.setdefault("class", "form-control")
+
+    def save(self, commit=True):
+        item = super().save(commit=False)
+        company = self._company or (item.company if item.company_id else None)
+        if company is not None:
+            unit = self.cleaned_data.get("unit", "")
+            item.material = resolve_material(
+                company, self.cleaned_data.get("material_name", ""),
+                unit=unit, created_by=self._user,
+            )
+            item.work_type = resolve_work_type(
+                company, self.cleaned_data.get("work_type_name", ""),
+                created_by=self._user,
+            )
+        if commit:
+            item.save()
+            self.save_m2m()
+        return item
 
 
 class ItemAliasReviewForm(forms.ModelForm):
@@ -79,6 +135,13 @@ class ItemAliasReviewForm(forms.ModelForm):
 
 
 class OrdererForm(forms.ModelForm):
+    """発注機関の登録・編集。紐づく顧客は自由入力（ADR-0099）。"""
+
+    customer_name = forms.CharField(
+        label="顧客", required=False,
+        help_text="登録済みの顧客は候補から選べます。候補に無い名前を入力すると顧客マスタにも登録されます。",
+    )
+
     class Meta:
         model = Orderer
         fields = [
@@ -88,25 +151,46 @@ class OrdererForm(forms.ModelForm):
             "system_type",
             "prefecture",
             "standard_url",
-            "customer",
             "notes",
         ]
         widgets = {
             "notes": forms.Textarea(attrs={"class": "form-control", "rows": 3}),
         }
 
-    def __init__(self, *args, company=None, **kwargs):
+    def __init__(self, *args, company=None, user=None, **kwargs):
         super().__init__(*args, **kwargs)
+        self._company = company
+        self._user = user
         if company:
             from apps.masters.models import Customer
 
+            # 入力補助の候補。datalist なのでこの一覧に無い値も送信できる
             # unscoped: フォーム初期化時に会社を明示フィルタするため
-            self.fields["customer"].queryset = Customer.unscoped.filter(
-                company=company, is_active=True,
+            self.customer_choices = name_choices(
+                Customer.unscoped.filter(company=company, is_active=True),
             )
+        else:
+            self.customer_choices = []
+
+        self.fields["customer_name"].widget.attrs["list"] = "customer-name-options"
+        if self.instance.pk and self.instance.customer_id:
+            self.fields["customer_name"].initial = self.instance.customer.name
+
         for _name, field in self.fields.items():
             if not isinstance(field.widget, forms.Textarea):
                 field.widget.attrs.setdefault("class", "form-control")
+
+    def save(self, commit=True):
+        orderer = super().save(commit=False)
+        company = self._company or (orderer.company if orderer.company_id else None)
+        if company is not None:
+            orderer.customer = resolve_customer(
+                company, self.cleaned_data.get("customer_name", ""), created_by=self._user,
+            )
+        if commit:
+            orderer.save()
+            self.save_m2m()
+        return orderer
 
 
 class OrdererDataSourceForm(forms.ModelForm):
@@ -262,11 +346,16 @@ class EstimationProjectForm(forms.ModelForm):
         required=False,
         help_text="過去に入力した担当者は候補から選べます。",
     )
+    site_name = forms.CharField(
+        label="現場",
+        required=False,
+        help_text="登録済みの現場は候補から選べます。候補に無い名前を入力すると現場も登録されます。",
+    )
 
     class Meta:
         model = EstimationProject
         fields = [
-            "name", "standard", "site", "bid_project",
+            "name", "standard", "bid_project",
             "primary_work_category", "status",
             "bid_announcement_date", "bid_opening_date",
             "construction_period_days", "construction_end_date",
@@ -296,8 +385,10 @@ class EstimationProjectForm(forms.ModelForm):
 
             # unscoped: フォーム初期化時に会社を明示フィルタするため
             self.fields["standard"].queryset = EstimationStandard.unscoped.filter(company=company)
-            self.fields["site"].queryset = Site.unscoped.filter(company=company)
             self.fields["bid_project"].queryset = BidProject.unscoped.filter(company=company)
+            # 現場名の候補（ADR-0099）。既にある現場が打ちかけで出るので、
+            # 同じ現場を別名で二重に作ってしまう手前で気づける（ADR-0077 と同じ考え方）
+            self.site_choices = name_choices(Site.unscoped.filter(company=company))
             # 入力補助の候補。datalist なのでこの一覧に無い値も送信できる。
             self.orderer_choices = list(
                 Orderer.unscoped.filter(company=company, is_active=True)
@@ -318,8 +409,12 @@ class EstimationProjectForm(forms.ModelForm):
         else:
             self.orderer_choices = []
             self.estimator_choices = []
+            self.site_choices = []
 
         self.fields["orderer_name"].widget.attrs["list"] = "orderer-name-options"
+        self.fields["site_name"].widget.attrs["list"] = "site-name-options"
+        if self.instance.pk and self.instance.site_id:
+            self.fields["site_name"].initial = self.instance.site.name
         self.fields["estimator_name"].widget.attrs["list"] = "estimator-name-options"
         if self.instance.pk and self.instance.orderer_id:
             self.fields["orderer_name"].initial = self.instance.orderer.name
@@ -351,6 +446,9 @@ class EstimationProjectForm(forms.ModelForm):
             )
             if orderer is not None:
                 project.orderer = orderer
+            project.site = resolve_site(
+                company, self.cleaned_data.get("site_name", ""), created_by=self._user,
+            )
         if commit:
             project.save()
             self.save_m2m()
@@ -358,23 +456,46 @@ class EstimationProjectForm(forms.ModelForm):
 
 
 class BoqLineForm(forms.ModelForm):
+    """内訳書の明細。紐づく積算品目は自由入力（ADR-0099）。
+
+    親明細・歩掛は自由入力に**しない**。どちらもマスタではなく、
+    同じ内訳書の行と積算基準に属する計算データで、名前から作れるものではない。
+    """
+
+    estimation_item_name = forms.CharField(
+        label="積算品目", required=False,
+        help_text="登録済みの品目は候補から選べます。候補に無い名前を入力すると品目マスタにも登録されます。",
+    )
+
     class Meta:
         model = BoqLine
         fields = [
             "level", "parent", "sort_order", "name", "spec", "unit",
             "quantity", "unit_price", "amount",
-            "estimation_item", "work_rate", "remarks",
+            "work_rate", "remarks",
         ]
         widgets = {
             "remarks": forms.Textarea(attrs={"class": "form-control", "rows": 2}),
         }
 
-    def __init__(self, *args, company=None, project=None, site=None, **kwargs):
+    def __init__(self, *args, company=None, project=None, site=None, user=None, **kwargs):
         super().__init__(*args, **kwargs)
+        self._company = company
+        self._user = user
         if company:
+            # 入力補助の候補。datalist なのでこの一覧に無い値も送信できる
             # unscoped: フォーム初期化時に会社を明示フィルタするため
-            self.fields["estimation_item"].queryset = EstimationItem.unscoped.filter(
-                company=company, is_active=True,
+            self.estimation_item_choices = name_choices(
+                EstimationItem.unscoped.filter(company=company, is_active=True),
+                field="canonical_name",
+            )
+        else:
+            self.estimation_item_choices = []
+
+        self.fields["estimation_item_name"].widget.attrs["list"] = "estimation-item-options"
+        if self.instance.pk and self.instance.estimation_item_id:
+            self.fields["estimation_item_name"].initial = (
+                self.instance.estimation_item.canonical_name
             )
         if project:
             self.fields["work_rate"].queryset = WorkRate.unscoped.filter(
@@ -399,6 +520,20 @@ class BoqLineForm(forms.ModelForm):
             if not isinstance(field.widget, forms.Textarea):
                 field.widget.attrs.setdefault("class", "form-control")
 
+    def save(self, commit=True):
+        line = super().save(commit=False)
+        company = self._company or (line.company if line.company_id else None)
+        if company is not None:
+            # 単位は明細の欄から渡す。品目マスタの必須項目で、聞き直すと入力が止まる
+            line.estimation_item = resolve_estimation_item(
+                company, self.cleaned_data.get("estimation_item_name", ""),
+                unit=self.cleaned_data.get("unit", ""), created_by=self._user,
+            )
+        if commit:
+            line.save()
+            self.save_m2m()
+        return line
+
 
 # ===================================================================
 # M4: 仕入実績
@@ -406,29 +541,58 @@ class BoqLineForm(forms.ModelForm):
 
 
 class PurchaseRecordForm(forms.ModelForm):
+    """仕入実績の登録・編集。発注先は自由入力（ADR-0099）。"""
+
+    supplier_name = forms.CharField(
+        label="発注先", required=False,
+        help_text="登録済みの発注先は候補から選べます。候補に無い名前を入力すると発注先マスタにも登録されます。",
+    )
+
     class Meta:
         model = PurchaseRecord
         fields = [
             "raw_name", "raw_code", "purchase_date", "quantity",
-            "unit", "unit_price", "amount", "supplier", "notes",
+            "unit", "unit_price", "amount", "notes",
         ]
         widgets = {
             "purchase_date": forms.DateInput(attrs={"class": "form-control", "type": "date"}),
             "notes": forms.Textarea(attrs={"class": "form-control", "rows": 2}),
         }
 
-    def __init__(self, *args, company=None, **kwargs):
+    def __init__(self, *args, company=None, user=None, **kwargs):
         super().__init__(*args, **kwargs)
+        self._company = company
+        self._user = user
         if company:
             from apps.masters.models import Supplier
 
+            # 入力補助の候補。datalist なのでこの一覧に無い値も送信できる
             # unscoped: フォーム初期化時に会社を明示フィルタするため
-            self.fields["supplier"].queryset = Supplier.unscoped.filter(
-                company=company, is_active=True,
+            self.supplier_choices = name_choices(
+                Supplier.unscoped.filter(company=company, is_active=True),
             )
+        else:
+            self.supplier_choices = []
+
+        self.fields["supplier_name"].widget.attrs["list"] = "supplier-name-options"
+        if self.instance.pk and self.instance.supplier_id:
+            self.fields["supplier_name"].initial = self.instance.supplier.name
+
         for _name, field in self.fields.items():
             if not isinstance(field.widget, forms.Textarea):
                 field.widget.attrs.setdefault("class", "form-control")
+
+    def save(self, commit=True):
+        record = super().save(commit=False)
+        company = self._company or (record.company if record.company_id else None)
+        if company is not None:
+            record.supplier = resolve_supplier(
+                company, self.cleaned_data.get("supplier_name", ""), created_by=self._user,
+            )
+        if commit:
+            record.save()
+            self.save_m2m()
+        return record
 
 
 class PurchaseCSVImportForm(forms.Form):

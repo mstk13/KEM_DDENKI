@@ -257,10 +257,14 @@
   </div>
   <div class="table-wrap">
     <table>
-      <thead><tr><th>工程名</th><th>工種</th><th>計画開始</th><th>計画終了</th><th>実績開始</th><th>実績終了</th><th>状態</th><th></th></tr></thead>
+      <thead><tr>{% include "core/_bulk_delete_head.html" %}<th>工程名</th><th>工種</th><th>計画開始</th><th>計画終了</th><th>実績開始</th><th>実績終了</th><th>状態</th><th></th></tr></thead>
       <tbody>
         {% for p in processes %}
         <tr>
+          <td class="bulk-cell">
+            <input type="checkbox" class="bulk-check" name="ids" value="{{ p.pk }}"
+                   form="bulk-process">
+          </td>
           <td>{{ p.name }}</td>
           <td>{{ p.work_type }}</td>
           <td>{{ p.planned_start|default:"-" }}</td>
@@ -271,13 +275,14 @@
           <td><a href="{% url 'sites:process_edit' p.pk %}" class="btn btn-outline btn-sm">編集</a></td>
         </tr>
         {% empty %}
-        <tr><td colspan="8" style="text-align:center;color:var(--gray-400);padding:20px;">
+        <tr><td colspan="9" style="text-align:center;color:var(--gray-400);padding:20px;">
           工程が登録されていません。「+ 工程を追加」から手入力するか、AI工程提案を利用してください。
         </td></tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
+  {% include "core/_bulk_delete.html" with bulk_key="sites.process" bulk_label="工程" bulk_form="bulk-process" %}
 </div>
 
 {% comment %}

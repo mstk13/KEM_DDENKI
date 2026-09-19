@@ -125,19 +125,15 @@
     <div class="table-wrap">
       <table>
         <thead><tr>
-          {% if can_approve %}<th style="width:32px;"><input type="checkbox" data-check-all="report_ids"></th>{% endif %}
+          <th class="bulk-cell"><input type="checkbox" class="bulk-check-all" data-check-all="report_ids" title="表示中の日報を全部選ぶ"></th>
           <th style="white-space:nowrap;">日付</th><th style="white-space:nowrap;">作業員</th><th>現場</th><th>工種</th><th style="white-space:nowrap;">時間</th><th>協力会社</th><th style="white-space:nowrap;">状態</th><th style="width:1%;"></th>
         </tr></thead>
         <tbody>
           {% for r in reports %}
           <tr class="report-row" data-href="{% url 'reports:detail' r.pk %}?next={{ request.get_full_path|urlencode }}" tabindex="0" title="タップで詳細を開く">
-            {% if can_approve %}
-            <td>
-              {% if r.status == 'submitted' %}
-              <input type="checkbox" name="report_ids" value="{{ r.pk }}">
-              {% endif %}
+            <td class="bulk-cell">
+              <input type="checkbox" class="bulk-check" name="report_ids" value="{{ r.pk }}">
             </td>
-            {% endif %}
             <td style="white-space:nowrap;"><a href="{% url 'reports:detail' r.pk %}?next={{ request.get_full_path|urlencode }}" class="report-row-link">{{ r.report_date }}</a></td>
             <td style="white-space:nowrap;">{{ r.worker }}</td>
             <td>{{ r.site }}</td>
@@ -163,17 +159,26 @@
             </td>
           </tr>
           {% empty %}
-          <tr><td colspan="{% if can_approve %}9{% else %}8{% endif %}"><div class="empty"><div class="empty-icon">&#x1f4dd;</div><p>日報がありません</p></div></td></tr>
+          <tr><td colspan="9"><div class="empty"><div class="empty-icon">&#x1f4dd;</div><p>日報がありません</p></div></td></tr>
           {% endfor %}
         </tbody>
       </table>
     </div>
-    {% if can_approve %}
-    <div class="card-body" style="border-top:1px solid var(--border);">
+    {# 選んだ日報をまとめて承認・削除する（ADR-0098） #}
+    <div class="card-body bulk-delete-bar" style="border-top:1px solid var(--border);">
+      <input type="hidden" name="key" value="reports.daily">
+      <input type="hidden" name="next" value="{{ request.get_full_path }}">
+      {% if can_approve %}
       <button type="submit" class="btn btn-success">選択した日報を一括承認</button>
-      <span style="color:var(--text-secondary);margin-left:8px;">承認できるのは社長とITのみです。</span>
+      {% endif %}
+      <button type="submit" formaction="{% url 'bulk_delete' %}"
+              class="btn btn-outline btn-sm bulk-delete-button" data-label="日報" disabled>
+        選んだ日報を削除
+      </button>
+      <span class="bulk-delete-count" data-empty="{% if can_approve %}承認できるのは社長とITのみです。{% else %}行を選ぶとまとめて削除できます。{% endif %}">
+        {% if can_approve %}承認できるのは社長とITのみです。{% else %}行を選ぶとまとめて削除できます。{% endif %}
+      </span>
     </div>
-    {% endif %}
   </div>
 </form>
 <style>

@@ -114,3 +114,65 @@ function localizeGanttMonths(container) {
     el.textContent = m[1] ? MONTHS[m[2]] + '/' + parseInt(m[1], 10) : MONTHS[m[2]] + '月';
   });
 }
+
+// 一覧から選んだものをまとめて消す（ADR-0098）。
+// 行のチェックボックスは form 属性でバーの form につながっている。
+// 1つの画面に表が複数あることがあるので、バーごとに数える。
+(function () {
+  function bars() {
+    return Array.prototype.slice.call(document.querySelectorAll('.bulk-delete-bar'));
+  }
+
+  function boxesFor(bar) {
+    // バー自体が form（共通部品）か、form の中の div（日報の一覧）のどちらか
+    var owner = bar.tagName === 'FORM' ? bar : bar.closest('form');
+    var byAttribute = owner && owner.id
+      ? document.querySelectorAll('.bulk-check[form="' + owner.id + '"]')
+      : [];
+    if (byAttribute.length) return Array.prototype.slice.call(byAttribute);
+    var scope = owner || document;
+    return Array.prototype.slice.call(scope.querySelectorAll('.bulk-check'));
+  }
+
+  function refresh() {
+    bars().forEach(function (bar) {
+      var checked = boxesFor(bar).filter(function (box) { return box.checked; });
+      var count = bar.querySelector('.bulk-delete-count');
+      var button = bar.querySelector('.bulk-delete-button');
+      var label = button ? button.dataset.label : '';
+      bar.classList.toggle('has-selection', checked.length > 0);
+      if (button) button.disabled = checked.length === 0;
+      if (count) {
+        count.textContent = checked.length
+          ? checked.length + ' 件の' + label + 'を選んでいます'
+          : count.dataset.empty;
+      }
+    });
+  }
+
+  document.addEventListener('change', function (e) {
+    if (e.target.classList.contains('bulk-check-all')) {
+      // 「全部選ぶ」は、その表の中だけに効かせる
+      var table = e.target.closest('table') || document;
+      Array.prototype.slice.call(table.querySelectorAll('.bulk-check')).forEach(
+        function (box) { box.checked = e.target.checked; }
+      );
+      refresh();
+      return;
+    }
+    if (e.target.classList.contains('bulk-check')) refresh();
+  });
+
+  document.addEventListener('click', function (e) {
+    var button = e.target.closest ? e.target.closest('.bulk-delete-button') : null;
+    if (!button) return;
+    var bar = button.closest('.bulk-delete-bar');
+    var checked = boxesFor(bar).filter(function (box) { return box.checked; });
+    var message = checked.length + ' 件の' + button.dataset.label
+      + 'を削除します。
+この操作は元に戻せません。よろしいですか？';
+    if (!window.confirm(message)) e.preventDefault();
+  });
+
+  document.addEventListener('DOMContentLoaded', refresh);
+})();

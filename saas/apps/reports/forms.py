@@ -587,6 +587,8 @@ class DailyReportForm(forms.ModelForm):
         if start and end:
             return cleaned
 
+        self._check_daily_hours(cleaned)
+
         # 共通の時間が無くても、選ばれた全員に個別の時間か作業時間が入っていれば足りる
         chosen = cleaned.get("workers")
         if chosen and all(
@@ -600,6 +602,61 @@ class DailyReportForm(forms.ModelForm):
                 "開始・終了時間を入力するか、作業時間を直接入力してください。",
             )
         return cleaned
+
+    def _hours_for(self, worker, cleaned):
+        """この画面でその作業員に入る作業時間。save_reports と同じ優先順。"""
+        from decimal import Decimal
+
+        times = self.worker_times(worker)
+        if times:
+            start, end = times
+            minutes = (
+                end.hour * 60 + end.minute - (start.hour * 60 + start.minute)
+            )
+            if minutes < 0:  # 日をまたぐ夜間工事
+                minutes += 24 * 60
+            if minutes > 480:  # 8時間を超える日は休憩1時間を引く（モデルと同じ）
+                minutes -= 60
+            return Decimal(str(round(minutes / 60, 2)))
+        return Decimal(str(self.worker_hours(worker) or cleaned.get("work_hours") or 0))
+
+    def _check_daily_hours(self, cleaned):
+        """1人1日の作業時間が上限を超えていないか（ADR-0100）。
+
+        1日に2現場へ行くのは普通なので、現場をまたいだ登録そのものは止めない。
+        止めるのは**1日24時間を超える**入力だけで、これは必ず打ち間違い。
+        所定時間で切らないのは、残業も泊まり込みも実際にあるため。
+        """
+        from decimal import Decimal
+
+        from apps.reports.duplicates import (
+            MAX_DAILY_HOURS,
+            find_duplicate_reports,
+            format_hours,
+        )
+
+        workers = list(cleaned.get("workers") or [])
+        report_date = cleaned.get("report_date")
+        if not (self.company and workers and report_date):
+            return
+
+        existing = {
+            item["worker"].pk: item["hours"]
+            for item in find_duplicate_reports(
+                self.company, workers, report_date,
+                exclude_pk=self.instance.pk if self.is_edit else None,
+            )
+        }
+        for worker in workers:
+            total = Decimal(str(existing.get(worker.pk, 0))) + self._hours_for(worker, cleaned)
+            if total > MAX_DAILY_HOURS:
+                self.add_error(
+                    None,
+                    f"{worker.name} の {report_date:%-m月%-d日} の作業時間が "
+                    f"合計 {format_hours(total)} 時間になります"
+                    f"（1日 {MAX_DAILY_HOURS} 時間まで）。"
+                    "既に登録されている日報の時間を確かめてください。",
+                )
 
     def _resolve_site(self, name):
         return resolve_site(self.company, name)
