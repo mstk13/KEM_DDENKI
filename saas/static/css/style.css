@@ -1216,3 +1216,32 @@ textarea.inline-edit-input { width: 100%; min-width: 260px; }
 .bulk-delete-bar.has-selection .bulk-delete-count { color: var(--danger, #dc2626); font-weight: 700; }
 .bulk-delete-bar.has-selection .bulk-delete-button { color: var(--danger, #dc2626); border-color: var(--danger, #dc2626); }
 .photo-tile-select { font-size: .78rem; color: var(--text-muted, #6b7280); display: inline-flex; align-items: center; gap: 4px; }
+
+/* 現場の1本のバーを工程で区切って見せる（ADR-0101）。
+   線と日数はバーの上に重ねて描くので、押しても反応しないようにする */
+.gantt-phase-mark { pointer-events: none; }
+line.gantt-phase-mark {
+  stroke: rgba(255, 255, 255, .85);
+  stroke-width: 1.5;
+  stroke-dasharray: 3 2;
+}
+text.gantt-phase-mark {
+  fill: #ffffff;
+  font-size: 11px;
+  font-weight: 600;
+  text-anchor: middle;
+  dominant-baseline: middle;
+  /* 明るい色のバーでも読めるように、細い影を回す */
+  paint-order: stroke;
+  stroke: rgba(0, 0, 0, .45);
+  stroke-width: 2.5px;
+  stroke-linejoin: round;
+}
+
+/* 工程の内訳（ガントのポップアップ。ADR-0101） */
+.gantt-popup-phases {
+  margin: 6px 0 0;
+  padding-left: 16px;
+  font-size: .8rem;
+  line-height: 1.6;
+}
